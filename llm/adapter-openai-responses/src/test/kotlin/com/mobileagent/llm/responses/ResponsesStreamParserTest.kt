@@ -1,0 +1,71 @@
+package com.mobileagent.llm.responses
+
+import com.mobileagent.core.model.ContentBlock
+import com.mobileagent.core.model.TokenUsage
+import com.mobileagent.core.model.ToolCallId
+import com.mobileagent.llm.api.ModelEvent
+import com.mobileagent.llm.api.StopReason
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertNull
+
+class ResponsesStreamParserTest {
+    private val parser = ResponsesStreamParser()
+
+    @Test
+    fun `reasoning item, function calls and usage from a real stream shape`() {
+        val events = listOf(
+            """{"type":"response.created","response":{"id":"resp_1","status":"in_progress"}}""",
+            """{"type":"response.output_item.done","item":{"id":"rs_1","type":"reasoning","content":[],"encrypted_content":"ENC","summary":[],"status":"completed"}}""",
+            """{"type":"response.function_call_arguments.delta","delta":"{\"timeZone\"","item_id":"fc_1"}""",
+            """{"type":"response.output_item.done","item":{"id":"fc_1","type":"function_call","status":"completed","arguments":"{\"timeZone\":\"Asia/Tokyo\"}","call_id":"call_1","name":"device_clock_now"}}""",
+            """{"type":"response.completed","response":{"status":"completed","usage":{"input_tokens":120,"input_tokens_details":{"cached_tokens":100,"cache_write_tokens":0},"output_tokens":30}}}""",
+        ).flatMap(parser::onData)
+
+        val state = assertIs<ModelEvent.ReasoningState>(events[0])
+        val item = ReasoningStateCodec.unwrap(state.providerState)!!
+        assertEquals("ENC", item.getValue("encrypted_content").jsonPrimitive.content)
+        assertNull(item["status"])
+        assertEquals(
+            ModelEvent.ToolCallCompleted(ContentBlock.ToolCall(ToolCallId("call_1"), "device_clock_now", """{"timeZone":"Asia/Tokyo"}""")),
+            events[1],
+        )
+        assertEquals(ModelEvent.Usage(TokenUsage(inputTokens = 20, outputTokens = 30, cacheReadTokens = 100, cacheWriteTokens = 0)), events[2])
+        assertEquals(ModelEvent.Completed(StopReason.TOOL_USE), events[3])
+        assertEquals(emptyList(), parser.finish())
+    }
+
+    @Test
+    fun `text deltas end the turn`() {
+        val events = listOf(
+            """{"type":"response.output_text.delta","delta":"Hi "}""",
+            """{"type":"response.output_text.delta","delta":"there"}""",
+            """{"type":"response.completed","response":{"usage":{"input_tokens":5,"output_tokens":2}}}""",
+        ).flatMap(parser::onData)
+
+        assertEquals(listOf(ModelEvent.TextDelta("Hi "), ModelEvent.TextDelta("there")), events.take(2))
+        assertEquals(ModelEvent.Completed(StopReason.END_TURN), events.last())
+    }
+
+    @Test
+    fun `incomplete response reports the reason`() {
+        val events = parser.onData(
+            """{"type":"response.incomplete","response":{"incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":5,"output_tokens":800}}}""",
+        )
+        assertEquals(ModelEvent.Completed(StopReason.MAX_TOKENS), events.last())
+    }
+
+    @Test
+    fun `failed response and error events become failures`() {
+        assertIs<ModelEvent.Failed>(parser.onData("""{"type":"response.failed","response":{"error":{"message":"overloaded"}}}""").single())
+        assertIs<ModelEvent.Failed>(parser.onData("""{"type":"error","message":"bad request"}""").single())
+    }
+
+    @Test
+    fun `unknown events are ignored`() {
+        assertEquals(emptyList(), parser.onData("""{"type":"response.content_part.added","part":{}}"""))
+    }
+}

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "fallbackCapabilities": {
+    "toolCalling": true,
+    "parallelToolCalls": true,
+    "vision": false,
+    "promptCaching": false,
+    "reasoning": false
+  },
+  "defaultReasoningEffort": "MEDIUM"
+}

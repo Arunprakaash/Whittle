@@ -1,0 +1,20 @@
+package com.mobileagent.llm.api
+
+import com.mobileagent.core.model.Message
+import kotlinx.serialization.json.JsonObject
+
+/** A tool as the model sees it: name, description and JSON Schema for its arguments. */
+data class ToolSpec(
+    val name: String,
+    val description: String,
+    val inputSchema: JsonObject,
+)
+
+data class ModelRequest(
+    val model: ModelDescriptor,
+    val systemPrompt: String,
+    val messages: List<Message>,
+    val tools: List<ToolSpec>,
+    val maxOutputTokens: Int,
+    val reasoningEffort: ReasoningEffort,
+)

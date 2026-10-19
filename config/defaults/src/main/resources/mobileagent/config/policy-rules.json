@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "hardDeny": [],
+  "rules": [],
+  "riskTierDefaults": {
+    "READ": "ALLOW",
+    "WRITE_LOCAL": "ALLOW",
+    "NETWORK_OUT": "ASK_ONCE",
+    "SEND_OR_SHARE": "ASK_EVERY_TIME",
+    "DELETE_OR_PAY": "ASK_EVERY_TIME"
+  },
+  "trustTierLimits": {
+    "A": { "deniedRiskTiers": [], "askEveryTimeFrom": "SEND_OR_SHARE" },
+    "B": { "deniedRiskTiers": [], "askEveryTimeFrom": "NETWORK_OUT" },
+    "C": { "deniedRiskTiers": ["SEND_OR_SHARE", "DELETE_OR_PAY"], "askEveryTimeFrom": "WRITE_LOCAL" }
+  }
+}
