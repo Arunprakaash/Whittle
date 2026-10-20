@@ -54,6 +54,10 @@ data class RunCheckpoint(
     /** Capabilities a tool needed that the user hasn't granted yet; each shows a card in the thread. */
     val requestedCapabilities: Set<CapabilityId> = emptySet(),
     val workspace: WorkspaceId? = null,
+    /** The agent's latest plan (update_plan), so the harness can tell when it stops with steps open. */
+    val plan: List<PlanItem>? = null,
+    /** The model was already sent back once to finish its plan in this run. */
+    val planReminded: Boolean = false,
     /** True once a tool returned the user's personal data; with [tainted] it gates web reads. */
     val personalDataRead: Boolean = false,
 ) {

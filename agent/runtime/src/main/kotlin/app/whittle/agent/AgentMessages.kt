@@ -34,6 +34,8 @@ data class AgentMessages(
     val interruptedToolCall: String,
     val toolFailed: String,
     val outputTruncated: String,
+    /** Sent once when the model tries to finish while its plan still has open steps. */
+    val planUnfinished: String,
 ) : VersionedConfig {
     init {
         requirePlaceholders(unknownTool, TOOL)
@@ -52,6 +54,7 @@ data class AgentMessages(
         requirePlaceholders(interruptedToolCall, TOOL)
         requirePlaceholders(toolFailed, TOOL, DETAIL)
         requirePlaceholders(outputTruncated, LIMIT)
+        requirePlaceholders(planUnfinished, STEPS)
     }
 
     fun unknownTool(tool: String): String = render(unknownTool, TOOL to tool)
@@ -96,8 +99,10 @@ data class AgentMessages(
         require(unknown.isEmpty()) { "Unknown placeholders $unknown in agent message: $template" }
     }
 
+    fun planUnfinished(steps: String): String = render(planUnfinished, STEPS to steps)
+
     companion object {
-        const val SCHEMA_VERSION = 3
+        const val SCHEMA_VERSION = 4
         private const val TOOL = "tool"
         private const val DETAIL = "detail"
         private const val LIMIT = "limit"
@@ -106,5 +111,6 @@ data class AgentMessages(
         private const val QUESTION = "question"
         private const val ANSWER = "answer"
         private const val CAPABILITY = "capability"
+        private const val STEPS = "steps"
     }
 }

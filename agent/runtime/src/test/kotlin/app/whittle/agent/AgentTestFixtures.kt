@@ -77,6 +77,7 @@ internal val testMessages = AgentMessages(
     interruptedToolCall = "interrupted {{tool}}",
     toolFailed = "failed {{tool}}: {{detail}}",
     outputTruncated = "[truncated at {{limit}}]",
+    planUnfinished = "unfinished: {{steps}}",
 )
 
 internal val testRules = PolicyRuleSet(

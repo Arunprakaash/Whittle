@@ -132,6 +132,19 @@ class AgentRunnerTest {
     }
 
     @Test
+    fun `a run that stops with plan steps open is sent back once to finish them`() = runTest {
+        val plan = call("p1", PlanTool.ID, """{"items":[{"content":"Search","status":"completed"},{"content":"Compare","status":"in_progress"}]}""")
+        val adapter = ScriptedAdapter(listOf(toolTurn(plan), textTurn("Early answer."), textTurn("Still done."), textTurn("unused")))
+
+        val events = runner(adapter, setOf(PlanTool(maxItems = 5))).start(request()).toList()
+
+        assertEquals(3, adapter.requests.size)
+        assertEquals("unfinished: - Compare", lastUserText(adapter))
+        assertEquals("Still done.", assertIs<RunEvent.Completed>(events.last()).finalMessage.text)
+        assertTrue(savedCheckpoint().planReminded)
+    }
+
+    @Test
     fun `a call that needs a decision is parked and the run finishes without waiting`() = runTest {
         val fetch = FakeTool("web.fetch", RiskTier.NETWORK_OUT)
         val clock = FakeTool("time.now", RiskTier.READ)

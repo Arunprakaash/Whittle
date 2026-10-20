@@ -72,8 +72,10 @@ class PlanTool(private val maxItems: Int) : Tool {
         val DEFINITION = ToolDefinition(
             id = ToolId(ID),
             description = "Your plan for a task with several steps, shown to the user as a checklist and as progress while " +
-                "they're away. Call it before starting such a task, then again whenever a step starts or finishes, " +
-                "always with the whole list. Keep exactly one step in_progress while working. Skip it for quick questions.",
+                "they're away. Call it before starting such a task, always with the whole list. Mark a step completed as " +
+                "soon as it's done, not in a batch at the end, and set the next one in_progress; keep exactly one step " +
+                "in_progress while working. If a step turns out to be unnecessary, remove it. Every step must be completed " +
+                "before you give your final answer. Skip the plan for quick questions and single actions.",
             inputSchema = Json.parseToJsonElement(
                 """{"type":"object","properties":{"$ITEMS":{"type":"array","items":{"type":"object","properties":{""" +
                     """"content":{"type":"string","description":"The step in a few plain words, e.g. Find recent sources"},""" +

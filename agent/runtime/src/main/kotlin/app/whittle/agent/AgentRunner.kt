@@ -174,6 +174,11 @@ class AgentRunner(
                 stepSpan.end(SpanStatus.OK)
                 // The user said something while the model was answering: let the model see it.
                 if (inbox.hasInput(checkpoint.runId)) continue
+                // It stopped with plan steps open: send it back once to finish or tidy them, unless a card waits on the user.
+                remindOfPlan(checkpoint)?.let { reminder ->
+                    checkpoint = persist(reminder).getOrElse { return fail(checkpoint, it) }
+                    continue
+                }
                 return complete(checkpoint, assistant)
             }
             checkpoint = runToolCalls(checkpoint, assistant.toolCalls, stepSpan.context).getOrElse {
@@ -480,6 +485,9 @@ class AgentRunner(
             val result = errorResult(call, messages.capabilityMissing(call.toolName, missing.value))
             return recordResult(journaled.copy(inFlightToolCall = null, requestedCapabilities = journaled.requestedCapabilities + missing), result)
         }
+        if (tool is PlanTool && !output.isError) {
+            PlanTool.parse(arguments)?.let { plan -> return recordResult(journaled.copy(inFlightToolCall = null, plan = plan), planResult(call, output)) }
+        }
         val result = ContentBlock.ToolResult(
             toolCallId = call.id,
             content = truncate(output.content),
@@ -488,6 +496,18 @@ class AgentRunner(
             personalData = !output.isError && tool.definition.exposesPersonalData,
         )
         return recordResult(journaled.copy(inFlightToolCall = null), result)
+    }
+
+    private fun planResult(call: ContentBlock.ToolCall, output: ToolOutput) =
+        ContentBlock.ToolResult(call.id, output.content, isError = false, provenance = output.provenance)
+
+    /** The checkpoint to continue with when the model stopped with plan steps open; null to finish normally. */
+    private fun remindOfPlan(checkpoint: RunCheckpoint): RunCheckpoint? {
+        if (checkpoint.planReminded || checkpoint.pendingDecisions.isNotEmpty()) return null
+        val open = checkpoint.plan.orEmpty().filter { it.status != PlanStatus.COMPLETED }
+        if (open.isEmpty()) return null
+        val note = messages.planUnfinished(open.joinToString("\n") { "- " + it.content })
+        return checkpoint.copy(planReminded = true, conversation = checkpoint.conversation.withUserContent(ContentBlock.Text(note)))
     }
 
     /** Tools are a trust boundary: any failure becomes an error result for the model, never a crash. */

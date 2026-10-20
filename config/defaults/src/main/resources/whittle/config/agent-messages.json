@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "unknownTool": "There is no tool named \"{{tool}}\". Use only the tools you were given.",
   "invalidArguments": "The arguments for \"{{tool}}\" were not valid: {{detail}}. Fix them and try again.",
   "policyDenied": "\"{{tool}}\" is not allowed by the user's safety settings. Do not retry it; tell the user what you could not do.",
@@ -15,5 +15,6 @@
   "capabilityDenied": "The user did not allow Whittle to use {{capability}}. Do not ask for it again; continue without it.",
   "interruptedToolCall": "\"{{tool}}\" was interrupted before it finished and its outcome is unknown. It was not retried automatically.",
   "toolFailed": "\"{{tool}}\" failed: {{detail}}",
-  "outputTruncated": "[Output truncated to {{limit}} characters.]"
+  "outputTruncated": "[Output truncated to {{limit}} characters.]",
+  "planUnfinished": "Your plan still has steps that aren't done:\n{{steps}}\nFinish them now. If a step turned out to be unnecessary, update the plan to remove it or mark it completed, then give your answer. The user sees the plan."
 }
