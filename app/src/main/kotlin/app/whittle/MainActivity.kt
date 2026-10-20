@@ -1,5 +1,10 @@
 package app.whittle
 
+import android.content.res.Configuration
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.WindowCompat
+import android.view.WindowManager
+import android.os.Build
 import app.whittle.settings.ConnectionToolsScreen
 import app.whittle.settings.ConnectionLibraryScreen
 import app.whittle.design.theme.isDark
@@ -42,7 +47,7 @@ import kotlinx.coroutines.flow.map
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
+        drawBehindSystemBars(dark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES)
         super.onCreate(savedInstanceState)
         val graph = (application as WhittleApplication).graph
         setContent {
@@ -53,8 +58,7 @@ class MainActivity : ComponentActivity() {
             val dark = appearance.themeMode.isDark()
             // The bars' icons follow the app's theme, which may differ from the phone's.
             DisposableEffect(dark) {
-                val style = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark }
-                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+                drawBehindSystemBars(dark)
                 onDispose { }
             }
             WhittleTheme(appearance, darkTheme = dark) {
@@ -158,4 +162,26 @@ class MainActivity : ComponentActivity() {
 
     /** Whether a model is connected yet; Loading avoids flashing the connect screen at launch. */
     private enum class Gate { Loading, Connect, Chat }
+}
+
+/**
+ * Draws the app behind the status and navigation bars, with bar icons that follow the app's theme. On Android 15+
+ * the library's enableEdgeToEdge also adds a scrim view on every call (transparent here, so it shows nothing);
+ * that view makes every session-replay screenshot fail PostHog's mask check, which left recordings black, and
+ * each theme change would stack another one. So there the window is set up directly instead.
+ */
+private fun ComponentActivity.drawBehindSystemBars(dark: Boolean) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+        val style = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark }
+        enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+        return
+    }
+    WindowCompat.setDecorFitsSystemWindows(window, false)
+    // As enableEdgeToEdge does for a transparent, theme-following bar: the system keeps 3-button navigation legible.
+    window.isNavigationBarContrastEnforced = true
+    window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+    WindowInsetsControllerCompat(window, window.decorView).run {
+        isAppearanceLightStatusBars = !dark
+        isAppearanceLightNavigationBars = !dark
+    }
 }
