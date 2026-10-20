@@ -105,6 +105,12 @@
     <string name="artifact_full_screen">Full screen</string>
     <string name="artifact_browser">Browser</string>
     <string name="artifact_share">Share</string>
+    <string name="artifact_install">Install</string>
+    <string name="export_preparing">Making the app…</string>
+    <string name="export_allow">Allow Whittle to install apps, then tap Install again.</string>
+    <string name="export_installed">App installed</string>
+    <string name="export_failed">Couldn\'t install the app.</string>
+    <string name="export_failed_reason">Couldn\'t install the app: %1$s</string>
     <string name="artifact_back">Back</string>
     <string name="artifact_missing">This app\'s files are no longer on this phone.</string>
     <string name="artifact_no_browser">No app on this phone can open it.</string>

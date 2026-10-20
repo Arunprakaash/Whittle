@@ -15,6 +15,7 @@ data class AppDefaults(
     val siteIcons: SiteIconDefaults,
     val artifacts: ArtifactDefaults,
     val background: BackgroundDefaults,
+    val export: ExportDefaults,
     val toolRuntime: ToolRuntimeDefaults,
 ) : VersionedConfig {
     companion object {
@@ -61,6 +62,29 @@ data class SiteIconDefaults(
 ) {
     init {
         require(sizePx > 0 && maxPageBytes > 0 && maxIconBytes > 0 && memoryEntries > 0) { "siteIcons limits must be positive" }
+    }
+}
+
+/** Turning an app the agent built into its own installable Android app. */
+@Serializable
+data class ExportDefaults(
+    /** Exported apps get <packagePrefix>.<name>.<id>; the id is stable for the same app, so re-exports update it. */
+    val packagePrefix: String,
+    val maxNameChars: Int,
+    val maxLabelChars: Int,
+    val signingKeyAlias: String,
+    val certificateSubject: String,
+    val certificateValidityYears: Long,
+    val iconSizePx: Int,
+    /** Icon backgrounds; each app gets one picked from its id. */
+    val iconColors: List<String>,
+    val maxAppBytes: Long,
+    /** Under the app's cache folder: where an app is packaged and signed before installing. */
+    val workDirectoryName: String,
+) {
+    init {
+        require(iconColors.isNotEmpty()) { "export.iconColors must not be empty" }
+        require(maxNameChars > 0 && maxLabelChars > 0 && iconSizePx > 0 && maxAppBytes > 0) { "export limits must be positive" }
     }
 }
 

@@ -1,5 +1,6 @@
 package app.whittle
 
+import app.whittle.export.AppExporter
 import app.whittle.runtimes.CommandSandbox
 import app.whittle.design.theme.WhittleAppearance
 import kotlinx.coroutines.launch
@@ -149,6 +150,7 @@ class AppGraph(context: Context) {
     val modelLister = OpenAiCompatibleModelLister(httpClient, modelTrust, modelDefaults.fallbackCapabilities)
     val keyVerifier = ApiKeyVerifier(httpClient)
     val artifacts = Artifacts(context, workspaces, appDefaults.artifacts)
+    val appExporter = AppExporter(context, workspaces, appDefaults.export, context.applicationInfo.minSdkVersion)
     val artifactSheetHeight: Float get() = appDefaults.artifacts.sheetHeightFraction
     val siteIcons = SiteIconLoader(httpClient, File(context.cacheDir, appDefaults.siteIcons.cacheDirectoryName), appDefaults.siteIcons)
     val presenter = ToolPresenter(load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION))

@@ -28,6 +28,7 @@ fullscreen
 help
 info
 insights
+install_mobile
 keep
 key
 language

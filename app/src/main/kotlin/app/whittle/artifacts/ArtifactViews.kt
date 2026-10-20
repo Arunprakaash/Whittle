@@ -1,5 +1,7 @@
 package app.whittle.artifacts
 
+import app.whittle.export.ExportResult
+import app.whittle.WhittleApplication
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
@@ -80,6 +82,7 @@ fun ArtifactSheet(
                     OpenInAction("fullscreen", stringResource(R.string.artifact_full_screen), onFullScreen),
                     OpenInAction("open_in_new", stringResource(R.string.artifact_browser), elsewhere.browser),
                     OpenInAction("share", stringResource(R.string.artifact_share), elsewhere.share),
+                    OpenInAction("install_mobile", stringResource(R.string.artifact_install), elsewhere.install),
                 ),
                 modifier = Modifier.padding(bottom = WhittleSpace.m),
             )
@@ -108,6 +111,7 @@ fun ArtifactScreen(ref: ArtifactRef, artifacts: Artifacts, revision: Int, onBack
                         Triple("refresh", stringResource(R.string.artifact_reload)) { manualReloads += 1 },
                         Triple("open_in_new", stringResource(R.string.artifact_browser), elsewhere.browser),
                         Triple("share", stringResource(R.string.artifact_share), elsewhere.share),
+                        Triple("install_mobile", stringResource(R.string.artifact_install), elsewhere.install),
                     )
                     actions.forEachIndexed { index, (icon, label, onClick) ->
                         TopBarAction(icon, label, onClick, shape = connectedShape(index, actions.size), modifier = TopBarGroupAction)
@@ -131,7 +135,7 @@ private fun ArtifactContent(ref: ArtifactRef, artifacts: Artifacts, revision: In
     }
 }
 
-private class OpenElsewhere(val browser: () -> Unit, val share: () -> Unit)
+private class OpenElsewhere(val browser: () -> Unit, val share: () -> Unit, val install: () -> Unit)
 
 /** Browser and share both hand over the app bundled into one file; a toast says when nothing can take it. */
 @Composable
@@ -140,10 +144,26 @@ private fun rememberOpenElsewhere(ref: ArtifactRef, artifacts: Artifacts): OpenE
     val scope = rememberCoroutineScope()
     val noBrowser = stringResource(R.string.artifact_no_browser)
     val noShare = stringResource(R.string.artifact_no_share)
+    val preparing = stringResource(R.string.export_preparing)
+    val allow = stringResource(R.string.export_allow)
+    val exporter = (context.applicationContext as WhittleApplication).graph.appExporter
     return remember(ref) {
         OpenElsewhere(
             browser = { scope.launch { if (!artifacts.openInBrowser(ref)) Toast.makeText(context, noBrowser, Toast.LENGTH_SHORT).show() } },
             share = { scope.launch { if (!artifacts.share(ref)) Toast.makeText(context, noShare, Toast.LENGTH_SHORT).show() } },
+            install = {
+                Toast.makeText(context, preparing, Toast.LENGTH_SHORT).show()
+                scope.launch {
+                    when (val result = exporter.install(ref)) {
+                        ExportResult.Installing -> Unit
+                        ExportResult.NeedsPermission -> {
+                            Toast.makeText(context, allow, Toast.LENGTH_LONG).show()
+                            context.startActivity(exporter.installer.permissionScreen())
+                        }
+                        is ExportResult.Failed -> Toast.makeText(context, context.getString(R.string.export_failed_reason, result.reason), Toast.LENGTH_LONG).show()
+                    }
+                }
+            },
         )
     }
 }

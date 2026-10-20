@@ -49,6 +49,18 @@
     "maxIconBytes": 262144,
     "memoryEntries": 64
   },
+  "export": {
+    "packagePrefix": "app.whittle.apps",
+    "maxNameChars": 24,
+    "maxLabelChars": 30,
+    "signingKeyAlias": "whittle_export_signing",
+    "certificateSubject": "CN=Whittle Apps",
+    "certificateValidityYears": 30,
+    "iconSizePx": 192,
+    "iconColors": ["#2E6B57", "#3F5F99", "#8A4F7D", "#B0603A", "#4F7A2E", "#6B5BA8", "#2F7F8C", "#9A4A4A"],
+    "maxAppBytes": 52428800,
+    "workDirectoryName": "export"
+  },
   "background": {
     "keepRunning": true
   },

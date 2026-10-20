@@ -102,6 +102,31 @@ val sandboxExecutable = tasks.register<NativeExecutableTask>("sandboxExecutable"
     jniLibsDirectory.set(layout.buildDirectory.dir("generated/sandbox/jniLibs"))
 }
 android.defaultConfig.buildConfigField("String", "SANDBOX_PROGRAM", "\"lib$sandboxProgram.so\"")
+
+// Exported apps start from the shell app (export/shell): its unsigned release APK ships as an asset, and the
+// placeholders it was built with are what Whittle replaces for each app.
+val exportShellAsset = "export/shell.apk"
+val exportShellApk = tasks.register<FileAssetTask>("exportShellAsset") {
+    dependsOn(":export:shell:assembleRelease")
+    source.set(project(":export:shell").layout.buildDirectory.file("outputs/apk/release/shell-release-unsigned.apk"))
+    assetPath.set(exportShellAsset)
+    assetsDirectory.set(layout.buildDirectory.dir("generated/exportShell/assets"))
+}
+android.defaultConfig.buildConfigField("String", "EXPORT_SHELL_ASSET", "\"$exportShellAsset\"")
+// AppPackagerTest packs the real shell APK.
+tasks.withType<Test>().configureEach {
+    val shellApk = project(":export:shell").layout.buildDirectory.file("outputs/apk/release/shell-release-unsigned.apk")
+    dependsOn(":export:shell:assembleRelease")
+    inputs.file(shellApk)
+    systemProperty("whittle.exportShell.apk", shellApk.get().asFile.absolutePath)
+    systemProperty("whittle.exportShell.testOutput", layout.buildDirectory.dir("tmp/exportShellTest").get().asFile.absolutePath)
+}
+android.defaultConfig.buildConfigField(
+    "String", "EXPORT_PACKAGE_PLACEHOLDER", "\"${providers.gradleProperty("whittle.exportShell.packagePlaceholder").get()}\"",
+)
+android.defaultConfig.buildConfigField(
+    "String", "EXPORT_LABEL_PLACEHOLDER", "\"${providers.gradleProperty("whittle.exportShell.labelPlaceholder").get()}\"",
+)
 android.defaultConfig.buildConfigField("String", "RUNTIME_ASSETS", "\"$runtimeAssetDirectory\"")
 
 androidComponents {
@@ -120,6 +145,7 @@ androidComponents {
         }
         variant.sources.jniLibs?.addGeneratedSourceDirectory(runtime, TermuxRuntimeTask::jniLibsDirectory)
         variant.sources.jniLibs?.addGeneratedSourceDirectory(sandboxExecutable, NativeExecutableTask::jniLibsDirectory)
+        variant.sources.assets?.addGeneratedSourceDirectory(exportShellApk, FileAssetTask::assetsDirectory)
         variant.sources.assets?.addGeneratedSourceDirectory(runtime, TermuxRuntimeTask::assetsDirectory)
     }
 }
@@ -142,6 +168,7 @@ dependencies {
     implementation(project(":observability:api"))
     implementation(project(":observability:posthog"))
     implementation(libs.androidx.webkit)
+    implementation(libs.apksig)
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

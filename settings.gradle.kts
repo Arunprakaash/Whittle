@@ -48,5 +48,6 @@ include(
     ":storage:chats",
     ":design:system",
     ":app",
+    ":export:shell",
     ":dev:cli",
 )
