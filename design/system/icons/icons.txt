@@ -32,6 +32,7 @@ more_vert
 open_in_new
 person
 person_search
+push_pin:fill
 refresh
 schedule
 settings

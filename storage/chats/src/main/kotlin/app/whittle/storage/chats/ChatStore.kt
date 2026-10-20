@@ -11,7 +11,7 @@ value class ChatId(val value: String)
 data class StoredChat(val id: ChatId, val updatedAtMillis: Long, val document: String)
 
 /** What the chat list needs, without decrypting whole chats. [title] is null for chats saved before titles were stored. */
-data class ChatSummary(val id: ChatId, val title: String?, val updatedAtMillis: Long)
+data class ChatSummary(val id: ChatId, val title: String?, val updatedAtMillis: Long, val pinned: Boolean)
 
 /** Chats kept on this phone only, encrypted at rest. */
 interface ChatStore {
@@ -27,4 +27,7 @@ interface ChatStore {
     suspend fun list(): Outcome<List<ChatSummary>>
 
     suspend fun delete(id: ChatId): Outcome<Unit>
+
+    /** Pinning never changes when a chat was last updated, so it doesn't reorder anything else. */
+    suspend fun setPinned(id: ChatId, pinned: Boolean): Outcome<Unit>
 }

@@ -2,16 +2,21 @@ package app.whittle
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import app.whittle.chat.AllChatsScreen
 import app.whittle.chat.ChatScreen
 import app.whittle.chat.ChatViewModel
 import app.whittle.connect.ConnectScreen
@@ -38,7 +43,19 @@ class MainActivity : ComponentActivity() {
                         }
                         Gate.Chat -> {
                             val chat = viewModel { ChatViewModel(graph) }
-                            ChatScreen(chat.state.collectAsStateWithLifecycle().value, chat)
+                            val state = chat.state.collectAsStateWithLifecycle().value
+                            var showingAllChats by rememberSaveable { mutableStateOf(false) }
+                            if (showingAllChats) {
+                                BackHandler { showingAllChats = false }
+                                AllChatsScreen(
+                                    state = state,
+                                    viewModel = chat,
+                                    onBack = { showingAllChats = false },
+                                    onOpen = { id -> chat.openChat(id); showingAllChats = false },
+                                )
+                            } else {
+                                ChatScreen(state, chat, graph.sidebarMaxChats, onViewAllChats = { showingAllChats = true })
+                            }
                         }
                     }
                 }

@@ -73,7 +73,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(state: ChatState, viewModel: ChatViewModel) {
+fun ChatScreen(state: ChatState, viewModel: ChatViewModel, sidebarMaxChats: Int, onViewAllChats: () -> Unit) {
     val haptics = WhittleTheme.haptics
     LaunchedEffect(viewModel) { viewModel.haptics.collect { haptics.perform(it) } }
     val requestCapability = rememberCapabilityRequest(state.items, viewModel)
@@ -87,9 +87,12 @@ fun ChatScreen(state: ChatState, viewModel: ChatViewModel) {
             ChatSidebar(
                 chats = state.chats,
                 current = state.currentChat,
+                maxChats = sidebarMaxChats,
                 onNewChat = { closeThen(viewModel::newChat) },
                 onOpen = { id -> closeThen { viewModel.openChat(id) } },
+                onPin = viewModel::setPinned,
                 onDelete = viewModel::deleteChat,
+                onViewAll = { closeThen(onViewAllChats) },
             )
         },
     ) {

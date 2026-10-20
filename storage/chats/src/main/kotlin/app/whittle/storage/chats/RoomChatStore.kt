@@ -38,11 +38,15 @@ class RoomChatStore(
             val id = ChatId(row.chatId)
             // A title that won't decrypt is shown as untitled rather than hiding the chat.
             val title = row.encryptedTitle.takeIf { it.isNotEmpty() }?.let { decrypt(it, titleBinding(id)) }
-            ChatSummary(id, (title as? Outcome.Success)?.value, row.updatedAtMillis)
+            ChatSummary(id, (title as? Outcome.Success)?.value, row.updatedAtMillis, row.pinned)
         }
     }
 
     override suspend fun delete(id: ChatId): Outcome<Unit> = storageCall { dao.delete(id.value) }
+
+    override suspend fun setPinned(id: ChatId, pinned: Boolean): Outcome<Unit> = storageCall {
+        if (pinned) dao.pin(ChatPinEntity(id.value)) else dao.unpin(id.value)
+    }
 
     private fun decode(entity: ChatEntity): Outcome<StoredChat> {
         val id = ChatId(entity.chatId)
@@ -74,7 +78,7 @@ class RoomChatStore(
         fun open(context: Context, databaseName: String, cipher: ContentCipher, clock: EpochClock): RoomChatStore =
             RoomChatStore(
                 Room.databaseBuilder(context, ChatsDatabase::class.java, databaseName)
-                    .addMigrations(ChatsDatabase.MIGRATION_1_2)
+                    .addMigrations(ChatsDatabase.MIGRATION_1_2, ChatsDatabase.MIGRATION_2_3)
                     .build()
                     .chats(),
                 cipher,

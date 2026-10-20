@@ -39,6 +39,7 @@ object MaterialSymbols {
         "open_in_new" to R.drawable.ms_open_in_new,
         "person" to R.drawable.ms_person,
         "person_search" to R.drawable.ms_person_search,
+        "push_pin" to R.drawable.ms_push_pin,
         "refresh" to R.drawable.ms_refresh,
         "schedule" to R.drawable.ms_schedule,
         "settings" to R.drawable.ms_settings,
@@ -52,6 +53,7 @@ object MaterialSymbols {
     private val filled: Map<String, Int> = mapOf(
         "check_circle" to R.drawable.ms_check_circle_fill,
         "do_not_disturb_on" to R.drawable.ms_do_not_disturb_on_fill,
+        "push_pin" to R.drawable.ms_push_pin_fill,
         "stop" to R.drawable.ms_stop_fill,
     )
 

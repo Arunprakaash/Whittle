@@ -11,6 +11,7 @@ data class AppDefaults(
     val appearance: AppearanceDefaults,
     val storage: AppStorageNames,
     val terminal: TerminalDefaults,
+    val chatList: ChatListDefaults,
 ) : VersionedConfig {
     companion object {
         const val SCHEMA_VERSION = 1
@@ -28,6 +29,14 @@ data class AppStorageNames(
     val chatsDatabaseName: String,
     val workspacesDirectoryName: String,
 )
+
+/** How many chats the sidebar shows before pointing to the Chats page. */
+@Serializable
+data class ChatListDefaults(val sidebarMaxChats: Int) {
+    init {
+        require(sidebarMaxChats > 0) { "sidebarMaxChats must be positive" }
+    }
+}
 
 /** The Android shell commands run in, and how each command gets its own process group. */
 @Serializable

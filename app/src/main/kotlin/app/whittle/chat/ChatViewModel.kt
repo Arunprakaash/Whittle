@@ -69,7 +69,7 @@ data class ChatState(
 }
 
 /** A saved chat in the sidebar. A null [title] shows as an untitled chat. */
-data class ChatListItem(val id: ChatId, val title: String?, val updatedAtMillis: Long)
+data class ChatListItem(val id: ChatId, val title: String?, val updatedAtMillis: Long, val pinned: Boolean)
 
 /** The pinned status line. A null [verb] means the agent is thinking between actions. */
 data class StatusUi(val state: AgentState, val verb: String?, val startedAtMillis: Long)
@@ -239,6 +239,14 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         }
     }
 
+    fun setPinned(id: ChatId, pinned: Boolean) {
+        _state.update { state -> state.copy(chats = state.chats.map { if (it.id == id) it.copy(pinned = pinned) else it }) }
+        graph.appScope.launch {
+            graph.chats.setPinned(id, pinned)
+            refreshChats()
+        }
+    }
+
     fun changeModel() {
         newChat()
         viewModelScope.launch { graph.connections.clear() }
@@ -280,7 +288,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             val items = summaries.map { summary ->
                 // Chats saved before titles were stored: read the title from the chat itself.
                 val title = summary.title ?: graph.chats.load(summary.id).getOrNull()?.let { decode(it.document)?.title }
-                ChatListItem(summary.id, title?.takeIf { it.isNotBlank() }, summary.updatedAtMillis)
+                ChatListItem(summary.id, title?.takeIf { it.isNotBlank() }, summary.updatedAtMillis, summary.pinned)
             }
             _state.update { it.copy(chats = items) }
         }

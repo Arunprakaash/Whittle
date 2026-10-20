@@ -14,5 +14,8 @@
     "shell": "/system/bin/sh",
     "path": "/system/bin",
     "processGroupLauncher": "setsid"
+  },
+  "chatList": {
+    "sidebarMaxChats": 25
   }
 }
