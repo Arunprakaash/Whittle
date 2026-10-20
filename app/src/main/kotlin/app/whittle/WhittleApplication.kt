@@ -39,6 +39,8 @@ class WhittleApplication : Application() {
         notifications.createChannels()
         registerActivityLifecycleCallbacks(VisibilityTracker())
         scope.launch {
+            // Started with the task, while Whittle is on screen (Android refuses it once in the background).
+            // Its notification waits a few seconds, so a quick answer never shows one.
             chat.state.map { it.running }.distinctUntilChanged().collect { running -> if (running && keepRunningInBackground()) startRunService() }
         }
         scope.launch {
@@ -56,7 +58,7 @@ class WhittleApplication : Application() {
     /** The running task as the ongoing notification shows it; null when nothing runs. */
     fun runProgress(): RunProgress? {
         val status = chat.state.value.status ?: return null
-        return RunProgress(chatTitle = currentChatTitle(), activity = status.verb, startedAtMillis = status.startedAtMillis)
+        return RunProgress(chatTitle = currentChatTitle(), activity = status.verb, startedAtMillis = status.startedAtMillis, step = status.steps)
     }
 
     private fun currentChatTitle(): String? = chat.state.value.let { state -> state.chats.firstOrNull { it.id == state.currentChat }?.title }

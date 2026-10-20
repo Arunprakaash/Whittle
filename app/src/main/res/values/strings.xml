@@ -66,6 +66,7 @@
     <string name="notify_channel_updates">Task updates</string>
     <string name="notify_channel_updates_body">When a task finishes or needs your answer while you\'re away.</string>
     <string name="notify_running_title">Whittle is working</string>
+    <string name="notify_running_step">Step %1$d · %2$s</string>
     <string name="notify_running_public">Whittle is working on a task</string>
     <string name="notify_finished_title">Task finished</string>
     <string name="notify_finished_public">Whittle finished a task</string>

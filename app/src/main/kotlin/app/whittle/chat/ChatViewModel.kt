@@ -87,7 +87,13 @@ sealed interface ChatEvent {
 data class ChatListItem(val id: ChatId, val title: String?, val updatedAtMillis: Long, val pinned: Boolean)
 
 /** The pinned status line. A null [verb] means the agent is thinking between actions. */
-data class StatusUi(val state: AgentState, val verb: String?, val startedAtMillis: Long)
+data class StatusUi(
+    val state: AgentState,
+    val verb: String?,
+    val startedAtMillis: Long,
+    /** Steps this run has started so far; a run that only writes text has none. */
+    val steps: Int = 0,
+)
 
 /**
  * Turns the harness's run events into the thread the user reads: narration, grouped step rows and
@@ -552,11 +558,12 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     private fun addStep(step: StepModel) = _state.update { state ->
-        val last = state.items.lastOrNull()
+        val counted = state.copy(status = state.status?.let { it.copy(steps = it.steps + 1) })
+        val last = counted.items.lastOrNull()
         if (last is ThreadItem.Steps) {
-            state.copy(items = state.items.dropLast(1) + last.copy(steps = last.steps + step))
+            counted.copy(items = counted.items.dropLast(1) + last.copy(steps = last.steps + step))
         } else {
-            state.copy(items = state.items + ThreadItem.Steps(key(), listOf(step)))
+            counted.copy(items = counted.items + ThreadItem.Steps(key(), listOf(step)))
         }
     }
 

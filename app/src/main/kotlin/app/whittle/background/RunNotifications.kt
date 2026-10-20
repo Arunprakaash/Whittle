@@ -11,7 +11,8 @@ import app.whittle.MainActivity
 import app.whittle.R
 
 /** What the ongoing notification shows about the running task. */
-data class RunProgress(val chatTitle: String?, val activity: String?, val startedAtMillis: Long)
+/** [step] is how many steps the task has started; 0 while it's only thinking or writing. */
+data class RunProgress(val chatTitle: String?, val activity: String?, val startedAtMillis: Long, val step: Int)
 
 /**
  * Whittle's notifications. While a task runs: one ongoing notification with what it's doing, a timer and
@@ -37,7 +38,8 @@ class RunNotifications(private val context: Context) {
 
     fun running(progress: RunProgress): Notification {
         val title = progress.chatTitle ?: context.getString(R.string.notify_running_title)
-        val text = progress.activity ?: context.getString(R.string.status_thinking)
+        val activity = progress.activity ?: context.getString(R.string.status_thinking)
+        val text = if (progress.step > 0) context.getString(R.string.notify_running_step, progress.step, activity) else activity
         val builder = Notification.Builder(context, CHANNEL_RUNNING)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
@@ -45,6 +47,8 @@ class RunNotifications(private val context: Context) {
             .setContentIntent(openApp())
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            // Android holds a service's notification back for a few seconds; quick answers end first.
+            .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_DEFERRED)
             .setCategory(Notification.CATEGORY_PROGRESS)
             .setWhen(progress.startedAtMillis)
             .setUsesChronometer(true)
