@@ -1,5 +1,9 @@
 package app.whittle
 
+import app.whittle.design.theme.isDark
+import androidx.compose.runtime.DisposableEffect
+import android.graphics.Color
+import androidx.activity.SystemBarStyle
 import androidx.compose.runtime.mutableIntStateOf
 import app.whittle.connect.ModelPickerScreen
 import app.whittle.chat.ArtifactsScreen
@@ -42,8 +46,16 @@ class MainActivity : ComponentActivity() {
         setContent {
             // Until saved settings load, the bundled defaults apply; a changed setting restyles at once.
             val settings by graph.currentSettings.collectAsStateWithLifecycle()
-            val appearance = settings?.let { WhittleAppearance(wallpaperColors = it.wallpaperColors, haptics = it.haptics) } ?: graph.defaultAppearance
-            WhittleTheme(appearance) {
+            val appearance = settings?.let { WhittleAppearance(wallpaperColors = it.wallpaperColors, haptics = it.haptics, themeMode = it.themeMode) }
+                ?: graph.defaultAppearance
+            val dark = appearance.themeMode.isDark()
+            // The bars' icons follow the app's theme, which may differ from the phone's.
+            DisposableEffect(dark) {
+                val style = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark }
+                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+                onDispose { }
+            }
+            WhittleTheme(appearance, darkTheme = dark) {
                 val gate by remember { graph.connections.model.map { if (it == null) Gate.Connect else Gate.Chat } }
                     .collectAsStateWithLifecycle(Gate.Loading)
                 // Surface sets the content color, so text on every screen follows the theme in light and dark.

@@ -1,5 +1,6 @@
 package app.whittle.design.components
 
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -98,6 +99,39 @@ fun SettingsToggleRow(
     )
 }
 
+/** A setting with a few choices: the title above, the choices across the full width below it. */
+@Composable
+fun SettingsChoiceRow(
+    icon: String,
+    title: String,
+    shape: Shape,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    choices: @Composable () -> Unit,
+) {
+    Column(
+        modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainerLow, shape)
+            .padding(WhittleSpace.m)
+            .alpha(if (enabled) 1f else DISABLED_ALPHA),
+        verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
+    ) {
+        SettingsRowLayout(
+            icon = icon,
+            title = title,
+            subtitle = null,
+            destructive = false,
+            enabled = true,
+            modifier = Modifier,
+            background = RectangleShape,
+            trailing = null,
+            padded = false,
+        )
+        choices()
+    }
+}
+
 @Composable
 private fun SettingsRowLayout(
     icon: String,
@@ -108,16 +142,22 @@ private fun SettingsRowLayout(
     modifier: Modifier,
     background: Shape,
     trailing: (@Composable () -> Unit)?,
+    /** False inside a container that pads and colours the row itself. */
+    padded: Boolean = true,
 ) {
     val colors = MaterialTheme.colorScheme
     val (tile, onTile) = if (destructive) colors.errorContainer to colors.onErrorContainer else colors.secondaryContainer to colors.onSecondaryContainer
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = WhittleSize.Tile.xl)
-            .background(colors.surfaceContainerLow, background)
-            .padding(horizontal = WhittleSpace.m, vertical = WhittleSpace.m)
-            .alpha(if (enabled) 1f else DISABLED_ALPHA),
+        modifier = if (padded) {
+            modifier
+                .fillMaxWidth()
+                .heightIn(min = WhittleSize.Tile.xl)
+                .background(colors.surfaceContainerLow, background)
+                .padding(horizontal = WhittleSpace.m, vertical = WhittleSpace.m)
+                .alpha(if (enabled) 1f else DISABLED_ALPHA)
+        } else {
+            modifier.fillMaxWidth()
+        },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m),
     ) {

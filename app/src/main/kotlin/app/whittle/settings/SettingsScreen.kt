@@ -1,5 +1,12 @@
 package app.whittle.settings
 
+import app.whittle.design.components.SettingsChoiceRow
+import app.whittle.design.tokens.WhittleHaptic
+import app.whittle.design.theme.WhittleTheme
+import app.whittle.design.theme.ThemeMode
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SegmentedButton
 import app.whittle.background.rememberNotificationPermissionRequest
 import android.os.Build
 import androidx.activity.compose.BackHandler
@@ -87,13 +94,25 @@ fun SettingsScreen(
             item {
                 val wallpaperAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
                 SettingsSection(stringResource(R.string.settings_section_appearance)) {
+                    SettingsChoiceRow(
+                        icon = "contrast",
+                        title = stringResource(R.string.settings_theme_title),
+                        shape = segmentedShape(0, 3),
+                        enabled = settings != null,
+                    ) {
+                        ThemeChoice(
+                            selected = settings?.themeMode ?: graph.defaultAppearance.themeMode,
+                            enabled = settings != null,
+                            onSelect = { mode -> save { setThemeMode(mode) } },
+                        )
+                    }
                     SettingsToggleRow(
                         icon = "wallpaper",
                         title = stringResource(R.string.settings_wallpaper_title),
                         subtitle = null,
                         checked = settings?.wallpaperColors == true,
                         onCheckedChange = { on -> save { setWallpaperColors(on) } },
-                        shape = segmentedShape(0, 2),
+                        shape = segmentedShape(1, 3),
                         enabled = wallpaperAvailable && settings != null,
                     )
                     SettingsToggleRow(
@@ -102,7 +121,7 @@ fun SettingsScreen(
                         subtitle = null,
                         checked = settings?.haptics == true,
                         onCheckedChange = { on -> save { setHaptics(on) } },
-                        shape = segmentedShape(1, 2),
+                        shape = segmentedShape(2, 3),
                         enabled = settings != null,
                     )
                 }
@@ -185,3 +204,25 @@ fun SettingsScreen(
     }
 }
 
+
+/** System, Light or Dark, side by side; the choice applies at once. */
+@Composable
+private fun ThemeChoice(selected: ThemeMode, enabled: Boolean, onSelect: (ThemeMode) -> Unit) {
+    val haptics = WhittleTheme.haptics
+    val labels = mapOf(
+        ThemeMode.System to stringResource(R.string.settings_theme_system),
+        ThemeMode.Light to stringResource(R.string.settings_theme_light),
+        ThemeMode.Dark to stringResource(R.string.settings_theme_dark),
+    )
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+        ThemeMode.entries.forEachIndexed { index, mode ->
+            SegmentedButton(
+                selected = mode == selected,
+                onClick = { haptics.perform(WhittleHaptic.Select); onSelect(mode) },
+                shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size),
+                enabled = enabled,
+                icon = {},
+            ) { Text(labels.getValue(mode), style = MaterialTheme.typography.labelMedium, maxLines = 1) }
+        }
+    }
+}

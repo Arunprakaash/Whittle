@@ -106,6 +106,7 @@ class AppGraph(context: Context) {
     val defaultAppearance = WhittleAppearance(
         wallpaperColors = appDefaults.appearance.wallpaperColors,
         haptics = appDefaults.appearance.haptics,
+        themeMode = appDefaults.appearance.theme,
     )
 
     /** Whether this build can send analytics at all; without a project key everything stays on the phone. */
@@ -123,6 +124,7 @@ class AppGraph(context: Context) {
             shareUsageData = harness.telemetry.defaultConsent != ConsentLevel.OFF,
             screenRecordings = harness.telemetry.sessionReplay.enabled,
             keepRunningInBackground = appDefaults.background.keepRunning,
+            themeMode = appDefaults.appearance.theme,
         ),
     )
 

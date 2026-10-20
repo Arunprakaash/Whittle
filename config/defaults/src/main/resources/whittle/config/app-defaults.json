@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "appearance": {
     "wallpaperColors": false,
+    "themeMode": "System",
     "haptics": true
   },
   "storage": {

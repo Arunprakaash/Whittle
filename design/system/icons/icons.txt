@@ -15,6 +15,7 @@ close
 cloud_upload
 contacts
 content_copy
+contrast
 database
 delete
 description

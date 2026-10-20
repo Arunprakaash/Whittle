@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import app.whittle.design.theme.ThemeMode
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStoreFile
 import kotlinx.coroutines.flow.Flow
@@ -19,6 +21,7 @@ data class UserSettings(
     val screenRecordings: Boolean,
     /** A task keeps running when the user leaves Whittle, with an ongoing notification to follow or stop it. */
     val keepRunningInBackground: Boolean,
+    val themeMode: ThemeMode,
 )
 
 /** Settings saved on the phone. Only choices the user made are stored, so changed defaults still reach them. */
@@ -32,6 +35,7 @@ class SettingsStore(context: Context, name: String, private val defaults: UserSe
             shareUsageData = stored[SHARE_USAGE_DATA] ?: defaults.shareUsageData,
             screenRecordings = stored[SCREEN_RECORDINGS] ?: defaults.screenRecordings,
             keepRunningInBackground = stored[KEEP_RUNNING] ?: defaults.keepRunningInBackground,
+            themeMode = stored[THEME_MODE]?.let { saved -> ThemeMode.entries.firstOrNull { it.name == saved } } ?: defaults.themeMode,
         )
     }
 
@@ -45,6 +49,10 @@ class SettingsStore(context: Context, name: String, private val defaults: UserSe
 
     suspend fun setKeepRunningInBackground(on: Boolean) = set(KEEP_RUNNING, on)
 
+    suspend fun setThemeMode(mode: ThemeMode) {
+        dataStore.edit { it[THEME_MODE] = mode.name }
+    }
+
     private suspend fun set(key: Preferences.Key<Boolean>, value: Boolean) {
         dataStore.edit { it[key] = value }
     }
@@ -55,5 +63,6 @@ class SettingsStore(context: Context, name: String, private val defaults: UserSe
         val SHARE_USAGE_DATA = booleanPreferencesKey("share_usage_data")
         val SCREEN_RECORDINGS = booleanPreferencesKey("screen_recordings")
         val KEEP_RUNNING = booleanPreferencesKey("keep_running_in_background")
+        val THEME_MODE = stringPreferencesKey("theme_mode")
     }
 }

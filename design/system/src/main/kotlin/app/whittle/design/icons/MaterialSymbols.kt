@@ -22,6 +22,7 @@ object MaterialSymbols {
         "cloud_upload" to R.drawable.ms_cloud_upload,
         "contacts" to R.drawable.ms_contacts,
         "content_copy" to R.drawable.ms_content_copy,
+        "contrast" to R.drawable.ms_contrast,
         "database" to R.drawable.ms_database,
         "delete" to R.drawable.ms_delete,
         "description" to R.drawable.ms_description,

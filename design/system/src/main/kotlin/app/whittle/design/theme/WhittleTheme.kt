@@ -23,13 +23,25 @@ import app.whittle.design.tokens.WhittleFonts
 import app.whittle.design.tokens.WhittleSiteIconColors
 import app.whittle.design.tokens.WhittleTextStyles
 
+/** Light or dark: following the phone, or the user's fixed choice. */
+enum class ThemeMode { System, Light, Dark }
+
 /** User-facing appearance choices. Defaults come from config, not from here. */
 @Immutable
 data class WhittleAppearance(
     /** Material You: take colors from the wallpaper on Android 12+. Off keeps Whittle's own palette. */
     val wallpaperColors: Boolean,
     val haptics: Boolean,
+    val themeMode: ThemeMode,
 )
+
+/** Whether [mode] means dark right now. */
+@Composable
+fun ThemeMode.isDark(): Boolean = when (this) {
+    ThemeMode.System -> isSystemInDarkTheme()
+    ThemeMode.Light -> false
+    ThemeMode.Dark -> true
+}
 
 private val LocalCreationColors = staticCompositionLocalOf { WhittleCreationColors.Light }
 private val LocalWhittleHaptics = staticCompositionLocalOf<WhittleHaptics> { WhittleHaptics.Off }
@@ -39,7 +51,7 @@ private val LocalSiteIconBackdrop = staticCompositionLocalOf { WhittleSiteIconCo
 @Composable
 fun WhittleTheme(
     appearance: WhittleAppearance,
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = appearance.themeMode.isDark(),
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current

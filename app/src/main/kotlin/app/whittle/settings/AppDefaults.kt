@@ -1,5 +1,6 @@
 package app.whittle.settings
 
+import app.whittle.design.theme.ThemeMode
 import app.whittle.core.config.ConfigName
 import app.whittle.core.config.VersionedConfig
 import kotlinx.serialization.Serializable
@@ -25,7 +26,18 @@ data class AppDefaults(
 }
 
 @Serializable
-data class AppearanceDefaults(val wallpaperColors: Boolean, val haptics: Boolean)
+data class AppearanceDefaults(
+    val wallpaperColors: Boolean,
+    val haptics: Boolean,
+    /** System, Light or Dark. */
+    val themeMode: String,
+) {
+    init {
+        require(ThemeMode.entries.any { it.name == themeMode }) { "appearance.themeMode must be one of ${ThemeMode.entries}" }
+    }
+
+    val theme: ThemeMode get() = ThemeMode.valueOf(themeMode)
+}
 
 @Serializable
 data class AppStorageNames(
