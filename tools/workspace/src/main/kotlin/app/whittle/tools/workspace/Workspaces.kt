@@ -15,6 +15,17 @@ class Workspaces(private val root: File) {
         return Outcome.Success(directory)
     }
 
+    /** Removes a workspace and everything in it, e.g. when its chat is deleted. */
+    fun delete(id: WorkspaceId): Outcome<Unit> {
+        if (!SAFE_ID.matches(id.value)) return invalid("Workspace id '${id.value}' is not a plain name")
+        val directory = File(root, id.value)
+        return if (!directory.exists() || directory.deleteRecursively()) {
+            Outcome.Success(Unit)
+        } else {
+            Outcome.Failure(HarnessError.Storage("Can't delete workspace ${id.value}"))
+        }
+    }
+
     /** Resolves [path] (relative to the workspace) and refuses anything that lands outside it, symlinks included. */
     fun resolve(id: WorkspaceId, path: String): Outcome<File> {
         val directory = when (val dir = directory(id)) {

@@ -51,6 +51,9 @@ class RoomRunCheckpointStore(
             }
         }
 
+    /** Removes runs for good, e.g. when the user deletes the chat they belong to. */
+    suspend fun delete(runIds: List<RunId>): Outcome<Unit> = storageCall { dao.delete(runIds.map { it.value }) }
+
     private fun decode(entity: RunCheckpointEntity): Outcome<RunCheckpoint> {
         val ciphertext = Base64.decode(entity.encryptedPayload, Base64.NO_WRAP)
         return cipher.decrypt(ciphertext, associatedData(RunId(entity.runId))).flatMap { plaintext ->

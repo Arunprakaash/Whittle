@@ -61,9 +61,15 @@ data class ChatState(
     val status: StatusUi? = null,
     /** True until the last chat has been loaded, so the empty state doesn't flash at launch. */
     val restoring: Boolean = true,
+    /** Saved chats, newest first, for the sidebar. */
+    val chats: List<ChatListItem> = emptyList(),
+    val currentChat: ChatId? = null,
 ) {
     val running: Boolean get() = status != null
 }
+
+/** A saved chat in the sidebar. A null [title] shows as an untitled chat. */
+data class ChatListItem(val id: ChatId, val title: String?, val updatedAtMillis: Long)
 
 /** The pinned status line. A null [verb] means the agent is thinking between actions. */
 data class StatusUi(val state: AgentState, val verb: String?, val startedAtMillis: Long)
@@ -93,7 +99,15 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private val stepArguments = mutableMapOf<String, JsonObject>()
     private var nextKey = 0L
     private var chatId: ChatId? = null
+        set(value) {
+            field = value
+            _state.update { it.copy(currentChat = value) }
+        }
     private val saveLock = Mutex()
+    private var runIds: List<RunId> = emptyList()
+
+    /** The items as last loaded or saved; unchanged items are never re-saved, so opening a chat doesn't reorder the list. */
+    private var savedItems: List<ThreadItem>? = null
 
     init {
         viewModelScope.launch { graph.connections.model.collect { model -> _state.update { it.copy(model = model) } } }
@@ -121,6 +135,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         }
         val runId = RunId(graph.idGenerator.newId())
         val chat = chatId ?: ChatId(graph.idGenerator.newId()).also { chatId = it }
+        runIds = runIds + runId
         append(ThreadItem.User(key(), text, steer = false))
         val request = RunRequest(
             runId = runId,
@@ -194,20 +209,81 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     fun toggleSummary(key: String) = replace(key) { (it as ThreadItem.Summary).let { summary -> summary.copy(expanded = !summary.expanded) } }
 
     /** Starts a fresh chat; the current one stays saved on the phone. */
-    fun newTask() {
-        activeJob?.cancel()
-        activeJob = null
-        activeRunId = null
-        save()
-        waitingToContinue.clear()
-        history = emptyList()
-        chatId = null
-        _state.update { it.copy(items = emptyList(), status = null, input = "") }
+    fun newChat() {
+        leaveCurrentChat()
+        viewModelScope.launch { show(id = null, document = null) }
+    }
+
+    /** Opens a saved chat. A task still running in the current chat pauses and offers Continue there later. */
+    fun openChat(id: ChatId) {
+        if (id == chatId) return
+        leaveCurrentChat()
+        viewModelScope.launch { show(id, graph.chats.load(id).getOrNull()?.let { decode(it.document) }) }
+    }
+
+    /** Removes a chat for good: its messages, its saved runs and its workspace files. */
+    fun deleteChat(id: ChatId) {
+        if (id == chatId) {
+            stopWithoutSaving()
+            viewModelScope.launch { show(id = null, document = null) }
+        }
+        _state.update { state -> state.copy(chats = state.chats.filterNot { it.id == id }) }
+        graph.appScope.launch {
+            saveLock.withLock {
+                val document = graph.chats.load(id).getOrNull()?.let { decode(it.document) }
+                graph.chats.delete(id)
+                document?.let { graph.checkpoints.delete(it.runIds + listOfNotNull(it.activeRunId)) }
+                graph.workspaces.delete(WorkspaceId(id.value))
+            }
+            refreshChats()
+        }
     }
 
     fun changeModel() {
-        newTask()
+        newChat()
         viewModelScope.launch { graph.connections.clear() }
+    }
+
+    /** Saves the current chat; a running task is cut off the way an app close would, so it can be continued. */
+    private fun leaveCurrentChat() {
+        activeJob?.cancel()
+        activeJob = null
+        save()
+        activeRunId = null
+        waitingToContinue.clear()
+    }
+
+    private fun stopWithoutSaving() {
+        activeJob?.cancel()
+        activeJob = null
+        activeRunId = null
+        waitingToContinue.clear()
+    }
+
+    /** Puts a chat on screen: [document] null means a fresh, empty chat. */
+    private suspend fun show(id: ChatId?, document: ChatDocument?) {
+        chatId = id.takeIf { document != null }
+        history = document?.history.orEmpty()
+        runIds = document?.runIds.orEmpty()
+        nextKey = document?.nextKey ?: nextKey
+        val interrupted = document?.activeRunId
+            ?.takeIf { graph.checkpoints.load(it).getOrNull()?.status == RunStatus.RUNNING }
+            ?.let { ThreadItem.Interrupted(key(), it) }
+        val items = document?.items.orEmpty().map(::settle) + listOfNotNull(interrupted)
+        savedItems = items
+        _state.update { it.copy(items = items, status = null, input = "") }
+    }
+
+    private fun refreshChats() {
+        graph.appScope.launch {
+            val summaries = graph.chats.list().getOrNull() ?: return@launch
+            val items = summaries.map { summary ->
+                // Chats saved before titles were stored: read the title from the chat itself.
+                val title = summary.title ?: graph.chats.load(summary.id).getOrNull()?.let { decode(it.document)?.title }
+                ChatListItem(summary.id, title?.takeIf { it.isNotBlank() }, summary.updatedAtMillis)
+            }
+            _state.update { it.copy(chats = items) }
+        }
     }
 
     private fun collect(runId: RunId, events: Flow<RunEvent>) {
@@ -439,14 +515,9 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val stored = graph.chats.latest().getOrNull()
         val document = stored?.let { decode(it.document) }
         if (stored != null && document != null) {
-            chatId = stored.id
-            history = document.history
-            nextKey = document.nextKey
-            val interrupted = document.activeRunId
-                ?.takeIf { graph.checkpoints.load(it).getOrNull()?.status == RunStatus.RUNNING }
-                ?.let { ThreadItem.Interrupted(key(), it) }
-            _state.update { it.copy(items = document.items.map(::settle) + listOfNotNull(interrupted)) }
+            show(stored.id, document)
         }
+        refreshChats()
         _state.update { it.copy(restoring = false) }
         // From here on, save as the thread changes; a short wait keeps streaming from writing every token.
         _state.map { it.items }.distinctUntilChanged().drop(1).debounce(SAVE_DEBOUNCE_MILLIS).collect { save() }
@@ -463,18 +534,22 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     /** Writes the chat on the app's own scope, so closing the screen never cuts a save short. */
     private fun save() {
         val items = _state.value.items
-        if (items.isEmpty()) return
+        if (items.isEmpty() || items == savedItems) return
+        savedItems = items
         val id = chatId ?: ChatId(graph.idGenerator.newId()).also { chatId = it }
+        val title = items.filterIsInstance<ThreadItem.User>().firstOrNull()?.text.orEmpty().take(TITLE_MAX_CHARS)
         val document = ChatDocument(
             schemaVersion = ChatDocument.SCHEMA_VERSION,
-            title = items.filterIsInstance<ThreadItem.User>().firstOrNull()?.text.orEmpty().take(TITLE_MAX_CHARS),
+            title = title,
             items = items,
             history = history,
             activeRunId = activeRunId,
             nextKey = nextKey,
+            runIds = runIds,
         )
         graph.appScope.launch {
-            saveLock.withLock { graph.chats.save(id, CHAT_JSON.encodeToString(ChatDocument.serializer(), document)) }
+            saveLock.withLock { graph.chats.save(id, title, CHAT_JSON.encodeToString(ChatDocument.serializer(), document)) }
+            refreshChats()
         }
     }
 

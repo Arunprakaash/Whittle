@@ -93,6 +93,9 @@ class AppGraph(context: Context) {
     val checkpoints = RoomRunCheckpointStore.open(context, appDefaults.storage.runsDatabaseName, cipher, clock)
     val chats: ChatStore = RoomChatStore.open(context, appDefaults.storage.chatsDatabaseName, cipher, clock)
 
+    /** One folder per chat for the terminal and file tools, in the app's private storage. */
+    val workspaces = Workspaces(File(context.filesDir, appDefaults.storage.workspacesDirectoryName))
+
     /** Lives as long as the process: for writes that must finish even when a screen goes away. */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -132,7 +135,7 @@ class AppGraph(context: Context) {
             },
         )
         return WorkspaceToolSet.create(
-            workspaces = Workspaces(File(context.filesDir, appDefaults.storage.workspacesDirectoryName)),
+            workspaces = workspaces,
             environment = environment,
             config = load(TerminalConfig.FILE, TerminalConfig.serializer(), TerminalConfig.SCHEMA_VERSION),
         )

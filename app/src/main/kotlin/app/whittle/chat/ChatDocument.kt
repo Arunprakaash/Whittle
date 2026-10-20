@@ -14,6 +14,8 @@ data class ChatDocument(
     /** Set while a run is working; still set on load means the app closed mid-run. */
     val activeRunId: RunId?,
     val nextKey: Long,
+    /** Every run this chat started, so deleting the chat deletes their checkpoints too. */
+    val runIds: List<RunId> = emptyList(),
 ) {
     companion object {
         const val SCHEMA_VERSION = 1

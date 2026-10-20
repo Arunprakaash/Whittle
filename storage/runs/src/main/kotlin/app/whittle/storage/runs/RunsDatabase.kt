@@ -27,6 +27,9 @@ interface RunCheckpointDao {
 
     @Query("SELECT * FROM run_checkpoints WHERE status IN (:statuses) ORDER BY updatedAtMillis DESC")
     suspend fun findByStatus(statuses: List<String>): List<RunCheckpointEntity>
+
+    @Query("DELETE FROM run_checkpoints WHERE runId IN (:runIds)")
+    suspend fun delete(runIds: List<String>)
 }
 
 @Database(entities = [RunCheckpointEntity::class], version = 1, exportSchema = true)

@@ -121,6 +121,14 @@ class WorkspaceToolsTest {
     }
 
     @Test
+    fun `deleting a workspace removes its files`() = runBlocking<Unit> {
+        WriteFileTool(workspaces, config).execute(args("""{"path":"a/b.txt","content":"x"}"""), context)
+        assertTrue(File(root, "chat-1").exists())
+        workspaces.delete(WorkspaceId("chat-1"))
+        assertFalse(File(root, "chat-1").exists())
+    }
+
+    @Test
     fun `tools refuse to run without a workspace`() = runBlocking<Unit> {
         val output = ListFilesTool(workspaces, config).execute(args("{}"), ToolExecutionContext(RunId("run"), ToolCallId("call")))
         assertTrue(output.isError)

@@ -10,13 +10,21 @@ value class ChatId(val value: String)
 /** One chat as the app saved it. [document] is the app's own format; the store only encrypts it. */
 data class StoredChat(val id: ChatId, val updatedAtMillis: Long, val document: String)
 
+/** What the chat list needs, without decrypting whole chats. [title] is null for chats saved before titles were stored. */
+data class ChatSummary(val id: ChatId, val title: String?, val updatedAtMillis: Long)
+
 /** Chats kept on this phone only, encrypted at rest. */
 interface ChatStore {
-    suspend fun save(id: ChatId, document: String): Outcome<Unit>
+    suspend fun save(id: ChatId, title: String, document: String): Outcome<Unit>
 
     /** Returns null when there is no chat with [id]. */
     suspend fun load(id: ChatId): Outcome<StoredChat?>
 
     /** The most recently saved chat, or null before the first one. */
     suspend fun latest(): Outcome<StoredChat?>
+
+    /** Every chat, newest first. */
+    suspend fun list(): Outcome<List<ChatSummary>>
+
+    suspend fun delete(id: ChatId): Outcome<Unit>
 }

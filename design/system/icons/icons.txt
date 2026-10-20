@@ -12,10 +12,12 @@ chevron_right
 close
 contacts
 content_copy
+delete
 description
 do_not_disturb_on:fill
 edit
 edit_document
+edit_square
 error
 expand_more
 folder
@@ -24,6 +26,7 @@ info
 key
 language
 lock
+menu
 mic
 more_vert
 open_in_new

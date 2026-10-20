@@ -18,15 +18,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import app.whittle.R
 import app.whittle.design.components.Composer
 import app.whittle.design.components.LatestPill
@@ -59,6 +63,7 @@ import app.whittle.design.components.StepUi
 import app.whittle.design.components.UserMessage
 import app.whittle.design.components.WhittleIcon
 import app.whittle.design.theme.WhittleTheme
+import app.whittle.design.tokens.WhittleHaptic
 import app.whittle.design.tokens.WhittleSpace
 import app.whittle.tools.android.AndroidCapabilities
 import app.whittle.tools.presentation.CapabilityPresentation
@@ -72,12 +77,45 @@ fun ChatScreen(state: ChatState, viewModel: ChatViewModel) {
     val haptics = WhittleTheme.haptics
     LaunchedEffect(viewModel) { viewModel.haptics.collect { haptics.perform(it) } }
     val requestCapability = rememberCapabilityRequest(state.items, viewModel)
+    val drawer = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    val closeThen = { action: () -> Unit -> scope.launch { drawer.close() }; action() }
+    val title = state.chats.firstOrNull { it.id == state.currentChat }?.title
+    ModalNavigationDrawer(
+        drawerState = drawer,
+        drawerContent = {
+            ChatSidebar(
+                chats = state.chats,
+                current = state.currentChat,
+                onNewChat = { closeThen(viewModel::newChat) },
+                onOpen = { id -> closeThen { viewModel.openChat(id) } },
+                onDelete = viewModel::deleteChat,
+            )
+        },
+    ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.chat_title), style = MaterialTheme.typography.titleMedium) },
-                actions = { ChatMenu(onNewTask = viewModel::newTask, onChangeModel = viewModel::changeModel) },
+                navigationIcon = {
+                    IconButton(onClick = { haptics.perform(WhittleHaptic.Tap); scope.launch { drawer.open() } }) {
+                        WhittleIcon("menu", contentDescription = stringResource(R.string.sidebar_open))
+                    }
+                },
+                title = {
+                    Text(
+                        title ?: stringResource(R.string.chat_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+                actions = {
+                    IconButton(onClick = { haptics.perform(WhittleHaptic.Tap); viewModel.newChat() }) {
+                        WhittleIcon("edit_square", contentDescription = stringResource(R.string.sidebar_new_chat))
+                    }
+                    ChatMenu(onChangeModel = viewModel::changeModel)
+                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
         },
@@ -92,6 +130,7 @@ fun ChatScreen(state: ChatState, viewModel: ChatViewModel) {
             }
             Dock(state, viewModel)
         }
+    }
     }
 }
 
@@ -240,11 +279,10 @@ private fun EmptyThread(state: ChatState) {
 }
 
 @Composable
-private fun ChatMenu(onNewTask: () -> Unit, onChangeModel: () -> Unit) {
+private fun ChatMenu(onChangeModel: () -> Unit) {
     var open by remember { mutableStateOf(false) }
     IconButton(onClick = { open = true }) { WhittleIcon("more_vert", contentDescription = stringResource(R.string.chat_more)) }
     DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-        DropdownMenuItem(text = { Text(stringResource(R.string.chat_new_task)) }, onClick = { open = false; onNewTask() })
         DropdownMenuItem(text = { Text(stringResource(R.string.chat_change_model)) }, onClick = { open = false; onChangeModel() })
     }
 }

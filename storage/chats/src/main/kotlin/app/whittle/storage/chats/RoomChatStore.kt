@@ -11,16 +11,19 @@ import app.whittle.core.common.flatMap
 import app.whittle.core.common.map
 import java.io.IOException
 
-/** Persists chats in Room, encrypted at rest with [cipher]; the chat id is bound in as associated data. */
+/**
+ * Persists chats in Room, encrypted at rest with [cipher]. The chat id is bound in as associated data,
+ * and the title uses a separate binding so a title can never be swapped in as a document.
+ */
 class RoomChatStore(
     private val dao: ChatDao,
     private val cipher: ContentCipher,
     private val clock: EpochClock,
 ) : ChatStore {
-    override suspend fun save(id: ChatId, document: String): Outcome<Unit> =
-        cipher.encrypt(document.toByteArray(Charsets.UTF_8), associatedData(id)).flatMap { ciphertext ->
-            storageCall {
-                dao.upsert(ChatEntity(id.value, clock.nowMillis(), Base64.encodeToString(ciphertext, Base64.NO_WRAP)))
+    override suspend fun save(id: ChatId, title: String, document: String): Outcome<Unit> =
+        encrypt(document, documentBinding(id)).flatMap { encryptedDocument ->
+            encrypt(title, titleBinding(id)).flatMap { encryptedTitle ->
+                storageCall { dao.upsert(ChatEntity(id.value, clock.nowMillis(), encryptedDocument, encryptedTitle)) }
             }
         }
 
@@ -30,11 +33,27 @@ class RoomChatStore(
     override suspend fun latest(): Outcome<StoredChat?> =
         storageCall { dao.latest() }.flatMap { entity -> entity?.let(::decode) ?: Outcome.Success(null) }
 
+    override suspend fun list(): Outcome<List<ChatSummary>> = storageCall { dao.titles() }.map { rows ->
+        rows.map { row ->
+            val id = ChatId(row.chatId)
+            // A title that won't decrypt is shown as untitled rather than hiding the chat.
+            val title = row.encryptedTitle.takeIf { it.isNotEmpty() }?.let { decrypt(it, titleBinding(id)) }
+            ChatSummary(id, (title as? Outcome.Success)?.value, row.updatedAtMillis)
+        }
+    }
+
+    override suspend fun delete(id: ChatId): Outcome<Unit> = storageCall { dao.delete(id.value) }
+
     private fun decode(entity: ChatEntity): Outcome<StoredChat> {
         val id = ChatId(entity.chatId)
-        return cipher.decrypt(Base64.decode(entity.encryptedDocument, Base64.NO_WRAP), associatedData(id))
-            .map { StoredChat(id, entity.updatedAtMillis, it.toString(Charsets.UTF_8)) }
+        return decrypt(entity.encryptedDocument, documentBinding(id)).map { StoredChat(id, entity.updatedAtMillis, it) }
     }
+
+    private fun encrypt(text: String, binding: ByteArray): Outcome<String> =
+        cipher.encrypt(text.toByteArray(Charsets.UTF_8), binding).map { Base64.encodeToString(it, Base64.NO_WRAP) }
+
+    private fun decrypt(encoded: String, binding: ByteArray): Outcome<String> =
+        cipher.decrypt(Base64.decode(encoded, Base64.NO_WRAP), binding).map { it.toString(Charsets.UTF_8) }
 
     private suspend fun <T> storageCall(block: suspend () -> T): Outcome<T> = try {
         Outcome.Success(block())
@@ -44,11 +63,22 @@ class RoomChatStore(
         Outcome.Failure(HarnessError.Storage("Chat store error: ${exception.javaClass.simpleName}"))
     }
 
-    private fun associatedData(id: ChatId): ByteArray = id.value.toByteArray(Charsets.UTF_8)
+    private fun documentBinding(id: ChatId): ByteArray = id.value.toByteArray(Charsets.UTF_8)
+
+    private fun titleBinding(id: ChatId): ByteArray = (TITLE_BINDING_PREFIX + id.value).toByteArray(Charsets.UTF_8)
 
     companion object {
+        private const val TITLE_BINDING_PREFIX = "title:"
+
         /** Opens the on-device chats database. Create one store per process. */
         fun open(context: Context, databaseName: String, cipher: ContentCipher, clock: EpochClock): RoomChatStore =
-            RoomChatStore(Room.databaseBuilder(context, ChatsDatabase::class.java, databaseName).build().chats(), cipher, clock)
+            RoomChatStore(
+                Room.databaseBuilder(context, ChatsDatabase::class.java, databaseName)
+                    .addMigrations(ChatsDatabase.MIGRATION_1_2)
+                    .build()
+                    .chats(),
+                cipher,
+                clock,
+            )
     }
 }
