@@ -287,7 +287,7 @@ private fun KeyField(label: String, value: String, secret: Boolean, help: String
 
 /** Name and address of an MCP server; Whittle works out how it signs in. */
 @Composable
-private fun AddDialog(graph: AppGraph, onDismiss: () -> Unit, onAdded: (McpConnection) -> Unit) {
+internal fun AddDialog(graph: AppGraph, onDismiss: () -> Unit, onAdded: (McpConnection) -> Unit) {
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
     var checking by remember { mutableStateOf(false) }

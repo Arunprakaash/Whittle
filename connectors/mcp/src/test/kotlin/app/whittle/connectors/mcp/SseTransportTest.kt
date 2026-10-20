@@ -106,7 +106,7 @@ class SseTransportTest {
                 maxResultChars = 1_000,
                 servers = emptyList(),
                 custom = CustomConnectorDefaults("mcp_", 16, "extension", "app.whittle://oauth/", RiskTier.NETWORK_OUT, 64),
-                library = LibraryConfig("https://registry.example/v0/servers", 10, emptyList()),
+                library = LibraryConfig("https://registry.example/v0/servers", 10, categories = emptyList(), servers = emptyList()),
             ),
             http = OkHttpClient(),
             clock = EpochClock { 0L },

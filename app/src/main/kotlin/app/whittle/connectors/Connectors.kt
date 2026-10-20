@@ -2,6 +2,7 @@ package app.whittle.connectors
 
 import app.whittle.connectors.mcp.McpTransportKind
 import app.whittle.connectors.mcp.McpRegistry
+import app.whittle.connectors.mcp.LibraryCategory
 import app.whittle.connectors.mcp.LibraryServer
 import app.whittle.connectors.mcp.HeaderSpec
 import android.app.Activity
@@ -58,8 +59,9 @@ class Connectors(
     private val changes = Mutex()
     private val probe = McpProbe(config, http)
 
-    /** Servers to browse: Whittle's featured list, and search over the MCP Registry. */
-    val featured: List<LibraryServer> = config.library.featured
+    /** Whittle's library, grouped by [categories]; the agent can also search the MCP Registry. */
+    val library: List<LibraryServer> = config.library.servers
+    val categories: List<LibraryCategory> = config.library.categories
     val registry = McpRegistry(config.library, http)
 
     /** Every service, bundled first, then the user's in the order they added them. */

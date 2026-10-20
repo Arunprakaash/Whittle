@@ -75,30 +75,317 @@
   "library": {
     "registryUrl": "https://registry.modelcontextprotocol.io/v0/servers",
     "pageSize": 30,
-    "featured": [
+    "categories": [
+      {
+        "id": "work",
+        "title": "Work and tasks"
+      },
+      {
+        "id": "communication",
+        "title": "Communication and meetings"
+      },
+      {
+        "id": "files",
+        "title": "Files and design"
+      },
+      {
+        "id": "money",
+        "title": "Money and customers"
+      },
+      {
+        "id": "websites",
+        "title": "Websites and apps"
+      },
+      {
+        "id": "research",
+        "title": "Research and docs"
+      }
+    ],
+    "servers": [
       {
         "title": "Notion",
         "description": "Search, read and write your Notion pages and databases.",
         "url": "https://mcp.notion.com/mcp",
-        "websiteUrl": "https://www.notion.so"
+        "websiteUrl": "https://www.notion.so",
+        "category": "work",
+        "keywords": [
+          "notes",
+          "wiki",
+          "docs"
+        ]
+      },
+      {
+        "title": "Todoist",
+        "description": "Your to-dos: add tasks, plan your day and check things off.",
+        "url": "https://ai.todoist.net/mcp",
+        "websiteUrl": "https://todoist.com",
+        "category": "work",
+        "keywords": [
+          "tasks",
+          "todo",
+          "reminders"
+        ]
       },
       {
         "title": "Linear",
         "description": "Find, create and update issues and projects in Linear.",
         "url": "https://mcp.linear.app/mcp",
-        "websiteUrl": "https://linear.app"
+        "websiteUrl": "https://linear.app",
+        "category": "work",
+        "keywords": [
+          "issues",
+          "bugs",
+          "projects"
+        ]
       },
       {
         "title": "Atlassian",
         "description": "Jira issues and Confluence pages from your Atlassian sites.",
         "url": "https://mcp.atlassian.com/v2/mcp",
-        "websiteUrl": "https://www.atlassian.com"
+        "websiteUrl": "https://www.atlassian.com",
+        "category": "work",
+        "keywords": [
+          "jira",
+          "confluence",
+          "issues",
+          "wiki"
+        ]
+      },
+      {
+        "title": "monday.com",
+        "description": "Boards, items and updates across your monday.com workspace.",
+        "url": "https://mcp.monday.com/mcp",
+        "websiteUrl": "https://monday.com",
+        "category": "work",
+        "keywords": [
+          "projects",
+          "boards",
+          "tasks"
+        ]
+      },
+      {
+        "title": "Airtable",
+        "description": "Read and update records in your Airtable bases.",
+        "url": "https://mcp.airtable.com/mcp",
+        "websiteUrl": "https://airtable.com",
+        "category": "work",
+        "keywords": [
+          "database",
+          "spreadsheet",
+          "tables"
+        ]
+      },
+      {
+        "title": "Zapier",
+        "description": "Gmail, Slack, Google Calendar, Sheets and 8,000 more apps, through your Zapier account.",
+        "url": "https://mcp.zapier.com/api/mcp/mcp",
+        "websiteUrl": "https://zapier.com",
+        "category": "communication",
+        "keywords": [
+          "gmail",
+          "email",
+          "slack",
+          "outlook",
+          "google calendar",
+          "google sheets",
+          "teams",
+          "whatsapp",
+          "automation"
+        ]
+      },
+      {
+        "title": "Granola",
+        "description": "Notes, transcripts and action items from your meetings.",
+        "url": "https://mcp.granola.ai/mcp",
+        "websiteUrl": "https://www.granola.ai",
+        "category": "communication",
+        "keywords": [
+          "meetings",
+          "notes",
+          "transcripts"
+        ]
+      },
+      {
+        "title": "Fireflies",
+        "description": "Recordings, transcripts and summaries of your calls.",
+        "url": "https://api.fireflies.ai/mcp",
+        "websiteUrl": "https://fireflies.ai",
+        "category": "communication",
+        "keywords": [
+          "meetings",
+          "calls",
+          "transcripts",
+          "zoom"
+        ]
+      },
+      {
+        "title": "Intercom",
+        "description": "Customer conversations and contacts in your Intercom inbox.",
+        "url": "https://mcp.intercom.com/mcp",
+        "websiteUrl": "https://www.intercom.com",
+        "category": "communication",
+        "keywords": [
+          "support",
+          "inbox",
+          "customers",
+          "chat"
+        ]
+      },
+      {
+        "title": "Dropbox",
+        "description": "Find, read and organize files in your Dropbox.",
+        "url": "https://mcp.dropbox.com/mcp",
+        "websiteUrl": "https://www.dropbox.com",
+        "category": "files",
+        "keywords": [
+          "files",
+          "storage",
+          "documents"
+        ]
+      },
+      {
+        "title": "Canva",
+        "description": "Search, create and export your Canva designs.",
+        "url": "https://mcp.canva.com/mcp",
+        "websiteUrl": "https://www.canva.com",
+        "category": "files",
+        "keywords": [
+          "design",
+          "posters",
+          "presentations",
+          "social"
+        ]
+      },
+      {
+        "title": "Figma",
+        "description": "Designs, screens and components from your Figma files.",
+        "url": "https://mcp.figma.com/mcp",
+        "websiteUrl": "https://www.figma.com",
+        "category": "files",
+        "keywords": [
+          "design",
+          "ui",
+          "mockups"
+        ]
+      },
+      {
+        "title": "Miro",
+        "description": "Boards, sticky notes and diagrams on your Miro boards.",
+        "url": "https://mcp.miro.com/",
+        "websiteUrl": "https://miro.com",
+        "category": "files",
+        "keywords": [
+          "whiteboard",
+          "diagrams",
+          "brainstorm"
+        ]
       },
       {
         "title": "Stripe",
         "description": "Customers, payments and products in your Stripe account.",
         "url": "https://mcp.stripe.com",
-        "websiteUrl": "https://stripe.com"
+        "websiteUrl": "https://stripe.com",
+        "category": "money",
+        "keywords": [
+          "payments",
+          "invoices",
+          "subscriptions"
+        ]
+      },
+      {
+        "title": "PayPal",
+        "description": "Invoices, orders and transactions in your PayPal business account.",
+        "url": "https://mcp.paypal.com/mcp",
+        "websiteUrl": "https://www.paypal.com",
+        "category": "money",
+        "keywords": [
+          "payments",
+          "invoices"
+        ]
+      },
+      {
+        "title": "Square",
+        "description": "Sales, orders, items and customers in your Square business.",
+        "url": "https://mcp.squareup.com/mcp",
+        "websiteUrl": "https://squareup.com",
+        "category": "money",
+        "keywords": [
+          "payments",
+          "shop",
+          "point of sale"
+        ]
+      },
+      {
+        "title": "Attio",
+        "description": "Contacts, companies and deals in your Attio CRM.",
+        "url": "https://mcp.attio.com/mcp",
+        "websiteUrl": "https://attio.com",
+        "category": "money",
+        "keywords": [
+          "crm",
+          "sales",
+          "customers"
+        ]
+      },
+      {
+        "title": "Vercel",
+        "description": "Your Vercel projects, deployments and logs.",
+        "url": "https://mcp.vercel.com",
+        "websiteUrl": "https://vercel.com",
+        "category": "websites",
+        "keywords": [
+          "hosting",
+          "deploy",
+          "website"
+        ]
+      },
+      {
+        "title": "Netlify",
+        "description": "Create, deploy and manage your Netlify sites.",
+        "url": "https://netlify-mcp.netlify.app/mcp",
+        "websiteUrl": "https://www.netlify.com",
+        "category": "websites",
+        "keywords": [
+          "hosting",
+          "deploy",
+          "website"
+        ]
+      },
+      {
+        "title": "Webflow",
+        "description": "Pages, content and collections on your Webflow sites.",
+        "url": "https://mcp.webflow.com/mcp",
+        "websiteUrl": "https://webflow.com",
+        "category": "websites",
+        "keywords": [
+          "website",
+          "cms",
+          "blog"
+        ]
+      },
+      {
+        "title": "Wix",
+        "description": "Your Wix sites: pages, store, bookings and content.",
+        "url": "https://mcp.wix.com/mcp",
+        "websiteUrl": "https://www.wix.com",
+        "category": "websites",
+        "keywords": [
+          "website",
+          "store",
+          "blog"
+        ]
+      },
+      {
+        "title": "Exa",
+        "description": "Web search built for AI: find pages, companies and people.",
+        "url": "https://mcp.exa.ai/mcp",
+        "websiteUrl": "https://exa.ai",
+        "category": "research",
+        "keywords": [
+          "search",
+          "web",
+          "research"
+        ]
       },
       {
         "title": "Context7",
@@ -111,6 +398,36 @@
             "description": "Optional: your Context7 API key, for higher limits",
             "isSecret": true
           }
+        ],
+        "category": "research",
+        "keywords": [
+          "docs",
+          "libraries",
+          "code"
+        ]
+      },
+      {
+        "title": "DeepWiki",
+        "description": "Ask questions about any public GitHub repository.",
+        "url": "https://mcp.deepwiki.com/mcp",
+        "websiteUrl": "https://deepwiki.com",
+        "category": "research",
+        "keywords": [
+          "github",
+          "code",
+          "repositories"
+        ]
+      },
+      {
+        "title": "Hugging Face",
+        "description": "Models, datasets and Spaces on Hugging Face.",
+        "url": "https://huggingface.co/mcp?login",
+        "websiteUrl": "https://huggingface.co",
+        "category": "research",
+        "keywords": [
+          "ai",
+          "models",
+          "datasets"
         ]
       }
     ]

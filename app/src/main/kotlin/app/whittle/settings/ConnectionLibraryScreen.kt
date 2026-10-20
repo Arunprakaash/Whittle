@@ -1,5 +1,7 @@
 package app.whittle.settings
 
+import app.whittle.design.components.SettingsRow
+import app.whittle.connectors.matches
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -22,17 +24,13 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
@@ -51,15 +49,12 @@ import app.whittle.design.components.WhittleSearchBar
 import app.whittle.design.components.segmentedShape
 import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
- * MCP servers to add: Whittle's short featured list, and a search over the MCP Registry, which anyone can
- * publish to, so its results are labelled as unreviewed and only come up when the user searches. Adding signs
- * in the way the server needs.
+ * Whittle's library of connections, grouped (work, communication, files and so on): official, hosted servers
+ * picked because they sign Whittle in on their own. Search narrows it; anything else is added by its address.
  */
 @Composable
 fun ConnectionLibraryScreen(graph: AppGraph, onBack: () -> Unit) {
@@ -69,43 +64,13 @@ fun ConnectionLibraryScreen(graph: AppGraph, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val connections by connectors.all.collectAsState()
     val search = rememberTextFieldState()
-    var query by remember { mutableStateOf("") }
-    val results = remember { mutableStateListOf<LibraryServer>() }
-    var next by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(false) }
-    var failed by remember { mutableStateOf<String?>(null) }
+    val query = search.text.toString().trim()
     var adding by remember { mutableStateOf<String?>(null) }
+    var addingByAddress by remember { mutableStateOf(false) }
     var askingKeys by remember { mutableStateOf<McpConnection?>(null) }
     val addedLabel = stringResource(R.string.connector_library_added)
     ConnectorFailures(graph)
 
-    suspend fun load(cursor: String?) {
-        loading = true
-        failed = null
-        when (val page = connectors.registry.search(query, cursor)) {
-            is Outcome.Success -> {
-                if (cursor == null) results.clear()
-                // The featured list already shows these; the registry often has copies.
-                val featuredUrls = connectors.featured.map { it.url }.toSet()
-                results += page.value.servers.filter { it.url !in featuredUrls && results.none { known -> known.url == it.url } }
-                next = page.value.next
-            }
-            is Outcome.Failure -> failed = page.error.message
-        }
-        loading = false
-    }
-    LaunchedEffect(search) {
-        snapshotFlow { search.text.toString() }.collectLatest { text ->
-            delay(SEARCH_PAUSE_MILLIS)
-            query = text
-            // Old results would read as answers to the new search while it loads.
-            results.clear()
-            next = null
-            failed = null
-            // The registry is long and unreviewed: it answers searches, it doesn't fill the page.
-            if (text.isNotBlank()) load(cursor = null)
-        }
-    }
     fun add(server: LibraryServer) {
         adding = server.url
         scope.launch {
@@ -119,7 +84,9 @@ fun ConnectionLibraryScreen(graph: AppGraph, onBack: () -> Unit) {
             adding = null
         }
     }
-    val featured = connectors.featured.filter { query.isBlank() || query.lowercase() in (it.title + " " + it.description).lowercase() }
+    val groups = connectors.categories.mapNotNull { category ->
+        connectors.library.filter { it.category == category.id && it.matches(query) }.takeIf { it.isNotEmpty() }?.let { category to it }
+    }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
@@ -138,36 +105,27 @@ fun ConnectionLibraryScreen(graph: AppGraph, onBack: () -> Unit) {
             contentPadding = PaddingValues(horizontal = WhittleSpace.l, vertical = WhittleSpace.m),
             verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline),
         ) {
-            item {
+            item(key = "search") {
                 WhittleSearchBar(search, placeholder = stringResource(R.string.connector_library_search), clearLabel = stringResource(R.string.search_clear))
             }
-            if (featured.isNotEmpty()) {
-                item { SectionLabel(stringResource(R.string.connector_library_featured)) }
-                itemsIndexed(featured, key = { _, it -> "featured:" + it.url }) { index, server ->
-                    LibraryRow(server, connectors.added(server.url) != null && connections.isNotEmpty(), adding == server.url, segmentedShape(index, featured.size)) { add(server) }
+            groups.forEach { (category, servers) ->
+                item(key = "category:" + category.id) { SectionLabel(category.title) }
+                itemsIndexed(servers, key = { _, it -> "server:" + it.url }) { index, server ->
+                    // Reading the connections keeps Added current as services come and go.
+                    val added = connections.isNotEmpty() && connectors.added(server.url) != null
+                    LibraryRow(server, added, adding == server.url, segmentedShape(index, servers.size)) { add(server) }
                 }
             }
-            item {
-                Column(Modifier.padding(top = WhittleSpace.l, bottom = WhittleSpace.s), verticalArrangement = Arrangement.spacedBy(WhittleSpace.xs)) {
-                    SectionLabel(stringResource(R.string.connector_library_registry))
-                    Text(
-                        stringResource(if (query.isBlank()) R.string.connector_library_registry_hint else R.string.connector_library_registry_note),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+            item(key = "custom") {
+                Column(Modifier.padding(top = WhittleSpace.m), verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+                    SectionLabel(stringResource(if (groups.isEmpty()) R.string.connector_library_none else R.string.connector_library_other, query))
+                    SettingsRow(
+                        icon = "add",
+                        title = stringResource(R.string.connector_add),
+                        subtitle = stringResource(R.string.connector_library_other_body),
+                        shape = segmentedShape(0, 1),
+                        onClick = { addingByAddress = true },
                     )
-                }
-            }
-            itemsIndexed(results, key = { _, it -> "registry:" + it.url }) { index, server ->
-                LibraryRow(server, connectors.added(server.url) != null, adding == server.url, segmentedShape(index, results.size)) { add(server) }
-            }
-            if (query.isNotBlank()) item {
-                Row(Modifier.fillMaxWidth().padding(vertical = WhittleSpace.m), horizontalArrangement = Arrangement.Center) {
-                    when {
-                        loading -> CircularProgressIndicator(Modifier.size(WhittleSize.Icon.xl), strokeWidth = WhittleSpace.hairline)
-                        failed != null -> TextButton(onClick = { scope.launch { load(cursor = null) } }) { Text(stringResource(R.string.connector_library_retry)) }
-                        results.isEmpty() -> Text(stringResource(R.string.connector_library_none), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        next != null -> TextButton(onClick = { scope.launch { load(next) } }) { Text(stringResource(R.string.connector_library_more)) }
-                    }
                 }
             }
         }
@@ -178,11 +136,22 @@ fun ConnectionLibraryScreen(graph: AppGraph, onBack: () -> Unit) {
             askingKeys = null
         }
     }
+    if (addingByAddress) {
+        AddDialog(graph, onDismiss = { addingByAddress = false }) { added ->
+            addingByAddress = false
+            connectAdded(graph, context, added) { askingKeys = it }
+        }
+    }
 }
 
 @Composable
 private fun SectionLabel(text: String) {
-    Text(text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = WhittleSpace.s))
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = WhittleSpace.m, bottom = WhittleSpace.s, start = WhittleSpace.m),
+    )
 }
 
 /** One server: its site's icon, name, what it does, its address, and Add (or Added). */
@@ -219,5 +188,3 @@ private fun LibraryRow(server: LibraryServer, added: Boolean, adding: Boolean, s
         }
     }
 }
-
-private const val SEARCH_PAUSE_MILLIS = 350L

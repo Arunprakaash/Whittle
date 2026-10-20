@@ -61,7 +61,7 @@ data class HeaderSpec(
     val isSecret: Boolean = false,
 )
 
-/** A server the library offers: from Whittle's featured list or the MCP Registry. */
+/** A server to add: one Whittle picked for its library, or a match from the MCP Registry. */
 @Serializable
 data class LibraryServer(
     val title: String,
@@ -70,16 +70,35 @@ data class LibraryServer(
     val transport: McpTransportKind = McpTransportKind.STREAMABLE_HTTP,
     val websiteUrl: String? = null,
     val headers: List<HeaderSpec> = emptyList(),
+    /** The library group it's listed under (a [LibraryCategory] id); null for registry matches. */
+    val category: String? = null,
+    /** Other words people search for it by, e.g. the apps a hub like Zapier reaches. */
+    val keywords: List<String> = emptyList(),
 )
+
+/** A group in the library, in the order the user sees them. */
+@Serializable
+data class LibraryCategory(val id: String, val title: String)
 
 @Serializable
 data class LibraryConfig(
     /** The MCP Registry's server list (registry.modelcontextprotocol.io). Anyone can publish there; Whittle says so. */
     val registryUrl: String,
     val pageSize: Int,
-    /** Servers Whittle points to first: official, remote, and checked. */
-    val featured: List<LibraryServer>,
-)
+    val categories: List<LibraryCategory>,
+    /**
+     * The library: official, hosted servers that sign Whittle in on their own (OAuth with dynamic client
+     * registration) or need no sign-in. Anything else the user adds by its address.
+     */
+    val servers: List<LibraryServer>,
+) {
+    init {
+        val ids = categories.map { it.id }
+        require(ids.toSet().size == ids.size) { "library category ids must be unique" }
+        servers.forEach { require(it.category in ids) { "library server ${it.title} has no known category" } }
+        require(servers.map { it.url }.toSet().size == servers.size) { "library server addresses must be unique" }
+    }
+}
 
 /** How a server signs Whittle in. */
 @Serializable

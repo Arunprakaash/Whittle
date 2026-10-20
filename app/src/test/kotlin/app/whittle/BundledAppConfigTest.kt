@@ -1,6 +1,8 @@
 package app.whittle
 
 import app.whittle.config.defaults.BundledConfigSource
+import app.whittle.connectors.matches
+import app.whittle.connectors.mcp.ConnectorsConfig
 import app.whittle.core.common.Outcome
 import app.whittle.core.config.ConfigFiles
 import app.whittle.core.config.ConfigLoader
@@ -42,5 +44,15 @@ class BundledAppConfigTest {
             config.capabilities.values.map { it.icon }
         val missing = named - MaterialSymbols.names
         assertTrue(missing.isEmpty(), "Add these to design/system/icons/icons.txt: $missing")
+    }
+
+    @Test
+    fun `the connection library is grouped, every group has servers, and people find hubs by the apps they reach`() {
+        val library = assertIs<Outcome.Success<ConnectorsConfig>>(
+            loader.load(ConnectorsConfig.FILE, ConnectorsConfig.serializer(), ConnectorsConfig.SCHEMA_VERSION),
+        ).value.library
+        library.categories.forEach { category -> assertTrue(library.servers.any { it.category == category.id }, "${category.title} is empty") }
+        assertTrue(library.servers.all { it.url.startsWith("https://") })
+        assertEquals(listOf("Zapier"), library.servers.filter { it.matches("gmail") }.map { it.title })
     }
 }
