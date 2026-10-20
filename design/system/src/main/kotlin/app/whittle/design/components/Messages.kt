@@ -60,7 +60,7 @@ fun UserMessage(text: String, modifier: Modifier = Modifier, steerLabel: String?
 fun Narration(text: String, streaming: Boolean, modifier: Modifier = Modifier) {
     val annotated = buildAnnotatedString {
         append(text)
-        if (streaming) appendInlineContent(STREAMING_DOT_ID, "")
+        if (streaming) appendInlineContent(STREAMING_DOT_ID, STREAMING_DOT_ALTERNATE_TEXT)
     }
     val inline = if (streaming) {
         mapOf(
@@ -93,6 +93,9 @@ private fun StreamingDot() {
 }
 
 private const val STREAMING_DOT_ID = "streamingDot"
+
+/** Read by accessibility services in place of the dot; Compose requires it to be non-empty. */
+private const val STREAMING_DOT_ALTERNATE_TEXT = "…"
 private const val DOT_PLACEHOLDER = 0.9f
 private const val DOT_MIN_SCALE = 0.55f
 private const val SECONDARY_ALPHA = 0.7f
