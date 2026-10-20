@@ -18,8 +18,8 @@ import app.whittle.core.config.NetworkConfig
 import app.whittle.core.config.PromptTemplate
 import app.whittle.core.model.Message
 import app.whittle.core.model.RunId
-import app.whittle.dev.cli.tools.DeviceClockTool
-import app.whittle.dev.cli.tools.WebFetchTool
+import app.whittle.tools.device.DeviceClockTool
+import app.whittle.tools.web.WebFetchTool
 import app.whittle.llm.api.ModelAdapterRegistry
 import app.whittle.llm.api.ModelDefaults
 import app.whittle.llm.api.ModelTrustConfig

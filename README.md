@@ -19,6 +19,9 @@ Architecture diagrams: `~/Desktop/mobile-agent-architecture-diagrams/`.
 | `llm:adapter-openai-responses` | OpenAI Responses API adapter: tools with reasoning, encrypted reasoning carried between steps, `store: false` |
 | `llm:openrouter-auth` | One-tap OpenRouter sign-in with OAuth PKCE |
 | `tools:api` | `ToolDefinition`, `ToolRegistry`, risk tiers, argument validation |
+| `tools:presentation` | Plain-language step labels and decision cards for each tool, from `tool-presentation.json` |
+| `tools:device` | On-device tools (clock) |
+| `tools:web` | Web fetch over https; output is untrusted |
 | `policy:engine` | Deterministic allow / ask / deny engine driven by `policy-rules.json` |
 | `agent:runtime` | `AgentRunner`: the agent loop with checkpoints, approvals, resume |
 | `observability:api` | Vendor-neutral telemetry with consent filtering |

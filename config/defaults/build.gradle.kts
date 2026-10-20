@@ -9,4 +9,8 @@ dependencies {
     testImplementation(project(":llm:openrouter-auth"))
     testImplementation(project(":policy:engine"))
     testImplementation(project(":agent:runtime"))
+    testImplementation(project(":tools:presentation"))
+    testImplementation(project(":tools:device"))
+    testImplementation(project(":tools:web"))
+    testImplementation(libs.okhttp)
 }

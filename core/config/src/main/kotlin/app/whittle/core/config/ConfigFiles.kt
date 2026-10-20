@@ -9,5 +9,6 @@ object ConfigFiles {
     val policyRules = ConfigName("policy-rules.json")
     val openRouterAuth = ConfigName("openrouter-auth.json")
     val agentMessages = ConfigName("agent-messages.json")
+    val toolPresentation = ConfigName("tool-presentation.json")
     val agentSystemPrompt = ConfigName("prompts/agent-system.md")
 }

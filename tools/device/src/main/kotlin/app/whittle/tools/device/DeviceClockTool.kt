@@ -1,4 +1,4 @@
-package app.whittle.dev.cli.tools
+package app.whittle.tools.device
 
 import app.whittle.core.common.EpochClock
 import app.whittle.core.model.Provenance
@@ -19,7 +19,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/** Sample read-only tool: current date and time, optionally in a given IANA time zone. */
+/** Read-only tool: the current date and time, optionally in a given IANA time zone. */
 class DeviceClockTool(private val clock: EpochClock) : Tool {
     override val definition = ToolDefinition(
         id = ToolId("device_clock_now"),

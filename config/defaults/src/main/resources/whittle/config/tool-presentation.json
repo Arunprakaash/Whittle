@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "fallback": {
+    "icon": "build",
+    "running": "Working on it",
+    "done": "Done",
+    "decision": {
+      "icon": "help",
+      "title": "Allow this step?",
+      "body": "Whittle needs your OK before it does this.",
+      "approve": "Allow",
+      "approveIcon": "check",
+      "decline": "Not now",
+      "approvedOutcome": "Allowed",
+      "declinedOutcome": "Not allowed"
+    }
+  },
+  "tools": {
+    "device_clock_now": {
+      "icon": "schedule",
+      "running": "Checking the time",
+      "done": "Checked the time"
+    },
+    "web_fetch": {
+      "icon": "language",
+      "running": "Reading {{url_host}}",
+      "done": "Read {{url_host}}",
+      "decision": {
+        "icon": "language",
+        "title": "Read {{url_host}}?",
+        "body": "Downloads this page so Whittle can read it. Only the address is sent.",
+        "payloadArgument": "url",
+        "approve": "Read page",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Read {{url_host}}",
+        "declinedOutcome": "Not read"
+      }
+    }
+  }
+}

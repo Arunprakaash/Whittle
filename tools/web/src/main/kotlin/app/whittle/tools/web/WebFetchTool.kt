@@ -1,4 +1,4 @@
-package app.whittle.dev.cli.tools
+package app.whittle.tools.web
 
 import app.whittle.core.model.Provenance
 import app.whittle.tools.api.ExecutionSite
@@ -20,8 +20,8 @@ import okhttp3.Request
 import java.io.IOException
 
 /**
- * Sample outbound tool: fetches a web page. Its output is untrusted, so it taints the run and
- * exercises the approval and taint rules end to end.
+ * Outbound tool: fetches a web page over https. Its output is untrusted, so it taints the run and
+ * later outbound calls need the user's choice again.
  */
 class WebFetchTool(private val httpClient: OkHttpClient) : Tool {
     override val definition = ToolDefinition(
