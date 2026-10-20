@@ -42,6 +42,13 @@ data class RunCheckpoint(
     val inFlightToolCall: ContentBlock.ToolCall? = null,
     /** Results gathered so far for the current step's tool calls. */
     val stepResults: List<ContentBlock.ToolResult> = emptyList(),
+    /**
+     * Tool calls parked for the user's choice. They never hold the run up: a run can complete with
+     * cards still open, and answering one later continues the run from its checkpoint.
+     */
+    val pendingDecisions: List<PendingDecision> = emptyList(),
+    /** An approved decision whose tool had started when the checkpoint was written. */
+    val inFlightDecision: ContentBlock.ToolCall? = null,
 ) {
     fun runContext(): RunContext = RunContext(
         mode = mode,

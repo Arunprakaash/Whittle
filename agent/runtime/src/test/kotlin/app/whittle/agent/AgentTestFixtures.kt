@@ -61,7 +61,11 @@ internal val testMessages = AgentMessages(
     unknownTool = "unknown {{tool}}",
     invalidArguments = "invalid {{tool}}: {{detail}}",
     policyDenied = "denied {{tool}}",
-    userDeclined = "declined {{tool}}",
+    awaitingUser = "waiting {{tool}}",
+    decisionApproved = "approved {{tool}}: {{output}}",
+    decisionApprovedUntrusted = "approved {{tool}} from {{source}}: {{output}}",
+    decisionDeclined = "declined {{tool}}",
+    decisionFailed = "approval failed {{tool}}: {{detail}}",
     interruptedToolCall = "interrupted {{tool}}",
     toolFailed = "failed {{tool}}: {{detail}}",
     outputTruncated = "[truncated at {{limit}}]",
@@ -128,15 +132,6 @@ internal class FakeTool(
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
         executions++
         return ToolOutput(behaviour(), isError = false, provenance = provenance)
-    }
-}
-
-internal class RecordingApprovals(private val answer: ApprovalAnswer) : ApprovalGateway {
-    val requests = mutableListOf<ApprovalRequest>()
-
-    override suspend fun request(request: ApprovalRequest): ApprovalAnswer {
-        requests += request
-        return answer
     }
 }
 

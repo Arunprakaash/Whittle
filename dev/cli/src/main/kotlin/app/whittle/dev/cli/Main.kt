@@ -4,6 +4,7 @@ import app.whittle.agent.AgentMessages
 import app.whittle.agent.AgentRunner
 import app.whittle.agent.InMemoryRunCheckpointStore
 import app.whittle.agent.RunEvent
+import app.whittle.agent.RunInbox
 import app.whittle.agent.RunRequest
 import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.core.common.EpochClock
@@ -73,6 +74,8 @@ fun main(args: Array<String>) = runBlocking {
     val prompt = arguments.prompt ?: fail("Pass --prompt")
 
     val clock = EpochClock.System
+    val inbox = RunInbox()
+    val decisions = ConsoleDecisions(arguments.approvalMode, inbox)
     val runner = AgentRunner(
         adapters = ModelAdapterRegistry(
             setOf(OpenAiCompatibleAdapter(httpClient, IdGenerator.Random), OpenAiResponsesAdapter(httpClient)),
@@ -81,7 +84,7 @@ fun main(args: Array<String>) = runBlocking {
         credentials = credentials,
         tools = ToolRegistry(setOf(DeviceClockTool(clock), WebFetchTool(httpClient))),
         policy = RuleBasedPolicyEngine(rules),
-        approvals = ConsoleApprovalGateway(arguments.approvalMode),
+        inbox = inbox,
         checkpoints = InMemoryRunCheckpointStore(),
         telemetry = LocalTelemetry(IdGenerator.Random),
         limits = harness.agent,
@@ -94,9 +97,10 @@ fun main(args: Array<String>) = runBlocking {
         "[run] ${provider.displayName} / ${model.id.value} (trust tier ${model.trustTier}, " +
             "reasoning ${if (model.capabilities.reasoning) reasoningEffort else "not supported"})",
     )
-    runner.start(
+    val runId = RunId(IdGenerator.Random.newId())
+    var events = runner.start(
         RunRequest(
-            runId = RunId(IdGenerator.Random.newId()),
+            runId = runId,
             model = model,
             userMessage = Message.userText(prompt),
             mode = RunMode.LIVE,
@@ -107,7 +111,19 @@ fun main(args: Array<String>) = runBlocking {
                 "userLocale" to Locale.getDefault().toLanguageTag(),
             ),
         ),
-    ).collect(::render)
+    )
+    // Answers given after the model's last step are applied by continuing the run, as the app does.
+    while (true) {
+        var openDecisions = false
+        events.collect { event ->
+            render(event)
+            if (event is RunEvent.DecisionRequested) decisions.answer(runId, event)
+            if (event is RunEvent.Completed) openDecisions = event.openDecisions.isNotEmpty()
+        }
+        if (!openDecisions || !inbox.hasInput(runId)) break
+        println("\n[run] continuing with your answers")
+        events = runner.resume(runId)
+    }
 }
 
 private fun render(event: RunEvent) {
@@ -119,7 +135,9 @@ private fun render(event: RunEvent) {
                 "(${event.decision.reason::class.simpleName})",
         )
         is RunEvent.ToolCallFinished -> println("[tool] result${if (event.result.isError) " (error)" else ""}: ${preview(event.result.content)}")
-        is RunEvent.Completed -> println("\n[done] tokens: ${event.usage}")
+        is RunEvent.DecisionRequested -> Unit
+        is RunEvent.DecisionResolved -> println("[decision] ${event.decision.toolId.value} ${event.answer}${event.output?.let { ": " + preview(it.content) } ?: ""}")
+        is RunEvent.Completed -> println("\n[done] tokens: ${event.usage}, open cards: ${event.openDecisions.size}")
         is RunEvent.Paused -> println("\n[paused] ${event.reason}, tokens: ${event.usage}")
         is RunEvent.Failed -> println("\n[failed] ${event.error}")
     }

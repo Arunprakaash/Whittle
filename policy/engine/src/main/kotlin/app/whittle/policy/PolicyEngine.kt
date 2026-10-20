@@ -3,6 +3,7 @@ package app.whittle.policy
 import app.whittle.llm.api.TrustTier
 import app.whittle.tools.api.ToolDefinition
 import app.whittle.tools.api.ToolId
+import kotlinx.serialization.Serializable
 
 /** Everything the engine needs to know about the run a tool call belongs to. */
 data class RunContext(
@@ -16,6 +17,7 @@ data class RunContext(
     val approvedOnceTools: Set<ToolId>,
 )
 
+@Serializable
 enum class ApprovalScope {
     /** One approval covers the rest of the run for this tool. */
     ONCE_PER_RUN,

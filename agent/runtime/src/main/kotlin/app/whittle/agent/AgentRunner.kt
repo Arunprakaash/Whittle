@@ -50,9 +50,13 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.JsonObject
 
 /**
- * The agent loop: call the model, check every proposed tool call against the policy engine, ask the
- * user when required, run the tool, and repeat. A checkpoint is saved after every step and before every
- * tool call, so [resume] can continue after process death without repeating a side effect.
+ * The agent loop: call the model, check every proposed tool call against the policy engine, run the
+ * tool, and repeat. Calls that need the user's choice never block the run: they are parked as
+ * [PendingDecision]s and the model carries on with independent work. The user's answers and any
+ * mid-run instructions arrive through [RunInbox] and are applied at the next step boundary.
+ *
+ * A checkpoint is saved after every step and before every tool call, so [resume] can continue after
+ * process death, or after the user answers a waiting run, without repeating a side effect.
  */
 class AgentRunner(
     private val adapters: ModelAdapterRegistry,
@@ -60,7 +64,7 @@ class AgentRunner(
     private val credentials: CredentialsProvider,
     private val tools: ToolRegistry,
     private val policy: PolicyEngine,
-    private val approvals: ApprovalGateway,
+    private val inbox: RunInbox,
     private val checkpoints: RunCheckpointStore,
     private val telemetry: Telemetry,
     private val limits: AgentLimits,
@@ -92,13 +96,17 @@ class AgentRunner(
         drive(checkpoint)
     }
 
-    /** Continues a paused or interrupted run. [extraTokenBudget] lets the user allow more tokens. */
+    /**
+     * Continues a paused or interrupted run, or a completed one whose open decision the user just
+     * answered. Submit the answer to the [RunInbox] first; it is applied before the next model call.
+     * [extraTokenBudget] lets the user allow more tokens.
+     */
     fun resume(runId: RunId, extraTokenBudget: Long = 0): Flow<RunEvent> = flow {
         val checkpoint = checkpoints.load(runId).getOrElse {
             emit(RunEvent.Failed(it))
             return@flow
         }
-        if (checkpoint == null || checkpoint.status == RunStatus.COMPLETED || checkpoint.status == RunStatus.FAILED) {
+        if (checkpoint == null || !checkpoint.canContinue()) {
             emit(RunEvent.Failed(HarnessError.NotFound("No resumable run ${runId.value}")))
             return@flow
         }
@@ -125,8 +133,11 @@ class AgentRunner(
 
     private suspend fun FlowCollector<RunEvent>.runLoop(initial: RunCheckpoint, runSpan: SpanContext): RunCheckpoint {
         val connection = connect(initial.model).getOrElse { return fail(initial, it) }
-        var checkpoint = finishInterruptedStep(initial, runSpan).getOrElse { return fail(initial, it) }
+        var checkpoint = finishInterruptedStep(initial, runSpan)
+            .flatMap { finishInterruptedDecision(it) }
+            .getOrElse { return fail(initial, it) }
         while (true) {
+            checkpoint = applyInbox(checkpoint, runSpan).getOrElse { return fail(checkpoint, it) }
             pauseReasonFor(checkpoint)?.let { return pause(checkpoint, it) }
             checkpoint = checkpoint.copy(step = checkpoint.step + 1)
             emit(RunEvent.StepStarted(checkpoint.step))
@@ -146,6 +157,8 @@ class AgentRunner(
             }
             if (assistant.toolCalls.isEmpty()) {
                 stepSpan.end(SpanStatus.OK)
+                // The user said something while the model was answering: let the model see it.
+                if (inbox.hasInput(checkpoint.runId)) continue
                 return complete(checkpoint, assistant)
             }
             checkpoint = runToolCalls(checkpoint, assistant.toolCalls, stepSpan.context).getOrElse {
@@ -252,26 +265,114 @@ class AgentRunner(
         return when (decision) {
             is PolicyDecision.Deny -> recordResult(checkpoint, errorResult(call, messages.policyDenied(call.toolName)))
             is PolicyDecision.Allow -> execute(checkpoint, tool, call, arguments, parent)
-            is PolicyDecision.Ask -> {
-                val answer = approvals.request(
-                    ApprovalRequest(checkpoint.runId, call.id, tool.definition, arguments, decision.reason, decision.scope, checkpoint.mode),
-                )
-                telemetry.event(
-                    TelemetryEvent.APPROVAL_ANSWERED,
-                    toolAttributes(checkpoint, tool) + Attributes.of { metadata(AttributeKeys.APPROVAL_ANSWER, answer.name) },
-                )
-                when (answer) {
-                    ApprovalAnswer.DECLINED -> recordResult(checkpoint, errorResult(call, messages.userDeclined(call.toolName)))
-                    ApprovalAnswer.APPROVED -> {
-                        val approved = if (decision.scope == ApprovalScope.ONCE_PER_RUN) {
-                            checkpoint.copy(approvedOnceTools = checkpoint.approvedOnceTools + tool.definition.id)
-                        } else {
-                            checkpoint
-                        }
-                        execute(approved, tool, call, arguments, parent)
-                    }
-                }
-            }
+            is PolicyDecision.Ask -> park(checkpoint, tool, call, arguments, decision.scope)
+        }
+    }
+
+    /** Parks a call for the user's choice and tells the model it is waiting. The run does not block. */
+    private suspend fun FlowCollector<RunEvent>.park(
+        checkpoint: RunCheckpoint,
+        tool: Tool,
+        call: ContentBlock.ToolCall,
+        arguments: JsonObject,
+        scope: ApprovalScope,
+    ): Outcome<RunCheckpoint> {
+        val pending = PendingDecision(call, tool.definition.id, scope, checkpoint.step)
+        telemetry.event(TelemetryEvent.DECISION_REQUESTED, toolAttributes(checkpoint, tool))
+        emit(RunEvent.DecisionRequested(pending, tool.definition, arguments))
+        val awaiting = ContentBlock.ToolResult(call.id, messages.awaitingUser(call.toolName), isError = false, provenance = Provenance.Trusted)
+        return recordResult(checkpoint.copy(pendingDecisions = checkpoint.pendingDecisions + pending), awaiting)
+    }
+
+    /** Applies what the user sent since the last step: instructions, then answers to decision cards. */
+    private suspend fun FlowCollector<RunEvent>.applyInbox(start: RunCheckpoint, parent: SpanContext): Outcome<RunCheckpoint> {
+        var checkpoint = start
+        for (input in inbox.drain(start.runId)) {
+            checkpoint = when (input) {
+                is RunInput.Steer -> steer(checkpoint, input.text)
+                is RunInput.Decision -> resolveDecision(checkpoint, input, parent)
+            }.getOrElse { return Outcome.Failure(it) }
+        }
+        return Outcome.Success(checkpoint)
+    }
+
+    private suspend fun steer(checkpoint: RunCheckpoint, text: String): Outcome<RunCheckpoint> {
+        telemetry.event(TelemetryEvent.RUN_STEERED, runAttributes(checkpoint))
+        return persist(checkpoint.copy(conversation = checkpoint.conversation.withUserContent(ContentBlock.Text(text))))
+    }
+
+    /**
+     * Runs or drops a parked call. Only the exact call the user saw can run, and the harness runs it
+     * itself, so the outcome never depends on the model repeating the call correctly.
+     */
+    private suspend fun FlowCollector<RunEvent>.resolveDecision(
+        checkpoint: RunCheckpoint,
+        input: RunInput.Decision,
+        parent: SpanContext,
+    ): Outcome<RunCheckpoint> {
+        // Unknown ids are stale or repeated taps; nothing to do.
+        val pending = checkpoint.pendingDecisions.firstOrNull { it.toolCall.id == input.toolCallId } ?: return Outcome.Success(checkpoint)
+        val remaining = checkpoint.copy(pendingDecisions = checkpoint.pendingDecisions - pending)
+        val call = pending.toolCall
+        val tool = tools.find(pending.toolId)
+        telemetry.event(
+            TelemetryEvent.DECISION_ANSWERED,
+            runAttributes(checkpoint) + Attributes.of {
+                metadata(AttributeKeys.TOOL_ID, pending.toolId.value)
+                metadata(AttributeKeys.DECISION_ANSWER, input.answer.name)
+            },
+        )
+        if (input.answer == DecisionAnswer.DECLINED || tool == null) {
+            val note = if (tool == null) messages.unknownTool(call.toolName) else messages.decisionDeclined(call.toolName)
+            emit(RunEvent.DecisionResolved(pending, input.answer, output = null))
+            return persist(remaining.copy(conversation = remaining.conversation.withUserContent(ContentBlock.Text(note))))
+        }
+        val approved = if (pending.scope == ApprovalScope.ONCE_PER_RUN) {
+            remaining.copy(approvedOnceTools = remaining.approvedOnceTools + tool.definition.id)
+        } else {
+            remaining
+        }
+        val arguments = argumentParser.parse(call.argumentsJson, tool.definition.inputSchema).getOrElse {
+            val note = messages.decisionFailed(call.toolName, it.message)
+            emit(RunEvent.DecisionResolved(pending, input.answer, output = null))
+            return persist(approved.copy(conversation = approved.conversation.withUserContent(ContentBlock.Text(note))))
+        }
+        // Journal first: if the process dies mid-call, resume reports it instead of re-running it.
+        val journaled = persist(approved.copy(inFlightDecision = call)).getOrElse { return Outcome.Failure(it) }
+        val span = telemetry.startSpan(SpanName.TOOL_CALL, parent, toolAttributes(journaled, tool))
+        val output = runTool(tool, call, arguments, journaled.runId)
+        span.end(if (output.isError) SpanStatus.ERROR else SpanStatus.OK)
+        if (output.isError) telemetry.event(TelemetryEvent.TOOL_FAILED, toolAttributes(journaled, tool))
+        val provenance = output.provenance
+        val note = when {
+            output.isError -> messages.decisionFailed(call.toolName, truncate(output.content))
+            provenance is Provenance.Untrusted -> messages.decisionApprovedUntrusted(call.toolName, provenance.sourceLabel, truncate(output.content))
+            else -> messages.decisionApproved(call.toolName, truncate(output.content))
+        }
+        emit(RunEvent.DecisionResolved(pending, input.answer, output))
+        return persist(
+            journaled.copy(
+                inFlightDecision = null,
+                conversation = journaled.conversation.withUserContent(ContentBlock.Text(note)),
+                tainted = journaled.tainted || provenance is Provenance.Untrusted,
+            ),
+        )
+    }
+
+    /** On resume: an approved call that was running when the process died is reported, never re-run. */
+    private suspend fun finishInterruptedDecision(checkpoint: RunCheckpoint): Outcome<RunCheckpoint> {
+        val call = checkpoint.inFlightDecision ?: return Outcome.Success(checkpoint)
+        val note = ContentBlock.Text(messages.interruptedToolCall(call.toolName))
+        return persist(checkpoint.copy(inFlightDecision = null, conversation = checkpoint.conversation.withUserContent(note)))
+    }
+
+    /** Adds harness or user text to the latest user turn, keeping user and assistant turns alternating. */
+    private fun Conversation.withUserContent(block: ContentBlock): Conversation {
+        val last = messages.lastOrNull()
+        return if (last?.role == Role.USER) {
+            copy(messages = messages.dropLast(1) + last.copy(content = last.content + block))
+        } else {
+            append(Message(Role.USER, listOf(block)))
         }
     }
 
@@ -335,8 +436,11 @@ class AgentRunner(
     private suspend fun FlowCollector<RunEvent>.complete(checkpoint: RunCheckpoint, finalMessage: Message): RunCheckpoint {
         val completed = checkpoint.copy(status = RunStatus.COMPLETED)
         persist(completed).getOrElse { return fail(checkpoint, it) }
-        telemetry.event(TelemetryEvent.RUN_COMPLETED, runAttributes(completed))
-        emit(RunEvent.Completed(finalMessage, completed.usage))
+        telemetry.event(
+            TelemetryEvent.RUN_COMPLETED,
+            runAttributes(completed) + Attributes.of { number(AttributeKeys.OPEN_DECISIONS, completed.pendingDecisions.size) },
+        )
+        emit(RunEvent.Completed(finalMessage, completed.usage, completed.pendingDecisions))
         return completed
     }
 
@@ -393,6 +497,13 @@ class AgentRunner(
             metadata(AttributeKeys.DECISION_REASON, decision.reason::class.simpleName)
             flag(AttributeKeys.TAINTED, checkpoint.tainted)
         }
+
+    /** Failed runs are final; completed runs only continue when the user answers an open card. */
+    private fun RunCheckpoint.canContinue(): Boolean = when (status) {
+        RunStatus.FAILED -> false
+        RunStatus.COMPLETED -> pendingDecisions.isNotEmpty() && inbox.hasInput(runId)
+        RunStatus.RUNNING, RunStatus.PAUSED -> true
+    }
 
     private class ModelConnection(
         val adapter: ModelAdapter,

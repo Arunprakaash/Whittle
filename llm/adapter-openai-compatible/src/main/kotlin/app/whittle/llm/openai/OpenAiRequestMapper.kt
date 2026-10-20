@@ -56,7 +56,8 @@ internal class OpenAiRequestMapper {
 
     private fun userContentJson(blocks: List<ContentBlock>): JsonElement {
         val texts = blocks.filterIsInstance<ContentBlock.Text>()
-        if (texts.size == blocks.size) return JsonPrimitive(texts.joinToString(separator = "") { it.text })
+        // Separate blocks are separate notes (a steer, a decision outcome), so keep them apart.
+        if (texts.size == blocks.size) return JsonPrimitive(texts.joinToString(separator = USER_TEXT_SEPARATOR) { it.text })
         return buildJsonArray {
             blocks.forEach { block ->
                 if (block is ContentBlock.Text) {
@@ -73,5 +74,9 @@ internal class OpenAiRequestMapper {
                 }
             }
         }
+    }
+
+    private companion object {
+        const val USER_TEXT_SEPARATOR = "\n\n"
     }
 }

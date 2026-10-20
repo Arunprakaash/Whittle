@@ -20,7 +20,9 @@ enum class TelemetryEvent(val wireName: String) {
     RUN_FAILED("run_failed"),
     RUN_PAUSED("run_paused"),
     POLICY_DECISION("policy_decision"),
-    APPROVAL_ANSWERED("approval_answered"),
+    DECISION_REQUESTED("decision_requested"),
+    DECISION_ANSWERED("decision_answered"),
+    RUN_STEERED("run_steered"),
     TOOL_FAILED("tool_failed"),
 }
 

@@ -5,6 +5,9 @@ import app.whittle.core.model.ContentBlock
 import app.whittle.core.model.Message
 import app.whittle.core.model.TokenUsage
 import app.whittle.policy.PolicyDecision
+import app.whittle.tools.api.ToolDefinition
+import app.whittle.tools.api.ToolOutput
+import kotlinx.serialization.json.JsonObject
 
 /** What the UI observes while a run progresses. */
 sealed interface RunEvent {
@@ -16,7 +19,22 @@ sealed interface RunEvent {
 
     data class ToolCallFinished(val result: ContentBlock.ToolResult) : RunEvent
 
-    data class Completed(val finalMessage: Message, val usage: TokenUsage) : RunEvent
+    /** A call was parked for the user's choice. The run keeps going; show it as an inline card. */
+    data class DecisionRequested(
+        val decision: PendingDecision,
+        val tool: ToolDefinition,
+        val arguments: JsonObject,
+    ) : RunEvent
+
+    /** The user answered a card. [output] is set when an approved call ran. */
+    data class DecisionResolved(
+        val decision: PendingDecision,
+        val answer: DecisionAnswer,
+        val output: ToolOutput?,
+    ) : RunEvent
+
+    /** The model finished. [openDecisions] are cards still in the thread; answering one continues the run. */
+    data class Completed(val finalMessage: Message, val usage: TokenUsage, val openDecisions: List<PendingDecision>) : RunEvent
 
     data class Paused(val reason: PauseReason, val usage: TokenUsage) : RunEvent
 

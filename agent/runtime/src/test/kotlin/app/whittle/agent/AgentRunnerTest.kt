@@ -13,6 +13,7 @@ import app.whittle.core.model.Provenance
 import app.whittle.core.model.Role
 import app.whittle.core.model.RunId
 import app.whittle.core.model.TokenUsage
+import app.whittle.core.model.ToolCallId
 import app.whittle.llm.api.ModelAdapterRegistry
 import app.whittle.llm.api.ModelEvent
 import app.whittle.llm.api.ReasoningEffort
@@ -32,6 +33,7 @@ import kotlin.test.assertTrue
 class AgentRunnerTest {
     private val store = InMemoryRunCheckpointStore()
     private val runId = RunId("run-1")
+    private val inbox = RunInbox()
 
     @Test
     fun `text answer completes the run`() = runTest {
@@ -58,29 +60,124 @@ class AgentRunnerTest {
     }
 
     @Test
-    fun `untrusted output taints the run so the next outbound call asks again`() = runTest {
-        val fetch = FakeTool("web.fetch", RiskTier.NETWORK_OUT, Provenance.Untrusted("web page"))
-        val approvals = RecordingApprovals(ApprovalAnswer.APPROVED)
-        val adapter = ScriptedAdapter(
-            listOf(toolTurn(call("c1", "web.fetch")), toolTurn(call("c2", "web.fetch")), textTurn("done")),
-        )
+    fun `a call that needs a decision is parked and the run finishes without waiting`() = runTest {
+        val fetch = FakeTool("web.fetch", RiskTier.NETWORK_OUT)
+        val clock = FakeTool("time.now", RiskTier.READ)
+        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "web.fetch"), call("c2", "time.now")), textTurn("Fetch is waiting on you.")))
 
-        runner(adapter, setOf(fetch), approvals).start(request()).toList()
+        val events = runner(adapter, setOf(fetch, clock)).start(request()).toList()
 
-        assertEquals(2, approvals.requests.size)
-        assertEquals(2, fetch.executions)
-        assertTrue(savedCheckpoint().tainted)
+        val requested = events.filterIsInstance<RunEvent.DecisionRequested>().single()
+        assertEquals("c1", requested.decision.toolCall.id.value)
+        assertEquals(0, fetch.executions)
+        assertEquals(1, clock.executions)
+        val toolResults = adapter.requests[1].messages.last().content.filterIsInstance<ContentBlock.ToolResult>()
+        assertEquals(listOf("waiting web.fetch", "ok from time.now"), toolResults.map { it.content })
+        val completed = assertIs<RunEvent.Completed>(events.last())
+        assertEquals(listOf("c1"), completed.openDecisions.map { it.toolCall.id.value })
+        assertEquals(RunStatus.COMPLETED, savedCheckpoint().status)
     }
 
     @Test
-    fun `declined approval skips the tool`() = runTest {
-        val fetch = FakeTool("web.fetch", RiskTier.NETWORK_OUT)
-        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "web.fetch")), textTurn("ok")))
+    fun `approving an open card later runs the exact call and continues the run`() = runTest {
+        val fetch = FakeTool("web.fetch", RiskTier.NETWORK_OUT, Provenance.Untrusted("web page"))
+        val adapter = ScriptedAdapter(
+            listOf(toolTurn(call("c1", "web.fetch", """{"url":"https://a.test"}""")), textTurn("Waiting."), textTurn("Here it is.")),
+        )
+        val runner = runner(adapter, setOf(fetch))
+        runner.start(request()).toList()
 
-        runner(adapter, setOf(fetch), RecordingApprovals(ApprovalAnswer.DECLINED)).start(request()).toList()
+        inbox.submit(runId, RunInput.Decision(ToolCallId("c1"), DecisionAnswer.APPROVED))
+        val events = runner.resume(runId).toList()
+
+        assertEquals(1, fetch.executions)
+        val resolved = events.filterIsInstance<RunEvent.DecisionResolved>().single()
+        assertEquals(DecisionAnswer.APPROVED, resolved.answer)
+        assertEquals("approved web.fetch from web page: ok from web.fetch", lastUserText(adapter))
+        assertIs<RunEvent.Completed>(events.last())
+        val saved = savedCheckpoint()
+        assertTrue(saved.pendingDecisions.isEmpty())
+        assertTrue(saved.tainted)
+    }
+
+    @Test
+    fun `declining a decision tells the model and never runs the tool`() = runTest {
+        val fetch = FakeTool("web.fetch", RiskTier.NETWORK_OUT)
+        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "web.fetch")), textTurn("Waiting."), textTurn("Okay.")))
+        val runner = runner(adapter, setOf(fetch))
+        runner.start(request()).toList()
+
+        inbox.submit(runId, RunInput.Decision(ToolCallId("c1"), DecisionAnswer.DECLINED))
+        val events = runner.resume(runId).toList()
 
         assertEquals(0, fetch.executions)
-        assertEquals("declined web.fetch", lastToolResult(adapter).content)
+        assertEquals("declined web.fetch", lastUserText(adapter))
+        assertIs<RunEvent.Completed>(events.last())
+    }
+
+    @Test
+    fun `an answer given while the run works is applied before the next model call`() = runTest {
+        val fetch = FakeTool("web.fetch", RiskTier.NETWORK_OUT)
+        val slow = FakeTool("slow.read", RiskTier.READ) {
+            inbox.submit(runId, RunInput.Decision(ToolCallId("c1"), DecisionAnswer.APPROVED))
+            "read"
+        }
+        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "web.fetch"), call("c2", "slow.read")), textTurn("All done.")))
+
+        val events = runner(adapter, setOf(fetch, slow)).start(request()).toList()
+
+        assertEquals(1, fetch.executions)
+        assertEquals("approved web.fetch: ok from web.fetch", lastUserText(adapter))
+        assertIs<RunEvent.Completed>(events.last())
+    }
+
+    @Test
+    fun `instructions typed mid-run reach the model at the next step`() = runTest {
+        val clock = FakeTool("time.now", RiskTier.READ) {
+            inbox.submit(runId, RunInput.Steer("Also say I'll order the starters"))
+            "noon"
+        }
+        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "time.now")), textTurn("Done.")))
+
+        runner(adapter, setOf(clock)).start(request()).toList()
+
+        val lastUserTurn = adapter.requests[1].messages.last()
+        assertEquals(Role.USER, lastUserTurn.role)
+        assertIs<ContentBlock.ToolResult>(lastUserTurn.content.first())
+        assertEquals("Also say I'll order the starters", lastUserText(adapter))
+    }
+
+    @Test
+    fun `an approved call interrupted by process death is reported, not re-run`() = runTest {
+        val sender = FakeTool("message.send", RiskTier.SEND_OR_SHARE)
+        val interrupted = call("c1", "message.send")
+        store.save(
+            baseCheckpoint().copy(
+                conversation = Conversation("System", listOf(Message.userText("send it"), Message(Role.ASSISTANT, listOf(ContentBlock.Text("Waiting."))))),
+                status = RunStatus.RUNNING,
+                inFlightDecision = interrupted,
+            ),
+        )
+        val adapter = ScriptedAdapter(listOf(textTurn("I couldn't confirm it was sent.")))
+
+        val events = runner(adapter, setOf(sender)).resume(runId).toList()
+
+        assertEquals(0, sender.executions)
+        assertEquals("interrupted message.send", lastUserText(adapter))
+        assertIs<RunEvent.Completed>(events.last())
+    }
+
+    @Test
+    fun `a completed run without open cards cannot be resumed`() = runTest {
+        val adapter = ScriptedAdapter(listOf(textTurn("Hello!")))
+        val runner = runner(adapter)
+        runner.start(request()).toList()
+
+        inbox.submit(runId, RunInput.Steer("one more thing"))
+        val events = runner.resume(runId).toList()
+
+        assertIs<RunEvent.Failed>(events.single())
+        assertEquals(1, adapter.requests.size)
     }
 
     @Test
@@ -124,22 +221,8 @@ class AgentRunnerTest {
         val sender = FakeTool("message.send", RiskTier.READ)
         val inFlight = call("c1", "message.send")
         store.save(
-            RunCheckpoint(
-                runId = runId,
-                model = testModel(),
-                mode = RunMode.LIVE,
-                reasoningEffort = ReasoningEffort.LOW,
-                step = 1,
-                conversation = Conversation(
-                    systemPrompt = "System",
-                    messages = listOf(Message.userText("send it"), Message(Role.ASSISTANT, listOf(inFlight))),
-                ),
-                tainted = false,
-                preApprovedTools = emptySet(),
-                approvedOnceTools = emptySet(),
-                usage = TokenUsage.Zero,
-                tokenBudget = DEFAULT_BUDGET,
-                status = RunStatus.RUNNING,
+            baseCheckpoint().copy(
+                conversation = Conversation("System", listOf(Message.userText("send it"), Message(Role.ASSISTANT, listOf(inFlight)))),
                 inFlightToolCall = inFlight,
             ),
         )
@@ -174,7 +257,6 @@ class AgentRunnerTest {
     private fun runner(
         adapter: ScriptedAdapter,
         tools: Set<Tool> = emptySet(),
-        approvals: ApprovalGateway = RecordingApprovals(ApprovalAnswer.APPROVED),
         budget: Long = DEFAULT_BUDGET,
     ) = AgentRunner(
         adapters = ModelAdapterRegistry(setOf(adapter)),
@@ -182,7 +264,7 @@ class AgentRunnerTest {
         credentials = fixedKey,
         tools = ToolRegistry(tools),
         policy = RuleBasedPolicyEngine(testRules),
-        approvals = approvals,
+        inbox = inbox,
         checkpoints = store,
         telemetry = LocalTelemetry(IdGenerator.Random),
         limits = AgentLimits(maxStepsPerRun = 10, maxOutputTokensPerStep = 512, tokenBudgetPerRun = budget, maxToolOutputChars = 1_000),
@@ -200,6 +282,24 @@ class AgentRunnerTest {
         preApprovedTools = emptySet(),
         promptVariables = mapOf("user" to "tester"),
     )
+
+    private fun baseCheckpoint() = RunCheckpoint(
+        runId = runId,
+        model = testModel(),
+        mode = RunMode.LIVE,
+        reasoningEffort = ReasoningEffort.LOW,
+        step = 1,
+        conversation = Conversation("System", emptyList()),
+        tainted = false,
+        preApprovedTools = emptySet(),
+        approvedOnceTools = emptySet(),
+        usage = TokenUsage.Zero,
+        tokenBudget = DEFAULT_BUDGET,
+        status = RunStatus.RUNNING,
+    )
+
+    private fun lastUserText(adapter: ScriptedAdapter): String =
+        adapter.requests.last().messages.last().content.filterIsInstance<ContentBlock.Text>().last().text
 
     private suspend fun savedCheckpoint(): RunCheckpoint = (store.load(runId) as Outcome.Success).value!!
 
