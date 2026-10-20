@@ -1,5 +1,6 @@
 package app.whittle.design.components
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -28,8 +29,7 @@ enum class AgentState { Thinking, Acting, Done }
 
 /** The agent's state mark: one dot that breathes while thinking, an orbiting arc while acting, a check when done. */
 @Composable
-fun AgentIndicator(state: AgentState, modifier: Modifier = Modifier) {
-    val color = MaterialTheme.colorScheme.primary
+fun AgentIndicator(state: AgentState, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.primary) {
     Box(modifier.size(WhittleAgentIndicator.boxSize), contentAlignment = Alignment.Center) {
         when (state) {
             AgentState.Thinking -> {
@@ -39,7 +39,7 @@ fun AgentIndicator(state: AgentState, modifier: Modifier = Modifier) {
                     animationSpec = infiniteRepeatable(tween(WhittleMotion.AGENT_BREATHE_MILLIS / 2), RepeatMode.Reverse),
                     label = "agentBreatheScale",
                 )
-                Dot(Modifier.graphicsLayer { scaleX = breath; scaleY = breath; alpha = breath })
+                Dot(color, Modifier.graphicsLayer { scaleX = breath; scaleY = breath; alpha = breath })
             }
             AgentState.Acting -> {
                 val angle by rememberInfiniteTransition(label = "agentOrbit").animateFloat(
@@ -48,7 +48,7 @@ fun AgentIndicator(state: AgentState, modifier: Modifier = Modifier) {
                     animationSpec = infiniteRepeatable(tween(WhittleMotion.AGENT_ORBIT_MILLIS, easing = LinearEasing)),
                     label = "agentOrbitAngle",
                 )
-                Dot()
+                Dot(color)
                 Canvas(Modifier.size(WhittleAgentIndicator.boxSize - ORBIT_INSET * 2)) {
                     rotate(angle) {
                         drawArc(color, startAngle = 0f, sweepAngle = ORBIT_SWEEP, useCenter = false, style = Stroke(ORBIT_STROKE.toPx()))
@@ -61,8 +61,8 @@ fun AgentIndicator(state: AgentState, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun Dot(modifier: Modifier = Modifier) {
-    Box(modifier.size(WhittleAgentIndicator.dotSize).background(MaterialTheme.colorScheme.primary, CircleShape))
+private fun Dot(color: Color, modifier: Modifier = Modifier) {
+    Box(modifier.size(WhittleAgentIndicator.dotSize).background(color, CircleShape))
 }
 
 private const val BREATHE_MIN_SCALE = 0.6f

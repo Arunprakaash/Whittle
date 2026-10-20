@@ -1,5 +1,6 @@
 package app.whittle.chat
 
+import app.whittle.design.components.ComposerActivity
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
 import app.whittle.design.components.ArtifactCard
@@ -79,7 +80,6 @@ import app.whittle.design.components.TopBarActionGroup
 import app.whittle.design.components.TopBarButton
 import app.whittle.design.components.TopBarGroupAction
 import app.whittle.design.components.connectedShape
-import app.whittle.design.components.StatusLine
 import app.whittle.design.components.StepGroup
 import app.whittle.design.components.StepStatus
 import app.whittle.design.components.StepUi
@@ -190,7 +190,7 @@ private fun ChatLayout(state: ChatState, viewModel: ChatViewModel, sidebarMaxCha
                     state.restoring -> Unit
                     state.items.isEmpty() -> EmptyThread(state)
                     // One list per chat: switching replaces the thread instead of animating one chat into another.
-                    else -> key(state.currentChat) { Thread(state.items, viewModel, requestCapability) }
+                    else -> key(state.currentChat) { Thread(state.items, state.running, viewModel, requestCapability) }
                 }
             }
             Dock(state, viewModel)
@@ -204,7 +204,7 @@ private fun ChatLayout(state: ChatState, viewModel: ChatViewModel, sidebarMaxCha
  * as it streams; scrolling up stops following, and the Latest pill brings them back.
  */
 @Composable
-private fun Thread(items: List<ThreadItem>, viewModel: ChatViewModel, requestCapability: (ThreadItem.Capability) -> Unit) {
+private fun Thread(items: List<ThreadItem>, working: Boolean, viewModel: ChatViewModel, requestCapability: (ThreadItem.Capability) -> Unit) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var following by remember { mutableStateOf(true) }
@@ -213,9 +213,9 @@ private fun Thread(items: List<ThreadItem>, viewModel: ChatViewModel, requestCap
     LaunchedEffect(listState) {
         snapshotFlow { listState.canScrollForward }.collect { canScrollForward -> if (!canScrollForward) following = true }
     }
-    // Changes whenever something new appears or streaming text grows.
-    val contentVersion = items.size to (items.lastOrNull() as? ThreadItem.Narration)?.text?.length
-    LaunchedEffect(contentVersion) {
+    // Changes whenever anything new appears or the last item changes at all: streaming text, a step
+    // added to a group, a card resolving. While following, each change keeps the bottom in view.
+    LaunchedEffect(items.size, items.lastOrNull()) {
         if (following && items.isNotEmpty()) listState.scrollToItem(items.lastIndex, scrollOffset = Int.MAX_VALUE)
     }
     Box(Modifier.fillMaxSize()) {
@@ -225,18 +225,17 @@ private fun Thread(items: List<ThreadItem>, viewModel: ChatViewModel, requestCap
             verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
             modifier = Modifier.fillMaxSize(),
         ) {
-            // Sources right after an answer join its footer row instead of taking a row of their own.
-            val footerSources = answerSources(items)
-            val attached = footerSources.values.mapTo(mutableSetOf()) { it.key }
-            items(items.filterNot { it.key in attached }, key = { it.key }) { item ->
-                ThreadRow(item, viewModel, requestCapability, Modifier.animateItem(), footerSources[item.key])
+            // One footer per turn, under its last answer; the turn's sources join it instead of a row of their own.
+            val plan = AnswerFooters.plan(items)
+            items(items.filterNot { it.key in plan.folded }, key = { it.key }) { item ->
+                ThreadRow(item, viewModel, requestCapability, Modifier.animateItem(), plan.footers[item.key])
             }
         }
         AnimatedVisibility(
             visible = !following && listState.canScrollForward,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = WhittleSpace.s),
         ) {
-            LatestPill(stringResource(R.string.thread_latest)) {
+            LatestPill(stringResource(R.string.thread_latest), working = working) {
                 following = true
                 scope.launch { listState.animateScrollToItem(items.lastIndex, scrollOffset = Int.MAX_VALUE) }
             }
@@ -250,12 +249,12 @@ private fun ThreadRow(
     viewModel: ChatViewModel,
     requestCapability: (ThreadItem.Capability) -> Unit,
     modifier: Modifier = Modifier,
-    sources: ThreadItem.Sources? = null,
+    footer: TurnFooter? = null,
 ) {
     when (item) {
         is ThreadItem.User -> UserMessage(item.text, modifier, steerLabel = if (item.steer) stringResource(R.string.steer_label) else null)
-        is ThreadItem.Narration -> if (item.answer && !item.streaming) {
-            Answer(item, sources, viewModel, modifier)
+        is ThreadItem.Narration -> if (footer != null) {
+            Answer(item, footer, viewModel, modifier)
         } else {
             Narration(item.text, item.streaming, modifier)
         }
@@ -340,16 +339,14 @@ private fun Dock(state: ChatState, viewModel: ChatViewModel) {
         Modifier.padding(start = WhittleSpace.m, end = WhittleSpace.m, bottom = WhittleSpace.s),
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.s),
     ) {
-        AnimatedVisibility(state.status != null) {
-            state.status?.let { status ->
-                StatusLine(
-                    state = status.state,
-                    verb = status.verb ?: stringResource(R.string.status_thinking),
-                    elapsed = elapsed(status.startedAtMillis),
-                    stopLabel = stringResource(R.string.status_stop),
-                    onStop = viewModel::stop,
-                )
-            }
+        val activity = state.status?.let { status ->
+            ComposerActivity(
+                state = status.state,
+                verb = status.verb ?: stringResource(R.string.status_thinking),
+                elapsed = elapsed(status.startedAtMillis),
+                stopLabel = stringResource(R.string.status_stop),
+                onStop = viewModel::stop,
+            )
         }
         Composer(
             value = state.input,
@@ -358,6 +355,7 @@ private fun Dock(state: ChatState, viewModel: ChatViewModel) {
             sendLabel = stringResource(R.string.composer_send),
             onSend = viewModel::send,
             enabled = state.model != null,
+            activity = activity,
         )
     }
 }
@@ -375,39 +373,32 @@ private fun EmptyThread(state: ChatState) {
     }
 }
 
-/** An answer with its footer: copy, and the sources it cites. */
+/** A turn's final answer with its footer: copy (the whole turn's answers), and the sources it cites. */
 @Composable
-private fun Answer(item: ThreadItem.Narration, sources: ThreadItem.Sources?, viewModel: ChatViewModel, modifier: Modifier) {
+private fun Answer(item: ThreadItem.Narration, footer: TurnFooter, viewModel: ChatViewModel, modifier: Modifier) {
     val clipboard = LocalClipboard.current
     val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
     val copyLabel = stringResource(R.string.answer_copy)
-    val footer = AnswerFooterUi(
+    val ui = AnswerFooterUi(
         copyLabel = copyLabel,
         copiedLabel = stringResource(R.string.answer_copied),
-        sourcesLabel = sources?.let { pluralStringResource(R.plurals.sources_count, it.sources.size, it.sources.size) },
-        sources = sources?.sources.orEmpty().map { SourceUi(it.title, it.host, it.url) },
-        sourcesExpanded = sources?.expanded == true,
+        sourcesLabel = footer.sources.takeIf { it.isNotEmpty() }?.let { pluralStringResource(R.plurals.sources_count, it.size, it.size) },
+        sources = footer.sources.map { SourceUi(it.title, it.host, it.url) },
+        sourcesExpanded = footer.sourcesExpanded,
     )
     Column(modifier, verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
         Narration(item.text, streaming = false)
         AnswerFooter(
-            footer = footer,
+            footer = ui,
             // Plain text: what the user reads, without the formatting marks.
             onCopy = {
-                val plain = lightMarkdown(item.text, SpanStyle()).text
+                val plain = lightMarkdown(footer.copyText, SpanStyle()).text
                 scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(copyLabel, plain))) }
             },
-            onToggleSources = { sources?.let { viewModel.toggleSources(it.key) } },
+            onToggleSources = { footer.sourcesKey?.let(viewModel::toggleSources) },
             onOpenSource = { uriHandler.openUri(it.url) },
         )
-    }
-}
-
-/** Each answer's sources item, when it sits right after the answer. */
-private fun answerSources(items: List<ThreadItem>): Map<String, ThreadItem.Sources> = buildMap {
-    items.zipWithNext().forEach { (item, next) ->
-        if (item is ThreadItem.Narration && item.answer && next is ThreadItem.Sources) put(item.key, next)
     }
 }
 
