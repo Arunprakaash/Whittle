@@ -17,7 +17,8 @@ class PromptTemplate(val name: ConfigName, private val text: String) {
     }
 
     companion object {
-        private val PLACEHOLDER = Regex("""\{\{\s*([a-zA-Z][a-zA-Z0-9_]*)\s*}}""")
+        // Every brace is escaped: Android's ICU regex engine rejects a bare "}", which the JVM tolerates.
+        private val PLACEHOLDER = Regex("""\{\{\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\}\}""")
 
         fun load(source: ConfigSource, name: ConfigName): Outcome<PromptTemplate> =
             source.read(name).map { PromptTemplate(name, it) }
