@@ -69,4 +69,6 @@ data class DecisionPresentation(
     /** One-line result the card collapses to after each answer. */
     val approvedOutcome: String,
     val declinedOutcome: String,
+    /** Sentences added to [body] when the named yes/no argument is true, e.g. a command that uses the internet. */
+    val flagNotes: Map<String, String> = emptyMap(),
 )

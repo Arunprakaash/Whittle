@@ -185,7 +185,7 @@ private fun workspaceTools(loader: ConfigLoader): List<app.whittle.tools.api.Too
     println("[workspace] ${File(root, CLI_WORKSPACE)}")
     return WorkspaceToolSet.create(
         workspaces = Workspaces(root),
-        environment = ShellEnvironment(shell = DESKTOP_SHELL, path = System.getenv("PATH").orEmpty(), processGroupLauncher = null, killProcessGroup = null),
+        environment = ShellEnvironment(shell = DESKTOP_SHELL, path = System.getenv("PATH").orEmpty(), launcher = null, killProcessGroup = null),
         config = loader.load(TerminalConfig.FILE, TerminalConfig.serializer(), TerminalConfig.SCHEMA_VERSION).orExit(),
         // Bundling runs in the app's WebView; the desktop CLI has none, so build_web_app reports that.
         webBuild = WorkspaceToolSet.WebBuild(

@@ -1,5 +1,6 @@
 package app.whittle.tools.presentation
 
+import kotlinx.serialization.json.booleanOrNull
 import app.whittle.core.config.ConfigName
 import app.whittle.core.config.PromptTemplate
 import app.whittle.core.common.getOrElse
@@ -59,7 +60,7 @@ class ToolPresenter(private val config: ToolPresentationConfig) {
         return DecisionText(
             icon = decision.icon,
             title = fill(decision.title, variables, fallback.title),
-            body = fill(decision.body, variables, fallback.body),
+            body = (listOf(fill(decision.body, variables, fallback.body)) + flagNotes(decision, arguments)).joinToString(SENTENCE_GAP),
             payload = decision.payloadArgument?.let { variables[it] } ?: if (decision === fallback) describe(arguments) else null,
             payloadLabel = decision.payloadLabelArgument?.let { variables[it] },
             approve = fill(decision.approve, variables, fallback.approve),
@@ -79,6 +80,9 @@ class ToolPresenter(private val config: ToolPresentationConfig) {
             .distinct()
         return if (question.isEmpty() || options.isEmpty()) null else QuestionText(presentation.icon, question, options)
     }
+
+    private fun flagNotes(decision: DecisionPresentation, arguments: JsonObject): List<String> =
+        decision.flagNotes.filterKeys { (arguments[it] as? JsonPrimitive)?.booleanOrNull == true }.values.toList()
 
     /** The card asking for [capabilityId], or null when config has none (the tool then just reports it). */
     fun capability(capabilityId: String): CapabilityPresentation? = config.capabilities[capabilityId]
@@ -107,6 +111,7 @@ class ToolPresenter(private val config: ToolPresentationConfig) {
 
     companion object {
         const val HOST_SUFFIX = "_host"
+        private const val SENTENCE_GAP = " "
         private const val WWW_PREFIX = "www."
         private val TEMPLATE_NAME = ConfigName("tool-presentation.json")
     }

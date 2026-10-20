@@ -39,7 +39,8 @@ class RunCommandTool(workspaces: Workspaces, private val runner: CommandRunner, 
             is Outcome.Failure -> return error(root.error.message)
             is Outcome.Success -> root.value
         }
-        val result = runner.run(command, directory, timeout)
+        val network = arguments.flag(NETWORK)
+        val result = runner.run(command, directory, timeout, network)
         val body = buildJsonObject {
             result.exitCode?.let { put(EXIT_CODE, it) }
             put(STDOUT, result.stdout)
@@ -53,6 +54,7 @@ class RunCommandTool(workspaces: Workspaces, private val runner: CommandRunner, 
     companion object {
         private const val COMMAND = "command"
         private const val TIMEOUT = "timeoutSeconds"
+        private const val NETWORK = "network"
         private const val EXIT_CODE = "exitCode"
         private const val STDOUT = "stdout"
         private const val STDERR = "stderr"
@@ -65,11 +67,15 @@ class RunCommandTool(workspaces: Workspaces, private val runner: CommandRunner, 
                 "tar...) plus Node.js with npm and npx, Python 3 with pip, and git. Installed package commands can't start " +
                 "directly on Android; run them through their interpreter (node node_modules/vite/bin/vite.js, python3 -m flask). " +
                 "The command ends when it finishes or times out, so servers don't keep running. " +
+                "Commands are offline: they can't open network connections unless you set $NETWORK to true, which also " +
+                "covers local servers and name lookups. Set it only when the command needs it (npm install, pip install, " +
+                "git clone, downloads, a local server); a socket error saying permission denied means it was needed. " +
                 "Prefer the file tools for reading and editing files.",
             inputSchema = schema(
                 """{"type":"object","properties":{""" +
                     """"$COMMAND":{"type":"string","description":"One shell command line"},""" +
-                    """"$TIMEOUT":{"type":"integer","description":"Seconds before it is stopped"}""" +
+                    """"$TIMEOUT":{"type":"integer","description":"Seconds before it is stopped"},""" +
+                    """"$NETWORK":{"type":"boolean","description":"true only if the command needs the network"}""" +
                     """},"required":["$COMMAND"]}""",
             ),
             riskTier = RiskTier.NETWORK_OUT,

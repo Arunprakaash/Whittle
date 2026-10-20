@@ -13,8 +13,7 @@
   },
   "terminal": {
     "shell": "/system/bin/sh",
-    "path": "/system/bin",
-    "processGroupLauncher": "setsid"
+    "path": "/system/bin"
   },
   "toolRuntime": {
     "enabled": true,

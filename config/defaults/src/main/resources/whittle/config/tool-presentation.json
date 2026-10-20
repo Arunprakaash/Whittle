@@ -134,7 +134,10 @@
       "decision": {
         "icon": "terminal",
         "title": "Run this command?",
-        "body": "Runs in this chat's workspace on your phone. It can't reach your other apps or files.",
+        "body": "Runs in this chat's folder on your phone. It can't see your other apps, photos or files.",
+        "flagNotes": {
+          "network": "It can also use the internet."
+        },
         "payloadArgument": "command",
         "approve": "Run",
         "approveIcon": "terminal",

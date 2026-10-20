@@ -23,15 +23,16 @@ data class CommandResult(
 
 /**
  * Runs one shell command in a workspace. The environment is rebuilt from scratch (no keys or tokens
- * from the app's own environment), and a timeout or cancellation kills the command's whole process group.
+ * from the app's own environment), the platform's launcher sandboxes it (no network unless [network]),
+ * and a timeout or cancellation kills the command's whole process group.
  */
 class CommandRunner(private val environment: ShellEnvironment, private val maxOutputChars: Int) {
-    suspend fun run(command: String, directory: File, timeoutSeconds: Int): CommandResult = withContext(Dispatchers.IO) {
+    suspend fun run(command: String, directory: File, timeoutSeconds: Int, network: Boolean = false): CommandResult = withContext(Dispatchers.IO) {
         val tmp = File(directory, TMP_DIRECTORY).apply { mkdirs() }
         val tools = environment.tools.setup()
         val script = (tools.functions + command).joinToString("\n")
-        // The outer shell prints its pid, then becomes the command (in a new process group when available).
-        val launcher = environment.processGroupLauncher?.let { "$it " }.orEmpty()
+        // The outer shell prints its pid, then becomes the launcher (same pid), which starts the command's shell.
+        val launcher = environment.launcher?.prefix(network)?.joinToString(separator = "") { quoted(it) + " " }.orEmpty()
         val process = ProcessBuilder(environment.shell, "-c", "echo $$; exec $launcher${environment.shell} -c \"\$$COMMAND_VARIABLE\"")
             .directory(directory)
             .apply {
@@ -81,6 +82,9 @@ class CommandRunner(private val environment: ShellEnvironment, private val maxOu
             if (!finished) withContext(NonCancellable) { kill(process, processGroup) }
         }
     }
+
+    /** Single-quoted for the outer shell, so paths and flags pass through unchanged. */
+    private fun quoted(argument: String): String = "'" + argument.replace("'", "'\\''") + "'"
 
     private fun kill(process: Process, processGroup: Int?) {
         val killGroup = environment.killProcessGroup

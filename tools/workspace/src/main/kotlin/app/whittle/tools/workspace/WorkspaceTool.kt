@@ -1,5 +1,6 @@
 package app.whittle.tools.workspace
 
+import kotlinx.serialization.json.booleanOrNull
 import app.whittle.core.common.Outcome
 import app.whittle.core.model.Provenance
 import app.whittle.tools.api.Tool
@@ -31,6 +32,9 @@ abstract class WorkspaceTool(protected val workspaces: Workspaces) : Tool {
     protected fun JsonObject.text(name: String): String? = this[name]?.jsonPrimitive?.contentOrNull
 
     protected fun JsonObject.int(name: String): Int? = this[name]?.jsonPrimitive?.intOrNull
+
+    /** A yes/no argument; anything but an explicit true counts as no. */
+    protected fun JsonObject.flag(name: String): Boolean = this[name]?.jsonPrimitive?.booleanOrNull == true
 
     private companion object {
         const val ERROR = "error"

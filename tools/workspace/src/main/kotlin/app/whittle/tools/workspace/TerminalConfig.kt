@@ -27,19 +27,25 @@ data class TerminalConfig(
 }
 
 /**
- * How commands run on this platform. On Android the shell is /system/bin/sh and each command gets its
- * own process group (setsid) so Stop and timeouts kill everything it started, not just the shell.
+ * How commands run on this platform. On Android the shell is /system/bin/sh, started through Whittle's
+ * sandbox: its own process group (so Stop and timeouts kill everything it started) behind a seccomp filter.
  */
 data class ShellEnvironment(
     val shell: String,
     val path: String,
-    /** Command that puts the shell in a new process group, or null where groups aren't available. */
-    val processGroupLauncher: String?,
+    /** Starts the shell (sandbox, process group); null runs it directly, e.g. on a desktop for tests. */
+    val launcher: CommandLauncher?,
     /** Sends SIGKILL to a whole process group; null falls back to killing the shell alone. */
     val killProcessGroup: ((processGroupId: Int) -> Unit)?,
     /** Extra command-line tools this platform ships (Node, Python, git...), set up before the first command. */
     val tools: ShellTools = ShellTools.NONE,
 )
+
+/** The program and arguments a command's shell is started through. */
+fun interface CommandLauncher {
+    /** [network] lets the command open network connections; without it, it can't open any socket. */
+    fun prefix(network: Boolean): List<String>
+}
 
 /** Command-line tools beyond the platform's own shell, installed on first use. */
 fun interface ShellTools {

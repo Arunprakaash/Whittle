@@ -34,7 +34,7 @@ class ToolRuntimeTest {
         ShellEnvironment(
             shell = defaults.terminal.shell,
             path = defaults.terminal.path,
-            processGroupLauncher = defaults.terminal.processGroupLauncher,
+            launcher = CommandSandbox.launcher(context),
             killProcessGroup = null,
             tools = ToolRuntime(context, defaults.toolRuntime, defaults.terminal.path, BuildConfig.RUNTIME_ASSETS),
         ),
@@ -58,7 +58,7 @@ class ToolRuntimeTest {
         val script = """require("http").createServer((q, r) => r.end("ok")).listen(0, "127.0.0.1", function () {""" +
             """ fetch("http://127.0.0.1:" + this.address().port).then(r => r.text()).then(t => { console.log(t); process.exit(0) }) })"""
         File(workspace, "server.js").writeText(script)
-        val result = run("node server.js")
+        val result = run("node server.js", network = true)
         assertEquals(0, result.exitCode, result.stderr)
         assertEquals("ok", result.stdout.trim())
     }
@@ -90,7 +90,8 @@ class ToolRuntimeTest {
         assertEquals("first", result.stdout.trim())
     }
 
-    private suspend fun run(command: String): CommandResult = runner.run(command, workspace, TIMEOUT_SECONDS)
+    private suspend fun run(command: String, network: Boolean = false): CommandResult =
+        runner.run(command, workspace, TIMEOUT_SECONDS, network)
 
     private companion object {
         const val TIMEOUT_SECONDS = 60

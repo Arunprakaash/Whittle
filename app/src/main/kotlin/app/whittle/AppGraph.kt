@@ -1,5 +1,6 @@
 package app.whittle
 
+import app.whittle.runtimes.CommandSandbox
 import app.whittle.design.theme.WhittleAppearance
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -170,7 +171,7 @@ class AppGraph(context: Context) {
         val environment = ShellEnvironment(
             shell = terminal.shell,
             path = terminal.path,
-            processGroupLauncher = terminal.processGroupLauncher,
+            launcher = CommandSandbox.launcher(context),
             killProcessGroup = { group ->
                 try {
                     Os.kill(-group, OsConstants.SIGKILL)

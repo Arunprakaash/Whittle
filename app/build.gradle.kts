@@ -88,6 +88,20 @@ val updateTermuxLock = tasks.register<UpdateTermuxLockTask>("updateTermuxLock") 
     lockFile.set(termuxLock)
 }
 android.packaging.jniLibs.useLegacyPackaging = true
+android.ndkVersion = libs.versions.ndk.get()
+
+// The command sandbox (app/src/main/native/sandbox): every run_command starts through it. Built for the same
+// ABIs the runtimes ship for (termux-runtimes.json), as libwhittle_sandbox.so in the native-library folder.
+val sandboxProgram = "whittle_sandbox"
+val sandboxExecutable = tasks.register<NativeExecutableTask>("sandboxExecutable") {
+    source.set(layout.projectDirectory.file("src/main/native/sandbox/whittle_sandbox.c"))
+    ndkDirectory.set(androidComponents.sdkComponents.ndkDirectory)
+    targets.set(mapOf("arm64-v8a" to "aarch64-linux-android"))
+    minSdk.set(android.defaultConfig.minSdk ?: error("minSdk must be set"))
+    programName.set(sandboxProgram)
+    jniLibsDirectory.set(layout.buildDirectory.dir("generated/sandbox/jniLibs"))
+}
+android.defaultConfig.buildConfigField("String", "SANDBOX_PROGRAM", "\"lib$sandboxProgram.so\"")
 android.defaultConfig.buildConfigField("String", "RUNTIME_ASSETS", "\"$runtimeAssetDirectory\"")
 
 androidComponents {
@@ -105,6 +119,7 @@ androidComponents {
             mustRunAfter(updateTermuxLock)
         }
         variant.sources.jniLibs?.addGeneratedSourceDirectory(runtime, TermuxRuntimeTask::jniLibsDirectory)
+        variant.sources.jniLibs?.addGeneratedSourceDirectory(sandboxExecutable, NativeExecutableTask::jniLibsDirectory)
         variant.sources.assets?.addGeneratedSourceDirectory(runtime, TermuxRuntimeTask::assetsDirectory)
     }
 }

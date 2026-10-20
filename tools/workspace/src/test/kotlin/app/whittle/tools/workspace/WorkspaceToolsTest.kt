@@ -27,7 +27,7 @@ class WorkspaceToolsTest {
     private val workspaces = Workspaces(root)
     private val config = TerminalConfig(TerminalConfig.SCHEMA_VERSION, defaultTimeoutSeconds = 5, maxTimeoutSeconds = 10, maxOutputChars = 2_000, maxFileChars = 1_000, maxListedEntries = 50)
     // The desktop shell has no setsid; Android's environment adds process groups.
-    private val environment = ShellEnvironment(shell = "/bin/sh", path = "/usr/bin:/bin", processGroupLauncher = null, killProcessGroup = null)
+    private val environment = ShellEnvironment(shell = "/bin/sh", path = "/usr/bin:/bin", launcher = null, killProcessGroup = null)
     private val context = ToolExecutionContext(RunId("run"), ToolCallId("call"), WorkspaceId("chat-1"))
 
     @AfterTest
