@@ -24,6 +24,12 @@ material3 = "1.5.0-beta01"
 activityCompose = "1.12.4"
 lifecycle = "2.10.0"
 
+# App assets
+# esbuild's WebAssembly build bundles the agent's web apps on the phone. The integrity is the npm
+# registry's dist.integrity for exactly this version; change both together.
+esbuildWasm = "0.28.2"
+esbuildWasmIntegrity = "sha512-GccVwhv3mmOUVQHCQm2Ox/rby8n/EqUwvZxE6Pjfikrq/lWw9g9WX/u9EykWnpot3Ko6j426DgQdea2xWKIAQA=="
+
 [libraries]
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }

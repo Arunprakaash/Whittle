@@ -43,6 +43,21 @@
       "running": "Looking through {{url_host}}",
       "done": "Looked through {{url_host}}"
     },
+    "build_web_app": {
+      "icon": "build",
+      "running": "Building the app",
+      "done": "Built the app",
+      "decision": {
+        "icon": "build",
+        "title": "Build the app?",
+        "body": "Puts the app together on the phone. It downloads the open-source libraries the app uses, such as React; only their names leave the phone.",
+        "approve": "Build it",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Built the app",
+        "declinedOutcome": "Not built"
+      }
+    },
     "show_artifact": {
       "icon": "web_asset",
       "running": "Getting {{title}} ready",

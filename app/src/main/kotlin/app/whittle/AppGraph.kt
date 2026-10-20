@@ -51,14 +51,21 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import app.whittle.tools.workspace.ShellEnvironment
+import app.whittle.tools.workspace.PackageCdn
 import app.whittle.tools.workspace.TerminalConfig
+import app.whittle.tools.workspace.WebBuildConfig
 import app.whittle.tools.workspace.WorkspaceToolSet
 import app.whittle.tools.workspace.Workspaces
 import kotlinx.serialization.KSerializer
 import java.io.File
 import app.whittle.artifacts.Artifacts
 import app.whittle.web.SiteIconLoader
+import app.whittle.webbuild.BuildRoutes
+import app.whittle.webbuild.RemoteModules
+import app.whittle.webbuild.WebViewBundler
+import okhttp3.Cache
 import okhttp3.OkHttpClient
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -144,6 +151,32 @@ class AppGraph(context: Context) {
             workspaces = workspaces,
             environment = environment,
             config = load(TerminalConfig.FILE, TerminalConfig.serializer(), TerminalConfig.SCHEMA_VERSION),
+            webBuild = webBuild(context),
+        )
+    }
+
+    /** build_web_app: esbuild in a hidden WebView, with npm packages from the CDN cached on the phone. */
+    private fun webBuild(context: Context): WorkspaceToolSet.WebBuild {
+        val config = load(WebBuildConfig.FILE, WebBuildConfig.serializer(), WebBuildConfig.SCHEMA_VERSION)
+        val cdn = PackageCdn(config.packages)
+        val moduleClient = httpClient.newBuilder()
+            .cache(Cache(File(context.cacheDir, config.host.cacheDirectoryName), config.host.cacheMaxBytes))
+            .build()
+        val routes = BuildRoutes(
+            assets = { path ->
+                try {
+                    context.assets.open("${config.host.assetDirectory}/$path")
+                } catch (exception: IOException) {
+                    null
+                }
+            },
+            cdn = cdn,
+            remote = RemoteModules(moduleClient, config.packages.maxModuleBytes, cdn::allows),
+        )
+        return WorkspaceToolSet.WebBuild(
+            bundler = WebViewBundler(context, config, routes, appScope),
+            config = config,
+            pageTemplate = PromptTemplate.load(configSource, WebBuildConfig.PAGE_TEMPLATE).orThrow(WebBuildConfig.PAGE_TEMPLATE),
         )
     }
 

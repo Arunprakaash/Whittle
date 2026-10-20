@@ -10,6 +10,7 @@ import app.whittle.agent.RunRequest
 import app.whittle.agent.SystemPromptVariables
 import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.core.common.EpochClock
+import app.whittle.core.common.HarnessError
 import app.whittle.core.common.IdGenerator
 import app.whittle.core.common.Outcome
 import app.whittle.core.common.getOrElse
@@ -37,6 +38,7 @@ import app.whittle.tools.api.ToolRegistry
 import app.whittle.tools.api.WorkspaceId
 import app.whittle.tools.workspace.ShellEnvironment
 import app.whittle.tools.workspace.TerminalConfig
+import app.whittle.tools.workspace.WebBuildConfig
 import app.whittle.tools.workspace.WorkspaceToolSet
 import app.whittle.tools.workspace.Workspaces
 import kotlinx.coroutines.runBlocking
@@ -185,6 +187,12 @@ private fun workspaceTools(loader: ConfigLoader): List<app.whittle.tools.api.Too
         workspaces = Workspaces(root),
         environment = ShellEnvironment(shell = DESKTOP_SHELL, path = System.getenv("PATH").orEmpty(), processGroupLauncher = null, killProcessGroup = null),
         config = loader.load(TerminalConfig.FILE, TerminalConfig.serializer(), TerminalConfig.SCHEMA_VERSION).orExit(),
+        // Bundling runs in the app's WebView; the desktop CLI has none, so build_web_app reports that.
+        webBuild = WorkspaceToolSet.WebBuild(
+            bundler = { Outcome.Failure(HarnessError.Configuration("building web apps needs the Android app")) },
+            config = loader.load(WebBuildConfig.FILE, WebBuildConfig.serializer(), WebBuildConfig.SCHEMA_VERSION).orExit(),
+            pageTemplate = PromptTemplate.load(BundledConfigSource(), WebBuildConfig.PAGE_TEMPLATE).orExit(),
+        ),
     )
 }
 

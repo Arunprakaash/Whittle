@@ -1,5 +1,6 @@
 package app.whittle.tools.workspace
 
+import app.whittle.core.config.PromptTemplate
 import app.whittle.tools.api.Tool
 import app.whittle.tools.api.ToolDefinition
 
@@ -11,15 +12,20 @@ object WorkspaceToolSet {
         ReadFileTool.DEFINITION,
         WriteFileTool.DEFINITION,
         EditFileTool.DEFINITION,
+        BuildWebAppTool.DEFINITION,
         ShowArtifactTool.DEFINITION,
     )
 
-    fun create(workspaces: Workspaces, environment: ShellEnvironment, config: TerminalConfig): List<Tool> = listOf(
+    fun create(workspaces: Workspaces, environment: ShellEnvironment, config: TerminalConfig, webBuild: WebBuild): List<Tool> = listOf(
         RunCommandTool(workspaces, CommandRunner(environment, config.maxOutputChars), config),
         ListFilesTool(workspaces, config),
         ReadFileTool(workspaces, config),
         WriteFileTool(workspaces, config),
         EditFileTool(workspaces, config),
+        BuildWebAppTool(workspaces, webBuild.bundler, webBuild.config, webBuild.pageTemplate),
         ShowArtifactTool(workspaces),
     )
+
+    /** What build_web_app needs from the platform: a bundler, and its settings. */
+    class WebBuild(val bundler: WebBundler, val config: WebBuildConfig, val pageTemplate: PromptTemplate)
 }

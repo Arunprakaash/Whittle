@@ -59,6 +59,29 @@ android {
     }
 }
 
+// esbuild's WebAssembly build, pinned and checked against its npm integrity, ships as an app asset next to
+// the host page in src/main/assets/web-build. The paths here are the ones host.js loads.
+val esbuildWasmAssets = tasks.register<NpmPackageAssetsTask>("esbuildWasmAssets") {
+    registry.set("https://registry.npmjs.org")
+    packageName.set("esbuild-wasm")
+    version.set(libs.versions.esbuildWasm)
+    integrity.set(libs.versions.esbuildWasmIntegrity)
+    files.set(
+        mapOf(
+            "esm/browser.min.js" to "web-build/esbuild/browser.min.js",
+            "esbuild.wasm" to "web-build/esbuild/esbuild.wasm",
+            "LICENSE.md" to "web-build/esbuild/LICENSE.md",
+        ),
+    )
+    outputDirectory.set(layout.buildDirectory.dir("generated/assets/esbuildWasm"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(esbuildWasmAssets, NpmPackageAssetsTask::outputDirectory)
+    }
+}
+
 dependencies {
     implementation(project(":design:system"))
     implementation(project(":config:defaults"))
@@ -84,4 +107,6 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
+
+    testImplementation(libs.okhttp.mockwebserver)
 }
