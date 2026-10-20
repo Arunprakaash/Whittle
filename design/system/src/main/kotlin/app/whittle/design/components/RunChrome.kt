@@ -64,6 +64,25 @@ fun RunSummaryChip(text: String, expanded: Boolean, onToggle: () -> Unit, modifi
     }
 }
 
+/** Shown when new content arrives below the fold; tapping jumps to it and resumes following. */
+@Composable
+fun LatestPill(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val haptics = WhittleTheme.haptics
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(WhittleRadius.full))
+            .background(colors.inverseSurface)
+            .clickable(role = Role.Button) { haptics.perform(WhittleHaptic.Tap); onClick() }
+            .padding(start = WhittleSpace.s, top = WhittleSpace.xs, end = WhittleSpace.m, bottom = WhittleSpace.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(WhittleSpace.xs),
+    ) {
+        WhittleIcon("arrow_downward", size = WhittleSize.Icon.m, tint = colors.inverseOnSurface)
+        Text(label, style = MaterialTheme.typography.labelLarge, color = colors.inverseOnSurface)
+    }
+}
+
 /** Where the user types. While a run works, what they send is added to it rather than starting over. */
 @Composable
 fun Composer(

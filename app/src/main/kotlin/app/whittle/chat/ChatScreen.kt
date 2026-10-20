@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
@@ -28,6 +29,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +38,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import app.whittle.R
 import app.whittle.design.components.Composer
+import app.whittle.design.components.LatestPill
 import app.whittle.design.components.DecisionCard
 import app.whittle.design.components.Narration
 import app.whittle.design.components.ResolvedChip
@@ -48,6 +52,7 @@ import app.whittle.design.components.WhittleIcon
 import app.whittle.design.theme.WhittleTheme
 import app.whittle.design.tokens.WhittleSpace
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,18 +78,43 @@ fun ChatScreen(state: ChatState, viewModel: ChatViewModel) {
     }
 }
 
+/**
+ * Reads top to bottom like a document. While the user is at the bottom the view follows new content
+ * as it streams; scrolling up stops following, and the Latest pill brings them back.
+ */
 @Composable
 private fun Thread(items: List<ThreadItem>, viewModel: ChatViewModel) {
-    // Newest first, laid out from the bottom: streaming text stays pinned above the dock.
-    val newestFirst = remember(items) { items.asReversed() }
-    LazyColumn(
-        state = rememberLazyListState(),
-        reverseLayout = true,
-        contentPadding = PaddingValues(horizontal = WhittleSpace.l, vertical = WhittleSpace.l),
-        verticalArrangement = Arrangement.spacedBy(WhittleSpace.m, Alignment.Bottom),
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        items(newestFirst, key = { it.key }) { item -> ThreadRow(item, viewModel, Modifier.animateItem()) }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    var following by remember { mutableStateOf(true) }
+    val dragged by listState.interactionSource.collectIsDraggedAsState()
+    LaunchedEffect(dragged) { if (dragged) following = false }
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.canScrollForward }.collect { canScrollForward -> if (!canScrollForward) following = true }
+    }
+    // Changes whenever something new appears or streaming text grows.
+    val contentVersion = items.size to (items.lastOrNull() as? ThreadItem.Narration)?.text?.length
+    LaunchedEffect(contentVersion) {
+        if (following && items.isNotEmpty()) listState.scrollToItem(items.lastIndex, scrollOffset = Int.MAX_VALUE)
+    }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            contentPadding = PaddingValues(horizontal = WhittleSpace.l, vertical = WhittleSpace.l),
+            verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            items(items, key = { it.key }) { item -> ThreadRow(item, viewModel, Modifier.animateItem()) }
+        }
+        AnimatedVisibility(
+            visible = !following && listState.canScrollForward,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = WhittleSpace.s),
+        ) {
+            LatestPill(stringResource(R.string.thread_latest)) {
+                following = true
+                scope.launch { listState.animateScrollToItem(items.lastIndex, scrollOffset = Int.MAX_VALUE) }
+            }
+        }
     }
 }
 
