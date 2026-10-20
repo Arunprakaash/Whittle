@@ -35,7 +35,7 @@ help
 info
 insights
 install_mobile
-keep
+keep:fill
 key
 language
 light_mode:fill
@@ -62,6 +62,7 @@ sms
 stop:fill
 table
 terminal
+travel_explore
 vibration
 visibility
 visibility_off

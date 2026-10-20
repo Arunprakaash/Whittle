@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -26,9 +27,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import app.whittle.AppGraph
 import app.whittle.R
 import app.whittle.connectors.mcp.ConnectorState
+import app.whittle.connectors.mcp.HeaderSpec
 import app.whittle.connectors.mcp.McpAuthMode
 import app.whittle.connectors.mcp.McpConnection
 import app.whittle.core.common.Outcome
@@ -40,18 +43,18 @@ import app.whittle.design.tokens.WhittleSpace
 import app.whittle.observability.posthog.hiddenFromReplay
 import kotlinx.coroutines.launch
 
-/** Services the user connects: Supabase and their own MCP servers, with a row to add one. */
+/** Services the user connects: Supabase and their own MCP servers, with the library and an address to add one. */
 @Composable
-fun ConnectionsSection(graph: AppGraph) {
+fun ConnectionsSection(graph: AppGraph, onBrowse: () -> Unit, onChooseTools: (McpConnection) -> Unit) {
     val connectors = graph.connectors
     val connections by connectors.all.collectAsState()
     val context = LocalContext.current
     var managing by remember { mutableStateOf<McpConnection?>(null) }
-    var askingToken by remember { mutableStateOf<McpConnection?>(null) }
+    var askingKeys by remember { mutableStateOf<McpConnection?>(null) }
     var adding by remember { mutableStateOf(false) }
     ConnectorFailures(graph)
     SettingsSection(stringResource(R.string.settings_section_connections)) {
-        val count = connections.size + 1
+        val count = connections.size + 2
         connections.forEachIndexed { index, connection ->
             val state by connection.state.collectAsState()
             val connected = state is ConnectorState.Connected
@@ -67,8 +70,8 @@ fun ConnectionsSection(graph: AppGraph) {
                 shape = segmentedShape(index, count),
                 onClick = {
                     when {
-                        connected || connectors.isCustom(connection) && connection.server.auth == McpAuthMode.NONE -> managing = connection
-                        connection.server.auth == McpAuthMode.TOKEN -> askingToken = connection
+                        connected -> managing = connection
+                        connection.server.auth == McpAuthMode.TOKEN -> askingKeys = connection
                         else -> connectors.connect(context, connection)
                     }
                 },
@@ -78,6 +81,13 @@ fun ConnectionsSection(graph: AppGraph) {
             )
         }
         SettingsRow(
+            icon = "travel_explore",
+            title = stringResource(R.string.connector_browse),
+            subtitle = null,
+            shape = segmentedShape(count - 2, count),
+            onClick = onBrowse,
+        )
+        SettingsRow(
             icon = "add",
             title = stringResource(R.string.connector_add),
             subtitle = null,
@@ -85,64 +95,110 @@ fun ConnectionsSection(graph: AppGraph) {
             onClick = { adding = true },
         )
     }
-    managing?.let { connection -> ManageDialog(graph, connection, onDone = { managing = null }) }
-    askingToken?.let { connection ->
-        TokenDialog(connection.server.name, onDismiss = { askingToken = null }) { token ->
-            connectors.connectWithToken(connection, token)
-            askingToken = null
+    managing?.let { connection ->
+        ManageDialog(graph, connection, onChooseTools = { managing = null; onChooseTools(connection) }, onDone = { managing = null })
+    }
+    askingKeys?.let { connection ->
+        KeysDialog(connection.server.name, connection.server.headers, onDismiss = { askingKeys = null }) { values ->
+            connectors.connectWithHeaders(connection, values)
+            askingKeys = null
         }
     }
     if (adding) {
         AddDialog(graph, onDismiss = { adding = false }) { added ->
             adding = false
-            when (added.server.auth) {
-                McpAuthMode.OAUTH -> connectors.connect(context, added)
-                McpAuthMode.TOKEN -> askingToken = added
-                McpAuthMode.NONE -> Unit // Connected while it was added.
-            }
+            connectAdded(graph, context, added) { askingKeys = it }
         }
     }
 }
 
+/** After a server is added: its sign-in page, its keys, or nothing when it needs no sign-in. */
+internal fun connectAdded(graph: AppGraph, context: android.content.Context, added: McpConnection, askKeys: (McpConnection) -> Unit) {
+    when (added.server.auth) {
+        McpAuthMode.OAUTH -> graph.connectors.connect(context, added)
+        McpAuthMode.TOKEN -> askKeys(added)
+        McpAuthMode.NONE -> Unit // Connected while it was added.
+    }
+}
+
 @Composable
-private fun ManageDialog(graph: AppGraph, connection: McpConnection, onDone: () -> Unit) {
+private fun ManageDialog(graph: AppGraph, connection: McpConnection, onChooseTools: () -> Unit, onDone: () -> Unit) {
     val name = connection.server.name
     val custom = graph.connectors.isCustom(connection)
     AlertDialog(
         onDismissRequest = onDone,
-        title = { Text(stringResource(if (custom) R.string.connector_manage_title else R.string.connector_disconnect_title, name)) },
+        title = { Text(name) },
         text = { Text(stringResource(if (custom) R.string.connector_manage_body else R.string.connector_disconnect_body, name)) },
-        confirmButton = {
+        confirmButton = { TextButton(onClick = onChooseTools) { Text(stringResource(R.string.connector_choose_tools)) } },
+        dismissButton = {
             if (custom) {
                 TextButton(onClick = { graph.connectors.remove(connection); onDone() }) { Text(stringResource(R.string.connector_remove)) }
             } else {
                 TextButton(onClick = { graph.connectors.disconnect(connection); onDone() }) { Text(stringResource(R.string.connector_disconnect)) }
             }
         },
-        dismissButton = { TextButton(onClick = onDone) { Text(stringResource(R.string.connector_cancel)) } },
     )
 }
 
-/** The access token a server needs, pasted once; it goes to the encrypted store and never into a recording. */
+/**
+ * The keys a server needs: one field per header it names, or a header name and key for a server added by
+ * address. Values go to the encrypted store and never into a recording.
+ */
 @Composable
-private fun TokenDialog(name: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
-    var token by remember { mutableStateOf("") }
+internal fun KeysDialog(name: String, specs: List<HeaderSpec>, onDismiss: () -> Unit, onSave: (Map<String, String>) -> Unit) {
+    val values = remember { mutableStateMapOf<String, String>() }
+    var headerName by remember { mutableStateOf(AUTHORIZATION) }
+    val fields = specs.ifEmpty { null }
+    val ready = if (fields != null) fields.filter { it.isRequired }.all { !values[it.name].isNullOrBlank() } && values.values.any { it.isNotBlank() }
+    else headerName.isNotBlank() && !values[KEY].isNullOrBlank()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.connector_token_title, name)) },
         text = {
-            OutlinedTextField(
-                value = token,
-                onValueChange = { token = it },
-                label = { Text(stringResource(R.string.connector_token_label)) },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done, autoCorrectEnabled = false),
-                modifier = Modifier.fillMaxWidth().hiddenFromReplay(),
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
+                if (fields != null) {
+                    fields.forEach { spec ->
+                        KeyField(
+                            label = spec.name,
+                            value = values[spec.name].orEmpty(),
+                            secret = spec.isSecret,
+                            help = spec.description,
+                            onChange = { values[spec.name] = it },
+                        )
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = headerName,
+                        onValueChange = { headerName = it },
+                        label = { Text(stringResource(R.string.connector_header_name)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    KeyField(stringResource(R.string.connector_token_label), values[KEY].orEmpty(), secret = true, help = null) { values[KEY] = it }
+                }
+            }
         },
-        confirmButton = { TextButton(onClick = { onSave(token) }, enabled = token.isNotBlank()) { Text(stringResource(R.string.connector_connect)) } },
+        confirmButton = {
+            TextButton(
+                enabled = ready,
+                onClick = { onSave(if (fields != null) values.filterValues { it.isNotBlank() } else mapOf(headerName.trim() to values[KEY].orEmpty())) },
+            ) { Text(stringResource(R.string.connector_connect)) }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.connector_cancel)) } },
+    )
+}
+
+@Composable
+private fun KeyField(label: String, value: String, secret: Boolean, help: String?, onChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        label = { Text(label) },
+        supportingText = help?.let { { Text(it) } },
+        singleLine = true,
+        visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
+        keyboardOptions = KeyboardOptions(keyboardType = if (secret) KeyboardType.Password else KeyboardType.Text, imeAction = ImeAction.Next, autoCorrectEnabled = false),
+        modifier = Modifier.fillMaxWidth().hiddenFromReplay(),
     )
 }
 
@@ -202,7 +258,7 @@ private fun AddDialog(graph: AppGraph, onDismiss: () -> Unit, onAdded: (McpConne
 
 /** Says why connecting a service failed, while Settings is open. */
 @Composable
-private fun ConnectorFailures(graph: AppGraph) {
+internal fun ConnectorFailures(graph: AppGraph) {
     val context = LocalContext.current
     LaunchedEffect(graph) {
         graph.connectors.failures.collect { reason ->
@@ -210,3 +266,6 @@ private fun ConnectorFailures(graph: AppGraph) {
         }
     }
 }
+
+private const val AUTHORIZATION = "Authorization"
+private const val KEY = "key"

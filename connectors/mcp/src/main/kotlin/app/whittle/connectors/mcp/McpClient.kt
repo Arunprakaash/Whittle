@@ -2,10 +2,8 @@ package app.whittle.connectors.mcp
 
 import app.whittle.core.common.HarnessError
 import app.whittle.core.common.Outcome
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -17,15 +15,9 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
-import java.io.IOException
 import java.util.concurrent.atomic.AtomicLong
 
 /** What a server says about a tool. Only ever used to ask more often, never less. */
@@ -45,23 +37,29 @@ fun interface AccessTokens {
 }
 
 /**
- * MCP over Streamable HTTP: JSON-RPC requests POSTed to one URL, answered with JSON or a server-sent
- * event stream. Opens a session on first use and opens a new one when the server forgets it.
+ * An MCP client: JSON-RPC over the server's transport (Streamable HTTP, or the older SSE). Opens a session on
+ * first use, opens a new one when the server forgets it, and asks once for a fresh token when refused.
  */
 class McpClient(
     server: McpServerConfig,
     private val config: ConnectorsConfig,
-    private val http: OkHttpClient,
+    http: OkHttpClient,
     private val tokens: AccessTokens,
     /** Whittle's version, reported to the server when a session opens. */
     private val clientVersion: String,
+    /** Headers the user gave this server (an API key header, say), sent with every message. */
+    private val headers: suspend () -> Map<String, String> = { emptyMap() },
 ) {
     private val endpoint = server.url.toHttpUrl().newBuilder().apply { server.query.forEach { (key, value) -> addQueryParameter(key, value) } }.build()
     private val name = server.name
     private val ids = AtomicLong()
     private val sessionLock = Mutex()
+    private val transport: McpTransport = when (server.transport) {
+        McpTransportKind.STREAMABLE_HTTP -> StreamableHttpTransport(endpoint, http, config.protocolVersion, name)
+        McpTransportKind.SSE -> SseTransport(endpoint, http, name, http.readTimeoutMillis.toLong())
+    }
 
-    @Volatile private var session: Session? = null
+    @Volatile private var initialized = false
 
     suspend fun listTools(): Outcome<List<RemoteTool>> {
         val tools = mutableListOf<RemoteTool>()
@@ -95,7 +93,8 @@ class McpClient(
 
     /** Forgets the session, e.g. after the user signs out. */
     fun reset() {
-        session = null
+        initialized = false
+        transport.reset()
     }
 
     private fun toResult(result: JsonObject): RemoteResult {
@@ -115,26 +114,33 @@ class McpClient(
         var refreshed = false
         var reopened = false
         while (true) {
-            val token = when (val issued = tokens.get(refreshed)) {
-                is Outcome.Success -> issued.value
-                is Outcome.Failure -> return issued
+            val sent = when (val built = headersFor(refreshed)) {
+                is Outcome.Success -> built.value
+                is Outcome.Failure -> return built
             }
-            val current = when (val opened = openSession(token)) {
-                is Outcome.Success -> opened.value
-                is Outcome.Failure -> return opened
-            }
-            when (val reply = post(rpc(method, params), token, current.id)) {
+            (open(sent) as? Outcome.Failure)?.let { return it }
+            val body = rpc(method, params)
+            when (val reply = transport.send(body, body[ID], sent)) {
                 is Reply.Result -> return Outcome.Success(reply.value)
                 is Reply.Error -> return Outcome.Failure(HarnessError.Provider(reply.code, reply.message))
-                Reply.Unauthorized -> if (refreshed) return signInAgain() else { refreshed = true; session = null }
-                Reply.SessionGone -> if (reopened) return Outcome.Failure(HarnessError.Network("$name keeps closing the connection")) else { reopened = true; session = null }
+                Reply.Unauthorized -> if (refreshed) return signInAgain() else { refreshed = true; reset() }
+                Reply.SessionGone -> if (reopened) return Outcome.Failure(HarnessError.Network("$name keeps closing the connection")) else { reopened = true; reset() }
                 is Reply.Failed -> return Outcome.Failure(reply.error)
             }
         }
     }
 
-    private suspend fun openSession(token: String?): Outcome<Session> = sessionLock.withLock {
-        session?.let { return@withLock Outcome.Success(it) }
+    /** The user's own headers, then the sign-in token, which wins for Authorization. */
+    private suspend fun headersFor(refresh: Boolean): Outcome<Map<String, String>> {
+        val token = when (val issued = tokens.get(refresh)) {
+            is Outcome.Success -> issued.value
+            is Outcome.Failure -> return issued
+        }
+        return Outcome.Success(headers() + listOfNotNull(token?.let { AUTHORIZATION to "$BEARER $it" }))
+    }
+
+    private suspend fun open(headers: Map<String, String>): Outcome<Unit> = sessionLock.withLock {
+        if (initialized) return@withLock Outcome.Success(Unit)
         val initialize = rpc(
             METHOD_INITIALIZE,
             buildJsonObject {
@@ -143,58 +149,16 @@ class McpClient(
                 put(CLIENT_INFO, buildJsonObject { put(NAME, config.clientName); put(VERSION, clientVersion) })
             },
         )
-        val sessionId = when (val reply = post(initialize, token, sessionId = null)) {
-            is Reply.Result -> reply.sessionId
+        when (val reply = transport.send(initialize, initialize[ID], headers)) {
+            is Reply.Result -> Unit
             is Reply.Error -> return@withLock Outcome.Failure(HarnessError.Provider(reply.code, reply.message))
             Reply.Unauthorized -> return@withLock signInAgain()
             Reply.SessionGone -> return@withLock Outcome.Failure(HarnessError.Network("$name refused a new connection"))
             is Reply.Failed -> return@withLock Outcome.Failure(reply.error)
         }
-        val opened = Session(sessionId)
-        post(notification(METHOD_INITIALIZED), token, opened.id)
-        session = opened
-        Outcome.Success(opened)
-    }
-
-    private suspend fun post(body: JsonObject, token: String?, sessionId: String?): Reply = withContext(Dispatchers.IO) {
-        val request = Request.Builder().url(endpoint)
-            .apply { token?.let { header(AUTHORIZATION, "$BEARER $it") } }
-            .header(ACCEPT, ACCEPT_TYPES)
-            .header(PROTOCOL_HEADER, config.protocolVersion)
-            .apply { sessionId?.let { header(SESSION_HEADER, it) } }
-            .post(body.toString().toRequestBody(JSON_TYPE))
-            .build()
-        try {
-            http.newCall(request).execute().use { response -> read(response, body[ID]) }
-        } catch (exception: IOException) {
-            Reply.Failed(HarnessError.Network(exception.message ?: exception.javaClass.simpleName))
-        }
-    }
-
-    private fun read(response: Response, id: JsonElement?): Reply {
-        val sessionId = response.header(SESSION_HEADER)
-        when {
-            response.code == HTTP_UNAUTHORIZED -> return Reply.Unauthorized
-            response.code == HTTP_NOT_FOUND && session != null -> return Reply.SessionGone
-            !response.isSuccessful -> return Reply.Failed(HarnessError.Provider(response.code, "$name answered HTTP ${response.code}"))
-            id == null -> return Reply.Result(JsonObject(emptyMap()), sessionId)
-        }
-        val body = response.body?.string().orEmpty()
-        val messages = if (response.header(CONTENT_TYPE).orEmpty().startsWith(EVENT_STREAM)) eventData(body) else listOf(body)
-        val answer = messages.asSequence()
-            .mapNotNull { runCatching { json.parseToJsonElement(it).jsonObject }.getOrNull() }
-            .firstOrNull { it[ID] == id && (RESULT in it || ERROR in it) }
-            ?: return Reply.Failed(HarnessError.Serialization("$name sent no answer"))
-        answer[ERROR]?.jsonObject?.let { error ->
-            val code = (error[CODE] as? JsonPrimitive)?.longOrNull?.toInt() ?: 0
-            return Reply.Error(code, (error[MESSAGE] as? JsonPrimitive)?.contentOrNull ?: "$name reported an error")
-        }
-        return Reply.Result(answer.getValue(RESULT), sessionId)
-    }
-
-    /** The data of each server-sent event; an event's data lines join with newlines. */
-    private fun eventData(stream: String): List<String> = stream.split(EVENT_BOUNDARY).mapNotNull { event ->
-        event.lines().filter { it.startsWith(DATA_FIELD) }.joinToString("\n") { it.removePrefix(DATA_FIELD).removePrefix(" ") }.ifEmpty { null }
+        transport.send(notification(METHOD_INITIALIZED), id = null, headers)
+        initialized = true
+        Outcome.Success(Unit)
     }
 
     private fun rpc(method: String, params: JsonObject) = buildJsonObject {
@@ -211,26 +175,12 @@ class McpClient(
 
     private fun signInAgain(): Outcome.Failure = Outcome.Failure(HarnessError.Authentication("$name signed Whittle out; connect it again in Settings"))
 
-    private class Session(val id: String?)
-
-    private sealed interface Reply {
-        data class Result(val value: JsonElement, val sessionId: String?) : Reply
-        data class Error(val code: Int, val message: String) : Reply
-        data object Unauthorized : Reply
-        data object SessionGone : Reply
-        data class Failed(val error: HarnessError) : Reply
-    }
-
     private companion object {
         const val JSONRPC = "jsonrpc"
         const val JSONRPC_VERSION = "2.0"
         const val ID = "id"
         const val METHOD = "method"
         const val PARAMS = "params"
-        const val RESULT = "result"
-        const val ERROR = "error"
-        const val CODE = "code"
-        const val MESSAGE = "message"
         const val METHOD_INITIALIZE = "initialize"
         const val METHOD_INITIALIZED = "notifications/initialized"
         const val METHOD_LIST_TOOLS = "tools/list"
@@ -253,17 +203,6 @@ class McpClient(
         const val PART_SEPARATOR = "\n\n"
         const val AUTHORIZATION = "Authorization"
         const val BEARER = "Bearer"
-        const val ACCEPT = "Accept"
-        const val ACCEPT_TYPES = "application/json, text/event-stream"
-        const val CONTENT_TYPE = "Content-Type"
-        const val EVENT_STREAM = "text/event-stream"
-        const val SESSION_HEADER = "Mcp-Session-Id"
-        const val PROTOCOL_HEADER = "MCP-Protocol-Version"
-        const val DATA_FIELD = "data:"
-        const val HTTP_UNAUTHORIZED = 401
-        const val HTTP_NOT_FOUND = 404
-        val EVENT_BOUNDARY = Regex("\r?\n\r?\n")
-        val JSON_TYPE = "application/json".toMediaType()
         val json = Json { ignoreUnknownKeys = true }
     }
 }

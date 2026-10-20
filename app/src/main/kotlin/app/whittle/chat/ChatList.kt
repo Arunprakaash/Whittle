@@ -1,5 +1,7 @@
 package app.whittle.chat
 
+import app.whittle.design.components.WhittleMenu
+import app.whittle.design.components.MenuAction
 import app.whittle.observability.posthog.userContent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -13,8 +15,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -135,18 +135,14 @@ private fun ChatRow(chat: ChatListItem, selected: Boolean, shape: Shape, onOpen:
                 }
                 .padding(horizontal = WhittleSpace.l, vertical = WhittleSpace.m),
         )
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            DropdownMenuItem(
-                text = { Text(pinLabel) },
-                leadingIcon = { WhittleIcon("push_pin", fill = chat.pinned, size = WhittleSize.Icon.m) },
-                onClick = { menuOpen = false; haptics.perform(WhittleHaptic.Select); onPin() },
-            )
-            DropdownMenuItem(
-                text = { Text(deleteLabel) },
-                leadingIcon = { WhittleIcon("delete", size = WhittleSize.Icon.m) },
-                onClick = { menuOpen = false; onDelete() },
-            )
-        }
+        WhittleMenu(
+            expanded = menuOpen,
+            onDismiss = { menuOpen = false },
+            groups = listOf(
+                listOf(MenuAction(pinLabel, "push_pin", onPin, iconFilled = chat.pinned)),
+                listOf(MenuAction(deleteLabel, "delete", onDelete, destructive = true)),
+            ),
+        )
     }
 }
 

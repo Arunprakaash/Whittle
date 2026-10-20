@@ -1,5 +1,7 @@
 package app.whittle
 
+import app.whittle.settings.ConnectionToolsScreen
+import app.whittle.settings.ConnectionLibraryScreen
 import app.whittle.design.theme.isDark
 import androidx.compose.runtime.DisposableEffect
 import android.graphics.Color
@@ -87,8 +89,16 @@ class MainActivity : ComponentActivity() {
                             var showingSettings by rememberSaveable { mutableStateOf(false) }
                             var pickerOpenings by rememberSaveable { mutableIntStateOf(0) }
                             var showingModelPicker by rememberSaveable { mutableStateOf(false) }
+                            var showingConnectionLibrary by rememberSaveable { mutableStateOf(false) }
+                            var toolsOf by rememberSaveable { mutableStateOf<String?>(null) }
+                            val connections by graph.connectors.all.collectAsStateWithLifecycle()
+                            val toolsConnection = toolsOf?.let { id -> connections.firstOrNull { it.server.id == id } }
                             val artifact = fullScreenArtifact
-                            if (showingModelPicker) {
+                            if (showingConnectionLibrary) {
+                                ConnectionLibraryScreen(graph, onBack = { showingConnectionLibrary = false; showingSettings = true })
+                            } else if (toolsConnection != null) {
+                                ConnectionToolsScreen(graph, toolsConnection, onBack = { toolsOf = null; showingSettings = true })
+                            } else if (showingModelPicker) {
                                 // A fresh picker each time it opens, so its models are listed again.
                                 val picker = viewModel(key = "modelPicker$pickerOpenings") { ConnectViewModel(graph, current = state.model) }
                                 ModelPickerScreen(
@@ -105,6 +115,8 @@ class MainActivity : ComponentActivity() {
                                     onBack = { showingSettings = false },
                                     onChangeModel = { showingSettings = false; pickerOpenings += 1; showingModelPicker = true },
                                     onDeleteAllChats = chat::deleteAllChats,
+                                    onBrowseConnections = { showingSettings = false; showingConnectionLibrary = true },
+                                    onConnectionTools = { connection -> showingSettings = false; toolsOf = connection.server.id },
                                 )
                             } else if (artifact != null) {
                                 ArtifactScreen(artifact, graph.artifacts, state.workspaceRevision, onBack = { fullScreenArtifact = null })

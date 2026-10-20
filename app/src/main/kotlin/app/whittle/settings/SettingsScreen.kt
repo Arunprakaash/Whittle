@@ -1,5 +1,6 @@
 package app.whittle.settings
 
+import app.whittle.connectors.mcp.McpConnection
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.Role
@@ -60,6 +61,8 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onChangeModel: () -> Unit,
     onDeleteAllChats: () -> Unit,
+    onBrowseConnections: () -> Unit,
+    onConnectionTools: (McpConnection) -> Unit,
 ) {
     BackHandler(onBack = onBack)
     var confirmingDelete by remember { mutableStateOf(false) }
@@ -96,7 +99,7 @@ fun SettingsScreen(
                     )
                 }
             }
-            item { ConnectionsSection(graph) }
+            item { ConnectionsSection(graph, onBrowse = onBrowseConnections, onChooseTools = onConnectionTools) }
             item {
                 val wallpaperAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
                 SettingsSection(stringResource(R.string.settings_section_appearance)) {

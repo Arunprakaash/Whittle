@@ -329,6 +329,22 @@
         "approvedOutcome": "Connecting {{name}}",
         "declinedOutcome": "Not connected"
       }
+    },
+    "find_connection": {
+      "icon": "travel_explore",
+      "running": "Looking for a connection for {{query}}",
+      "done": "Looked for a connection for {{query}}",
+      "decision": {
+        "icon": "travel_explore",
+        "title": "Look for {{query}} connections?",
+        "body": "Searches Whittle's featured list and the public MCP Registry. Only what you're looking for is sent.",
+        "payloadArgument": "query",
+        "approve": "Search",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Searched",
+        "declinedOutcome": "Not searched"
+      }
     }
   },
   "capabilities": {

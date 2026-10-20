@@ -1,5 +1,7 @@
 package app.whittle.chat
 
+import app.whittle.design.components.WhittleMenu
+import app.whittle.design.components.MenuAction
 import app.whittle.observability.posthog.userContent
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -43,8 +45,6 @@ import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -483,20 +483,14 @@ private fun ChatMenu(pinned: Boolean?, onPin: (Boolean) -> Unit, onDelete: () ->
     // The menu anchors to this box, so it opens under the ⋮ button.
     Box {
         TopBarAction("more_vert", stringResource(R.string.chat_more), onClick = { open = true }, shape = shape, modifier = TopBarGroupAction)
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(if (pinned == true) R.string.chat_unpin else R.string.chat_pin)) },
-                leadingIcon = { WhittleIcon("keep", size = WhittleSize.Icon.l) },
-                enabled = pinned != null,
-                onClick = { open = false; onPin(pinned != true) },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.chat_delete), color = MaterialTheme.colorScheme.error) },
-                leadingIcon = { WhittleIcon("delete", size = WhittleSize.Icon.l, tint = MaterialTheme.colorScheme.error) },
-                enabled = pinned != null,
-                onClick = { open = false; confirmingDelete = true },
-            )
-        }
+        WhittleMenu(
+            expanded = open,
+            onDismiss = { open = false },
+            groups = listOf(
+                listOf(MenuAction(stringResource(if (pinned == true) R.string.chat_unpin else R.string.chat_pin), "keep", { onPin(pinned != true) }, iconFilled = pinned == true, enabled = pinned != null)),
+                listOf(MenuAction(stringResource(R.string.chat_delete), "delete", { confirmingDelete = true }, destructive = true, enabled = pinned != null)),
+            ),
+        )
     }
     if (confirmingDelete) {
         AlertDialog(

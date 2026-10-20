@@ -22,6 +22,8 @@ data class ConnectorsConfig(
     val servers: List<McpServerConfig>,
     /** How servers the user adds themselves are set up. */
     val custom: CustomConnectorDefaults,
+    /** Where the user browses servers to add. */
+    val library: LibraryConfig,
 ) : VersionedConfig {
     init {
         require(verifierEntropyBytes in PKCE_MIN_ENTROPY_BYTES..PKCE_MAX_ENTROPY_BYTES) { "verifierEntropyBytes must give a 43–128 character verifier" }
@@ -40,13 +42,52 @@ data class ConnectorsConfig(
     }
 }
 
+/** How messages reach a server. */
+@Serializable
+enum class McpTransportKind {
+    /** One URL for every message (MCP 2025-03-26 and later). */
+    STREAMABLE_HTTP,
+
+    /** The older event stream plus message endpoint (MCP 2024-11-05). */
+    SSE,
+}
+
+/** A header a server needs from the user, such as an API key. */
+@Serializable
+data class HeaderSpec(
+    val name: String,
+    val description: String? = null,
+    val isRequired: Boolean = false,
+    val isSecret: Boolean = false,
+)
+
+/** A server the library offers: from Whittle's featured list or the MCP Registry. */
+@Serializable
+data class LibraryServer(
+    val title: String,
+    val description: String,
+    val url: String,
+    val transport: McpTransportKind = McpTransportKind.STREAMABLE_HTTP,
+    val websiteUrl: String? = null,
+    val headers: List<HeaderSpec> = emptyList(),
+)
+
+@Serializable
+data class LibraryConfig(
+    /** The MCP Registry's server list (registry.modelcontextprotocol.io). Anyone can publish there; Whittle says so. */
+    val registryUrl: String,
+    val pageSize: Int,
+    /** Servers Whittle points to first: official, remote, and checked. */
+    val featured: List<LibraryServer>,
+)
+
 /** How a server signs Whittle in. */
 @Serializable
 enum class McpAuthMode {
     /** OAuth in the browser, Whittle registering itself (MCP authorization). */
     OAUTH,
 
-    /** An access token the user pastes once; kept encrypted, sent as a bearer token. */
+    /** A key the user pastes once (as a bearer token or the header the server names); kept encrypted. */
     TOKEN,
 
     /** No sign-in. */
@@ -88,4 +129,9 @@ data class McpServerConfig(
     val defaultRiskTier: RiskTier,
     val riskTiers: Map<String, RiskTier> = emptyMap(),
     val auth: McpAuthMode = McpAuthMode.OAUTH,
+    val transport: McpTransportKind = McpTransportKind.STREAMABLE_HTTP,
+    /** Headers the user is asked for when connecting (an API key, say). */
+    val headers: List<HeaderSpec> = emptyList(),
+    /** The server's tools the user switched off; the agent never sees them. */
+    val excludedTools: Set<String> = emptySet(),
 )

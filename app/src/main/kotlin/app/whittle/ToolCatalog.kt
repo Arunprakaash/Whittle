@@ -1,5 +1,6 @@
 package app.whittle
 
+import app.whittle.connectors.FindConnectionTool
 import app.whittle.connectors.Connectors
 import app.whittle.connectors.AddConnectionTool
 import app.whittle.agent.PlanTool
@@ -27,6 +28,7 @@ object ToolCatalog {
         CalendarEventsTool.DEFINITION,
         ComposeMessageTool.DEFINITION,
         AddConnectionTool.DEFINITION,
+        FindConnectionTool.DEFINITION,
     ) + WorkspaceToolSet.DEFINITIONS
 
     fun create(
@@ -46,6 +48,7 @@ object ToolCatalog {
             CalendarEventsTool(context, clock),
             ComposeMessageTool(context),
             AddConnectionTool(context.applicationContext, connectors),
+            FindConnectionTool(connectors),
         ) + workspaceTools
         ).also { tools ->
         check(tools.map { it.definition }.toSet() == definitions.toSet()) { "ToolCatalog.definitions is out of step with create()" }

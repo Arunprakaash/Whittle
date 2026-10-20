@@ -42,10 +42,15 @@ data class OAuthTokens(
 
 /**
  * Everything kept for one connector, encrypted in the secret store: the OAuth registration and tokens, or
- * a pasted access token as [tokens] with no [client], or just [open] for a server without sign-in.
+ * [open] for a server signed in by [headers] the user gave (an API key) or needing no sign-in at all.
  */
 @Serializable
-data class McpCredentials(val client: OAuthClient? = null, val tokens: OAuthTokens? = null, val open: Boolean = false)
+data class McpCredentials(
+    val client: OAuthClient? = null,
+    val tokens: OAuthTokens? = null,
+    val open: Boolean = false,
+    val headers: Map<String, String> = emptyMap(),
+)
 
 /** One sign-in in progress: kept until the browser sends the user back. The verifier never leaves the phone. */
 class PendingSignIn(val authorizationUrl: String, val client: OAuthClient, val verifier: Secret, val state: String)

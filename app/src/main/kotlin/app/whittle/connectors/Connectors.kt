@@ -1,5 +1,9 @@
 package app.whittle.connectors
 
+import app.whittle.connectors.mcp.McpTransportKind
+import app.whittle.connectors.mcp.McpRegistry
+import app.whittle.connectors.mcp.LibraryServer
+import app.whittle.connectors.mcp.HeaderSpec
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -54,6 +58,10 @@ class Connectors(
     private val changes = Mutex()
     private val probe = McpProbe(config, http)
 
+    /** Servers to browse: Whittle's featured list, and search over the MCP Registry. */
+    val featured: List<LibraryServer> = config.library.featured
+    val registry = McpRegistry(config.library, http)
+
     /** Every service, bundled first, then the user's in the order they added them. */
     val all: StateFlow<List<McpConnection>> = _all.asStateFlow()
 
@@ -65,7 +73,10 @@ class Connectors(
     init {
         scope.launch {
             changes.withLock { _all.update { it + custom.load().map { saved -> connection(serverFor(saved)) } } }
-            _all.value.forEach { it.restore() }
+            _all.value.forEach { connection ->
+                connection.exclude(custom.excludedTools(connection.server.id))
+                connection.restore()
+            }
         }
     }
 
@@ -78,19 +89,41 @@ class Connectors(
      * Adds a server the user (or the agent, with the user's OK) names: finds how it signs in, saves it, and
      * connects it at once when it needs no sign-in.
      */
-    suspend fun add(name: String, url: String): Outcome<McpConnection> {
-        val auth = when (val detected = probe.detect(url.trim())) {
-            is Outcome.Success -> detected.value
-            is Outcome.Failure -> return detected
+    suspend fun add(
+        name: String,
+        url: String,
+        transport: McpTransportKind = probe.transportFor(url.trim()),
+        headers: List<HeaderSpec> = emptyList(),
+        websiteUrl: String? = null,
+    ): Outcome<McpConnection> {
+        added(url)?.let { return Outcome.Success(it) }
+        val detected = when (val probed = probe.detect(url.trim(), transport)) {
+            is Outcome.Success -> probed.value
+            is Outcome.Failure -> return probed
         }
+        // A server that names a required header wants a key, whatever the probe saw.
+        val auth = if (headers.any { it.isRequired }) McpAuthMode.TOKEN else detected
         val connection = changes.withLock {
             val existing = _all.value.map { it.server.id }.toSet()
-            val saved = CustomServer(uniqueId(name, existing), name.trim().ifEmpty { url }, url.trim(), auth)
+            val saved = CustomServer(uniqueId(name, existing), name.trim().ifEmpty { url }, url.trim(), auth, transport, headers, websiteUrl)
             custom.save(custom.load() + saved)
             connection(serverFor(saved)).also { added -> _all.update { it + added } }
         }
         if (auth == McpAuthMode.NONE) (connection.connectOpen() as? Outcome.Failure)?.let { return it }
         return Outcome.Success(connection)
+    }
+
+    /** A library server, added the same way. */
+    suspend fun add(server: LibraryServer): Outcome<McpConnection> =
+        add(server.title, server.url, server.transport, server.headers, server.websiteUrl)
+
+    /** The connection already made to [url], if any. */
+    fun added(url: String): McpConnection? = _all.value.firstOrNull { it.server.url.trimEnd('/') == url.trim().trimEnd('/') }
+
+    /** Switches tools of [connection] off (or back on), remembered across restarts. */
+    fun setExcludedTools(connection: McpConnection, names: Set<String>) {
+        connection.exclude(names)
+        scope.launch { custom.setExcludedTools(connection.server.id, names) }
     }
 
     /** Forgets a server the user added, with its sign-in. */
@@ -121,9 +154,17 @@ class Connectors(
         }
     }
 
-    fun connectWithToken(connection: McpConnection, token: String) {
+    /**
+     * Connects with keys the user typed, by header name. A bare key for Authorization becomes a bearer token,
+     * as servers expect.
+     */
+    fun connectWithHeaders(connection: McpConnection, values: Map<String, String>) {
+        val headers = values.mapValues { (name, value) ->
+            val key = value.trim()
+            if (name.equals(AUTHORIZATION, ignoreCase = true) && key.isNotEmpty() && ' ' !in key) "$BEARER $key" else key
+        }
         scope.launch {
-            (connection.connectWithToken(token) as? Outcome.Failure)?.let { _failures.tryEmit(it.error.message) }
+            (connection.connectWithHeaders(headers) as? Outcome.Failure)?.let { _failures.tryEmit(it.error.message) }
         }
     }
 
@@ -159,6 +200,8 @@ class Connectors(
             sourceLabel = saved.name,
             defaultRiskTier = defaultRiskTier,
             auth = saved.auth,
+            transport = saved.transport,
+            headers = saved.headers,
         )
     }
 
@@ -203,6 +246,8 @@ class Connectors(
         const val SECRET_PREFIX = "connector:"
         const val TOOL_CACHE_SUFFIX = "-tools.json"
         const val FALLBACK_ID = "server"
+        const val AUTHORIZATION = "Authorization"
+        const val BEARER = "Bearer"
         val json = Json { ignoreUnknownKeys = true }
     }
 }

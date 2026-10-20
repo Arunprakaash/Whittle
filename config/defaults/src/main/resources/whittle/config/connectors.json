@@ -71,5 +71,78 @@
     "redirectBase": "app.whittle://oauth/",
     "defaultRiskTier": "NETWORK_OUT",
     "maxToolIdChars": 64
+  },
+  "library": {
+    "registryUrl": "https://registry.modelcontextprotocol.io/v0/servers",
+    "pageSize": 30,
+    "featured": [
+      {
+        "title": "Linear",
+        "description": "Find, create and update issues and projects in Linear.",
+        "url": "https://mcp.linear.app/mcp",
+        "websiteUrl": "https://linear.app"
+      },
+      {
+        "title": "Notion",
+        "description": "Search, read and write your Notion pages and databases.",
+        "url": "https://mcp.notion.com/mcp",
+        "websiteUrl": "https://www.notion.so"
+      },
+      {
+        "title": "Atlassian",
+        "description": "Jira issues and Confluence pages from your Atlassian sites.",
+        "url": "https://mcp.atlassian.com/v2/mcp",
+        "websiteUrl": "https://www.atlassian.com"
+      },
+      {
+        "title": "Sentry",
+        "description": "Look into errors and issues in your Sentry projects.",
+        "url": "https://mcp.sentry.dev/mcp",
+        "websiteUrl": "https://sentry.io"
+      },
+      {
+        "title": "Stripe",
+        "description": "Customers, payments and products in your Stripe account.",
+        "url": "https://mcp.stripe.com",
+        "websiteUrl": "https://stripe.com"
+      },
+      {
+        "title": "Hugging Face",
+        "description": "Search models, datasets and Spaces on Hugging Face.",
+        "url": "https://huggingface.co/mcp?login",
+        "websiteUrl": "https://huggingface.co"
+      },
+      {
+        "title": "Context7",
+        "description": "Up-to-date documentation and code examples for libraries.",
+        "url": "https://mcp.context7.com/mcp",
+        "websiteUrl": "https://context7.com",
+        "headers": [
+          {
+            "name": "Authorization",
+            "description": "Optional: your Context7 API key, for higher limits",
+            "isSecret": true
+          }
+        ]
+      },
+      {
+        "title": "Exa",
+        "description": "Web search and page contents from Exa.",
+        "url": "https://mcp.exa.ai/mcp",
+        "websiteUrl": "https://exa.ai"
+      },
+      {
+        "title": "DeepWiki",
+        "description": "Ask questions about public GitHub repositories.",
+        "url": "https://mcp.deepwiki.com/mcp",
+        "websiteUrl": "https://deepwiki.com"
+      },
+      {
+        "title": "Cloudflare Docs",
+        "description": "Search Cloudflare's documentation.",
+        "url": "https://docs.mcp.cloudflare.com/mcp",
+        "websiteUrl": "https://developers.cloudflare.com"
+      }
+    ]
   }
 }

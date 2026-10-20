@@ -51,7 +51,7 @@ class McpConnection(
     clientVersion: String,
 ) {
     private val authorizer = McpAuthorizer(server, config, http, clock)
-    private val client = McpClient(server, config, http, ::accessToken, clientVersion)
+    private val client = McpClient(server, config, http, ::accessToken, clientVersion, headers = { credentials.load()?.headers.orEmpty() })
     private val tokenLock = Mutex()
     private val _state = MutableStateFlow<ConnectorState>(ConnectorState.Disconnected)
     val state: StateFlow<ConnectorState> = _state.asStateFlow()
@@ -62,6 +62,21 @@ class McpConnection(
 
     @Volatile var tools: List<Tool> = emptyList()
         private set
+
+    /** Every tool the server offers, including ones the user switched off. */
+    @Volatile var offered: List<RemoteTool> = emptyList()
+        private set
+
+    @Volatile private var excluded: Set<String> = server.excludedTools
+
+    /** The tools the user switched off. */
+    val excludedTools: Set<String> get() = excluded
+
+    /** Switches tools off (or back on); the agent only sees the rest. */
+    fun exclude(names: Set<String>) {
+        excluded = names
+        publish(offered)
+    }
 
     /** At start-up: the cached tools if the user is signed in, then a fresh list from the server. */
     suspend fun restore() {
@@ -107,9 +122,12 @@ class McpConnection(
         }
     }
 
-    /** Connects a server that takes an access token: kept encrypted on the phone, sent only to this server. */
-    suspend fun connectWithToken(token: String): Outcome<Unit> {
-        credentials.save(McpCredentials(tokens = OAuthTokens(token.trim())))
+    /** Connects a server that takes an access token as a bearer token: kept encrypted, sent only to this server. */
+    suspend fun connectWithToken(token: String): Outcome<Unit> = connectWithHeaders(mapOf(AUTHORIZATION to "$BEARER ${token.trim()}"))
+
+    /** Connects a server signed in by headers the user gave (an API key header, say): kept encrypted, sent only here. */
+    suspend fun connectWithHeaders(headers: Map<String, String>): Outcome<Unit> {
+        credentials.save(McpCredentials(open = true, headers = headers.mapValues { it.value.trim() }.filterValues { it.isNotEmpty() }))
         return connected()
     }
 
@@ -174,8 +192,10 @@ class McpConnection(
 
     private fun publish(remote: List<RemoteTool>) {
         // Model APIs take tool names of letters, digits, _ and - only, up to a length.
+        offered = remote
         tools = remote
             .filter { TOOL_NAME.matches(it.name) && (server.toolPrefix + it.name).length <= config.custom.maxToolIdChars }
+            .filter { it.name !in excluded }
             .map { McpTool(it, server, this) }
         settle()
     }
@@ -212,6 +232,8 @@ class McpConnection(
     private companion object {
         val TOOL_LIST = ListSerializer(RemoteTool.serializer())
         val TOOL_NAME = Regex("[A-Za-z0-9_-]+")
+        const val AUTHORIZATION = "Authorization"
+        const val BEARER = "Bearer"
         val json = Json { ignoreUnknownKeys = true }
     }
 }

@@ -108,7 +108,7 @@ class McpConnectionTest {
         assertIs<Outcome.Success<Unit>>(connection.connectWithToken(" token-1 "))
         assertEquals(ConnectorState.Connected(3), connection.state.value)
         assertTrue(requests.filter { it.path!!.startsWith("/mcp") }.all { it.getHeader("Authorization") == "Bearer token-1" })
-        assertEquals("token-1", store.saved?.tokens?.accessToken)
+        assertEquals("Bearer token-1", store.saved?.headers?.get("Authorization"))
     }
 
     @Test
@@ -132,6 +132,16 @@ class McpConnectionTest {
         assertIs<Outcome.Failure>(probe.detect("http://example.com/mcp"))
     }
 
+    @Test
+    fun `switched-off tools are hidden and headers the user gave are sent`() = runTest {
+        val connection = connection(server().copy(auth = McpAuthMode.TOKEN))
+        connection.connectWithHeaders(mapOf("X-Api-Key" to " key-1 "))
+        assertTrue(requests.filter { it.path!!.startsWith("/mcp") }.all { it.getHeader("X-Api-Key") == "key-1" && it.getHeader("Authorization") == null })
+        connection.exclude(setOf("apply_migration"))
+        assertEquals(listOf("db_drop_table", "db_list_tables"), connection.tools.map { it.definition.id.value }.sorted())
+        assertEquals(4, connection.offered.size)
+    }
+
     private fun connection(server: McpServerConfig = server()) = McpConnection(
         server = server,
         config = config(),
@@ -152,6 +162,7 @@ class McpConnectionTest {
             maxResultChars = 1_000,
             servers = listOf(server()),
             custom = CustomConnectorDefaults("mcp_", 16, "extension", "app.whittle://oauth/", RiskTier.NETWORK_OUT, 64),
+            library = LibraryConfig("https://registry.example/v0/servers", 10, emptyList()),
     )
 
     private fun server() = McpServerConfig(

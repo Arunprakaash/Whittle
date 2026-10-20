@@ -18,7 +18,7 @@ import java.io.IOException
  * (no sign-in), or is refused with OAuth metadata (browser sign-in), or is refused plainly (access token).
  */
 class McpProbe(private val config: ConnectorsConfig, private val http: OkHttpClient) {
-    suspend fun detect(url: String): Outcome<McpAuthMode> {
+    suspend fun detect(url: String, transport: McpTransportKind = McpTransportKind.STREAMABLE_HTTP): Outcome<McpAuthMode> {
         // https only, except a server on this phone itself.
         val endpoint = url.toHttpUrlOrNull()?.takeIf { it.isHttps || it.host in LOOPBACK }
             ?: return Outcome.Failure(HarnessError.Configuration("A connection needs an https address"))
@@ -35,12 +35,17 @@ class McpProbe(private val config: ConnectorsConfig, private val http: OkHttpCli
                 },
             )
         }
-        val request = Request.Builder().url(endpoint)
-            .header("Accept", "application/json, text/event-stream")
-            .post(initialize.toString().toRequestBody(JSON))
-            .build()
+        // Streamable HTTP takes an initialize; the older SSE transport opens a stream first.
+        val request = when (transport) {
+            McpTransportKind.STREAMABLE_HTTP -> Request.Builder().url(endpoint)
+                .header("Accept", "application/json, text/event-stream")
+                .post(initialize.toString().toRequestBody(JSON))
+                .build()
+            McpTransportKind.SSE -> Request.Builder().url(endpoint).header("Accept", "text/event-stream").get().build()
+        }
         return withContext(Dispatchers.IO) {
             try {
+                // Only the status matters: a stream is closed without reading it.
                 http.newCall(request).execute().use { response ->
                     when {
                         response.isSuccessful -> Outcome.Success(McpAuthMode.NONE)
@@ -57,6 +62,10 @@ class McpProbe(private val config: ConnectorsConfig, private val http: OkHttpCli
         }
     }
 
+    /** The transport an address most likely speaks: older SSE servers' addresses end in /sse. */
+    fun transportFor(url: String): McpTransportKind =
+        if (url.toHttpUrlOrNull()?.encodedPath?.trimEnd('/')?.endsWith(SSE_PATH) == true) McpTransportKind.SSE else McpTransportKind.STREAMABLE_HTTP
+
     private fun hasOAuthMetadata(url: String): Boolean {
         val resource = url.toHttpUrlOrNull() ?: return false
         val metadata = resource.newBuilder().encodedPath(PROTECTED_RESOURCE_PATH + resource.encodedPath.trimEnd('/')).query(null).build()
@@ -72,6 +81,7 @@ class McpProbe(private val config: ConnectorsConfig, private val http: OkHttpCli
         const val HTTP_FORBIDDEN = 403
         const val RESOURCE_METADATA = "resource_metadata"
         const val PROTECTED_RESOURCE_PATH = "/.well-known/oauth-protected-resource"
+        const val SSE_PATH = "/sse"
         val LOOPBACK = setOf("localhost", "127.0.0.1", "[::1]", "::1")
         val JSON = "application/json".toMediaType()
     }
