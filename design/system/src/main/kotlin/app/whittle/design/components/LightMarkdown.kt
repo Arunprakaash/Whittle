@@ -18,9 +18,10 @@ import androidx.compose.ui.text.withStyle
  */
 fun lightMarkdown(text: String, code: SpanStyle, link: SpanStyle = SpanStyle()): AnnotatedString = buildAnnotatedString {
     val inline = InlineStyles(code, link)
+    val clean = withoutCitationMarkers(text)
     var inFence = false
     var firstLine = true
-    for (line in text.split('\n')) {
+    for (line in clean.split('\n')) {
         if (FENCE.matches(line)) {
             inFence = !inFence
             continue
@@ -52,6 +53,17 @@ fun lightMarkdown(text: String, code: SpanStyle, link: SpanStyle = SpanStyle()):
     }
 }
 
+/**
+ * Some providers mark citations inline with private-use characters (e.g. U+E200 cite U+E202 ref U+E201) and
+ * report the sources separately; the markers mean nothing on screen or in copied text.
+ */
+fun withoutCitationMarkers(text: String): String = text.replace(CITATION_MARKER, "").replace(PRIVATE_USE, "")
+
+private val CITATION_MARKER = Regex("\uE200[^\uE201]*\uE201")
+private val PRIVATE_USE = Regex("[\uE000-\uF8FF]")
+private const val BACKSLASH = '\\'
+private const val ESCAPABLE = "\\`*_{}[]()#+-.!|~>"
+
 /** A `[label](https://…)` link in model prose. */
 data class MarkdownLink(val label: String, val url: String)
 
@@ -64,6 +76,12 @@ private class InlineStyles(val code: SpanStyle, val link: SpanStyle)
 private fun AnnotatedString.Builder.appendInline(text: String, styles: InlineStyles) {
     var index = 0
     while (index < text.length) {
+        // \* and friends: the next character is literal, not formatting.
+        if (text[index] == BACKSLASH && index + 1 < text.length && text[index + 1] in ESCAPABLE) {
+            append(text[index + 1])
+            index += 2
+            continue
+        }
         val link = LINK.matchAt(text, index)
         if (link != null) {
             val (label, url) = link.destructured

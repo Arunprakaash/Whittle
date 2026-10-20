@@ -14,7 +14,7 @@ sealed interface MarkdownBlock {
  */
 object MarkdownBlocks {
     fun parse(text: String): List<MarkdownBlock> {
-        val lines = text.split('\n')
+        val lines = withoutCitationMarkers(text).split('\n')
         val blocks = mutableListOf<MarkdownBlock>()
         val pending = StringBuilder()
         fun flushText() {

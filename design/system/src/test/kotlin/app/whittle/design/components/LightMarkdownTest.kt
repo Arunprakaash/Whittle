@@ -59,4 +59,10 @@ class LightMarkdownTest {
             markdownLinks("See [a.com](https://a.com/x), [B](http://b.org) and [c](ftp://c)."),
         )
     }
+
+    @Test
+    fun `escapes and provider citation markers don't show`() {
+        val text = "\\*Prices vary. Range is claimed.\uE200cite\uE202turn8news34\uE202turn8search3\uE201"
+        assertEquals("*Prices vary. Range is claimed.", lightMarkdown(text, code).text)
+    }
 }

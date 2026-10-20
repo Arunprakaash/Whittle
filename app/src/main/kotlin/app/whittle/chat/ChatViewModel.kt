@@ -354,7 +354,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private fun collect(runId: RunId, events: Flow<RunEvent>) {
         activeRunId = runId
         segment = Segment(start = _state.value.items.size, startedAtMillis = graph.clock.nowMillis())
-        citedTitles.clear()
+        cited.clear()
         _state.update { it.copy(status = StatusUi(AgentState.Thinking, verb = null, startedAtMillis = segment.startedAtMillis)) }
         activeJob = viewModelScope.launch {
             // The loop encrypts and saves a checkpoint every step, so it runs off the main thread.
@@ -381,7 +381,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             is RunEvent.AssistantTextDelta -> appendNarration(event.text)
             is RunEvent.ToolCallDecided -> onToolCallDecided(event)
             is RunEvent.ToolCallFinished -> onToolCallFinished(event)
-            is RunEvent.SourceCited -> CitedSources.clean(event.url)?.let { url -> event.title?.let { citedTitles[url.toString()] = it } }
+            is RunEvent.SourceCited -> CitedSources.clean(event.url)?.let { url -> cited[url.toString()] = event.title ?: cited[url.toString()] }
             is RunEvent.HostedToolStarted -> onHostedToolStarted(event)
             is RunEvent.HostedToolFinished -> onHostedToolFinished(event)
             is RunEvent.DecisionRequested -> onDecisionRequested(event)
@@ -528,7 +528,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         _events.tryEmit(ChatEvent.Finished(failed = false))
         finishNarration()
         val said = _state.value.items.drop(segment.start).filterIsInstance<ThreadItem.Narration>().map { it.text }
-        val sources = CitedSources.from(said, citedTitles)
+        val sources = CitedSources.from(said, cited)
         markAnswer()
         foldSegment()
         if (sources.isNotEmpty()) placeAfterAnswer(ThreadItem.Sources(key(), sources))
@@ -709,8 +709,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     /** Which tool each call in the current run used, to recognise artifact results. */
     private val callTools = mutableMapOf<String, String>()
 
-    /** Page titles from the provider's citations in the current run, keyed by cleaned address. */
-    private val citedTitles = mutableMapOf<String, String>()
+    /** Pages the provider cited in the current run, by cleaned address, with their titles when given. */
+    private val cited = linkedMapOf<String, String?>()
 
     private data class Segment(val start: Int, val startedAtMillis: Long)
 

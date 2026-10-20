@@ -57,7 +57,7 @@ internal class ThreadBackfill(
                 else -> emptyList()
             }
         }
-        val sources = CitedSources.from(said, citedTitles = emptyMap())
+        val sources = CitedSources.from(said, cited = emptyMap())
         if (sources.isEmpty()) return turn
         return turn.take(answer + 1) + ThreadItem.Sources(newKey(), sources) + turn.drop(answer + 1)
     }
