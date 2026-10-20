@@ -21,6 +21,7 @@ edit
 edit_document
 edit_square
 error
+expand_less
 expand_more
 folder
 fullscreen

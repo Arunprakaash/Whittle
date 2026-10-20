@@ -28,6 +28,7 @@ object MaterialSymbols {
         "edit_document" to R.drawable.ms_edit_document,
         "edit_square" to R.drawable.ms_edit_square,
         "error" to R.drawable.ms_error,
+        "expand_less" to R.drawable.ms_expand_less,
         "expand_more" to R.drawable.ms_expand_more,
         "folder" to R.drawable.ms_folder,
         "fullscreen" to R.drawable.ms_fullscreen,

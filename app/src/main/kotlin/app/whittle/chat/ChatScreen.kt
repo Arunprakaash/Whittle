@@ -1,5 +1,7 @@
 package app.whittle.chat
 
+import app.whittle.design.components.StatusPlanUi
+import app.whittle.agent.PlanItem
 import app.whittle.design.components.PlanStepState
 import app.whittle.design.components.PlanStepUi
 import app.whittle.design.components.PlanChecklist
@@ -253,8 +255,9 @@ private fun Thread(items: List<ThreadItem>, working: Boolean, viewModel: ChatVie
             modifier = Modifier.fillMaxSize(),
         ) {
             // One footer per turn, under its last answer; the turn's sources join it instead of a row of their own.
+            // A plan lives in the status card while it runs; afterwards it's in the run's summary.
             val plan = AnswerFooters.plan(items)
-            items(items.filterNot { it.key in plan.folded }, key = { it.key }) { item ->
+            items(items.filterNot { it.key in plan.folded || it is ThreadItem.Plan }, key = { it.key }) { item ->
                 ThreadRow(item, viewModel, requestCapability, Modifier.animateItem(), plan.footers[item.key])
             }
         }
@@ -332,16 +335,7 @@ private fun ThreadRow(
         }
         is ThreadItem.Plan -> PlanChecklist(
             title = stringResource(R.string.plan_title, item.steps.count { it.status == PlanStatus.COMPLETED }, item.steps.size),
-            steps = item.steps.map { step ->
-                PlanStepUi(
-                    text = step.content,
-                    state = when (step.status) {
-                        PlanStatus.COMPLETED -> PlanStepState.Done
-                        PlanStatus.IN_PROGRESS -> PlanStepState.Active
-                        PlanStatus.PENDING -> PlanStepState.Pending
-                    },
-                )
-            },
+            steps = item.steps.map { it.toUi() },
             modifier = modifier,
         )
         is ThreadItem.Artifact -> {
@@ -388,6 +382,12 @@ private fun Dock(state: ChatState, viewModel: ChatViewModel) {
                     elapsed = elapsed(status.startedAtMillis),
                     stopLabel = stringResource(R.string.status_stop),
                     onStop = viewModel::stop,
+                    plan = status.plan?.let { steps ->
+                        StatusPlanUi(
+                            progress = stringResource(R.string.plan_progress, steps.count { it.status == PlanStatus.COMPLETED }, steps.size),
+                            steps = steps.map { it.toUi() },
+                        )
+                    },
                 )
             }
         }
@@ -589,3 +589,12 @@ private const val SECONDS_PER_MINUTE = 60L
 
 /** New chat and the overflow menu share one connected group. */
 private const val TOP_BAR_ACTIONS = 2
+
+private fun PlanItem.toUi(): PlanStepUi = PlanStepUi(
+    text = content,
+    state = when (status) {
+        PlanStatus.COMPLETED -> PlanStepState.Done
+        PlanStatus.IN_PROGRESS -> PlanStepState.Active
+        PlanStatus.PENDING -> PlanStepState.Pending
+    },
+)

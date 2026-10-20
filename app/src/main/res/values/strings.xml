@@ -62,6 +62,7 @@
     <string name="steer_label">Added while working</string>
     <string name="thread_latest">Latest</string>
     <string name="answer_copy">Copy</string>
+    <string name="plan_progress">%1$d/%2$d</string>
     <string name="plan_title">Plan · %1$d of %2$d done</string>
     <!-- Notifications -->
     <string name="notify_channel_running">Running tasks</string>

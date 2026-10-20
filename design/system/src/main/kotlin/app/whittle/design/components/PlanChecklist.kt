@@ -41,27 +41,32 @@ fun PlanChecklist(title: String, steps: List<PlanStepUi>, modifier: Modifier = M
             WhittleIcon("checklist", size = WhittleSize.Icon.m, tint = colors.onSurfaceVariant)
             Text(title, style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
         }
-        steps.forEach { step ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
-                Box(Modifier.size(WhittleSize.Icon.xl), contentAlignment = Alignment.Center) {
-                    when (step.state) {
-                        PlanStepState.Done -> WhittleIcon("check_circle", fill = true, size = WhittleSize.Icon.l, tint = colors.primary)
-                        PlanStepState.Active -> CircularProgressIndicator(Modifier.size(WhittleSize.Icon.m), strokeWidth = SPINNER_STROKE)
-                        PlanStepState.Pending -> WhittleIcon("radio_button_unchecked", size = WhittleSize.Icon.l, tint = colors.outline)
-                    }
-                }
-                Text(
-                    step.text,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = when (step.state) {
-                        PlanStepState.Done -> colors.onSurfaceVariant
-                        PlanStepState.Active -> colors.onSurface
-                        PlanStepState.Pending -> colors.onSurfaceVariant
-                    },
-                    modifier = Modifier.weight(1f),
-                )
+        steps.forEach { PlanStepRow(it) }
+    }
+}
+
+/** One step of a plan: a tick when done, a spinner while working, an empty circle until then. */
+@Composable
+fun PlanStepRow(step: PlanStepUi, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
+        Box(Modifier.size(WhittleSize.Icon.xl), contentAlignment = Alignment.Center) {
+            when (step.state) {
+                PlanStepState.Done -> WhittleIcon("check_circle", fill = true, size = WhittleSize.Icon.l, tint = colors.primary)
+                PlanStepState.Active -> CircularProgressIndicator(Modifier.size(WhittleSize.Icon.m), strokeWidth = SPINNER_STROKE)
+                PlanStepState.Pending -> WhittleIcon("radio_button_unchecked", size = WhittleSize.Icon.l, tint = colors.outline)
             }
         }
+        Text(
+            step.text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = when (step.state) {
+                PlanStepState.Done -> colors.onSurfaceVariant
+                PlanStepState.Active -> colors.onSurface
+                PlanStepState.Pending -> colors.onSurfaceVariant
+            },
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
