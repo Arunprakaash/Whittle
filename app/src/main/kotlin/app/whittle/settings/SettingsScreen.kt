@@ -76,7 +76,7 @@ fun SettingsScreen(
                     SettingsRow(
                         icon = "smart_toy",
                         title = model?.displayName ?: stringResource(R.string.settings_model_none),
-                        subtitle = stringResource(R.string.settings_model_body),
+                        subtitle = null,
                         shape = segmentedShape(0, 1),
                         onClick = onChangeModel,
                         trailing = { WhittleIcon("chevron_right", size = WhittleSize.Icon.m, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
@@ -89,7 +89,7 @@ fun SettingsScreen(
                     SettingsToggleRow(
                         icon = "wallpaper",
                         title = stringResource(R.string.settings_wallpaper_title),
-                        subtitle = stringResource(if (wallpaperAvailable) R.string.settings_wallpaper_body else R.string.settings_wallpaper_unavailable),
+                        subtitle = null,
                         checked = settings?.wallpaperColors == true,
                         onCheckedChange = { on -> save { setWallpaperColors(on) } },
                         shape = segmentedShape(0, 2),
@@ -98,7 +98,7 @@ fun SettingsScreen(
                     SettingsToggleRow(
                         icon = "vibration",
                         title = stringResource(R.string.settings_haptics_title),
-                        subtitle = stringResource(R.string.settings_haptics_body),
+                        subtitle = null,
                         checked = settings?.haptics == true,
                         onCheckedChange = { on -> save { setHaptics(on) } },
                         shape = segmentedShape(1, 2),
@@ -111,7 +111,7 @@ fun SettingsScreen(
                     SettingsToggleRow(
                         icon = "notifications",
                         title = stringResource(R.string.settings_background_title),
-                        subtitle = stringResource(R.string.settings_background_body),
+                        subtitle = null,
                         checked = settings?.keepRunningInBackground == true,
                         onCheckedChange = { on ->
                             save { setKeepRunningInBackground(on) }
@@ -128,7 +128,7 @@ fun SettingsScreen(
                     SettingsToggleRow(
                         icon = "insights",
                         title = stringResource(R.string.settings_usage_title),
-                        subtitle = stringResource(if (graph.analyticsAvailable) R.string.settings_usage_body else R.string.settings_usage_unavailable),
+                        subtitle = null,
                         checked = sharing,
                         onCheckedChange = { on -> save { setShareUsageData(on) } },
                         shape = segmentedShape(0, 2),
@@ -137,13 +137,7 @@ fun SettingsScreen(
                     SettingsToggleRow(
                         icon = "screen_record",
                         title = stringResource(R.string.settings_recordings_title),
-                        subtitle = stringResource(
-                            when {
-                                !sharing -> R.string.settings_recordings_needs_usage
-                                graph.recordingsShowContent -> R.string.settings_recordings_show_content
-                                else -> R.string.settings_recordings_body
-                            },
-                        ),
+                        subtitle = null,
                         checked = sharing && settings?.screenRecordings == true,
                         onCheckedChange = { on -> save { setScreenRecordings(on) } },
                         shape = segmentedShape(1, 2),
@@ -156,7 +150,7 @@ fun SettingsScreen(
                     SettingsRow(
                         icon = "delete",
                         title = stringResource(R.string.settings_delete_all_title),
-                        subtitle = stringResource(R.string.settings_delete_all_body),
+                        subtitle = null,
                         shape = segmentedShape(0, 1),
                         destructive = true,
                         onClick = { confirmingDelete = true },
