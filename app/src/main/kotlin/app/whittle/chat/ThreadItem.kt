@@ -1,5 +1,6 @@
 package app.whittle.chat
 
+import app.whittle.agent.PlanItem
 import app.whittle.artifacts.ArtifactRef
 import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
@@ -77,6 +78,11 @@ sealed interface ThreadItem {
         val expanded: Boolean,
         val folded: List<ThreadItem>,
     ) : ThreadItem
+
+    /** The agent's plan for this task, kept up to date in place as steps start and finish. */
+    @Serializable
+    @SerialName("plan")
+    data class Plan(override val key: String, val steps: List<PlanItem>) : ThreadItem
 
     /** A web app the agent built, shown as a card that opens it. */
     @Serializable

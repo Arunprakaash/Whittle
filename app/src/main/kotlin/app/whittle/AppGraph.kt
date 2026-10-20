@@ -158,7 +158,7 @@ class AppGraph(context: Context) {
         adapters = ModelAdapterRegistry(setOf(OpenAiCompatibleAdapter(httpClient, idGenerator), OpenAiResponsesAdapter(httpClient))),
         providers = providers,
         credentials = SecretStoreCredentialsProvider(secrets),
-        tools = ToolRegistry(ToolCatalog.create(context, clock, httpClient, workspaceTools(context))),
+        tools = ToolRegistry(ToolCatalog.create(context, clock, httpClient, workspaceTools(context), harness.agent.maxPlanItems)),
         policy = RuleBasedPolicyEngine(load(ConfigFiles.policyRules, PolicyRuleSet.serializer(), PolicyRuleSet.SCHEMA_VERSION)),
         inbox = inbox,
         checkpoints = checkpoints,

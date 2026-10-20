@@ -1,5 +1,6 @@
 package app.whittle
 
+import app.whittle.agent.PlanTool
 import android.content.Context
 import app.whittle.agent.AskUserTool
 import app.whittle.core.common.EpochClock
@@ -17,6 +18,7 @@ import okhttp3.OkHttpClient
 object ToolCatalog {
     val definitions: List<ToolDefinition> = listOf(
         AskUserTool.DEFINITION,
+        PlanTool.DEFINITION,
         DeviceClockTool.DEFINITION,
         WebFetchTool.DEFINITION,
         ContactsSearchTool.DEFINITION,
@@ -24,9 +26,10 @@ object ToolCatalog {
         ComposeMessageTool.DEFINITION,
     ) + WorkspaceToolSet.DEFINITIONS
 
-    fun create(context: Context, clock: EpochClock, httpClient: OkHttpClient, workspaceTools: List<Tool>): Set<Tool> = (
+    fun create(context: Context, clock: EpochClock, httpClient: OkHttpClient, workspaceTools: List<Tool>, maxPlanItems: Int): Set<Tool> = (
         setOf(
             AskUserTool(),
+            PlanTool(maxPlanItems),
             DeviceClockTool(clock),
             WebFetchTool(httpClient),
             ContactsSearchTool(context),

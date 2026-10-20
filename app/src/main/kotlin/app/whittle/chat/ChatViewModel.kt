@@ -2,6 +2,9 @@
 
 package app.whittle.chat
 
+import app.whittle.agent.PlanTool
+import app.whittle.agent.PlanStatus
+import app.whittle.agent.PlanItem
 import kotlinx.serialization.json.contentOrNull
 import app.whittle.tools.workspace.ShowArtifactTool
 import app.whittle.artifacts.ArtifactRef
@@ -95,6 +98,8 @@ data class StatusUi(
     val startedAtMillis: Long,
     /** Steps this run has started so far; a run that only writes text has none. */
     val steps: Int = 0,
+    /** The agent's plan for this run, when it wrote one. */
+    val plan: List<PlanItem>? = null,
 )
 
 /**
@@ -390,6 +395,12 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         finishNarration()
         val call = event.toolCall
         val arguments = arguments(call.argumentsJson)
+        // A plan isn't a step: it updates the checklist in place.
+        if (call.toolName == PlanTool.ID) {
+            planCalls += call.id.value
+            if (event.decision is PolicyDecision.Allow) PlanTool.parse(arguments)?.let(::showPlan)
+            return
+        }
         val text = graph.presenter.step(call.toolName, arguments)
         stepTexts[call.id.value] = text
         callTools[call.id.value] = call.toolName
@@ -406,7 +417,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
 
     private fun onToolCallFinished(event: RunEvent.ToolCallFinished) {
         val id = event.result.toolCallId.value
-        if (id in parkedCalls) return
+        if (id in parkedCalls || id in planCalls) return
         val text = stepTexts[id]
         updateStep(id) { step ->
             when {
@@ -424,6 +435,18 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             _state.update { it.copy(workspaceRevision = it.workspaceRevision + 1) }
             if (callTools[id] == ShowArtifactTool.DEFINITION.id.value) showArtifact(event.result.content)
         }
+    }
+
+    /** The current run's plan replaces the previous one in place; the status line follows the active step. */
+    private fun showPlan(steps: List<PlanItem>) = _state.update { state ->
+        val existing = state.items.withIndex().lastOrNull { (index, item) -> index >= segment.start && item is ThreadItem.Plan }
+        val items = if (existing != null) {
+            state.items.mapIndexed { index, item -> if (index == existing.index) (item as ThreadItem.Plan).copy(steps = steps) else item }
+        } else {
+            state.items + ThreadItem.Plan(key(), steps)
+        }
+        val active = steps.firstOrNull { it.status == PlanStatus.IN_PROGRESS }?.content
+        state.copy(items = items, status = state.status?.copy(plan = steps, verb = active ?: state.status.verb))
     }
 
     /** The tool checked the page exists; the card points at it in this chat's workspace. */
@@ -525,7 +548,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val before = state.items.take(segment.start)
         val segmentItems = state.items.drop(segment.start)
         val answer = segmentItems.lastOrNull { it is ThreadItem.Narration }
-        val folded = segmentItems.filter { it is ThreadItem.Steps || (it is ThreadItem.Narration && it !== answer) }
+        val folded = segmentItems.filter { it is ThreadItem.Steps || it is ThreadItem.Plan || (it is ThreadItem.Narration && it !== answer) }
         val stepCount = folded.filterIsInstance<ThreadItem.Steps>().sumOf { it.steps.size }
         if (stepCount == 0) return@update state
         val kept = segmentItems.filterNot { it in folded }
@@ -675,6 +698,9 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private fun decode(document: String): ChatDocument? = ChatDocument.decode(document)
 
     private fun key(): String = "item-${nextKey++}"
+
+    /** update_plan calls in the current run; they never become step rows. */
+    private val planCalls = mutableSetOf<String>()
 
     /** Which tool each call in the current run used, to recognise artifact results. */
     private val callTools = mutableMapOf<String, String>()

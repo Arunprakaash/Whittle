@@ -1,5 +1,9 @@
 package app.whittle.chat
 
+import app.whittle.design.components.PlanStepState
+import app.whittle.design.components.PlanStepUi
+import app.whittle.design.components.PlanChecklist
+import app.whittle.agent.PlanStatus
 import androidx.activity.compose.BackHandler
 import app.whittle.design.tokens.WhittleSize
 import androidx.compose.material3.AlertDialog
@@ -326,6 +330,20 @@ private fun ThreadRow(
                 }
             }
         }
+        is ThreadItem.Plan -> PlanChecklist(
+            title = stringResource(R.string.plan_title, item.steps.count { it.status == PlanStatus.COMPLETED }, item.steps.size),
+            steps = item.steps.map { step ->
+                PlanStepUi(
+                    text = step.content,
+                    state = when (step.status) {
+                        PlanStatus.COMPLETED -> PlanStepState.Done
+                        PlanStatus.IN_PROGRESS -> PlanStepState.Active
+                        PlanStatus.PENDING -> PlanStepState.Pending
+                    },
+                )
+            },
+            modifier = modifier,
+        )
         is ThreadItem.Artifact -> {
             val open = LocalOpenArtifact.current
             ArtifactCard(

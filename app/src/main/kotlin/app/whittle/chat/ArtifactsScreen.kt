@@ -24,7 +24,7 @@ import app.whittle.design.components.TopBarButton
 import app.whittle.design.components.segmentedShape
 import app.whittle.design.tokens.WhittleSpace
 
-/** Every app the agent made, across all chats, with the chat it came from. Tapping one opens it. */
+/** Every app the agent made, across all chats. Tapping one opens it. */
 @Composable
 fun ArtifactsScreen(
     artifacts: List<ArtifactListItem>,
@@ -63,7 +63,7 @@ fun ArtifactsScreen(
                 SettingsRow(
                     icon = "web_asset",
                     title = item.ref.title,
-                    subtitle = stringResource(R.string.artifacts_from_chat, item.chatTitle ?: stringResource(R.string.sidebar_untitled)),
+                    subtitle = null,
                     shape = segmentedShape(index, artifacts.size),
                     onClick = { onOpen(item.ref) },
                 )

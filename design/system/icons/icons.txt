@@ -9,6 +9,7 @@ calendar_month
 chat
 check
 check_circle:fill
+checklist
 chevron_right
 close
 contacts
@@ -37,6 +38,7 @@ open_in_new
 person
 person_search
 push_pin:fill
+radio_button_unchecked
 refresh
 schedule
 screen_record

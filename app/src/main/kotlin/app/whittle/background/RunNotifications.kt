@@ -11,8 +11,10 @@ import app.whittle.MainActivity
 import app.whittle.R
 
 /** What the ongoing notification shows about the running task. */
-/** [step] is how many steps the task has started; 0 while it's only thinking or writing. */
-data class RunProgress(val chatTitle: String?, val activity: String?, val startedAtMillis: Long, val step: Int)
+/** The running task as its notification shows it. [plan] is set when the agent wrote one (done, total, current step). */
+data class RunProgress(val chatTitle: String?, val activity: String?, val startedAtMillis: Long, val plan: PlanProgress?)
+
+data class PlanProgress(val done: Int, val total: Int, val current: String?)
 
 /**
  * Whittle's notifications. While a task runs: one ongoing notification with what it's doing, a timer and
@@ -39,7 +41,12 @@ class RunNotifications(private val context: Context) {
     fun running(progress: RunProgress): Notification {
         val title = progress.chatTitle ?: context.getString(R.string.notify_running_title)
         val activity = progress.activity ?: context.getString(R.string.status_thinking)
-        val text = if (progress.step > 0) context.getString(R.string.notify_running_step, progress.step, activity) else activity
+        val plan = progress.plan
+        val text = if (plan != null) {
+            context.getString(R.string.notify_running_plan, minOf(plan.done + 1, plan.total), plan.total, plan.current ?: activity)
+        } else {
+            activity
+        }
         val builder = Notification.Builder(context, CHANNEL_RUNNING)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
@@ -56,9 +63,14 @@ class RunNotifications(private val context: Context) {
             .setVisibility(Notification.VISIBILITY_PRIVATE)
             .setPublicVersion(publicVersion(CHANNEL_RUNNING, R.string.notify_running_public))
             .addAction(Notification.Action.Builder(null, context.getString(R.string.status_stop), stopRun()).build())
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
-            // Android 16 Live Update: a progress chip in the status bar while the task runs.
-            builder.setStyle(Notification.ProgressStyle().setProgressIndeterminate(true))
+        // Only a planned task has real progress to show: one segment per step, filled as steps finish. It becomes
+        // an Android 16 Live Update; without a plan the notification stays a quiet line that keeps the task alive.
+        if (plan != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+            builder.setStyle(
+                Notification.ProgressStyle()
+                    .setProgressSegments(List(plan.total) { Notification.ProgressStyle.Segment(1) })
+                    .setProgress(plan.done),
+            )
             builder.setRequestPromotedOngoing(true)
         }
         return builder.build()

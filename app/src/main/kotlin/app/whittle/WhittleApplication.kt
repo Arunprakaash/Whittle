@@ -1,5 +1,7 @@
 package app.whittle
 
+import app.whittle.background.PlanProgress
+import app.whittle.agent.PlanStatus
 import android.app.Activity
 import android.app.Application
 import android.app.ForegroundServiceStartNotAllowedException
@@ -58,7 +60,14 @@ class WhittleApplication : Application() {
     /** The running task as the ongoing notification shows it; null when nothing runs. */
     fun runProgress(): RunProgress? {
         val status = chat.state.value.status ?: return null
-        return RunProgress(chatTitle = currentChatTitle(), activity = status.verb, startedAtMillis = status.startedAtMillis, step = status.steps)
+        val plan = status.plan?.let { steps ->
+            PlanProgress(
+                done = steps.count { it.status == PlanStatus.COMPLETED },
+                total = steps.size,
+                current = steps.firstOrNull { it.status == PlanStatus.IN_PROGRESS }?.content,
+            )
+        }
+        return RunProgress(chatTitle = currentChatTitle(), activity = status.verb, startedAtMillis = status.startedAtMillis, plan = plan)
     }
 
     private fun currentChatTitle(): String? = chat.state.value.let { state -> state.chats.firstOrNull { it.id == state.currentChat }?.title }

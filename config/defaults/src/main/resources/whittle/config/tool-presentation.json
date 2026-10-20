@@ -73,6 +73,21 @@
         "declinedOutcome": "Not shown"
       }
     },
+    "update_plan": {
+      "icon": "checklist",
+      "running": "Planning",
+      "done": "Planned",
+      "decision": {
+        "icon": "checklist",
+        "title": "Show this plan?",
+        "body": "Shows the agent's plan as a checklist. Nothing changes on your phone.",
+        "approve": "Show",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Plan shown",
+        "declinedOutcome": "Plan not shown"
+      }
+    },
     "web_fetch": {
       "icon": "language",
       "siteArgument": "url",

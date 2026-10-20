@@ -34,7 +34,6 @@
     <string name="chats_title">Chats</string>
     <string name="artifacts_title">Artifacts</string>
     <string name="artifacts_empty">Apps the agent makes for you show up here.</string>
-    <string name="artifacts_from_chat">From %1$s</string>
     <string name="chats_search">Search chats</string>
     <string name="search_clear">Clear search</string>
     <string name="chats_no_match">No chats match.</string>
@@ -63,13 +62,14 @@
     <string name="steer_label">Added while working</string>
     <string name="thread_latest">Latest</string>
     <string name="answer_copy">Copy</string>
+    <string name="plan_title">Plan · %1$d of %2$d done</string>
     <!-- Notifications -->
     <string name="notify_channel_running">Running tasks</string>
     <string name="notify_channel_running_body">Shows a task while it works in the background, with a Stop button.</string>
     <string name="notify_channel_updates">Task updates</string>
     <string name="notify_channel_updates_body">When a task finishes or needs your answer while you\'re away.</string>
     <string name="notify_running_title">Whittle is working</string>
-    <string name="notify_running_step">Step %1$d · %2$s</string>
+    <string name="notify_running_plan">Step %1$d of %2$d · %3$s</string>
     <string name="notify_running_public">Whittle is working on a task</string>
     <string name="notify_finished_title">Task finished</string>
     <string name="notify_finished_public">Whittle finished a task</string>
