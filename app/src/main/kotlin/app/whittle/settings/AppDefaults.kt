@@ -13,6 +13,7 @@ data class AppDefaults(
     val terminal: TerminalDefaults,
     val chatList: ChatListDefaults,
     val siteIcons: SiteIconDefaults,
+    val artifacts: ArtifactDefaults,
 ) : VersionedConfig {
     companion object {
         const val SCHEMA_VERSION = 1
@@ -57,6 +58,27 @@ data class SiteIconDefaults(
 ) {
     init {
         require(sizePx > 0 && maxPageBytes > 0 && maxIconBytes > 0 && memoryEntries > 0) { "siteIcons limits must be positive" }
+    }
+}
+
+/** How web apps the agent builds are shown, opened elsewhere and shared. */
+@Serializable
+data class ArtifactDefaults(
+    /**
+     * Each chat's apps load from `https://<chat>.<domainSuffix>/`, served by Whittle itself, never the network.
+     * A per-chat origin keeps one chat's app from reading another's saved data.
+     */
+    val domainSuffix: String,
+    /** Under the app's cache folder; must match the cache-path in res/xml/file_paths.xml. */
+    val sharedDirectoryName: String,
+    /** Height of the preview sheet as a share of the screen. */
+    val sheetHeightFraction: Float,
+    /** Local files larger than this stay linked instead of being inlined when an app is bundled into one file. */
+    val maxInlineBytes: Long,
+) {
+    init {
+        require(sheetHeightFraction in 0.3f..1f) { "artifacts.sheetHeightFraction must be between 0.3 and 1" }
+        require(maxInlineBytes > 0) { "artifacts.maxInlineBytes must be positive" }
     }
 }
 

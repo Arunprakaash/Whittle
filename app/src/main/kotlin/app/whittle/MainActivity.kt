@@ -1,5 +1,7 @@
 package app.whittle
 
+import app.whittle.artifacts.ArtifactScreen
+import app.whittle.artifacts.ArtifactRef
 import app.whittle.design.components.LocalSiteIcons
 import androidx.compose.runtime.CompositionLocalProvider
 import android.os.Bundle
@@ -48,7 +50,11 @@ class MainActivity : ComponentActivity() {
                             val chat = viewModel { ChatViewModel(graph) }
                             val state = chat.state.collectAsStateWithLifecycle().value
                             var showingAllChats by rememberSaveable { mutableStateOf(false) }
-                            if (showingAllChats) {
+                            var fullScreenArtifact by remember { mutableStateOf<ArtifactRef?>(null) }
+                            val artifact = fullScreenArtifact
+                            if (artifact != null) {
+                                ArtifactScreen(artifact, graph.artifacts, state.workspaceRevision, onBack = { fullScreenArtifact = null })
+                            } else if (showingAllChats) {
                                 BackHandler { showingAllChats = false }
                                 AllChatsScreen(
                                     state = state,
@@ -57,7 +63,15 @@ class MainActivity : ComponentActivity() {
                                     onOpen = { id -> chat.openChat(id); showingAllChats = false },
                                 )
                             } else {
-                                ChatScreen(state, chat, graph.sidebarMaxChats, onViewAllChats = { showingAllChats = true })
+                                ChatScreen(
+                                    state = state,
+                                    viewModel = chat,
+                                    sidebarMaxChats = graph.sidebarMaxChats,
+                                    artifacts = graph.artifacts,
+                                    artifactSheetHeight = graph.artifactSheetHeight,
+                                    onViewAllChats = { showingAllChats = true },
+                                    onOpenArtifactFullScreen = { fullScreenArtifact = it },
+                                )
                             }
                         }
                     }

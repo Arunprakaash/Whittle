@@ -2,6 +2,9 @@
 
 package app.whittle.chat
 
+import kotlinx.serialization.json.contentOrNull
+import app.whittle.tools.workspace.ShowArtifactTool
+import app.whittle.artifacts.ArtifactRef
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.whittle.AppGraph
@@ -65,6 +68,8 @@ data class ChatState(
     /** Saved chats, newest first, for the sidebar. */
     val chats: List<ChatListItem> = emptyList(),
     val currentChat: ChatId? = null,
+    /** Goes up whenever a tool finishes in this chat, so an open artifact reloads after the agent edits it. */
+    val workspaceRevision: Int = 0,
 ) {
     val running: Boolean get() = status != null
 }
@@ -349,6 +354,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val arguments = arguments(call.argumentsJson)
         val text = graph.presenter.step(call.toolName, arguments)
         stepTexts[call.id.value] = text
+        callTools[call.id.value] = call.toolName
         stepArguments[call.id.value] = arguments
         when (event.decision) {
             is PolicyDecision.Allow -> {
@@ -375,7 +381,20 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
                 )
             }
         }
-        if (!event.result.isError) _haptics.tryEmit(WhittleHaptic.StepDone)
+        if (!event.result.isError) {
+            _haptics.tryEmit(WhittleHaptic.StepDone)
+            _state.update { it.copy(workspaceRevision = it.workspaceRevision + 1) }
+            if (callTools[id] == ShowArtifactTool.DEFINITION.id.value) showArtifact(event.result.content)
+        }
+    }
+
+    /** The tool checked the page exists; the card points at it in this chat's workspace. */
+    private fun showArtifact(result: String) {
+        val chat = chatId ?: return
+        val fields = arguments(result)
+        val path = (fields[ShowArtifactTool.PATH] as? JsonPrimitive)?.contentOrNull ?: return
+        val title = (fields[ShowArtifactTool.TITLE] as? JsonPrimitive)?.contentOrNull ?: return
+        append(ThreadItem.Artifact(key(), ArtifactRef(workspace = chat.value, path = path, title = title)))
     }
 
     /** Provider-run tools, like web search, show as steps like any other. Policy allowed them before the model call. */
@@ -609,6 +628,9 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private fun decode(document: String): ChatDocument? = ChatDocument.decode(document)
 
     private fun key(): String = "item-${nextKey++}"
+
+    /** Which tool each call in the current run used, to recognise artifact results. */
+    private val callTools = mutableMapOf<String, String>()
 
     /** Page titles from the provider's citations in the current run, keyed by cleaned address. */
     private val citedTitles = mutableMapOf<String, String>()

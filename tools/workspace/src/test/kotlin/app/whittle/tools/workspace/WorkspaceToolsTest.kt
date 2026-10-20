@@ -140,6 +140,20 @@ class WorkspaceToolsTest {
         return tool.execute(args("""{"command":${Json.encodeToString(String.serializer(), line)}$timeoutField}"""), context)
     }
 
+    @Test
+    fun `show_artifact accepts an existing html page and refuses anything else`() = runBlocking<Unit> {
+        WriteFileTool(workspaces, config).execute(args("""{"path":"app/index.html","content":"<h1>Hi</h1>"}"""), context)
+        val tool = ShowArtifactTool(workspaces)
+
+        val shown = tool.execute(args("""{"path":"app/index.html","title":"Greeting"}"""), context)
+        assertEquals(false, shown.isError)
+        assertEquals("Greeting", shown.field("title"))
+
+        assertEquals(true, tool.execute(args("""{"path":"app/missing.html","title":"X"}"""), context).isError)
+        assertEquals(true, tool.execute(args("""{"path":"notes.txt","title":"X"}"""), context).isError)
+        assertEquals(true, tool.execute(args("""{"path":"../other/index.html","title":"X"}"""), context).isError)
+    }
+
     private fun args(json: String): JsonObject = Json.parseToJsonElement(json).jsonObject
 
     private fun app.whittle.tools.api.ToolOutput.json(): JsonObject = Json.parseToJsonElement(content).jsonObject

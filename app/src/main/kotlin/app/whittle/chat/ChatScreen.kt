@@ -1,5 +1,11 @@
 package app.whittle.chat
 
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.CompositionLocalProvider
+import app.whittle.design.components.ArtifactCard
+import app.whittle.artifacts.Artifacts
+import app.whittle.artifacts.ArtifactSheet
+import app.whittle.artifacts.ArtifactRef
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.SpanStyle
 import android.content.ClipData
@@ -90,7 +96,36 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(state: ChatState, viewModel: ChatViewModel, sidebarMaxChats: Int, onViewAllChats: () -> Unit) {
+fun ChatScreen(
+    state: ChatState,
+    viewModel: ChatViewModel,
+    sidebarMaxChats: Int,
+    artifacts: Artifacts,
+    artifactSheetHeight: Float,
+    onViewAllChats: () -> Unit,
+    onOpenArtifactFullScreen: (ArtifactRef) -> Unit,
+) {
+    var sheetArtifact by remember { mutableStateOf<ArtifactRef?>(null) }
+    sheetArtifact?.let { ref ->
+        ArtifactSheet(
+            ref = ref,
+            artifacts = artifacts,
+            revision = state.workspaceRevision,
+            heightFraction = artifactSheetHeight,
+            onDismiss = { sheetArtifact = null },
+            onFullScreen = { sheetArtifact = null; onOpenArtifactFullScreen(ref) },
+        )
+    }
+    CompositionLocalProvider(LocalOpenArtifact provides { ref -> sheetArtifact = ref }) {
+        ChatLayout(state, viewModel, sidebarMaxChats, onViewAllChats)
+    }
+}
+
+/** Opens an artifact card's app in the sheet; provided by [ChatScreen] so any thread row can use it. */
+private val LocalOpenArtifact = staticCompositionLocalOf<(ArtifactRef) -> Unit> { {} }
+
+@Composable
+private fun ChatLayout(state: ChatState, viewModel: ChatViewModel, sidebarMaxChats: Int, onViewAllChats: () -> Unit) {
     val haptics = WhittleTheme.haptics
     LaunchedEffect(viewModel) { viewModel.haptics.collect { haptics.perform(it) } }
     val requestCapability = rememberCapabilityRequest(state.items, viewModel)
@@ -268,6 +303,16 @@ private fun ThreadRow(
                     item.folded.forEach { folded -> ThreadRow(folded, viewModel, requestCapability) }
                 }
             }
+        }
+        is ThreadItem.Artifact -> {
+            val open = LocalOpenArtifact.current
+            ArtifactCard(
+                title = item.ref.title,
+                kind = stringResource(R.string.artifact_kind),
+                openLabel = stringResource(R.string.artifact_open),
+                onOpen = { open(item.ref) },
+                modifier = modifier,
+            )
         }
         is ThreadItem.Sources -> {
             val uriHandler = LocalUriHandler.current

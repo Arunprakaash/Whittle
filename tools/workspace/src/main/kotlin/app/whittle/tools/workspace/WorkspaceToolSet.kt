@@ -11,6 +11,7 @@ object WorkspaceToolSet {
         ReadFileTool.DEFINITION,
         WriteFileTool.DEFINITION,
         EditFileTool.DEFINITION,
+        ShowArtifactTool.DEFINITION,
     )
 
     fun create(workspaces: Workspaces, environment: ShellEnvironment, config: TerminalConfig): List<Tool> = listOf(
@@ -19,5 +20,6 @@ object WorkspaceToolSet {
         ReadFileTool(workspaces, config),
         WriteFileTool(workspaces, config),
         EditFileTool(workspaces, config),
+        ShowArtifactTool(workspaces),
     )
 }

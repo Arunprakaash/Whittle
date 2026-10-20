@@ -21,6 +21,7 @@ edit_square
 error
 expand_more
 folder
+fullscreen
 help
 info
 key
@@ -36,9 +37,11 @@ refresh
 schedule
 search:fill
 settings
+share
 short_text
 sms
 stop:fill
 terminal
 visibility
 visibility_off
+web_asset

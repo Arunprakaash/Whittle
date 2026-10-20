@@ -76,6 +76,7 @@ dependencies {
     implementation(project(":storage:chats"))
     implementation(project(":observability:api"))
     implementation(project(":observability:posthog"))
+    implementation(libs.androidx.webkit)
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

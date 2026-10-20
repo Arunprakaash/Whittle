@@ -57,6 +57,16 @@
     <string name="steer_label">Added while working</string>
     <string name="thread_latest">Latest</string>
     <string name="answer_copy">Copy</string>
+    <string name="artifact_kind">Web app</string>
+    <string name="artifact_open">Open</string>
+    <string name="artifact_reload">Reload</string>
+    <string name="artifact_full_screen">Full screen</string>
+    <string name="artifact_browser">Browser</string>
+    <string name="artifact_share">Share</string>
+    <string name="artifact_back">Back</string>
+    <string name="artifact_missing">This app\'s files are no longer on this phone.</string>
+    <string name="artifact_no_browser">No app on this phone can open it.</string>
+    <string name="artifact_no_share">Couldn\'t share it.</string>
     <string name="answer_copied">Copied</string>
     <string name="elapsed_time">%1$d:%2$02d</string>
     <string name="step_blocked">Not allowed by your settings</string>

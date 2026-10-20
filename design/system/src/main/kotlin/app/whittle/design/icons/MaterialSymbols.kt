@@ -28,6 +28,7 @@ object MaterialSymbols {
         "error" to R.drawable.ms_error,
         "expand_more" to R.drawable.ms_expand_more,
         "folder" to R.drawable.ms_folder,
+        "fullscreen" to R.drawable.ms_fullscreen,
         "help" to R.drawable.ms_help,
         "info" to R.drawable.ms_info,
         "key" to R.drawable.ms_key,
@@ -43,12 +44,14 @@ object MaterialSymbols {
         "schedule" to R.drawable.ms_schedule,
         "search" to R.drawable.ms_search,
         "settings" to R.drawable.ms_settings,
+        "share" to R.drawable.ms_share,
         "short_text" to R.drawable.ms_short_text,
         "sms" to R.drawable.ms_sms,
         "stop" to R.drawable.ms_stop,
         "terminal" to R.drawable.ms_terminal,
         "visibility" to R.drawable.ms_visibility,
         "visibility_off" to R.drawable.ms_visibility_off,
+        "web_asset" to R.drawable.ms_web_asset,
     )
 
     private val filled: Map<String, Int> = mapOf(

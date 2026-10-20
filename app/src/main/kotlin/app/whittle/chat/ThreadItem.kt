@@ -1,5 +1,6 @@
 package app.whittle.chat
 
+import app.whittle.artifacts.ArtifactRef
 import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.tools.api.CapabilityId
@@ -76,6 +77,11 @@ sealed interface ThreadItem {
         val expanded: Boolean,
         val folded: List<ThreadItem>,
     ) : ThreadItem
+
+    /** A web app the agent built, shown as a card that opens it. */
+    @Serializable
+    @SerialName("artifact")
+    data class Artifact(override val key: String, val ref: ArtifactRef) : ThreadItem
 
     /** The pages the answer above cites, shown as a pill that opens into a list. */
     @Serializable
