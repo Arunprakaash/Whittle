@@ -1,5 +1,6 @@
 package app.whittle.chat
 
+import app.whittle.design.components.AgentState
 import app.whittle.design.components.StatusPlanUi
 import app.whittle.agent.PlanItem
 import app.whittle.design.components.PlanStepState
@@ -378,7 +379,13 @@ private fun Dock(state: ChatState, viewModel: ChatViewModel) {
             state.status?.let { status ->
                 StatusLine(
                     state = status.state,
-                    verb = status.verb ?: stringResource(R.string.status_thinking),
+                    verb = status.verb ?: stringResource(
+                        when (status.state) {
+                            AgentState.Thinking -> R.string.status_thinking
+                            AgentState.Acting -> R.string.status_writing
+                            AgentState.Done -> R.string.status_done
+                        },
+                    ),
                     elapsed = elapsed(status.startedAtMillis),
                     stopLabel = stringResource(R.string.status_stop),
                     onStop = viewModel::stop,

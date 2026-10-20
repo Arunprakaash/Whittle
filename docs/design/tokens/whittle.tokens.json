@@ -898,6 +898,11 @@
       "$type": "duration",
       "$value": "1200ms",
       "$description": "One breath of the dot that marks new content below."
+    },
+    "statusDoneHold": {
+      "$type": "duration",
+      "$value": "900ms",
+      "$description": "How long the status line shows the happy beaver after a task finishes, before it leaves."
     }
   },
   "agentIndicator": {

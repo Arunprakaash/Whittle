@@ -70,9 +70,11 @@ internal class PixelSpriteSource(
     val name: String,
     val width: Int,
     val height: Int,
+    val pivot: Pair<Double, Double>,
+    val crossfadeMillis: Int,
     val palette: Map<Char, String>,
     val frames: Map<String, List<String>>,
-    val poses: Map<String, List<Pair<String, Int>>>,
+    val poses: Map<String, PoseSource>,
     val icons: Map<String, SpriteIcon>,
 ) {
     companion object {
@@ -101,16 +103,48 @@ internal class PixelSpriteSource(
                 }
                 lines
             }
-            val poses = (json["poses"] as? Map<String, Any?> ?: fail("poses is required")).entries().mapValues { (pose, steps) ->
-                val list = steps as? List<Map<String, Any?>> ?: fail("pose $pose must be a list")
-                if (list.isEmpty()) fail("pose $pose has no steps")
-                list.map { step ->
-                    val frame = step["frame"] as? String ?: fail("pose $pose step needs a frame")
-                    if (frame !in frames) fail("pose $pose uses unknown frame $frame")
-                    val millis = (step["millis"] as? Number)?.toInt()?.takeIf { it > 0 } ?: fail("pose $pose step needs positive millis")
-                    frame to millis
-                }
+            fun frameName(pose: String, value: Any?): String {
+                val frame = value as? String ?: fail("pose $pose names a frame that isn't a string")
+                if (frame !in frames) fail("pose $pose uses unknown frame $frame")
+                return frame
             }
+            fun Map<String, Any?>.number(pose: String, key: String): Double =
+                (this[key] as? Number)?.toDouble() ?: fail("pose $pose needs a number for $key")
+            fun Map<String, Any?>.positive(pose: String, key: String): Int =
+                number(pose, key).toInt().takeIf { it > 0 } ?: fail("pose $pose $key must be positive")
+            fun Map<String, Any?>.pair(pose: String, key: String): Pair<Double, Double> {
+                val list = this[key] as? List<Any?> ?: fail("pose $pose $key must be [a, b]")
+                val numbers = list.map { (it as? Number)?.toDouble() ?: fail("pose $pose $key must be numbers") }
+                if (numbers.size != 2) fail("pose $pose $key must have two numbers")
+                return numbers[0] to numbers[1]
+            }
+            val poses = (json["poses"] as? Map<String, Any?> ?: fail("poses is required")).entries().mapValues { (pose, value) ->
+                val spec = value as? Map<String, Any?> ?: fail("pose $pose must be an object")
+                val steps = (spec["steps"] as? List<Map<String, Any?>>).orEmpty().map { step ->
+                    frameName(pose, step["frame"]) to step.positive(pose, "millis")
+                }
+                val breathe = (spec["breathe"] as? Map<String, Any?>)?.let { it.number(pose, "amount") to it.positive(pose, "periodMillis") }
+                val bite = (spec["bite"] as? Map<String, Any?>)?.let {
+                    val biteAt = it.number(pose, "biteAt")
+                    if (biteAt <= 0 || biteAt >= 1) fail("pose $pose biteAt must be between 0 and 1")
+                    BiteSource(it.positive(pose, "millis"), frameName(pose, it["rest"]), frameName(pose, it["bite"]), biteAt, it.number(pose, "dip"), it.number(pose, "squash"))
+                }
+                if (steps.isEmpty() && bite == null) fail("pose $pose needs steps or a bite")
+                val pop = (spec["pop"] as? Map<String, Any?>)?.let { Triple(it.number(pose, "from"), it.number(pose, "overshoot"), it.positive(pose, "millis")) }
+                val particles = (spec["particles"] as? Map<String, Any?>)?.let {
+                    val trigger = when (it["on"]) {
+                        "bite" -> if (bite == null) fail("pose $pose has particles on bite but no bite") else "Bite"
+                        "start" -> "Start"
+                        else -> fail("pose $pose particles need \"on\": \"bite\" or \"start\"")
+                    }
+                    val colors = (it["keys"] as? List<Any?>)?.map { key -> (key as? String)?.singleOrNull()?.takeIf { c -> c in palette } ?: fail("pose $pose particle keys must be palette keys") }
+                        ?.takeIf { keys -> keys.isNotEmpty() } ?: fail("pose $pose particles need keys")
+                    ParticlesSource(trigger, colors, it.pair(pose, "from"), it.positive(pose, "count"), it.positive(pose, "lifeMillis"), it.pair(pose, "angles"), it.pair(pose, "speed"), it.number(pose, "gravity"))
+                }
+                PoseSource(steps, breathe, bite, pop, particles)
+            }
+            val pivot = (json["pivot"] as? List<Any?>)?.map { (it as? Number)?.toDouble() ?: fail("pivot must be numbers") }?.takeIf { it.size == 2 } ?: fail("pivot must be [x, y]")
+            val crossfadeMillis = (json["crossfadeMillis"] as? Number)?.toInt()?.takeIf { it >= 0 } ?: fail("crossfadeMillis is required")
             val icons = (json["icons"] as? Map<String, Any?>)?.entries().orEmpty().mapValues { (key, value) ->
                 val icon = value as? Map<String, Any?> ?: fail("icon $key must be an object")
                 val frame = icon["frame"] as? String ?: fail("icon $key needs a frame")
@@ -124,10 +158,31 @@ internal class PixelSpriteSource(
                 if (holes.isNotEmpty() && !monochrome) fail("icon $key has holes but isn't monochrome")
                 SpriteIcon(frame, viewport, pixel, monochrome, holes.toSet())
             }
-            return PixelSpriteSource(name, width, height, palette, frames, poses, icons)
+            return PixelSpriteSource(name, width, height, pivot[0] to pivot[1], crossfadeMillis, palette, frames, poses, icons)
         }
     }
 }
+
+internal class BiteSource(val millis: Int, val rest: String, val bite: String, val biteAt: Double, val dip: Double, val squash: Double)
+
+internal class ParticlesSource(
+    val trigger: String,
+    val colors: List<Char>,
+    val from: Pair<Double, Double>,
+    val count: Int,
+    val lifeMillis: Int,
+    val angles: Pair<Double, Double>,
+    val speed: Pair<Double, Double>,
+    val gravity: Double,
+)
+
+internal class PoseSource(
+    val steps: List<Pair<String, Int>>,
+    val breathe: Pair<Double, Int>?,
+    val bite: BiteSource?,
+    val pop: Triple<Double, Double, Int>?,
+    val particles: ParticlesSource?,
+)
 
 /** The sprite as Kotlin: a [PixelSprite][app.whittle.design.sprites.PixelSprite] value and an enum of its poses. */
 internal class SpriteKotlin(private val sprite: PixelSpriteSource, private val packageName: String, private val sourceName: String) {
@@ -137,8 +192,8 @@ internal class SpriteKotlin(private val sprite: PixelSpriteSource, private val p
         appendLine("package $packageName")
         appendLine()
         appendLine("import androidx.compose.ui.graphics.Color")
-        appendLine("import app.whittle.design.sprites.PixelSprite")
-        appendLine("import app.whittle.design.sprites.SpriteStep")
+        listOf("ParticleTrigger", "PixelSprite", "SpriteBite", "SpriteBreathe", "SpriteParticles", "SpritePop", "SpritePose", "SpriteStep")
+            .forEach { appendLine("import app.whittle.design.sprites.$it") }
         appendLine()
         appendLine("/** The poses $name can play. */")
         appendLine("enum class ${name}Pose(val key: String) {")
@@ -148,6 +203,9 @@ internal class SpriteKotlin(private val sprite: PixelSpriteSource, private val p
         appendLine("val ${name}Sprite: PixelSprite = PixelSprite(")
         appendLine("    width = ${sprite.width},")
         appendLine("    height = ${sprite.height},")
+        appendLine("    pivotX = ${f(sprite.pivot.first)},")
+        appendLine("    pivotY = ${f(sprite.pivot.second)},")
+        appendLine("    crossfadeMillis = ${sprite.crossfadeMillis},")
         appendLine("    palette = mapOf(")
         sprite.palette.forEach { (key, hex) -> appendLine("        '$key' to Color(0xFF${hex.drop(1).uppercase()}),") }
         appendLine("    ),")
@@ -159,12 +217,37 @@ internal class SpriteKotlin(private val sprite: PixelSpriteSource, private val p
         }
         appendLine("    ),")
         appendLine("    poses = mapOf(")
-        sprite.poses.forEach { (pose, steps) ->
-            appendLine("        \"$pose\" to listOf(${steps.joinToString { (frame, millis) -> "SpriteStep(\"$frame\", $millis)" }}),")
+        sprite.poses.forEach { (pose, spec) ->
+            appendLine("        \"$pose\" to SpritePose(")
+            appendLine("            steps = listOf(${spec.steps.joinToString { (frame, millis) -> "SpriteStep(\"$frame\", $millis)" }}),")
+            spec.breathe?.let { (amount, period) -> appendLine("            breathe = SpriteBreathe(${f(amount)}, $period),") }
+            spec.bite?.let {
+                appendLine("            bite = SpriteBite(${it.millis}, \"${it.rest}\", \"${it.bite}\", ${f(it.biteAt)}, ${f(it.dip)}, ${f(it.squash)}),")
+            }
+            spec.pop?.let { (from, overshoot, millis) -> appendLine("            pop = SpritePop(${f(from)}, ${f(overshoot)}, $millis),") }
+            spec.particles?.let {
+                appendLine("            particles = SpriteParticles(")
+                appendLine("                trigger = ParticleTrigger.${it.trigger},")
+                appendLine("                colors = listOf(${it.colors.joinToString { c -> "'$c'" }}),")
+                appendLine("                fromX = ${f(it.from.first)},")
+                appendLine("                fromY = ${f(it.from.second)},")
+                appendLine("                count = ${it.count},")
+                appendLine("                lifeMillis = ${it.lifeMillis},")
+                appendLine("                angleFrom = ${f(it.angles.first)},")
+                appendLine("                angleTo = ${f(it.angles.second)},")
+                appendLine("                speedMin = ${f(it.speed.first)},")
+                appendLine("                speedMax = ${f(it.speed.second)},")
+                appendLine("                gravity = ${f(it.gravity)},")
+                appendLine("            ),")
+            }
+            appendLine("        ),")
         }
         appendLine("    ),")
         appendLine(")")
     }
+
+    /** A Kotlin Float literal. */
+    private fun f(value: Double): String = "${value}f"
 }
 
 /** One icon as an Android vector drawable: a path per colour, each row's runs merged into rectangles. */

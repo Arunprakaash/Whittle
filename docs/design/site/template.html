@@ -515,7 +515,12 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
   };
   const playSprites = () => document.querySelectorAll("canvas[data-frame], canvas[data-pose]").forEach((canvas) => {
     if (canvas.dataset.frame) { drawFrame(canvas, canvas.dataset.frame); return; }
-    const steps = S.poses[canvas.dataset.pose];
+    // Frames only here; the app adds the pose's movement and particles.
+    const pose = S.poses[canvas.dataset.pose];
+    const steps = pose.steps && pose.steps.length ? pose.steps : [
+      { frame: pose.bite.rest, millis: Math.round(pose.bite.millis * pose.bite.biteAt) },
+      { frame: pose.bite.bite, millis: Math.round(pose.bite.millis * (1 - pose.bite.biteAt)) },
+    ];
     let i = 0;
     const next = () => {
       drawFrame(canvas, steps[i % steps.length].frame);

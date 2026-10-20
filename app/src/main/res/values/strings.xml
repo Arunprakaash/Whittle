@@ -58,6 +58,8 @@
     <string name="composer_placeholder_running">Add to this task…</string>
     <string name="composer_send">Send</string>
     <string name="status_thinking">Thinking…</string>
+    <string name="status_writing">Writing…</string>
+    <string name="status_done">Done</string>
     <string name="status_stop">Stop</string>
     <string name="steer_label">Added while working</string>
     <string name="thread_latest">Latest</string>

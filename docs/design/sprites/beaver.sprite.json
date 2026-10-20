@@ -1,8 +1,13 @@
 {
-  "$description": "Whittle's beaver. Pixel art on a 16×14 grid: each row is one string, each character a palette key, '.' is empty. The app draws its poses as the agent indicator; the launcher, themed and notification icons are generated from it. Edit here, never in generated files.",
+  "$description": "Whittle's beaver. Pixel art on a 16×14 grid: each row is one string, each character a palette key, '.' is empty. Poses play frames in steps and move the body around the pivot (an art pixel, bottom centre): breathe scales gently, bite dips and squashes on each chomp, pop springs in, and particles fly out on each bite or once at the start. Lengths are in art pixels, times in milliseconds, angles in degrees with 0 pointing right and -90 up. The app plays the pose for the agent's state; the launcher, themed and notification icons are generated from it. Edit here, never in generated files.",
   "name": "Beaver",
   "width": 16,
   "height": 14,
+  "pivot": [
+    8,
+    14
+  ],
+  "crossfadeMillis": 180,
   "palette": {
     "D": "#4E3220",
     "B": "#9A6440",
@@ -82,6 +87,38 @@
       "..DBBDDDDDDBBD..",
       "..DDD......DDD.."
     ],
+    "earLeft": [
+      "............DD..",
+      ".DDDDDDDDDDDBHD.",
+      ".DBHHHHHHHHHHBD.",
+      ".DBBBWKBBBBWKBD.",
+      ".DBBBKKBBBBKKBD.",
+      ".DBBBBBBBBBBBBD.",
+      ".DBCBTTTTTTBCBD.",
+      ".DBBTTTNNTTTBBD.",
+      ".DBBTTTTTTTTBBD.",
+      ".DBBBTTOOTTBBBD.",
+      "..DBBBBOOBBBBD..",
+      "..DBBBBBBBBBBD..",
+      "..DBBDDDDDDBBD..",
+      "..DDD......DDD.."
+    ],
+    "earRight": [
+      "..DD............",
+      ".DHBDDDDDDDDDDD.",
+      ".DBHHHHHHHHHHBD.",
+      ".DBBBWKBBBBWKBD.",
+      ".DBBBKKBBBBKKBD.",
+      ".DBBBBBBBBBBBBD.",
+      ".DBCBTTTTTTBCBD.",
+      ".DBBTTTNNTTTBBD.",
+      ".DBBTTTTTTTTBBD.",
+      ".DBBBTTOOTTBBBD.",
+      "..DBBBBOOBBBBD..",
+      "..DBBBBBBBBBBD..",
+      "..DBBDDDDDDBBD..",
+      "..DDD......DDD.."
+    ],
     "gnawUp": [
       "..DD........DD..",
       ".DHBDDDDDDDDBHD.",
@@ -114,22 +151,6 @@
       "..DBBDDDDDDBBD..",
       "..DDD......DDD.."
     ],
-    "gnawChips": [
-      "..DD........DD..",
-      ".DHBDDDDDDDDBHD.",
-      ".DBHHHHHHHHHHBD.",
-      ".DBBBBBBBBBBBBD.",
-      ".DBBWKBBBBWKBBD.",
-      ".DBBKKBBBBKKBBD.",
-      ".DBCBTTTTTTBCBD.",
-      ".DBBTTTNNTTTBBDP",
-      ".DBBTTTTTTTTBBD.",
-      "PDBBBTTOOTTBBBD.",
-      "..DBBBBOOBBBBD..",
-      "GSSDSSSGGSSSDSSG",
-      "..DBBDDDDDDBBD..",
-      "..DDD......DDD.."
-    ],
     "happy": [
       "..DD........DD..",
       ".DHBDDDDDDDDBHD.",
@@ -148,32 +169,172 @@
     ]
   },
   "poses": {
-    "idle": [
-      { "frame": "idle", "millis": 2600 },
-      { "frame": "blink", "millis": 140 },
-      { "frame": "idle", "millis": 1800 },
-      { "frame": "blink", "millis": 140 }
-    ],
-    "thinking": [
-      { "frame": "lookUp", "millis": 1500 },
-      { "frame": "lookUpBlink", "millis": 140 },
-      { "frame": "lookUp", "millis": 900 },
-      { "frame": "idle", "millis": 700 }
-    ],
-    "working": [
-      { "frame": "gnawUp", "millis": 150 },
-      { "frame": "gnawBite", "millis": 150 },
-      { "frame": "gnawChips", "millis": 150 },
-      { "frame": "gnawBite", "millis": 150 }
-    ],
-    "done": [
-      { "frame": "happy", "millis": 1000 }
-    ]
+    "idle": {
+      "steps": [
+        {
+          "frame": "idle",
+          "millis": 2600
+        },
+        {
+          "frame": "blink",
+          "millis": 130
+        },
+        {
+          "frame": "idle",
+          "millis": 1900
+        },
+        {
+          "frame": "blink",
+          "millis": 120
+        },
+        {
+          "frame": "idle",
+          "millis": 220
+        },
+        {
+          "frame": "blink",
+          "millis": 120
+        }
+      ],
+      "breathe": {
+        "amount": 0.025,
+        "periodMillis": 2600
+      }
+    },
+    "thinking": {
+      "steps": [
+        {
+          "frame": "lookUp",
+          "millis": 700
+        },
+        {
+          "frame": "earLeft",
+          "millis": 150
+        },
+        {
+          "frame": "lookUp",
+          "millis": 900
+        },
+        {
+          "frame": "earRight",
+          "millis": 150
+        },
+        {
+          "frame": "lookUp",
+          "millis": 500
+        },
+        {
+          "frame": "lookUpBlink",
+          "millis": 120
+        },
+        {
+          "frame": "lookUp",
+          "millis": 600
+        }
+      ],
+      "breathe": {
+        "amount": 0.02,
+        "periodMillis": 1820
+      }
+    },
+    "working": {
+      "bite": {
+        "millis": 620,
+        "rest": "gnawUp",
+        "bite": "gnawBite",
+        "biteAt": 0.42,
+        "dip": 0.7,
+        "squash": 0.07
+      },
+      "particles": {
+        "on": "bite",
+        "keys": [
+          "P",
+          "S",
+          "G"
+        ],
+        "from": [
+          7.5,
+          11
+        ],
+        "count": 2,
+        "lifeMillis": 520,
+        "angles": [
+          -150,
+          -30
+        ],
+        "speed": [
+          9,
+          14
+        ],
+        "gravity": 36
+      }
+    },
+    "done": {
+      "steps": [
+        {
+          "frame": "happy",
+          "millis": 1000
+        }
+      ],
+      "pop": {
+        "from": 0.8,
+        "overshoot": 1.8,
+        "millis": 440
+      },
+      "particles": {
+        "on": "start",
+        "keys": [
+          "O"
+        ],
+        "from": [
+          8,
+          1
+        ],
+        "count": 5,
+        "lifeMillis": 640,
+        "angles": [
+          -153,
+          -27
+        ],
+        "speed": [
+          11,
+          11
+        ],
+        "gravity": 0
+      }
+    }
   },
   "icons": {
     "$description": "Drawables generated from the sprite. Launcher layers are 108×108 with the art inside the 66-unit safe zone; monochrome icons are one shape Android tints, and their holes are palette keys left out so the face stays readable.",
-    "launcherForeground": { "frame": "idle", "viewport": 108, "pixel": 3.125 },
-    "launcherMonochrome": { "frame": "idle", "viewport": 108, "pixel": 3.125, "monochrome": true, "holes": ["K", "W", "N", "O"] },
-    "notification": { "frame": "idle", "viewport": 24, "pixel": 1.375, "monochrome": true, "holes": ["K", "W", "N", "O"] }
+    "launcherForeground": {
+      "frame": "idle",
+      "viewport": 108,
+      "pixel": 3.125
+    },
+    "launcherMonochrome": {
+      "frame": "idle",
+      "viewport": 108,
+      "pixel": 3.125,
+      "monochrome": true,
+      "holes": [
+        "K",
+        "W",
+        "N",
+        "O"
+      ]
+    },
+    "notification": {
+      "frame": "idle",
+      "viewport": 24,
+      "pixel": 1.375,
+      "monochrome": true,
+      "holes": [
+        "K",
+        "W",
+        "N",
+        "O"
+      ]
+    }
   }
 }

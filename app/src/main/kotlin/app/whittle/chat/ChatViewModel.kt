@@ -2,6 +2,8 @@
 
 package app.whittle.chat
 
+import kotlinx.coroutines.delay
+import app.whittle.design.tokens.WhittleMotion
 import app.whittle.agent.PlanTool
 import app.whittle.agent.PlanStatus
 import app.whittle.agent.PlanItem
@@ -100,6 +102,8 @@ data class StatusUi(
     val steps: Int = 0,
     /** The agent's plan for this run, when it wrote one. */
     val plan: List<PlanItem>? = null,
+    /** The reply is streaming in, with no step running. */
+    val writing: Boolean = false,
 )
 
 /**
@@ -230,6 +234,11 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     fun stop() {
+        // Nothing is running while the line shows a finished task.
+        if (activeJob?.isActive != true) {
+            _state.update { it.copy(status = null) }
+            return
+        }
         val stopped = activeRunId
         activeJob?.cancel()
         activeJob = null
@@ -383,7 +392,14 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
                 finishNarration()
                 setStatus(AgentState.Thinking, verb = null)
             }
-            is RunEvent.AssistantTextDelta -> appendNarration(event.text)
+            is RunEvent.AssistantTextDelta -> {
+                // While the reply streams in and no step is running, the agent is writing, not thinking or searching.
+                val status = _state.value.status
+                if (status != null && !status.writing && status.state != AgentState.Done && !stepRunning()) {
+                    setStatus(AgentState.Acting, verb = null, writing = true)
+                }
+                appendNarration(event.text)
+            }
             is RunEvent.ToolCallDecided -> onToolCallDecided(event)
             is RunEvent.ToolCallFinished -> onToolCallFinished(event)
             is RunEvent.SourceCited -> CitedSources.clean(event.url)?.let { url -> cited[url.toString()] = event.title ?: cited[url.toString()] }
@@ -537,8 +553,13 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         markAnswer()
         foldSegment()
         if (sources.isNotEmpty()) placeAfterAnswer(ThreadItem.Sources(key(), sources))
-        _state.update { it.copy(status = null) }
         _haptics.tryEmit(WhittleHaptic.RunDone)
+        // A moment of the happy beaver, then the line leaves, unless a new task has already taken it.
+        setStatus(AgentState.Done, verb = null)
+        viewModelScope.launch {
+            delay(WhittleMotion.STATUS_DONE_HOLD_MILLIS.toLong())
+            _state.update { if (it.status?.state == AgentState.Done) it.copy(status = null) else it }
+        }
     }
 
     private fun end(notice: NoticeKind, statusCode: Int? = null) {
@@ -611,9 +632,13 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     /** With no step running, the line shows the plan's current step, when there is a plan. */
-    private fun setStatus(agentState: AgentState, verb: String?) = _state.update { state ->
+    private fun setStatus(agentState: AgentState, verb: String?, writing: Boolean = false) = _state.update { state ->
         val planStep = state.status?.plan?.firstOrNull { it.status == PlanStatus.IN_PROGRESS }?.content
-        state.copy(status = state.status?.copy(state = agentState, verb = verb ?: planStep))
+        state.copy(status = state.status?.copy(state = agentState, verb = verb ?: planStep, writing = writing))
+    }
+
+    private fun stepRunning(): Boolean = _state.value.items.drop(segment.start).any { item ->
+        item is ThreadItem.Steps && item.steps.any { it.status == StepState.Running }
     }
 
     private fun append(item: ThreadItem) = _state.update { it.copy(items = it.items + item) }
