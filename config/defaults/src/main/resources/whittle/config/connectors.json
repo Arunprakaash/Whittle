@@ -61,7 +61,8 @@
         "pause_project": "DELETE_OR_PAY",
         "create_edge_function_secret": "DELETE_OR_PAY",
         "delete_branch": "DELETE_OR_PAY"
-      }
+      },
+      "websiteUrl": "https://supabase.com"
     }
   ],
   "custom": {

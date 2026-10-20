@@ -153,4 +153,6 @@ data class McpServerConfig(
     val headers: List<HeaderSpec> = emptyList(),
     /** The server's tools the user switched off; the agent never sees them. */
     val excludedTools: Set<String> = emptySet(),
+    /** The service's own website, where Settings gets its logo. */
+    val websiteUrl: String? = null,
 )

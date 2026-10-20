@@ -1,5 +1,6 @@
 package app.whittle.connectors
 
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import app.whittle.connectors.mcp.McpTransportKind
 import app.whittle.connectors.mcp.McpRegistry
 import app.whittle.connectors.mcp.LibraryCategory
@@ -119,6 +120,16 @@ class Connectors(
     suspend fun add(server: LibraryServer): Outcome<McpConnection> =
         add(server.title, server.url, server.transport, server.headers, server.websiteUrl)
 
+    /**
+     * Where [connection]'s logo comes from: its website, else the library's entry for its address (for servers
+     * added before websites were kept), else the server's own host.
+     */
+    fun logoHost(connection: McpConnection): String? {
+        val server = connection.server
+        val site = server.websiteUrl ?: library.firstOrNull { it.url.trimEnd('/') == server.url.trimEnd('/') }?.websiteUrl ?: server.url
+        return site.toHttpUrlOrNull()?.host
+    }
+
     /** The connection already made to [url], if any. */
     fun added(url: String): McpConnection? = _all.value.firstOrNull { it.server.url.trimEnd('/') == url.trim().trimEnd('/') }
 
@@ -223,6 +234,7 @@ class Connectors(
             auth = saved.auth,
             transport = saved.transport,
             headers = saved.headers,
+            websiteUrl = saved.websiteUrl,
         )
     }
 

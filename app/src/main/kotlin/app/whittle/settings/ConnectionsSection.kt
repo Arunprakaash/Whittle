@@ -68,6 +68,7 @@ fun ConnectionsSection(graph: AppGraph, onBrowse: () -> Unit, onChooseTools: (Mc
             }
             SettingsRow(
                 icon = connection.server.icon,
+                logoHost = connectors.logoHost(connection),
                 title = connection.server.name,
                 subtitle = when {
                     connected -> stringResource(R.string.connector_connected)

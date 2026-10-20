@@ -63,11 +63,14 @@ fun SettingsRow(
     destructive: Boolean = false,
     onClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
+    /** A website whose logo stands in for [icon] once it loads (a connected service, say). */
+    logoHost: String? = null,
 ) {
     val haptics = WhittleTheme.haptics
     val action = onClick?.takeIf { enabled }
     SettingsRowLayout(
         icon = icon,
+        logoHost = logoHost,
         title = title,
         subtitle = subtitle,
         destructive = destructive,
@@ -143,6 +146,7 @@ fun SettingsChoiceRow(
 @Composable
 private fun SettingsRowLayout(
     icon: String,
+    logoHost: String? = null,
     title: String,
     subtitle: String?,
     destructive: Boolean,
@@ -169,9 +173,12 @@ private fun SettingsRowLayout(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m),
     ) {
-        Box(Modifier.size(WhittleSize.Tile.s).background(tile, CircleShape), contentAlignment = Alignment.Center) {
-            WhittleIcon(icon, size = WhittleSize.Icon.m, tint = onTile)
+        val symbol = @Composable {
+            Box(Modifier.size(WhittleSize.Tile.s).background(tile, CircleShape), contentAlignment = Alignment.Center) {
+                WhittleIcon(icon, size = WhittleSize.Icon.m, tint = onTile)
+            }
         }
+        if (logoHost != null) SiteIcon(logoHost, WhittleSize.Tile.s, WhittleSize.Icon.m, fallback = symbol) else symbol()
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(WhittleSpace.xs)) {
             Text(title, style = MaterialTheme.typography.titleSmall, color = if (destructive) colors.error else colors.onSurface)
             subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant) }
