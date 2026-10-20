@@ -187,6 +187,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     private fun onEvent(event: RunEvent) {
+        // Text streams until anything else happens; then that narration segment is complete.
+        if (event !is RunEvent.AssistantTextDelta) finishNarration()
         when (event) {
             is RunEvent.StepStarted -> {
                 finishNarration()
