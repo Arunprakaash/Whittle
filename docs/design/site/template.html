@@ -1,0 +1,735 @@
+<title>Whittle Design System</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400..600&family=Geist+Mono:wght@400..500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..600,0..1,0&display=block">
+<style>
+/* Layout: documentation site. Sticky section nav on the left, content right. All app visuals are generated from whittle.tokens.json at runtime; page chrome uses its own neutral tokens and follows the viewer's theme. */
+:root {
+  --bg: #f3f5f3;
+  --paper: #ffffff;
+  --ink: #161a18;
+  --ink-2: #4a524e;
+  --ink-3: #6e7772;
+  --rule: #dde2de;
+  --accent: #2b6a55;
+  --accent-soft: #dcefe6;
+  --code: #eef2ef;
+  --doc: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --docmono: "Geist Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1210; --paper: #151b18; --ink: #e3e9e5; --ink-2: #b4bdb8; --ink-3: #8a948f; --rule: #28302c;
+    --accent: #97d4ba; --accent-soft: #1b3a2f; --code: #1b2320; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1210; --paper: #151b18; --ink: #e3e9e5; --ink-2: #b4bdb8; --ink-3: #8a948f; --rule: #28302c;
+  --accent: #97d4ba; --accent-soft: #1b3a2f; --code: #1b2320; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--doc);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 80px;
+}
+a { color: var(--accent); text-underline-offset: 2px; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ms { font-family: "Material Symbols Rounded"; font-weight: normal; font-style: normal; font-size: 20px; line-height: 1; letter-spacing: normal; text-transform: none; white-space: nowrap; direction: ltr; display: inline-block; -webkit-font-smoothing: antialiased; font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 20; user-select: none; overflow: hidden; max-width: 1.2em; flex: 0 0 auto; vertical-align: middle; }
+.ms.fill { font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 20; }
+
+.shell { max-width: 1240px; margin: 0 auto; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 48px; }
+nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 20px); align-self: start; font-size: 14px; }
+nav.toc .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 18px; letter-spacing: -.01em; margin-bottom: 18px; }
+nav.toc .brand .mark { width: 26px; height: 26px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+nav.toc a { display: block; color: var(--ink-2); text-decoration: none; padding: 5px 10px; border-radius: 8px; }
+nav.toc a:hover { background: var(--paper); color: var(--ink); }
+nav.toc .meta { margin-top: 18px; font-size: 12.5px; color: var(--ink-3); line-height: 1.5; }
+main { min-width: 0; }
+header.hero { display: grid; gap: 12px; margin-bottom: 40px; max-width: 760px; }
+.eyebrow { font: 600 12px/1 var(--doc); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+h1 { margin: 0; font-weight: 600; font-size: clamp(34px, 4.6vw, 48px); line-height: 1.05; letter-spacing: -.02em; text-wrap: balance; }
+h2 { margin: 0 0 6px; font-weight: 600; font-size: 26px; line-height: 1.2; letter-spacing: -.015em; text-wrap: balance; }
+h3 { margin: 26px 0 10px; font-weight: 600; font-size: 18px; }
+.lede { margin: 0; color: var(--ink-2); font-size: 18px; max-width: 66ch; }
+.sub { margin: 0 0 18px; color: var(--ink-2); max-width: 70ch; }
+section.block { padding-top: 40px; margin-top: 40px; border-top: 1px solid var(--rule); }
+.files { display: flex; flex-wrap: wrap; gap: 8px; }
+.file { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; background: var(--paper); border: 1px solid var(--rule); font: 500 13px/1.3 var(--docmono); }
+.file .ms { color: var(--accent); }
+.mode { display: inline-flex; gap: 4px; }
+.mode button { border: 1px solid var(--rule); background: var(--paper); padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 8px; }
+.mode button:first-child { border-radius: 16px 8px 8px 16px; }
+.mode button:last-child { border-radius: 8px 16px 16px 8px; }
+.mode button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.toolbar-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 0 0 16px; font-size: 14px; color: var(--ink-2); }
+
+/* principle cards */
+.principles { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+.pr { background: var(--paper); border: 1px solid var(--rule); border-radius: 18px; padding: 16px 18px; }
+.pr .n { font: 500 12px/1 var(--docmono); color: var(--accent); }
+.pr b { display: block; margin: 8px 0 4px; font-size: 16px; }
+.pr p { margin: 0; color: var(--ink-2); font-size: 14.5px; }
+
+/* swatches */
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.sw { border-radius: 16px; overflow: hidden; border: 1px solid var(--rule); background: var(--paper); }
+.sw .chip { height: 72px; display: flex; align-items: flex-end; justify-content: space-between; padding: 8px 10px; font: 600 12px/1 var(--docmono); }
+.sw .info { padding: 8px 10px 10px; font-size: 12.5px; }
+.sw .info b { display: block; font-size: 13px; overflow-wrap: anywhere; }
+.sw .info span { color: var(--ink-3); font-family: var(--docmono); }
+.contrast { overflow-x: auto; border: 1px solid var(--rule); border-radius: 16px; background: var(--paper); }
+table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 14px; }
+th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+th { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+td.num { font-family: var(--docmono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pass { display: inline-flex; align-items: center; gap: 4px; font: 600 11.5px/1 var(--doc); padding: 4px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.pass.non { background: var(--code); color: var(--ink-3); }
+.pairchip { display: inline-flex; align-items: center; justify-content: center; width: 54px; height: 28px; border-radius: 8px; font: 600 13px/1 var(--doc); border: 1px solid var(--rule); }
+code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; border-radius: 6px; }
+
+/* creation palette */
+.tones { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.tone { background: var(--paper); border: 1px solid var(--rule); border-radius: 16px; padding: 12px; display: grid; gap: 10px; }
+.tone .pair { display: flex; gap: 10px; }
+.tone .pair div { display: grid; justify-items: center; gap: 4px; font-size: 11.5px; color: var(--ink-3); font-family: var(--docmono); }
+.tone .bgL { background: #f6faf7; border-radius: 12px; padding: 6px; }
+.tone .bgD { background: #0f1512; border-radius: 12px; padding: 6px; }
+.tone b { font-size: 14px; }
+
+/* type */
+.typerow { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 20px; align-items: baseline; padding: 14px 0; border-bottom: 1px solid var(--rule); }
+.typerow:last-child { border-bottom: 0; }
+.typerow .spec b { display: block; font-size: 14px; }
+.typerow .spec span { display: block; font: 12px/1.5 var(--docmono); color: var(--ink-3); }
+.typerow .spec em { display: block; font-style: normal; font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
+.typerow .sample { min-width: 0; overflow-wrap: anywhere; }
+.faces { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-bottom: 8px; }
+.face { background: var(--paper); border: 1px solid var(--rule); border-radius: 18px; padding: 18px; display: grid; gap: 6px; }
+.face .big { font-size: 44px; line-height: 1; }
+.face small { color: var(--ink-3); font-size: 13px; }
+.axis { display: grid; gap: 6px; margin-top: 8px; }
+.axis label { font: 12px/1 var(--docmono); color: var(--ink-3); display: flex; justify-content: space-between; }
+.axis input { width: 100%; accent-color: var(--accent); }
+
+/* scales */
+.scale { display: grid; gap: 8px; }
+.scale .row { display: grid; grid-template-columns: 110px 60px minmax(0,1fr); gap: 12px; align-items: center; font-size: 14px; }
+.scale .row code { justify-self: start; }
+.scale .bar { height: 14px; border-radius: 4px; background: var(--accent); }
+.scale .desc { grid-column: 3; color: var(--ink-3); font-size: 13px; margin-top: -4px; }
+.radii { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.radius { background: var(--paper); border: 1px solid var(--rule); border-radius: 16px; padding: 12px; display: grid; gap: 8px; justify-items: start; font-size: 13px; }
+.radius i { width: 72px; height: 56px; background: var(--accent-soft); border: 2px solid var(--accent); }
+.radius span { color: var(--ink-3); font-size: 12.5px; }
+.elev { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+.elev > div { padding: 18px; border-radius: 22px; display: grid; gap: 4px; font-size: 14px; }
+.elev > div span { color: var(--ink-3); font-size: 13px; }
+
+/* motion */
+.springs { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+.spring { background: var(--paper); border: 1px solid var(--rule); border-radius: 18px; padding: 14px; display: grid; gap: 10px; cursor: pointer; text-align: left; }
+.spring .top { display: flex; justify-content: space-between; align-items: baseline; }
+.spring b { font-size: 14px; }
+.spring code { font-size: 11.5px; }
+.spring canvas { width: 100%; height: 80px; display: block; }
+.spring .track { position: relative; height: 28px; border-radius: 14px; background: var(--code); }
+.spring .dot { position: absolute; top: 4px; left: 4px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); }
+.spring p { margin: 0; font-size: 13px; color: var(--ink-3); }
+.agent-states { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+.agent-state { background: var(--paper); border: 1px solid var(--rule); border-radius: 18px; padding: 16px; display: grid; justify-items: center; align-content: start; gap: 8px; text-align: center; }
+.agent-state .tile-demo { display: grid; place-items: center; height: 72px; }
+.agent-state .agent-ind { transform: scale(2.2); margin: 22px 0; }
+.agent-state .agent-ind { color: var(--accent); }
+.agent-state .agent-ind[data-state="waiting"] { color: #e6a42c; }
+.mark { display: grid; place-items: center; border-radius: 30%; background: #2b6a55; flex: 0 0 auto; }
+.mark::after { content: ""; width: 30%; height: 30%; border-radius: 50%; background: #f6faf7; }
+.agent-ind { position: relative; width: 28px; height: 28px; display: grid; place-items: center; flex: 0 0 auto; color: var(--ind, var(--accent)); }
+.agent-ind::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; transition: background-color .3s, opacity .2s, transform .2s; }
+.agent-ind::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; border: 2px solid transparent; }
+.agent-ind[data-state="thinking"]::before { animation: ind-breathe var(--breathe, 1200ms) ease-in-out infinite; }
+.agent-ind[data-state="acting"]::after { border-top-color: currentColor; animation: ind-orbit var(--orbit, 900ms) linear infinite; }
+.agent-ind[data-state="waiting"] { color: var(--ind-wait, #e6a42c); }
+.agent-ind[data-state="done"]::before { opacity: 0; transform: scale(.4); }
+.agent-ind .ms { position: absolute; font-size: 18px; }
+@keyframes ind-breathe { 50% { transform: scale(.6); opacity: .55; } }
+@keyframes ind-orbit { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .agent-ind::before, .agent-ind::after { animation: none !important; } }
+.agent-state b { font-size: 14px; }
+.agent-state span { font-size: 12.5px; color: var(--ink-3); }
+
+/* haptics */
+.wave { display: inline-flex; align-items: center; gap: 2px; height: 26px; }
+.wave i { display: block; border-radius: 2px; background: var(--accent); width: 4px; }
+.wave i.gap { background: transparent; }
+.feel { border: 1px solid var(--rule); background: var(--paper); border-radius: 999px; padding: 5px 12px 5px 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; gap: 4px; align-items: center; }
+.feel.on { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+
+/* ===== App frames: token-driven ===== */
+.frames { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.frame { border-radius: 28px; padding: 18px 16px; min-width: 0; background: var(--surface); color: var(--onSurface); display: grid; gap: 16px; align-content: start; font-family: "Figtree", sans-serif; }
+.frame .label { font: 600 11px/1 "Figtree", sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--onSurfaceVariant); }
+.comp { display: grid; gap: 8px; }
+.comp > .cap { font: 500 11.5px/1.3 "Geist Mono", monospace; color: var(--onSurfaceVariant); opacity: .85; }
+.frame button { cursor: pointer; border: 0; position: relative; overflow: hidden; font-family: inherit; }
+.frame button::after { content: ""; position: absolute; inset: 0; background: currentColor; opacity: 0; transition: opacity .15s; pointer-events: none; border-radius: inherit; }
+.frame button:hover::after { opacity: .08; }
+.frame button:active::after { opacity: .12; }
+.frame .ms { font-size: 20px; }
+
+.c-composer { display: flex; align-items: center; gap: 4px; min-height: var(--size-composerMin); background: var(--surfaceContainerHigh); border-radius: var(--radius-xl); padding: 4px; }
+.c-composer .ph { flex: 1; padding: 0 4px; color: var(--onSurfaceVariant); }
+.c-composer .txt { flex: 1; padding: 0 4px; color: var(--onSurface); }
+.c-iconbtn { width: 44px; height: 44px; border-radius: 50%; background: transparent; color: var(--onSurfaceVariant); display: grid; place-items: center; }
+.c-send { width: 44px; height: 44px; border-radius: 50%; background: var(--primary); color: var(--onPrimary); display: grid; place-items: center; }
+.c-group { display: flex; gap: var(--space-hairline); }
+.c-group button { flex: 1; height: 40px; background: var(--surfaceContainerHigh); color: var(--onSurfaceVariant); border-radius: var(--radius-s); display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.c-group button:first-child { border-radius: var(--radius-lIncreased) var(--radius-s) var(--radius-s) var(--radius-lIncreased); }
+.c-group button:last-child { border-radius: var(--radius-s) var(--radius-lIncreased) var(--radius-lIncreased) var(--radius-s); }
+.c-group button[aria-pressed="true"] { background: var(--primary); color: var(--onPrimary); border-radius: var(--radius-lIncreased); }
+.c-status { display: flex; align-items: center; gap: 10px; height: var(--size-statusLine); padding: 0 6px 0 12px; background: var(--surfaceContainerHigh); border-radius: var(--radius-full); }
+.c-status .verb { flex: 1; color: var(--primary); }
+.c-status .time { color: var(--onSurfaceVariant); font-variant-numeric: tabular-nums; }
+.c-status .stop { height: 36px; padding: 0 14px 0 10px; border-radius: var(--radius-full); background: var(--surfaceContainerHighest); color: var(--onSurface); display: inline-flex; align-items: center; gap: 4px; }
+.c-narr { color: var(--onSurface); }
+.c-narr .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); margin-left: 4px; vertical-align: 2px; }
+.c-steps { display: grid; gap: var(--space-hairline); }
+.c-step { display: grid; grid-template-columns: 32px minmax(0,1fr) 24px; gap: 12px; align-items: center; padding: 8px 12px 8px 8px; background: var(--surfaceContainerLow); border-radius: var(--radius-s); color: var(--onSurface); }
+.c-steps > .c-step:first-child { border-top-left-radius: var(--radius-lIncreased); border-top-right-radius: var(--radius-lIncreased); }
+.c-steps > .c-step:last-child { border-bottom-left-radius: var(--radius-lIncreased); border-bottom-right-radius: var(--radius-lIncreased); }
+.c-step .gl { width: 32px; height: 32px; border-radius: 50%; background: var(--secondaryContainer); color: var(--onSecondaryContainer); display: grid; place-items: center; }
+.c-step .gl .ms { font-size: 18px; }
+.c-step.failed .gl { background: var(--errorContainer); color: var(--onErrorContainer); }
+.c-step.blocked .gl { background: var(--surfaceContainerHighest); color: var(--onSurfaceVariant); }
+.c-step .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c-step .lbl em { font-style: normal; font-weight: 420; color: var(--onSurfaceVariant); }
+.c-step .res { color: var(--onSurfaceVariant); }
+.c-step .trail { color: var(--primary); display: grid; place-items: center; }
+.c-step .trail .ms { font-size: 18px; }
+.c-spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--outlineVariant); border-top-color: var(--primary); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.c-summary { justify-self: start; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px 6px 8px; background: var(--surfaceContainerLow); border-radius: var(--radius-full); color: var(--onSurfaceVariant); }
+.c-summary .ok { color: var(--primary); font-size: 18px; }
+.c-decision { background: var(--surfaceContainerLow); border-radius: var(--radius-xl); padding: 12px; display: grid; gap: 10px; }
+.c-decision .dh { display: grid; grid-template-columns: 32px minmax(0,1fr); gap: 10px; align-items: center; }
+.c-decision .dh .gl { width: 32px; height: 32px; border-radius: var(--radius-m); background: var(--tertiaryContainer); color: var(--onTertiaryContainer); display: grid; place-items: center; }
+.c-decision .dh .gl .ms { font-size: 18px; }
+.c-decision .dh .why { color: var(--onSurfaceVariant); }
+.c-decision .payload { background: var(--surfaceContainerLowest); border-radius: var(--radius-l); padding: 10px 12px; }
+.c-decision .payload .to { color: var(--onSurfaceVariant); margin-bottom: 2px; display: flex; gap: 4px; align-items: center; }
+.c-decision .payload .to .ms { font-size: 16px; }
+.c-decision .acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.c-decision .scope-note { color: var(--onSurfaceVariant); display: inline-flex; align-items: center; gap: 6px; }
+.c-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.c-option { height: 40px; padding: 0 16px; border-radius: var(--radius-full); background: var(--surfaceContainerLowest); border: 1px solid var(--outlineVariant); color: var(--onSurface); display: inline-flex; align-items: center; gap: 8px; }
+.c-option .ms { font-size: 18px; color: var(--primary); }
+.c-resolved { display: inline-flex; align-items: center; gap: 8px; justify-self: start; padding: 6px 12px 6px 8px; border-radius: var(--radius-full); background: var(--surfaceContainerLow); color: var(--onSurfaceVariant); }
+.c-resolved .ms { font-size: 18px; color: var(--primary); }
+.c-resolved.declined .ms { color: var(--onSurfaceVariant); }
+.c-waiting { display: flex; align-items: center; gap: 10px; height: var(--size-statusLine); padding: 0 6px 0 12px; background: var(--tertiaryContainer); color: var(--onTertiaryContainer); border-radius: var(--radius-full); }
+.c-waiting > span:not(.agent-ind) { flex: 1; }
+.c-waiting button { height: 36px; padding: 0 14px; border-radius: var(--radius-full); background: transparent; color: var(--onTertiaryContainer); }
+.c-scope { display: flex; gap: var(--space-hairline); margin-top: 14px; }
+.c-scope button { flex: 1; height: 40px; background: transparent; border: 1px solid var(--outlineVariant); color: var(--onSurfaceVariant); border-radius: var(--radius-s); }
+.c-scope button:first-child { border-radius: var(--radius-lIncreased) var(--radius-s) var(--radius-s) var(--radius-lIncreased); }
+.c-scope button:last-child { border-radius: var(--radius-s) var(--radius-lIncreased) var(--radius-lIncreased) var(--radius-s); }
+.c-scope button[aria-pressed="true"] { background: var(--secondaryContainer); color: var(--onSecondaryContainer); border-color: transparent; border-radius: var(--radius-lIncreased); }
+.c-btn { height: var(--size-button-default); padding: 0 20px; border-radius: var(--radius-full); display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.c-btn.sm { height: var(--size-button-small); padding: 0 16px; }
+.c-btn.filled { background: var(--primary); color: var(--onPrimary); }
+.c-btn.tonal { background: var(--secondaryContainer); color: var(--onSecondaryContainer); }
+.c-btn.outlined { background: transparent; border: 1px solid var(--outlineVariant); color: var(--onSurface); }
+.c-btn.text { background: transparent; color: var(--primary); }
+.c-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.c-card { background: var(--surfaceContainerLowest); border: 1px solid var(--outlineVariant); border-radius: var(--radius-xl); padding: 16px; box-shadow: var(--elev1); display: grid; gap: var(--space-hairline); }
+.c-card .head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.c-card .head .meta { color: var(--onSurfaceVariant); }
+.c-card .row { display: grid; grid-template-columns: 32px minmax(0,1fr); gap: 12px; align-items: center; padding: 10px 12px; background: var(--surfaceContainerLow); border-radius: var(--radius-s); }
+.c-card .row.first { border-radius: var(--radius-l) var(--radius-l) var(--radius-s) var(--radius-s); }
+.c-card .row.last { border-radius: var(--radius-s) var(--radius-s) var(--radius-l) var(--radius-l); }
+.c-card .row > .ms { color: var(--primary); justify-self: center; }
+.c-card .row .k { color: var(--onSurfaceVariant); text-transform: uppercase; }
+.c-card .acts { display: flex; gap: 8px; margin-top: 12px; }
+.c-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.c-chip { height: 32px; padding: 0 14px 0 10px; border-radius: var(--radius-s); border: 1px solid var(--outlineVariant); background: transparent; color: var(--onSurface); display: inline-flex; align-items: center; gap: 6px; }
+.c-chip .ms { font-size: 18px; color: var(--primary); }
+.c-tag { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: var(--radius-s); background: var(--surfaceContainerHigh); color: var(--onSurfaceVariant); }
+.c-tag .ms { font-size: 14px; }
+.c-list { display: grid; gap: var(--space-hairline); }
+.c-lrow { display: grid; grid-template-columns: 44px minmax(0,1fr) auto; gap: 14px; align-items: center; padding: 10px 14px 10px 10px; background: var(--surfaceContainerLow); border-radius: var(--radius-s); }
+.c-list > :first-child { border-top-left-radius: var(--radius-lIncreased); border-top-right-radius: var(--radius-lIncreased); }
+.c-list > :last-child { border-bottom-left-radius: var(--radius-lIncreased); border-bottom-right-radius: var(--radius-lIncreased); }
+.c-lrow .meta { color: var(--onSurfaceVariant); }
+.c-badge { padding: 4px 10px; border-radius: var(--radius-full); white-space: nowrap; }
+.c-badge.done { background: var(--primaryContainer); color: var(--onPrimaryContainer); }
+.c-badge.waiting { background: var(--tertiaryContainer); color: var(--onTertiaryContainer); }
+.c-badge.failed { background: var(--errorContainer); color: var(--onErrorContainer); }
+.c-shelf { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
+.c-tile { display: grid; gap: 8px; justify-items: center; text-align: center; background: var(--surfaceContainerLow); padding: 14px 6px 12px; border-radius: var(--radius-lIncreased); }
+.c-tile small { display: block; color: var(--onSurfaceVariant); }
+.c-creation { display: grid; place-items: center; flex: 0 0 auto; }
+.c-creation .ms { font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 20; font-size: 22px; }
+.c-snack { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 8px 8px 16px; border-radius: var(--radius-s); background: var(--inverseSurface); color: var(--inverseOnSurface); box-shadow: var(--elev3); }
+.c-snack span { flex: 1; }
+.c-snack button { background: transparent; color: var(--primaryContainer); padding: 8px 10px; border-radius: var(--radius-full); }
+.c-latest { justify-self: center; display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 12px 0 8px; border-radius: var(--radius-full); background: var(--inverseSurface); color: var(--inverseOnSurface); box-shadow: var(--elev3); }
+.c-user { justify-self: end; max-width: 82%; background: var(--primaryContainer); color: var(--onPrimaryContainer); padding: 10px 16px; border-radius: 22px 22px 6px 22px; }
+.c-user.steer { background: var(--secondaryContainer); color: var(--onSecondaryContainer); padding: 8px 14px; }
+.c-user.steer small { display: block; opacity: .7; }
+
+/* writing, a11y, dos */
+.cols2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+.box { background: var(--paper); border: 1px solid var(--rule); border-radius: 18px; padding: 16px 18px; }
+.box ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--ink-2); font-size: 15px; }
+.box h3 { margin-top: 0; }
+.do, .dont { display: flex; gap: 8px; align-items: flex-start; font-size: 15px; color: var(--ink-2); padding: 6px 0; }
+.do .ms { color: var(--accent); }
+.dont .ms { color: #c2410c; }
+.json { max-height: 420px; overflow: auto; background: var(--code); border-radius: 16px; padding: 14px 16px; font: 12px/1.55 var(--docmono); white-space: pre; }
+.copy { border: 1px solid var(--rule); background: var(--paper); border-radius: 999px; padding: 6px 14px 6px 10px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.decisions { display: grid; gap: 10px; }
+.decision { background: var(--paper); border: 1px solid var(--rule); border-radius: 16px; padding: 14px 16px; display: grid; grid-template-columns: 28px minmax(0,1fr); gap: 10px; }
+.decision .n { font: 600 13px/28px var(--docmono); color: var(--accent); }
+.decision b { display: block; }
+.decision span { color: var(--ink-2); font-size: 14.5px; }
+
+@media (max-width: 1000px) {
+  .shell { grid-template-columns: minmax(0,1fr); gap: 24px; }
+  nav.toc { position: static; }
+  nav.toc ol { display: flex; flex-wrap: wrap; gap: 4px; }
+  nav.toc .meta { display: none; }
+}
+@media (max-width: 760px) {
+  .principles, .faces, .springs, .elev, .cols2 { grid-template-columns: minmax(0,1fr); }
+  .agent-states { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .frames { grid-template-columns: minmax(0,1fr); }
+  .typerow { grid-template-columns: minmax(0,1fr); gap: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition: none !important; }
+}
+</style>
+
+<div class="shell">
+  <nav class="toc" aria-label="Sections">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Whittle</div>
+    <ol>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#color">Color</a></li>
+      <li><a href="#type">Typography</a></li>
+      <li><a href="#space">Spacing & size</a></li>
+      <li><a href="#shape">Shape & elevation</a></li>
+      <li><a href="#icons">Iconography</a></li>
+      <li><a href="#motion">Motion</a></li>
+      <li><a href="#haptics">Haptics</a></li>
+      <li><a href="#components">Components</a></li>
+      <li><a href="#writing">Writing</a></li>
+      <li><a href="#a11y">Accessibility</a></li>
+      <li><a href="#tokens">Tokens</a></li>
+      <li><a href="#decisions">Decisions</a></li>
+    </ol>
+    <div class="meta">Design system v1 · approved<br>Generated from <code>whittle.tokens.json</code></div>
+  </nav>
+
+  <main>
+    <header class="hero" id="overview">
+      <span class="eyebrow">Design system · v1 · approved</span>
+      <h1>Whittle Design System</h1>
+      <p class="lede">Every visual and interaction decision for the Android app, in one place. This page is generated from the token file, so what you see here is exactly what Figma and the Compose theme get.</p>
+      <div class="files">
+        <span class="file"><span class="ms">data_object</span>docs/design/tokens/whittle.tokens.json</span>
+        <span class="file"><span class="ms">web</span>docs/design/site/whittle-design-system.html</span>
+      </div>
+      <p class="sub" style="margin-top:6px">Figma: import the token file with the Tokens Studio plugin to get the same colors, type styles, spacing and radii as Figma variables. Compose: <code>WhittleTheme</code> is generated from the same file.</p>
+      <div class="principles" id="principles"></div>
+    </header>
+
+    <section class="block" id="color">
+      <h2>Color</h2>
+      <p class="sub">Seed Pine with a Marigold accent. Tonal Material 3 roles: surfaces separate content by tone, not borders. Marigold only means "waiting on you". Wallpaper colors (Material You) is an opt-in setting.</p>
+      <div class="toolbar-row"><span>Theme</span><span class="mode" id="swatchMode"><button type="button" data-mode="light" aria-pressed="true">Light</button><button type="button" data-mode="dark" aria-pressed="false">Dark</button></span></div>
+      <div class="swatches" id="swatches"></div>
+      <h3>Contrast, measured from the tokens</h3>
+      <div class="contrast"><table><thead><tr><th>Pair</th><th>Sample</th><th>Light</th><th>Dark</th><th>Use</th></tr></thead><tbody id="contrastBody"></tbody></table></div>
+      <h3>Creation tones</h3>
+      <p class="sub">Each thing a user makes gets the same rounded-square tile and one of six tones, picked from its id. Icons on the shape are at least 4.5:1 in both themes.</p>
+      <div class="tones" id="tones"></div>
+    </section>
+
+    <section class="block" id="type">
+      <h2>Typography</h2>
+      <p class="sub">Clean and friendly. One family, Figtree, in three weights (400, 500, 600): open, round letters that stay easy to read for people who never use developer tools. Geist Mono for step details and timers. Both bundled. No width stretching, no black weights, at most one emphasized style per screen.</p>
+      <div class="faces">
+        <div class="face"><div class="big" style="font-family:'Figtree';font-weight:600;letter-spacing:-.02em">Aa</div><b>Figtree</b><small>Everything you read · OFL 1.1</small>
+          <div class="axis"><label>weight <span id="wv">500</span></label><input id="wght" type="range" min="400" max="600" step="100" value="500"></div>
+          <div id="axisSample" style="font-family:'Figtree';font-size:22px;line-height:1.2;margin-top:6px">Checked your calendar</div></div>
+        <div class="face"><div class="big" style="font-family:'Geist Mono'">0:48</div><b>Geist Mono</b><small>Step details, timers · OFL 1.1</small></div>
+        <div class="face"><div class="big"><span class="ms" style="font-size:44px;max-width:none">calendar_month</span></div><b>Material Symbols Rounded</b><small>Icons · Apache 2.0</small></div>
+      </div>
+      <div id="typeScale"></div>
+    </section>
+
+    <section class="block" id="space">
+      <h2>Spacing & size</h2>
+      <p class="sub">4dp grid. Screen margin 16dp on phones, 24dp and a 640dp reading width on tablets and foldables.</p>
+      <div class="scale" id="spaceScale"></div>
+      <h3>Sizes</h3>
+      <div class="contrast"><table><thead><tr><th>Token</th><th>Value</th></tr></thead><tbody id="sizeBody"></tbody></table></div>
+    </section>
+
+    <section class="block" id="shape">
+      <h2>Shape & elevation</h2>
+      <p class="sub">Plain rounded rectangles only, no decorative shapes. Segmented groups: rows 2dp apart, outer corners <code>lIncreased</code>, inner corners <code>s</code>. In button groups the selected item morphs to fully rounded.</p>
+      <div class="radii" id="radii"></div>
+      <h3>Creation tiles</h3>
+      <div class="agent-states" id="creationTiles"></div>
+      <h3>Elevation</h3>
+      <div class="elev" id="elev"></div>
+    </section>
+
+    <section class="block" id="icons">
+      <h2>Iconography</h2>
+      <p class="sub">Material Symbols Rounded, weight 400, grade 0, optical size 24 (20 below 24dp). Outline by default; filled for selected states and inside creation tiles. No sparkles, wands or robots: Whittle's mark is the agent dot.</p>
+      <div class="swatches" id="iconGrid"></div>
+    </section>
+
+    <section class="block" id="motion">
+      <h2>Motion</h2>
+      <p class="sub">Material 3 Expressive springs. Spatial springs move, resize and reshape and may overshoot; effects springs change color and opacity and never do. Click a card to play it.</p>
+      <div class="springs" id="springs"></div>
+      <h3>The agent indicator</h3>
+      <div class="agent-states" id="agentStates"></div>
+      <h3>Component motion</h3>
+      <div class="contrast"><table><thead><tr><th>Moment</th><th>Motion</th></tr></thead><tbody>
+        <tr><td>Message sent</td><td>Rises 10dp and scales from 0.96 · <code>spatial.default</code></td></tr>
+        <tr><td>Step row appears</td><td>Same rise; spinner swaps to a check · <code>spatial.fast</code></td></tr>
+        <tr><td>Running step label</td><td>Shimmer sweep · <code>shimmerLoop</code></td></tr>
+        <tr><td>Decision card</td><td>Appears inline like any step · <code>spatial.default</code>; after a tap it collapses to its one-line outcome · <code>spatial.default</code></td></tr>
+        <tr><td>Run finishes</td><td>Steps collapse into the summary chip · <code>spatial.default</code>; answer fades in · <code>effects.default</code></td></tr>
+        <tr><td>Preview opens</td><td>Sheet from the bottom · <code>spatial.slow</code></td></tr>
+        <tr><td>Press</td><td>Scale to 0.97 + 12% state layer · <code>spatial.fast</code></td></tr>
+        <tr><td>Reduced motion</td><td>No breathing, orbit, shimmer or scale; short cross-fades; status always in text</td></tr>
+      </tbody></table></div>
+    </section>
+
+    <section class="block" id="haptics">
+      <h2>Haptics</h2>
+      <p class="sub">One <code>HapticsController</code> maps these events. It respects the system touch-feedback setting and the in-app switch, and never fires in the background or per streamed word. Tap "Feel it" on an Android phone.</p>
+      <div class="contrast"><table><thead><tr><th>Event</th><th>Android</th><th>Waveform</th><th></th><th>When</th></tr></thead><tbody id="hapticBody"></tbody></table></div>
+    </section>
+
+    <section class="block" id="components">
+      <h2>Components</h2>
+      <p class="sub">Decisions and questions never block or pop up: they are inline cards, the agent keeps working, and a tap continues the run from that point. Rendered from the tokens in both app themes. Each will live in <code>ui/designsystem/components</code> with previews for light, dark, 200% font and reduced motion.</p>
+      <div class="frames">
+        <div class="frame" data-app-theme="light" id="frameLight"></div>
+        <div class="frame" data-app-theme="dark" id="frameDark"></div>
+      </div>
+    </section>
+
+    <section class="block" id="writing">
+      <h2>Writing</h2>
+      <p class="sub">A capable friend who says what they're doing. Short sentences, first person, no hype.</p>
+      <div class="contrast"><table><thead><tr><th>Situation</th><th>Rule</th><th>Example</th></tr></thead><tbody>
+        <tr><td>Narration</td><td>One sentence of intent before acting; one of what was learned after</td><td>"Let me check when dinner is and how far away you are."</td></tr>
+        <tr><td>Step label</td><td>Past-tense verb + object, object after "·"</td><td>"Checked your calendar · tonight"</td></tr>
+        <tr><td>Running step</td><td>Present participle, no ellipsis</td><td>"Checking your calendar"</td></tr>
+        <tr><td>Step result</td><td>The fact found, not commentary</td><td>"Dinner with Priya, 8:00 PM"</td></tr>
+        <tr><td>Decision title</td><td>A question naming the action and target</td><td>"Send this to Priya?"</td></tr>
+        <tr><td>Consequence</td><td>What happens and whether it can be undone</td><td>"Nothing is sent until you tap send there."</td></tr>
+        <tr><td>Buttons</td><td>The verb that will happen</td><td>"Open in Messages", "Turn on", "Allow"</td></tr>
+        <tr><td>Decline</td><td>Always the same</td><td>"Not now"</td></tr>
+        <tr><td>Errors</td><td>What went wrong and what to do; no apology or blame</td><td>"Couldn't reach OpenAI. Check your connection and try again."</td></tr>
+        <tr><td>Success</td><td>Only from a tool's real result</td><td>Never "Sent!" when Messages was only opened</td></tr>
+      </tbody></table></div>
+      <p class="sub" style="margin-top:14px">Not in the main UI: "API key", "token", "LLM", "prompt", "agent", "AI magic", "Oops", "As an AI". "Key" appears only in Settings › Advanced and "I already have a key".</p>
+    </section>
+
+    <section class="block" id="a11y">
+      <h2>Accessibility, do and don't</h2>
+      <div class="cols2">
+        <div class="box"><h3>Accessibility</h3><ul>
+          <li>48dp touch targets; text reflows at 200% font scale; no fixed-height text containers.</li>
+          <li>TalkBack hears one "Working: checking your calendar" per step, never per token; the answer is read once.</li>
+          <li>Decision cards are announced politely once ("Needs your choice: Send this to Priya?"); the waiting count stays visible as text.</li>
+          <li>Every icon-only button has a content description.</li>
+          <li>State is never shown by color, motion or haptics alone.</li>
+          <li>Key-entry screens use <code>FLAG_SECURE</code>.</li>
+        </ul></div>
+        <div class="box"><h3>Do and don't</h3>
+          <div class="do"><span class="ms">check_circle</span>Lead with what the user has and what's happening.</div>
+          <div class="dont"><span class="ms">cancel</span>"How can I help you today?" empty states.</div>
+          <div class="do"><span class="ms">check_circle</span>Organise with tone and segmented groups.</div>
+          <div class="dont"><span class="ms">cancel</span>Borders and shadows on everything; gradients, glows, sparkles.</div>
+          <div class="do"><span class="ms">check_circle</span>Name actions precisely; keep tool details one tap away.</div>
+          <div class="dont"><span class="ms">cancel</span>Generic "Allow?" / "OK"; JSON or model names in the thread.</div>
+          <div class="do"><span class="ms">check_circle</span>Haptics at milestones; real results only.</div>
+          <div class="dont"><span class="ms">cancel</span>Vibrating per word; fake progress or unbacked success.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="tokens">
+      <h2>Tokens</h2>
+      <p class="sub">The single source. Import into Figma with Tokens Studio (Load from file), or read it from the Compose code generator.</p>
+      <div class="toolbar-row"><button class="copy" type="button" id="copyTokens"><span class="ms">content_copy</span>Copy JSON</button><span id="copyNote"></span></div>
+      <pre class="json" id="tokenJson"></pre>
+    </section>
+
+    <section class="block" id="decisions">
+      <h2>Decisions</h2>
+      <p class="sub">Settled when the design system was approved on 20 October 2026.</p>
+      <div class="decisions">
+        <div class="decision"><span class="n">01</span><div><b>Whittle in code</b><span>Application id app.whittle; packages app.whittle.*; Gradle plugins whittle.*.</span></div></div>
+        <div class="decision"><span class="n">02</span><div><b>Wallpaper colors off by default</b><span>Whittle opens in its own Pine palette so it's recognisable; Material You is an opt-in setting on Android 12+.</span></div></div>
+        <div class="decision"><span class="n">03</span><div><b>Haptics on by default</b><span>Follows the system touch-feedback setting; an in-app switch turns them off.</span></div></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script id="tokens-data" type="application/json">__WHITTLE_TOKENS__</script>
+<script>
+(() => {
+  const T = JSON.parse(document.getElementById("tokens-data").textContent);
+  const $ = (s, r = document) => r.querySelector(s);
+  const ms = (n, c = "") => `<span class="ms ${c}" aria-hidden="true">${n}</span>`;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const strip = (o) => Object.fromEntries(Object.entries(o).filter(([k]) => !k.startsWith("$")));
+
+  /* ---------- color math ---------- */
+  const lum = (hex) => {
+    const h = hex.replace("#", "").slice(0, 6);
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((c) => c <= .03928 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4);
+    return .2126 * r + .7152 * g + .0722 * b;
+  };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + .05) / (y + .05); };
+  const role = (mode, name) => T.color[mode][name].$value;
+
+  /* ---------- tiles and the agent dot ---------- */
+  const agentInd = (state) => `<span class="agent-ind" data-state="${state}" aria-hidden="true">${state === "done" ? ms("check") : ""}</span>`;
+  document.documentElement.style.setProperty("--breathe", T.motion.agentBreathe.$value);
+  document.documentElement.style.setProperty("--orbit", T.motion.agentOrbit.$value);
+  const tileSpan = (tone, mode, icon, size) => {
+    const t = T.creation[tone][mode];
+    return `<span class="c-creation" style="width:${size}px;height:${size}px;border-radius:${T.creationTile.cornerPercent.$value}%;background:${t.fill.$value};color:${t.icon.$value}">${ms(icon)}</span>`;
+  };
+
+  /* ---------- token → CSS ---------- */
+  const typeCss = Object.entries(strip(T.typography)).map(([name, tok]) => {
+    const v = tok.$value;
+    const fam = v.fontFamily.includes("mono") ? "'Geist Mono', monospace" : "'Figtree', sans-serif";
+    const tab = name === "monoTimer" ? "font-variant-numeric:tabular-nums;" : "";
+    return `.t-${name}{font:${v.fontWeight} ${v.fontSize}/${v.lineHeight} ${fam};letter-spacing:${v.letterSpacing};${tab}}`;
+  }).join("\n");
+  const frameVars = (mode) => {
+    const vars = Object.entries(strip(T.color[mode])).map(([k, t]) => `--${k}:${t.$value}`);
+    Object.entries(strip(T.space)).forEach(([k, t]) => vars.push(`--space-${k}:${t.$value}`));
+    Object.entries(strip(T.radius)).forEach(([k, t]) => vars.push(`--radius-${k}:${t.$value}`));
+    vars.push(`--size-composerMin:${T.size.composerMin.$value}`, `--size-statusLine:${T.size.statusLine.$value}`,
+      `--size-button-default:${T.size.button.default.$value}`, `--size-button-small:${T.size.button.small.$value}`);
+    const shadow = (lvl) => T.elevation[lvl].$value.map((s) => `${s.offsetX} ${s.offsetY} ${s.blur} ${s.spread} ${s.color}`).join(",");
+    vars.push(`--elev1:${shadow("level1")}`, `--elev3:${shadow("level3")}`);
+    return `.frame[data-app-theme="${mode}"]{${vars.join(";")};color-scheme:${mode}}`;
+  };
+  const style = document.createElement("style");
+  style.textContent = typeCss + "\n" + frameVars("light") + "\n" + frameVars("dark");
+  document.head.appendChild(style);
+
+  /* ---------- overview ---------- */
+  const principles = [
+    ["Say it, then do it", "One plain sentence of intent before each group of actions."],
+    ["Steps, never JSON", "One row per action: what was done to what, and the result."],
+    ["Ask inline, never block", "Decisions and questions are cards in the conversation. The agent keeps working; your tap continues it."],
+    ["Things, not threads", "Creations are objects with a name, an icon and a status."],
+    ["Show the exact thing", "Decision cards show the real message or amount; the button names the action. Typing steers; Stop is always there."],
+    ["Calm where it matters", "Springs and haptics for progress and delight; quiet and conventional for permissions and errors."],
+  ];
+  $("#principles").innerHTML = principles.map(([t, d], i) => `<div class="pr"><span class="n">0${i + 1}</span><b>${t}</b><p>${d}</p></div>`).join("");
+
+  /* ---------- color ---------- */
+  const drawSwatches = (mode) => {
+    $("#swatches").innerHTML = Object.entries(strip(T.color[mode])).map(([name, tok]) => {
+      const fg = lum(tok.$value) > .35 ? "#171d1a" : "#f2f6f3";
+      return `<div class="sw"><div class="chip" style="background:${tok.$value};color:${fg}"><span>${tok.$value}</span></div><div class="info"><b>${name}</b><span>${tok.$description || ""}</span></div></div>`;
+    }).join("");
+  };
+  drawSwatches("light");
+  document.querySelectorAll("#swatchMode button").forEach((b) => b.addEventListener("click", () => {
+    document.querySelectorAll("#swatchMode button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    drawSwatches(b.dataset.mode);
+  }));
+  const pairs = [
+    ["onSurface", "surface", "text", "Body text"],
+    ["onSurfaceVariant", "surface", "text", "Secondary text"],
+    ["onSurfaceVariant", "surfaceContainerHigh", "text", "Text on raised containers"],
+    ["primary", "surface", "text", "Links, icons, status verb"],
+    ["onPrimary", "primary", "text", "Filled buttons"],
+    ["onPrimaryContainer", "primaryContainer", "text", "User messages, On badges"],
+    ["onSecondaryContainer", "secondaryContainer", "text", "Tonal buttons, step icons"],
+    ["onTertiaryContainer", "tertiaryContainer", "text", "Waiting on you"],
+    ["onErrorContainer", "errorContainer", "text", "Failed steps"],
+    ["inverseOnSurface", "inverseSurface", "text", "Snackbars, Latest pill"],
+    ["outline", "surface", "ui", "Non-text boundaries"],
+    ["outlineVariant", "surface", "decor", "Decorative dividers"],
+  ];
+  const verdict = (r, kind) => kind === "decor" ? `<span class="pass non">decorative</span>` : kind === "ui" ? (r >= 3 ? `<span class="pass">${ms("check", "")}UI ≥ 3</span>` : `<span class="pass non">fails</span>`) : (r >= 7 ? `<span class="pass">AAA</span>` : r >= 4.5 ? `<span class="pass">AA</span>` : `<span class="pass non">fails</span>`);
+  $("#contrastBody").innerHTML = pairs.map(([fg, bg, kind, use]) => {
+    const rl = ratio(role("light", fg), role("light", bg));
+    const rd = ratio(role("dark", fg), role("dark", bg));
+    const sample = (m) => `<span class="pairchip" style="background:${role(m, bg)};color:${role(m, fg)}">Aa</span>`;
+    return `<tr><td><code>${fg}</code> on <code>${bg}</code></td><td>${sample("light")} ${sample("dark")}</td><td class="num">${rl.toFixed(2)} ${verdict(rl, kind)}</td><td class="num">${rd.toFixed(2)} ${verdict(rd, kind)}</td><td>${use}</td></tr>`;
+  }).join("");
+  $("#tones").innerHTML = Object.entries(strip(T.creation)).map(([tone, t]) => {
+    const rl = ratio(t.light.icon.$value, t.light.fill.$value), rd = ratio(t.dark.icon.$value, t.dark.fill.$value);
+    return `<div class="tone"><b>${tone[0].toUpperCase() + tone.slice(1)}</b><div class="pair">
+      <div class="bgL">${tileSpan(tone, "light", "widgets", 48)}<span style="color:#404944">${rl.toFixed(2)}</span></div>
+      <div class="bgD">${tileSpan(tone, "dark", "widgets", 48)}<span style="color:#c0c9c3">${rd.toFixed(2)}</span></div></div></div>`;
+  }).join("");
+
+  /* ---------- type ---------- */
+  const samples = {
+    headlineLarge: "What should we make first?", headlineMediumEmphasized: "Two things running, one waiting on you.",
+    headlineSmall: "Your stuff", titleLarge: "Send this to Priya?", titleMedium: "Plant reminder", titleSmall: "Checked your calendar · tonight",
+    bodyLarge: "Let me check when dinner is and how far away you are.", bodyMedium: "Opens Messages with the text ready.",
+    bodySmall: "Dinner with Priya, 8:00 PM · 2s", labelLarge: "Open in Messages", labelMedium: "Review", labelSmall: "ONLY IF",
+    mono: "calendar.read_events  today 18:00–23:59", monoTimer: "0:48",
+  };
+  $("#typeScale").innerHTML = Object.entries(strip(T.typography)).map(([name, tok]) => {
+    const v = tok.$value;
+    return `<div class="typerow"><div class="spec"><b>${name}</b><span>${parseInt(v.fontSize)} / ${parseInt(v.lineHeight)} · ${v.fontWeight} · ${v.letterSpacing}</span><em>${tok.$description || ""}</em></div><div class="sample t-${name}">${samples[name] || name}</div></div>`;
+  }).join("");
+  const axisSample = $("#axisSample");
+  const updAxes = () => { const w = $("#wght").value; $("#wv").textContent = w; axisSample.style.fontWeight = w; };
+  $("#wght").addEventListener("input", updAxes); updAxes();
+
+  /* ---------- space, size, radius, elevation ---------- */
+  const maxSpace = Math.max(...Object.values(strip(T.space)).map((t) => parseInt(t.$value)));
+  $("#spaceScale").innerHTML = Object.entries(strip(T.space)).map(([k, t]) => `<div class="row"><code>space.${k}</code><span>${parseInt(t.$value)}dp</span><div class="bar" style="width:${(parseInt(t.$value) / maxSpace) * 100}%"></div><div class="desc">${t.$description || ""}</div></div>`).join("");
+  const flat = (obj, prefix = "") => Object.entries(strip(obj)).flatMap(([k, v]) => v.$value !== undefined ? [[prefix + k, v.$value]] : flat(v, prefix + k + "."));
+  $("#sizeBody").innerHTML = flat(T.size).map(([k, v]) => `<tr><td><code>size.${k}</code></td><td class="num">${parseInt(v)}dp</td></tr>`).join("");
+  $("#radii").innerHTML = Object.entries(strip(T.radius)).map(([k, t]) => `<div class="radius"><i style="border-radius:${t.$value === "999px" ? "999px" : t.$value}"></i><b>radius.${k}</b><span>${t.$value === "999px" ? "pill" : parseInt(t.$value) + "dp"} · ${t.$description}</span></div>`).join("");
+  $("#creationTiles").innerHTML = Object.entries(strip(T.size.tile)).map(([k, t], i) => {
+    const size = parseInt(t.$value);
+    const tone = ["pine", "gold", "mint", "ink"][i];
+    const icon = ["water_drop", "widgets", "wb_sunny", "calculate"][i];
+    return `<div class="agent-state"><div class="tile-demo">${tileSpan(tone, "light", icon, size)}</div><b>size.tile.${k}</b><span>${size}dp · corner ${Math.round(size * T.creationTile.cornerPercent.$value / 100)}dp</span></div>`;
+  }).join("");
+  const sh = (lvl) => T.elevation[lvl].$value.map((s) => `${s.offsetX} ${s.offsetY} ${s.blur} ${s.spread} ${s.color}`).join(",");
+  $("#elev").innerHTML = `
+    <div style="background:${role("light", "surfaceContainerLow")};color:#171d1a"><b>Level 0</b><span style="color:#404944">${T.elevation.level0.$description}</span></div>
+    <div style="background:#fff;border:1px solid ${role("light", "outlineVariant")};box-shadow:${sh("level1")};color:#171d1a"><b>Level 1</b><span style="color:#404944">${T.elevation.level1.$description}</span></div>
+    <div style="background:${role("light", "primaryContainer")};box-shadow:${sh("level3")};color:#002117"><b>Level 3</b><span style="color:#2b4a3f">${T.elevation.level3.$description}</span></div>`;
+
+  /* ---------- icons ---------- */
+  const ICONS = ["calendar_month", "directions_car", "person", "sms", "open_in_new", "rainy", "schedule", "notifications", "draw", "code", "science", "water_drop", "widgets", "calculate", "bolt", "construction", "autorenew", "arrow_upward", "mic", "add", "stop", "check", "check_circle", "lock", "edit", "content_copy", "tune", "power_settings_new", "settings", "search"];
+  $("#iconGrid").innerHTML = ICONS.map((n) => `<div class="sw"><div class="chip" style="background:var(--paper);height:64px;justify-content:center;align-items:center;color:var(--accent)">${ms(n)}</div><div class="info"><span>${n}</span></div></div>`).join("");
+  $("#iconGrid").querySelectorAll(".chip .ms").forEach((e) => { e.style.fontSize = "28px"; });
+
+  /* ---------- motion ---------- */
+  function simulate(zeta, k, dt = 1 / 240, maxT = 1.6) {
+    let x = 0, v = 0; const c = 2 * zeta * Math.sqrt(k); const pts = [];
+    for (let t = 0; t <= maxT; t += dt) { const a = -k * (x - 1) - c * v; v += a * dt; x += v * dt; pts.push([t, x]); if (t > .2 && Math.abs(x - 1) < .001 && Math.abs(v) < .01) break; }
+    return pts;
+  }
+  const springEntries = [...Object.entries(strip(T.motion.spatial)).map(([k, t]) => ["spatial." + k, t]), ...Object.entries(strip(T.motion.effects)).map(([k, t]) => ["effects." + k, t])];
+  $("#springs").innerHTML = springEntries.map(([name, t], i) => `<button class="spring" type="button" data-i="${i}"><div class="top"><b>${name}</b><code>ζ ${t.$value.dampingRatio} · k ${t.$value.stiffness}</code></div><canvas width="600" height="160" aria-hidden="true"></canvas><div class="track"><div class="dot"></div></div><p>${t.$description}</p></button>`).join("");
+  const accent = () => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+  const ruleC = () => getComputedStyle(document.documentElement).getPropertyValue("--rule").trim();
+  document.querySelectorAll(".spring").forEach((card) => {
+    const t = springEntries[card.dataset.i][1].$value;
+    const pts = simulate(t.dampingRatio, t.stiffness);
+    const cv = card.querySelector("canvas"), ctx = cv.getContext("2d");
+    const draw = () => {
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      const maxX = Math.max(1.15, ...pts.map((p) => p[1])); const T0 = pts[pts.length - 1][0];
+      const y = (v) => cv.height - 16 - (v / maxX) * (cv.height - 32);
+      ctx.strokeStyle = ruleC(); ctx.lineWidth = 2; ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.moveTo(0, y(1)); ctx.lineTo(cv.width, y(1)); ctx.stroke(); ctx.setLineDash([]);
+      ctx.strokeStyle = accent(); ctx.lineWidth = 4; ctx.beginPath();
+      pts.forEach(([tt, v], i) => { const X = (tt / T0) * cv.width; i ? ctx.lineTo(X, y(v)) : ctx.moveTo(X, y(v)); }); ctx.stroke();
+    };
+    draw();
+    card.addEventListener("click", () => {
+      const dot = card.querySelector(".dot"), track = card.querySelector(".track");
+      const span = track.clientWidth - 28; const start = performance.now(); const T0 = pts[pts.length - 1][0] * 1000;
+      const step = (now) => {
+        const el = now - start; const idx = Math.min(pts.length - 1, Math.floor((el / T0) * pts.length));
+        dot.style.transform = `translateX(${pts[idx][1] * span}px)`;
+        if (el < T0) requestAnimationFrame(step);
+      };
+      dot.style.transform = "translateX(0)";
+      if (reduce) { dot.style.transform = `translateX(${span}px)`; return; }
+      requestAnimationFrame(step);
+    });
+  });
+  $("#agentStates").innerHTML = ["thinking", "acting", "waiting", "done"].map((state) => {
+    const t = T.agentIndicator[state];
+    return `<div class="agent-state">${agentInd(state)}<b>${state[0].toUpperCase() + state.slice(1)}</b><span>${t.$value} · ${t.$description}</span></div>`;
+  }).join("");
+
+  /* ---------- haptics ---------- */
+  const wave = (pattern) => pattern.map((ms_, i) => i % 2 === 0 ? `<i style="height:${Math.min(26, 6 + ms_)}px"></i>` : `<i class="gap" style="width:${Math.max(4, ms_ / 6)}px"></i>`).join("");
+  $("#hapticBody").innerHTML = Object.entries(strip(T.haptics)).map(([name, t]) => `<tr><td><b>${name}</b></td><td><code>${t.$value.android}</code></td><td><span class="wave">${wave(t.$value.pattern)}</span></td><td><button class="feel" type="button" data-p="${t.$value.pattern.join(",")}">${ms("vibration")}Feel it</button></td><td>${t.$description}</td></tr>`).join("");
+  document.querySelectorAll(".feel").forEach((b) => b.addEventListener("click", () => {
+    try { if (navigator.vibrate) navigator.vibrate(b.dataset.p.split(",").map(Number)); } catch (e) { /* vibration unavailable */ }
+    b.classList.add("on"); setTimeout(() => b.classList.remove("on"), 400);
+  }));
+
+  /* ---------- components ---------- */
+  const comp = (cap, html) => `<div class="comp"><div class="cap">${cap}</div>${html}</div>`;
+  const components = (mode) => [
+    `<div class="label">${mode} theme</div>`,
+    comp("Composer · empty / with text", `<div class="c-composer"><button class="c-iconbtn" aria-label="Add">${ms("add")}</button><span class="ph t-bodyLarge">Get something done…</span><button class="c-iconbtn" aria-label="Voice">${ms("mic")}</button></div><div class="c-composer"><button class="c-iconbtn" aria-label="Add">${ms("add")}</button><span class="txt t-bodyLarge">Make me a tip splitter</span><button class="c-send" aria-label="Send">${ms("arrow_upward")}</button></div>`),
+    comp("Intent group", `<div class="c-group"><button class="t-labelLarge" aria-pressed="true">${ms("bolt")}Do</button><button class="t-labelLarge" aria-pressed="false">${ms("construction")}Make</button><button class="t-labelLarge" aria-pressed="false">${ms("autorenew")}Automate</button></div>`),
+    comp("User message · steer", `<div class="c-user t-bodyLarge">I'm running late for dinner with Priya.</div><div class="c-user steer t-bodyMedium"><small class="t-labelSmall">Added while working</small>Also say I'll order the starters</div>`),
+    comp("Narration + step group · running / done / failed / blocked", `<div class="c-narr t-bodyLarge">Let me check when dinner is and how far away you are.<span class="dot"></span></div>
+      <div class="c-steps">
+        <div class="c-step"><span class="gl">${ms("calendar_month")}</span><span style="display:grid;min-width:0"><span class="lbl t-titleSmall">Checked your calendar <em>· tonight</em></span><span class="res t-bodySmall">Dinner with Priya, 8:00 PM</span></span><span class="trail">${ms("check")}</span></div>
+        <div class="c-step"><span class="gl">${ms("directions_car")}</span><span style="display:grid;min-width:0"><span class="lbl t-titleSmall">Estimating travel time</span></span><span class="trail"><span class="c-spinner"></span></span></div>
+        <div class="c-step failed"><span class="gl">${ms("error")}</span><span style="display:grid;min-width:0"><span class="lbl t-titleSmall">Couldn't read the forecast</span><span class="res t-bodySmall">The weather service didn't answer</span></span><span class="trail" style="color:var(--error)">${ms("refresh")}</span></div>
+        <div class="c-step blocked"><span class="gl">${ms("lock")}</span><span style="display:grid;min-width:0"><span class="lbl t-titleSmall">Send SMS</span><span class="res t-bodySmall">Not allowed by your settings</span></span><span class="trail"></span></div>
+      </div>`),
+    comp("Status line", `<div class="c-status"><span class="agent-ind" data-state="acting" style="--ind:var(--primary)" aria-hidden="true"></span><span class="verb t-labelLarge">Estimating travel time</span><span class="time t-monoTimer">0:07</span><button class="stop t-labelLarge">${ms("stop", "fill")}Stop</button></div>`),
+    comp("Run summary", `<div class="c-summary t-labelLarge">${ms("check_circle", "fill ok")}4 steps · 15s${ms("chevron_right")}</div>`),
+    comp("Decision card · inline, pending (the run keeps going)", `<div class="c-decision"><div class="dh"><span class="gl">${ms("sms")}</span><div><div class="t-titleMedium">Send this to Priya?</div><div class="why t-bodySmall">Opens Messages with the text ready. Nothing is sent until you tap send there.</div></div></div><div class="payload t-bodyLarge"><div class="to t-labelMedium">${ms("person")}Priya Sharma · mobile</div>Running about 15 minutes late, I'll be there by 8:15.</div><div class="acts"><button class="c-btn sm filled t-labelLarge">${ms("open_in_new")}Open in Messages</button><button class="c-btn sm tonal t-labelLarge">${ms("edit")}Edit</button><button class="c-btn sm text t-labelLarge">Not now</button></div></div>`),
+    comp("Decision card · capability, with scope", `<div class="c-decision"><div class="dh"><span class="gl">${ms("notifications")}</span><div><div class="t-titleMedium">Let Plant reminder notify you?</div><div class="why t-bodySmall">Only this automation, only for the reminder.</div></div></div><div class="acts"><button class="c-btn sm filled t-labelLarge">${ms("check")}Allow</button><button class="c-btn sm text t-labelLarge">Not now</button><span class="scope-note t-bodySmall">${ms("info")}Asks again if it wants more</span></div></div>`),
+    comp("Question card · options", `<div class="c-decision"><div class="dh"><span class="gl">${ms("help")}</span><div><div class="t-titleMedium">Which Priya?</div><div class="why t-bodySmall">You have two contacts with that name.</div></div></div><div class="c-options"><button class="c-option t-labelLarge">${ms("person")}Priya Sharma</button><button class="c-option t-labelLarge">${ms("person")}Priya K (work)</button></div></div>`),
+    comp("Resolved · after a tap the card shrinks to its outcome", `<div class="c-resolved t-labelLarge">${ms("check_circle", "fill")}Opened in Messages · just now</div><div class="c-resolved declined t-labelLarge">${ms("do_not_disturb_on")}Not sent</div>`),
+    comp("Run ended, waiting on you (replaces the status line)", `<div class="c-waiting"><span class="agent-ind" data-state="waiting" style="--ind-wait:currentColor" aria-hidden="true"></span><span class="t-labelLarge">Waiting on 1 choice</span><button class="t-labelLarge">Show</button></div>`),
+    comp("Automation card", `<div class="c-card"><div class="head">${tileSpan("pine", mode, "water_drop", 40)}<div><div class="t-titleMedium">Plant reminder</div><div class="meta t-bodySmall">Automation · runs on this phone</div></div></div>
+      <div class="row first">${ms("schedule")}<div><div class="k t-labelSmall">When</div><div class="t-titleSmall">Every morning at 8:00</div></div></div>
+      <div class="row">${ms("rainy")}<div><div class="k t-labelSmall">Only if</div><div class="t-titleSmall">No rain for 3 days</div></div></div>
+      <div class="row last">${ms("notifications")}<div><div class="k t-labelSmall">Then</div><div class="t-titleSmall">Remind me: "Water the balcony plants"</div></div></div>
+      <div class="acts"><button class="c-btn sm filled t-labelLarge">${ms("power_settings_new")}Turn on</button><button class="c-btn sm outlined t-labelLarge">${ms("tune")}Change</button></div></div>`),
+    comp("Assist chips · tags", `<div class="c-chips"><button class="c-chip t-labelLarge">${ms("alarm")}Remind me to leave</button><button class="c-chip t-labelLarge">${ms("map")}Directions</button></div><div class="c-chips"><span class="c-tag t-labelMedium">${ms("wifi_off")}Offline</span><span class="c-tag t-labelMedium">${ms("lock")}No permissions</span></div>`),
+    comp("Buttons", `<div class="c-btns"><button class="c-btn filled t-labelLarge">Filled</button><button class="c-btn tonal t-labelLarge">Tonal</button><button class="c-btn outlined t-labelLarge">Outlined</button><button class="c-btn text t-labelLarge">Text</button></div>`),
+    comp("List rows · semantic badges", `<div class="c-list">
+      <div class="c-lrow">${tileSpan("gold", mode, "sms", 44)}<div><div class="t-titleSmall">Dinner note to Priya</div><div class="meta t-bodySmall">Waiting on 1 choice</div></div><span class="c-badge waiting t-labelMedium">Show</span></div>
+      <div class="c-lrow">${tileSpan("pine", mode, "water_drop", 44)}<div><div class="t-titleSmall">Plant reminder</div><div class="meta t-bodySmall">Next check tomorrow 8:00</div></div><span class="c-badge done t-labelMedium">On</span></div>
+      <div class="c-lrow">${tileSpan("clay", mode, "wb_sunny", 44)}<div><div class="t-titleSmall">Morning brief</div><div class="meta t-bodySmall">Couldn't reach the news source</div></div><span class="c-badge failed t-labelMedium">Failed</span></div></div>`),
+    comp("Creation tiles", `<div class="c-shelf">
+      <div class="c-tile">${tileSpan("ink", mode, "calculate", 56)}<span class="t-labelLarge">Tip Split<small class="t-bodySmall">App</small></span></div>
+      <div class="c-tile">${tileSpan("gold", mode, "widgets", 56)}<span class="t-labelLarge">Water<small class="t-bodySmall">Widget</small></span></div>
+      <div class="c-tile">${tileSpan("mint", mode, "wb_sunny", 56)}<span class="t-labelLarge">Brief<small class="t-bodySmall">Daily 7:30</small></span></div></div>`),
+    comp("Snackbar · Latest pill", `<div class="c-snack"><span class="t-bodyMedium">Plant reminder is on.</span><button class="t-labelLarge">Undo</button></div><div class="c-latest t-labelLarge">${ms("arrow_downward")}Latest</div>`),
+  ].join("");
+  $("#frameLight").innerHTML = components("light");
+  $("#frameDark").innerHTML = components("dark");
+
+  /* ---------- tokens ---------- */
+  const raw = JSON.stringify(T, null, 2);
+  $("#tokenJson").textContent = raw;
+  $("#copyTokens").addEventListener("click", () => {
+    const done = (msg) => { $("#copyNote").textContent = msg; setTimeout(() => { $("#copyNote").textContent = ""; }, 2000); };
+    try {
+      navigator.clipboard.writeText(raw).then(() => done("Copied"), () => { getSelection().selectAllChildren($("#tokenJson")); done("Selected; press copy"); });
+    } catch (e) { getSelection().selectAllChildren($("#tokenJson")); done("Selected; press copy"); }
+  });
+})();
+</script>
