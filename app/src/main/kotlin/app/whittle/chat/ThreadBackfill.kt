@@ -3,8 +3,8 @@ package app.whittle.chat
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
- * Chats saved before sources and step sites existed get them when they open, rebuilt from what was
- * saved: the links in each answer, and the address recorded in each step's details. Page titles from
+ * Chats saved before answers, sources and step sites were recorded get them when they open, rebuilt from
+ * what was saved: each turn's last words, the links in them, and the address in each step's details. Page titles from
  * the provider weren't saved then, so those sources show the link text or the site name.
  */
 internal class ThreadBackfill(
@@ -12,7 +12,7 @@ internal class ThreadBackfill(
     private val siteArguments: Set<String>,
     private val newKey: () -> String,
 ) {
-    fun apply(items: List<ThreadItem>): List<ThreadItem> = turns(items.map(::withSites)).flatMap(::withSources)
+    fun apply(items: List<ThreadItem>): List<ThreadItem> = turns(items.map(::withSites)).map(::withAnswer).flatMap(::withSources)
 
     private fun withSites(item: ThreadItem): ThreadItem = when (item) {
         is ThreadItem.Steps -> item.copy(steps = item.steps.map { step -> if (step.site != null) step else step.copy(site = siteOf(step)) })
@@ -38,6 +38,13 @@ internal class ThreadBackfill(
             turns.last() += item
             turns
         }
+
+    private fun withAnswer(turn: List<ThreadItem>): List<ThreadItem> {
+        if (turn.any { it is ThreadItem.Narration && it.answer }) return turn
+        val last = turn.indexOfLast { it is ThreadItem.Narration }
+        if (last < 0) return turn
+        return turn.mapIndexed { index, item -> if (index == last) (item as ThreadItem.Narration).copy(answer = true) else item }
+    }
 
     private fun withSources(turn: List<ThreadItem>): List<ThreadItem> {
         if (turn.any { it is ThreadItem.Sources }) return turn

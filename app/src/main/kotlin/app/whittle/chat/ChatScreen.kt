@@ -1,5 +1,7 @@
 package app.whittle.chat
 
+import androidx.compose.ui.text.SpanStyle
+import android.content.ClipData
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -44,6 +46,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -57,9 +61,15 @@ import app.whittle.design.components.Narration
 import app.whittle.design.components.QuestionCard
 import app.whittle.design.components.QuestionUi
 import app.whittle.design.components.ResolvedChip
+import app.whittle.design.components.AnswerFooter
+import app.whittle.design.components.AnswerFooterUi
 import app.whittle.design.components.AnswerSources
+import app.whittle.design.components.lightMarkdown
 import app.whittle.design.components.RunSummaryChip
 import app.whittle.design.components.SourceUi
+import app.whittle.design.components.TopBarAction
+import app.whittle.design.components.TopBarActionGroup
+import app.whittle.design.components.TopBarButton
 import app.whittle.design.components.StatusLine
 import app.whittle.design.components.StepGroup
 import app.whittle.design.components.StepStatus
@@ -105,9 +115,12 @@ fun ChatScreen(state: ChatState, viewModel: ChatViewModel, sidebarMaxChats: Int,
         topBar = {
             CenterAlignedTopAppBar(
                 navigationIcon = {
-                    IconButton(onClick = { haptics.perform(WhittleHaptic.Tap); scope.launch { drawer.open() } }) {
-                        WhittleIcon("menu", contentDescription = stringResource(R.string.sidebar_open))
-                    }
+                    TopBarButton(
+                        icon = "short_text",
+                        contentDescription = stringResource(R.string.sidebar_open),
+                        onClick = { scope.launch { drawer.open() } },
+                        modifier = Modifier.padding(start = WhittleSpace.m),
+                    )
                 },
                 title = {
                     Text(
@@ -118,10 +131,10 @@ fun ChatScreen(state: ChatState, viewModel: ChatViewModel, sidebarMaxChats: Int,
                     )
                 },
                 actions = {
-                    IconButton(onClick = { haptics.perform(WhittleHaptic.Tap); viewModel.newChat() }) {
-                        WhittleIcon("chat_add_on", fill = true, contentDescription = stringResource(R.string.sidebar_new_chat))
+                    TopBarActionGroup(Modifier.padding(end = WhittleSpace.m)) {
+                        TopBarAction("edit_square", stringResource(R.string.sidebar_new_chat), viewModel::newChat)
+                        ChatMenu(onChangeModel = viewModel::changeModel)
                     }
-                    ChatMenu(onChangeModel = viewModel::changeModel)
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
@@ -168,7 +181,12 @@ private fun Thread(items: List<ThreadItem>, viewModel: ChatViewModel, requestCap
             verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
             modifier = Modifier.fillMaxSize(),
         ) {
-            items(items, key = { it.key }) { item -> ThreadRow(item, viewModel, requestCapability, Modifier.animateItem()) }
+            // Sources right after an answer join its footer row instead of taking a row of their own.
+            val footerSources = answerSources(items)
+            val attached = footerSources.values.mapTo(mutableSetOf()) { it.key }
+            items(items.filterNot { it.key in attached }, key = { it.key }) { item ->
+                ThreadRow(item, viewModel, requestCapability, Modifier.animateItem(), footerSources[item.key])
+            }
         }
         AnimatedVisibility(
             visible = !following && listState.canScrollForward,
@@ -188,10 +206,15 @@ private fun ThreadRow(
     viewModel: ChatViewModel,
     requestCapability: (ThreadItem.Capability) -> Unit,
     modifier: Modifier = Modifier,
+    sources: ThreadItem.Sources? = null,
 ) {
     when (item) {
         is ThreadItem.User -> UserMessage(item.text, modifier, steerLabel = if (item.steer) stringResource(R.string.steer_label) else null)
-        is ThreadItem.Narration -> Narration(item.text, item.streaming, modifier)
+        is ThreadItem.Narration -> if (item.answer && !item.streaming) {
+            Answer(item, sources, viewModel, modifier)
+        } else {
+            Narration(item.text, item.streaming, modifier)
+        }
         is ThreadItem.Steps -> StepGroup(item.steps.map { it.toUi() }, modifier)
         is ThreadItem.Decision -> DecisionCard(
             item.text.toUi(item.key),
@@ -298,12 +321,51 @@ private fun EmptyThread(state: ChatState) {
     }
 }
 
+/** An answer with its footer: copy, and the sources it cites. */
+@Composable
+private fun Answer(item: ThreadItem.Narration, sources: ThreadItem.Sources?, viewModel: ChatViewModel, modifier: Modifier) {
+    val clipboard = LocalClipboard.current
+    val uriHandler = LocalUriHandler.current
+    val scope = rememberCoroutineScope()
+    val copyLabel = stringResource(R.string.answer_copy)
+    val footer = AnswerFooterUi(
+        copyLabel = copyLabel,
+        copiedLabel = stringResource(R.string.answer_copied),
+        sourcesLabel = sources?.let { pluralStringResource(R.plurals.sources_count, it.sources.size, it.sources.size) },
+        sources = sources?.sources.orEmpty().map { SourceUi(it.title, it.host, it.url) },
+        sourcesExpanded = sources?.expanded == true,
+    )
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+        Narration(item.text, streaming = false)
+        AnswerFooter(
+            footer = footer,
+            // Plain text: what the user reads, without the formatting marks.
+            onCopy = {
+                val plain = lightMarkdown(item.text, SpanStyle()).text
+                scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(copyLabel, plain))) }
+            },
+            onToggleSources = { sources?.let { viewModel.toggleSources(it.key) } },
+            onOpenSource = { uriHandler.openUri(it.url) },
+        )
+    }
+}
+
+/** Each answer's sources item, when it sits right after the answer. */
+private fun answerSources(items: List<ThreadItem>): Map<String, ThreadItem.Sources> = buildMap {
+    items.zipWithNext().forEach { (item, next) ->
+        if (item is ThreadItem.Narration && item.answer && next is ThreadItem.Sources) put(item.key, next)
+    }
+}
+
 @Composable
 private fun ChatMenu(onChangeModel: () -> Unit) {
     var open by remember { mutableStateOf(false) }
-    IconButton(onClick = { open = true }) { WhittleIcon("more_vert", contentDescription = stringResource(R.string.chat_more)) }
-    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-        DropdownMenuItem(text = { Text(stringResource(R.string.chat_change_model)) }, onClick = { open = false; onChangeModel() })
+    // The menu anchors to this box, so it opens under the ⋮ button.
+    Box {
+        TopBarAction("more_vert", stringResource(R.string.chat_more)) { open = true }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(text = { Text(stringResource(R.string.chat_change_model)) }, onClick = { open = false; onChangeModel() })
+        }
     }
 }
 

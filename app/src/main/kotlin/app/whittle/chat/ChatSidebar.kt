@@ -55,7 +55,7 @@ fun ChatSidebar(
                 contentPadding = ButtonDefaults.contentPaddingFor(height),
                 modifier = Modifier.fillMaxWidth().padding(top = WhittleSpace.m).height(height),
             ) {
-                WhittleIcon("chat_add_on", fill = true, size = ButtonDefaults.iconSizeFor(height))
+                WhittleIcon("edit_square", size = ButtonDefaults.iconSizeFor(height))
                 Spacer(Modifier.width(ButtonDefaults.iconSpacingFor(height)))
                 Text(stringResource(R.string.sidebar_new_chat), style = ButtonDefaults.textStyleFor(height))
             }

@@ -13,7 +13,6 @@ object MaterialSymbols {
         "arrow_upward" to R.drawable.ms_arrow_upward,
         "build" to R.drawable.ms_build,
         "calendar_month" to R.drawable.ms_calendar_month,
-        "chat_add_on" to R.drawable.ms_chat_add_on,
         "check" to R.drawable.ms_check,
         "check_circle" to R.drawable.ms_check_circle,
         "chevron_right" to R.drawable.ms_chevron_right,
@@ -25,6 +24,7 @@ object MaterialSymbols {
         "do_not_disturb_on" to R.drawable.ms_do_not_disturb_on,
         "edit" to R.drawable.ms_edit,
         "edit_document" to R.drawable.ms_edit_document,
+        "edit_square" to R.drawable.ms_edit_square,
         "error" to R.drawable.ms_error,
         "expand_more" to R.drawable.ms_expand_more,
         "folder" to R.drawable.ms_folder,
@@ -33,7 +33,6 @@ object MaterialSymbols {
         "key" to R.drawable.ms_key,
         "language" to R.drawable.ms_language,
         "lock" to R.drawable.ms_lock,
-        "menu" to R.drawable.ms_menu,
         "mic" to R.drawable.ms_mic,
         "more_vert" to R.drawable.ms_more_vert,
         "open_in_new" to R.drawable.ms_open_in_new,
@@ -44,6 +43,7 @@ object MaterialSymbols {
         "schedule" to R.drawable.ms_schedule,
         "search" to R.drawable.ms_search,
         "settings" to R.drawable.ms_settings,
+        "short_text" to R.drawable.ms_short_text,
         "sms" to R.drawable.ms_sms,
         "stop" to R.drawable.ms_stop,
         "terminal" to R.drawable.ms_terminal,
@@ -52,7 +52,6 @@ object MaterialSymbols {
     )
 
     private val filled: Map<String, Int> = mapOf(
-        "chat_add_on" to R.drawable.ms_chat_add_on_fill,
         "check_circle" to R.drawable.ms_check_circle_fill,
         "do_not_disturb_on" to R.drawable.ms_do_not_disturb_on_fill,
         "push_pin" to R.drawable.ms_push_pin_fill,

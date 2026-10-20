@@ -34,13 +34,14 @@ class ThreadBackfillTest {
         val steps = assertIs<ThreadItem.Steps>(assertIs<ThreadItem.Summary>(filled[1]).folded.single()).steps
         assertEquals(listOf(null, "techcrunch.com"), steps.map { it.site })
         assertEquals(listOf(SourceModel("https://aiweekly.co/m", "aiweekly.co", "aiweekly.co")), assertIs<ThreadItem.Sources>(filled[3]).sources)
+        assertEquals(listOf(true, true), filled.filterIsInstance<ThreadItem.Narration>().map { it.answer })
     }
 
     @Test
     fun `chats that already have sources are left as they are`() {
         val current = listOf(
             ThreadItem.User("u1", "News?", steer = false),
-            ThreadItem.Narration("n1", "See [a](https://a.com).", streaming = false),
+            ThreadItem.Narration("n1", "See [a](https://a.com).", streaming = false, answer = true),
             ThreadItem.Sources("src", listOf(SourceModel("https://a.com/", "A page", "a.com"))),
         )
         assertEquals(current, backfill.apply(current))

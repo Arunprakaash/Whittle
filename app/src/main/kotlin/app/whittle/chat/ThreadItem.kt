@@ -24,7 +24,13 @@ sealed interface ThreadItem {
     /** The agent's words: narration between steps while streaming; the last one in a run is its answer. */
     @Serializable
     @SerialName("narration")
-    data class Narration(override val key: String, val text: String, val streaming: Boolean) : ThreadItem
+    data class Narration(
+        override val key: String,
+        val text: String,
+        val streaming: Boolean,
+        /** The run's final words, which get a copy action (and the sources, when it cites any). */
+        val answer: Boolean = false,
+    ) : ThreadItem
 
     @Serializable
     @SerialName("steps")

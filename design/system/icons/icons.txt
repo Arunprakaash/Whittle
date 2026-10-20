@@ -6,7 +6,6 @@ arrow_downward
 arrow_upward
 build
 calendar_month
-chat_add_on:fill
 check
 check_circle:fill
 chevron_right
@@ -18,6 +17,7 @@ description
 do_not_disturb_on:fill
 edit
 edit_document
+edit_square
 error
 expand_more
 folder
@@ -26,7 +26,6 @@ info
 key
 language
 lock
-menu
 mic
 more_vert
 open_in_new
@@ -37,6 +36,7 @@ refresh
 schedule
 search:fill
 settings
+short_text
 sms
 stop:fill
 terminal

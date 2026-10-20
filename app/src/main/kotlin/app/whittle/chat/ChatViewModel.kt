@@ -440,6 +440,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         finishNarration()
         val said = _state.value.items.drop(segment.start).filterIsInstance<ThreadItem.Narration>().map { it.text }
         val sources = CitedSources.from(said, citedTitles)
+        markAnswer()
         foldSegment()
         if (sources.isNotEmpty()) placeAfterAnswer(ThreadItem.Sources(key(), sources))
         _state.update { it.copy(status = null) }
@@ -466,6 +467,13 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val seconds = ((graph.clock.nowMillis() - segment.startedAtMillis) / MILLIS_PER_SECOND).coerceAtLeast(1)
         val summary = ThreadItem.Summary(key(), stepCount, seconds, expanded = false, folded = folded)
         state.copy(items = before + summary + kept)
+    }
+
+    /** The segment's last narration is its answer. */
+    private fun markAnswer() = _state.update { state ->
+        val answer = state.items.indexOfLast { it is ThreadItem.Narration }
+        if (answer < segment.start) return@update state
+        state.copy(items = state.items.mapIndexed { index, item -> if (index == answer) (item as ThreadItem.Narration).copy(answer = true) else item })
     }
 
     /** Sources sit right under the answer, above any cards the run left open. */
