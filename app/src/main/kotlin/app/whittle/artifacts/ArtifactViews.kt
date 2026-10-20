@@ -1,5 +1,6 @@
 package app.whittle.artifacts
 
+import app.whittle.observability.posthog.userContent
 import app.whittle.export.ExportResult
 import app.whittle.WhittleApplication
 import android.widget.Toast
@@ -67,7 +68,7 @@ fun ArtifactSheet(
             verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
-                Text(ref.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Text(ref.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).userContent())
                 TopBarAction(
                     icon = "refresh",
                     contentDescription = stringResource(R.string.artifact_reload),
@@ -127,7 +128,7 @@ fun ArtifactScreen(ref: ArtifactRef, artifacts: Artifacts, revision: Int, onBack
 @Composable
 private fun ArtifactContent(ref: ArtifactRef, artifacts: Artifacts, revision: Int, modifier: Modifier) {
     if (artifacts.exists(ref)) {
-        ArtifactWebView(ref, artifacts, revision, modifier)
+        ArtifactWebView(ref, artifacts, revision, modifier.userContent())
     } else {
         Box(modifier, contentAlignment = Alignment.Center) {
             Text(stringResource(R.string.artifact_missing), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -1,5 +1,6 @@
 package app.whittle.chat
 
+import app.whittle.observability.posthog.userContent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -117,6 +118,7 @@ private fun ChatRow(chat: ChatListItem, selected: Boolean, shape: Shape, onOpen:
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
+                .userContent()
                 .fillMaxWidth()
                 .clip(shape)
                 .background(if (selected) colors.secondaryContainer else colors.surfaceContainerHigh)

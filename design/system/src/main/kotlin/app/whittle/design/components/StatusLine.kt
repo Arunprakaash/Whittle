@@ -54,6 +54,8 @@ fun StatusLine(
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
     plan: StatusPlanUi? = null,
+    /** On the step label and plan steps, which can name what the user asked for (e.g. to keep them out of recordings). */
+    contentModifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
     val haptics = WhittleTheme.haptics
@@ -69,7 +71,7 @@ fun StatusLine(
     ) {
         AnimatedVisibility(open) {
             Column(
-                Modifier.padding(start = WhittleSpace.m, end = WhittleSpace.m, top = WhittleSpace.m),
+                contentModifier.padding(start = WhittleSpace.m, end = WhittleSpace.m, top = WhittleSpace.m),
                 verticalArrangement = Arrangement.spacedBy(WhittleSpace.s),
             ) {
                 plan?.steps?.forEach { PlanStepRow(it) }
@@ -92,7 +94,7 @@ fun StatusLine(
                 style = MaterialTheme.typography.labelLarge.copy(brush = rememberShimmerBrush(colors.onSurfaceVariant, colors.primary)),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).then(contentModifier),
             )
             if (plan != null) {
                 Text(plan.progress, style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)

@@ -22,11 +22,13 @@ class PostHogAndroidClient : PostHogClient {
         /**
          * [projectKey] is PostHog's public project key, supplied by the build, not by config files.
          * Session replay also needs "Record user sessions" turned on in the PostHog project's settings.
-         * [showContent] records text and images as they are, for a developer's own test builds; elements
-         * marked [hiddenFromReplay] and password fields stay masked regardless.
+         * Recordings show Whittle's own interface; the user's content is marked [userContent] and masked.
+         * [showContent] shows that content too, for a developer's own test builds; [hiddenFromReplay]
+         * elements (keys, tokens) stay masked regardless.
          */
         fun install(context: Context, projectKey: String, config: TelemetryConfig, showContent: Boolean, debugLogs: Boolean) {
             val replay = config.sessionReplay
+            ReplayPrivacy.showUserContent = showContent
             val posthog = PostHogAndroidConfig(apiKey = projectKey, host = config.posthogHost).apply {
                 debug = debugLogs
                 // Nothing is sent until the user's saved choices are known; see applyChoices.

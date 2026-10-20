@@ -18,8 +18,8 @@
     "sessionReplay": {
       "enabled": true,
       "screenshotMode": true,
-      "maskAllText": true,
-      "maskAllImages": true,
+      "maskAllText": false,
+      "maskAllImages": false,
       "captureTouches": true,
       "captureLogcat": false,
       "sampleRate": 1.0

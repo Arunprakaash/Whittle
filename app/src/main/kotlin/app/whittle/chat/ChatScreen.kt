@@ -1,5 +1,6 @@
 package app.whittle.chat
 
+import app.whittle.observability.posthog.userContent
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import app.whittle.design.components.WelcomeMascot
@@ -200,6 +201,7 @@ private fun ChatLayout(
                     Text(
                         title ?: stringResource(R.string.chat_title),
                         style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.userContent(),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -294,24 +296,26 @@ private fun ThreadRow(
     modifier: Modifier = Modifier,
     footer: TurnFooter? = null,
 ) {
+    // What the user and the agent wrote, did and made stays out of session recordings; notices don't.
+    val content = modifier.userContent()
     when (item) {
-        is ThreadItem.User -> UserMessage(item.text, modifier, steerLabel = if (item.steer) stringResource(R.string.steer_label) else null)
+        is ThreadItem.User -> UserMessage(item.text, content, steerLabel = if (item.steer) stringResource(R.string.steer_label) else null)
         is ThreadItem.Narration -> if (footer != null) {
-            Answer(item, footer, viewModel, modifier)
+            Answer(item, footer, viewModel, content)
         } else {
-            Narration(item.text, item.streaming, modifier)
+            Narration(item.text, item.streaming, content)
         }
-        is ThreadItem.Steps -> StepGroup(item.steps.map { it.toUi() }, modifier)
+        is ThreadItem.Steps -> StepGroup(item.steps.map { it.toUi() }, content)
         is ThreadItem.Decision -> DecisionCard(
             item.text.toUi(item.key),
             onApprove = { viewModel.answer(item, approve = true) },
             onDecline = { viewModel.answer(item, approve = false) },
-            modifier = modifier,
+            modifier = content,
         )
         is ThreadItem.Question -> QuestionCard(
             QuestionUi(item.key, item.text.icon, item.text.question, item.text.options),
             onPick = { viewModel.answer(item, it) },
-            modifier = modifier,
+            modifier = content,
             answer = item.answer,
         )
         is ThreadItem.Capability -> DecisionCard(
@@ -333,7 +337,7 @@ private fun ThreadRow(
             )
             TextButton(onClick = { viewModel.continueRun(item) }) { Text(stringResource(R.string.notice_continue)) }
         }
-        is ThreadItem.Resolved -> ResolvedChip(item.outcome, item.declined, modifier)
+        is ThreadItem.Resolved -> ResolvedChip(item.outcome, item.declined, content)
         is ThreadItem.Summary -> Column(modifier, verticalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
             RunSummaryChip(
                 text = pluralStringResource(R.plurals.run_summary, item.stepCount, item.stepCount, item.seconds),
@@ -349,7 +353,7 @@ private fun ThreadRow(
         is ThreadItem.Plan -> PlanChecklist(
             title = stringResource(R.string.plan_title, item.steps.count { it.status == PlanStatus.COMPLETED }, item.steps.size),
             steps = item.steps.map { it.toUi() },
-            modifier = modifier,
+            modifier = content,
         )
         is ThreadItem.Artifact -> {
             val open = LocalOpenArtifact.current
@@ -358,7 +362,7 @@ private fun ThreadRow(
                 kind = stringResource(R.string.artifact_kind),
                 openLabel = stringResource(R.string.artifact_open),
                 onOpen = { open(item.ref) },
-                modifier = modifier,
+                modifier = content,
             )
         }
         is ThreadItem.Sources -> {
@@ -369,7 +373,7 @@ private fun ThreadRow(
                 expanded = item.expanded,
                 onToggle = { viewModel.toggleSources(item.key) },
                 onOpen = { uriHandler.openUri(it.url) },
-                modifier = modifier,
+                modifier = content,
             )
         }
         is ThreadItem.Notice -> Text(
@@ -401,6 +405,8 @@ private fun Dock(state: ChatState, viewModel: ChatViewModel) {
                     elapsed = elapsed(status.startedAtMillis),
                     stopLabel = stringResource(R.string.status_stop),
                     onStop = viewModel::stop,
+                    // A step or plan names what the user asked for; the default labels don't.
+                    contentModifier = if (status.verb != null || status.plan != null) Modifier.userContent() else Modifier,
                     plan = status.plan?.let { steps ->
                         StatusPlanUi(
                             progress = stringResource(R.string.plan_progress, steps.count { it.status == PlanStatus.COMPLETED }, steps.size),
@@ -417,6 +423,7 @@ private fun Dock(state: ChatState, viewModel: ChatViewModel) {
             sendLabel = stringResource(R.string.composer_send),
             onSend = viewModel::send,
             enabled = state.model != null,
+            modifier = Modifier.userContent(),
         )
     }
 }

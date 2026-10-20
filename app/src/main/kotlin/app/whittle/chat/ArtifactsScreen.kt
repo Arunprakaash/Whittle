@@ -1,5 +1,6 @@
 package app.whittle.chat
 
+import app.whittle.observability.posthog.userContent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -66,6 +67,7 @@ fun ArtifactsScreen(
                     subtitle = null,
                     shape = segmentedShape(index, artifacts.size),
                     onClick = { onOpen(item.ref) },
+                    modifier = Modifier.userContent(),
                 )
             }
         }
