@@ -149,15 +149,19 @@ class WorkspaceToolsTest {
     }
 
     @Test
-    fun `show_artifact accepts an existing html page and refuses anything else`() = runBlocking<Unit> {
-        WriteFileTool(workspaces, config).execute(args("""{"path":"app/index.html","content":"<h1>Hi</h1>"}"""), context)
+    fun `show_artifact only shows pages a build produced`() = runBlocking<Unit> {
+        WriteFileTool(workspaces, config).execute(args("""{"path":"page.html","content":"<h1>Hi</h1>"}"""), context)
+        val built = File(root, "chat-1/dist").apply { mkdirs() }
+        File(built, "index.html").writeText("<div id=root></div>")
+        BuiltPages.record(built, listOf("index.html"))
         val tool = ShowArtifactTool(workspaces)
 
-        val shown = tool.execute(args("""{"path":"app/index.html","title":"Greeting"}"""), context)
+        val shown = tool.execute(args("""{"path":"dist/index.html","title":"Greeting"}"""), context)
         assertEquals(false, shown.isError)
         assertEquals("Greeting", shown.field("title"))
 
-        assertEquals(true, tool.execute(args("""{"path":"app/missing.html","title":"X"}"""), context).isError)
+        assertEquals(true, tool.execute(args("""{"path":"page.html","title":"X"}"""), context).isError)
+        assertEquals(true, tool.execute(args("""{"path":"dist/missing.html","title":"X"}"""), context).isError)
         assertEquals(true, tool.execute(args("""{"path":"notes.txt","title":"X"}"""), context).isError)
         assertEquals(true, tool.execute(args("""{"path":"../other/index.html","title":"X"}"""), context).isError)
     }

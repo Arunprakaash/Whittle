@@ -124,14 +124,14 @@ class BuildWebAppTool(
         }
         val outputs = result.files.map { it.path to it.bytes } + (pageName to page.built(bundles, config.moduleOutput).toByteArray())
         return try {
-            Outcome.Success(
-                outputs.map { (path, bytes) ->
-                    val target = access.file("$outPath/$path").orElse { return Outcome.Failure(HarnessError.Storage(it)) }
-                    target.parentFile?.mkdirs()
-                    target.writeBytes(bytes)
-                    "$outPath/$path"
-                },
-            )
+            val written = outputs.map { (path, bytes) ->
+                val target = access.file("$outPath/$path").orElse { return Outcome.Failure(HarnessError.Storage(it)) }
+                target.parentFile?.mkdirs()
+                target.writeBytes(bytes)
+                "$outPath/$path"
+            }
+            access.file(outPath).orElse { return Outcome.Failure(HarnessError.Storage(it)) }.let { BuiltPages.record(it, listOf(pageName)) }
+            Outcome.Success(written)
         } catch (exception: IOException) {
             Outcome.Failure(HarnessError.Storage("couldn't save the built app: ${exception.message}"))
         }

@@ -14,8 +14,9 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 
 /**
- * Puts a web page or app from the workspace in front of the user as a card they can open and use. It only
- * checks the entry file exists; the app renders it from the workspace, so later edits show up live.
+ * Puts an app from the workspace in front of the user as a card they can open and use. Only pages that
+ * build_web_app produced are shown, so every app is a built React project, never hand-written HTML. The app
+ * renders from the workspace, so a rebuild shows up live.
  */
 class ShowArtifactTool(workspaces: Workspaces) : WorkspaceTool(workspaces) {
     override val definition = DEFINITION
@@ -28,7 +29,10 @@ class ShowArtifactTool(workspaces: Workspaces) : WorkspaceTool(workspaces) {
             is Outcome.Failure -> return error(resolved.error.message)
             is Outcome.Success -> resolved.value
         }
-        if (!file.isFile) return error("'$path' doesn't exist yet; write it first")
+        if (!file.isFile) return error("'$path' doesn't exist yet; build the app first")
+        if (!BuiltPages.wasBuilt(file)) {
+            return error("'$path' wasn't made by build_web_app. Apps are React projects: write src/main.tsx and its components, build with build_web_app, then show the page it returns")
+        }
         return success(buildJsonObject { put(PATH, path); put(TITLE, title) })
     }
 
@@ -39,8 +43,8 @@ class ShowArtifactTool(workspaces: Workspaces) : WorkspaceTool(workspaces) {
 
         val DEFINITION = ToolDefinition(
             id = ToolId("show_artifact"),
-            description = "Shows an HTML page or web app from this chat's workspace to the user as a card they can open, " +
-                "use and share. Write the files first, then call this with the entry page. Call it again only for a different page.",
+            description = "Shows an app to the user as a card they can open, use and share. Pass the page build_web_app " +
+                "returned (e.g. dist/index.html); other pages are refused. Call it again only for a different app.",
             inputSchema = Json.parseToJsonElement(
                 """{"type":"object","properties":{""" +
                     """"$PATH":{"type":"string","description":"Entry page relative to the workspace, e.g. index.html"},""" +
