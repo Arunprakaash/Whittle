@@ -35,10 +35,16 @@ sealed interface ThreadItem {
     @SerialName("decision")
     data class Decision(override val key: String, val runId: RunId, val toolCallId: ToolCallId, val text: DecisionText) : ThreadItem
 
-    /** An open question card; the picked option goes back to [runId]. */
+    /** A question card; the picked option goes back to [runId] and stays shown as [answer]. */
     @Serializable
     @SerialName("question")
-    data class Question(override val key: String, val runId: RunId, val toolCallId: ToolCallId, val text: QuestionText) : ThreadItem
+    data class Question(
+        override val key: String,
+        val runId: RunId,
+        val toolCallId: ToolCallId,
+        val text: QuestionText,
+        val answer: String? = null,
+    ) : ThreadItem
 
     /** A card asking for a capability a tool needs, such as reading contacts. */
     @Serializable

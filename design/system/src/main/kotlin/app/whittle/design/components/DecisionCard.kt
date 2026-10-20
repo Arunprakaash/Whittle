@@ -2,12 +2,14 @@ package app.whittle.design.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import app.whittle.design.theme.WhittleTheme
 import app.whittle.design.tokens.WhittleHaptic
@@ -108,16 +111,19 @@ fun DecisionCard(decision: DecisionUi, onApprove: () -> Unit, onDecline: () -> U
 @Immutable
 data class QuestionUi(val id: String, val icon: String, val question: String, val options: List<String>)
 
-/** Inline question card. Like a decision card it never blocks; the tapped option goes back to the agent. */
+/**
+ * Inline question card. Like a decision card it never blocks; the tapped option goes back to the agent.
+ * Once answered it stays in the thread with the choice marked, so the conversation reads back clearly.
+ */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun QuestionCard(question: QuestionUi, onPick: (String) -> Unit, modifier: Modifier = Modifier) {
+fun QuestionCard(question: QuestionUi, onPick: (String) -> Unit, modifier: Modifier = Modifier, answer: String? = null) {
     val colors = MaterialTheme.colorScheme
     val haptics = WhittleTheme.haptics
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .semantics { liveRegion = LiveRegionMode.Polite }
+            .then(if (answer == null) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier)
             .background(colors.surfaceContainerLow, RoundedCornerShape(WhittleRadius.xl))
             .padding(WhittleSpace.m),
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
@@ -132,6 +138,10 @@ fun QuestionCard(question: QuestionUi, onPick: (String) -> Unit, modifier: Modif
             Text(question.question, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s), verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+            if (answer != null) {
+                question.options.forEach { option -> AnsweredOption(option, chosen = option == answer) }
+                return@FlowRow
+            }
             question.options.forEach { option ->
                 OutlinedButton(
                     onClick = { haptics.perform(WhittleHaptic.Select); onPick(option) },
@@ -145,6 +155,36 @@ fun QuestionCard(question: QuestionUi, onPick: (String) -> Unit, modifier: Modif
         }
     }
 }
+
+/** An option on an answered question: the choice is filled and checked, the rest step back. Not tappable. */
+@Composable
+private fun AnsweredOption(option: String, chosen: Boolean) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier
+            .heightIn(min = WhittleSize.Button.small)
+            .then(
+                if (chosen) {
+                    Modifier.background(colors.secondaryContainer, RoundedCornerShape(WhittleRadius.full))
+                } else {
+                    Modifier.border(WhittleSpace.hairline / 2, colors.outlineVariant, RoundedCornerShape(WhittleRadius.full))
+                },
+            )
+            .semantics { selected = chosen }
+            .padding(horizontal = WhittleSpace.l),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s),
+    ) {
+        if (chosen) WhittleIcon("check", size = WhittleSize.Icon.m, tint = colors.onSecondaryContainer)
+        Text(
+            option,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (chosen) colors.onSecondaryContainer else colors.onSurfaceVariant.copy(alpha = UNCHOSEN_ALPHA),
+        )
+    }
+}
+
+private const val UNCHOSEN_ALPHA = 0.6f
 
 /** What a decision card collapses to after a tap: one line, the outcome. */
 @Composable

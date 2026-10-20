@@ -200,6 +200,7 @@ private fun ThreadRow(
             QuestionUi(item.key, item.text.icon, item.text.question, item.text.options),
             onPick = { viewModel.answer(item, it) },
             modifier = modifier,
+            answer = item.answer,
         )
         is ThreadItem.Capability -> DecisionCard(
             item.presentation.toUi(item.key),

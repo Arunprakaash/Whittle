@@ -27,4 +27,7 @@ data class RunRequest(
 object SystemPromptVariables {
     const val CURRENT_DATE = "currentDate"
     const val USER_LOCALE = "userLocale"
+
+    /** An IANA zone id such as Asia/Kolkata. Without it models guess a zone from the locale. */
+    const val USER_TIME_ZONE = "userTimeZone"
 }

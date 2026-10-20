@@ -44,6 +44,7 @@ import java.io.File
 import java.nio.file.Files
 import okhttp3.OkHttpClient
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlin.system.exitProcess
@@ -119,6 +120,7 @@ fun main(args: Array<String>) = runBlocking {
             promptVariables = mapOf(
                 SystemPromptVariables.CURRENT_DATE to LocalDate.now().toString(),
                 SystemPromptVariables.USER_LOCALE to Locale.getDefault().toLanguageTag(),
+                SystemPromptVariables.USER_TIME_ZONE to ZoneId.systemDefault().id,
             ),
         ),
     )

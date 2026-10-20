@@ -37,7 +37,8 @@ class DeviceClockTool(private val clock: EpochClock) : Tool {
     companion object {
         val DEFINITION = ToolDefinition(
             id = ToolId("device_clock_now"),
-            description = "Returns the current date and time. Optionally pass an IANA time zone such as Asia/Kolkata.",
+            description = "Returns the current date and time in the user's own time zone. Pass timeZone (an IANA id such as Asia/Kolkata) only " +
+                "when the user asks about another place.",
             inputSchema = Json.parseToJsonElement(
                 """{"type":"object","properties":{"timeZone":{"type":"string","description":"IANA time zone id"}}}""",
             ).jsonObject,

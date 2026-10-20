@@ -66,7 +66,10 @@ class BundledConfigTest {
     fun `system prompt declares the expected placeholders`() {
         val template = PromptTemplate.load(source, ConfigFiles.agentSystemPrompt)
         assertIs<Outcome.Success<PromptTemplate>>(template)
-        assertEquals(setOf(SystemPromptVariables.CURRENT_DATE, SystemPromptVariables.USER_LOCALE), template.value.placeholders)
+        assertEquals(
+            setOf(SystemPromptVariables.CURRENT_DATE, SystemPromptVariables.USER_LOCALE, SystemPromptVariables.USER_TIME_ZONE),
+            template.value.placeholders,
+        )
     }
 
     @Test

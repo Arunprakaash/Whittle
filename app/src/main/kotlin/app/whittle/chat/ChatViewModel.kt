@@ -52,6 +52,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.Locale
 
 data class ChatState(
@@ -150,6 +151,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             promptVariables = mapOf(
                 SystemPromptVariables.CURRENT_DATE to LocalDate.now().toString(),
                 SystemPromptVariables.USER_LOCALE to Locale.getDefault().toLanguageTag(),
+                SystemPromptVariables.USER_TIME_ZONE to ZoneId.systemDefault().id,
             ),
         )
         collect(runId, graph.runner.start(request))
@@ -164,8 +166,10 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         submit(item.runId, RunInput.Decision(item.toolCallId, answer))
     }
 
+    /** The card stays in the thread with the choice marked; only the first tap counts. */
     fun answer(item: ThreadItem.Question, choice: String) {
-        replace(item.key) { ThreadItem.Resolved(item.key, choice, declined = false) }
+        if (item.answer != null) return
+        replace(item.key) { (it as ThreadItem.Question).copy(answer = choice) }
         submit(item.runId, RunInput.Answer(item.toolCallId, choice))
     }
 
