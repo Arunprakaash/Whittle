@@ -25,6 +25,9 @@
     <string name="chat_title">New task</string>
     <string name="chat_more">More options</string>
     <string name="chat_change_model">Change model</string>
+    <string name="chat_pin">Pin chat</string>
+    <string name="chat_unpin">Unpin chat</string>
+    <string name="chat_delete">Delete chat</string>
     <string name="sidebar_open">Open chats</string>
     <string name="sidebar_new_chat">New chat</string>
     <string name="sidebar_view_all">View all chats</string>

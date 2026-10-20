@@ -32,6 +32,7 @@ object MaterialSymbols {
         "help" to R.drawable.ms_help,
         "info" to R.drawable.ms_info,
         "insights" to R.drawable.ms_insights,
+        "keep" to R.drawable.ms_keep,
         "key" to R.drawable.ms_key,
         "language" to R.drawable.ms_language,
         "lock" to R.drawable.ms_lock,
