@@ -46,6 +46,9 @@ import app.whittle.tools.api.ToolId
 import app.whittle.tools.api.ToolOutput
 import app.whittle.tools.api.ToolRegistry
 import app.whittle.tools.api.UserQuestionTool
+import kotlinx.coroutines.delay
+import kotlin.math.pow
+import kotlin.random.Random
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -74,8 +77,15 @@ class AgentRunner(
     private val systemPrompt: PromptTemplate,
     private val messages: AgentMessages,
     private val clock: EpochClock,
+    /** What the model is told when it summarizes older steps to make room (see [ContextCompaction]). */
+    private val compactionPrompt: String,
+    /** Where long tool outputs are kept; without one they're cut to [AgentLimits.maxToolOutputChars]. */
+    private val outputs: ToolOutputStore? = null,
     private val argumentParser: ToolArgumentParser = ToolArgumentParser(),
+    private val random: Random = Random.Default,
 ) {
+    private val compaction = ContextCompaction(limits.context, limits.maxOutputTokensPerStep)
+
     fun start(request: RunRequest): Flow<RunEvent> = flow {
         val prompt = systemPrompt.render(request.promptVariables).getOrElse {
             emit(RunEvent.Failed(it))
@@ -164,16 +174,25 @@ class AgentRunner(
             emit(RunEvent.StepStarted(checkpoint.step))
             val stepSpan = telemetry.startSpan(SpanName.STEP, runSpan, stepAttributes(checkpoint))
 
-            val turn = callModel(checkpoint, connection, stepSpan.context)
-            turn.failure?.let {
+            checkpoint = compactIfNeeded(checkpoint, connection, force = false).getOrElse { return fail(checkpoint, it) }
+            var turn = callModelWithRetries(checkpoint, connection, stepSpan.context)
+            // The estimate can fall short of the provider's count: on a "too long" refusal, compact and try once more.
+            if (!turn.shownToUser && turn.assembler.failure?.let(::isOverflow) == true) {
+                val compacted = compactIfNeeded(checkpoint, connection, force = true).getOrElse { return fail(checkpoint, it) }
+                if (compacted !== checkpoint) {
+                    checkpoint = compacted
+                    turn = callModelWithRetries(checkpoint, connection, stepSpan.context)
+                }
+            }
+            turn.assembler.failure?.let {
                 stepSpan.end(SpanStatus.ERROR)
                 return fail(checkpoint, it)
             }
-            val assistant = turn.toMessage()
+            val assistant = turn.assembler.toMessage()
             checkpoint = persist(
                 checkpoint.copy(
                     conversation = checkpoint.conversation.append(assistant),
-                    usage = checkpoint.usage + turn.usage,
+                    usage = checkpoint.usage + turn.assembler.usage,
                     tainted = checkpoint.tainted || assistant.carriesUntrustedContent(),
                 ),
             ).getOrElse {
@@ -210,29 +229,92 @@ class AgentRunner(
     private fun pauseReasonFor(checkpoint: RunCheckpoint): PauseReason? =
         PauseReason.STEP_LIMIT.takeIf { checkpoint.step >= limits.maxStepsPerRun }
 
+    /**
+     * Calls the model, trying again with growing waits when it fails for a passing reason. Only a call that
+     * failed before anything reached the user is repeated, so the thread never shows a reply twice.
+     */
+    private suspend fun FlowCollector<RunEvent>.callModelWithRetries(
+        checkpoint: RunCheckpoint,
+        connection: ModelConnection,
+        parent: SpanContext,
+    ): ModelTurn = retrying(checkpoint, announce = true) { callModel(checkpoint, connection, parent) }
+
+    private suspend fun FlowCollector<RunEvent>.retrying(
+        checkpoint: RunCheckpoint,
+        announce: Boolean,
+        call: suspend () -> ModelTurn,
+    ): ModelTurn {
+        var attempt = 1
+        while (true) {
+            val turn = call()
+            val failure = turn.assembler.failure ?: return turn
+            if (attempt >= limits.retry.maxAttempts || turn.shownToUser || !isPassing(failure)) return turn
+            val wait = backoff(attempt)
+            telemetry.event(
+                TelemetryEvent.MODEL_RETRIED,
+                runAttributes(checkpoint) + Attributes.of {
+                    number(AttributeKeys.ATTEMPT, attempt)
+                    metadata(AttributeKeys.ERROR_TYPE, failure::class.simpleName)
+                },
+            )
+            if (announce) emit(RunEvent.ModelRetrying(attempt, wait))
+            delay(wait)
+            attempt++
+        }
+    }
+
+    /** Network trouble, rate limits and busy servers pass; a bad key or a malformed request won't. */
+    private fun isPassing(error: HarnessError): Boolean = when (error) {
+        is HarnessError.Network -> true
+        is HarnessError.Provider -> error.statusCode in limits.retry.retryableStatusCodes
+        else -> false
+    }
+
+    private fun isOverflow(error: HarnessError): Boolean =
+        error is HarnessError.Provider && error.statusCode in CLIENT_ERRORS &&
+            limits.context.overflowMarkers.any { it in error.message.lowercase() }
+
+    private fun backoff(attempt: Int): Long {
+        val policy = limits.retry
+        val grown = policy.initialDelayMillis * policy.backoffMultiplier.pow(attempt - 1)
+        val capped = grown.coerceAtMost(policy.maxDelayMillis.toDouble())
+        return (capped * (1 - policy.jitter * random.nextDouble())).toLong()
+    }
+
     private suspend fun FlowCollector<RunEvent>.callModel(
         checkpoint: RunCheckpoint,
         connection: ModelConnection,
         parent: SpanContext,
-    ): AssistantTurnAssembler {
+    ): ModelTurn {
         val request = ModelRequest(
             model = checkpoint.model,
             systemPrompt = checkpoint.conversation.systemPrompt,
             messages = checkpoint.conversation.messages,
-            tools = tools.definitions.map { ToolSpec(it.id.value, it.description, it.inputSchema) },
+            tools = toolSpecs(),
             maxOutputTokens = limits.maxOutputTokensPerStep,
             reasoningEffort = checkpoint.reasoningEffort,
             hostedTools = allowedHostedTools(checkpoint, connection.provider),
         )
         val assembler = AssistantTurnAssembler()
+        var shown = false
         val startedAt = clock.nowMillis()
         connection.adapter.stream(request, connection.provider, connection.apiKey).collect { event ->
             assembler.accept(event)
             when (event) {
-                is ModelEvent.TextDelta -> emit(RunEvent.AssistantTextDelta(event.text))
-                is ModelEvent.HostedToolStarted -> emit(RunEvent.HostedToolStarted(event.callId, event.tool))
-                is ModelEvent.SourceCited -> emit(RunEvent.SourceCited(event.url, event.title))
+                is ModelEvent.TextDelta -> {
+                    shown = true
+                    emit(RunEvent.AssistantTextDelta(event.text))
+                }
+                is ModelEvent.HostedToolStarted -> {
+                    shown = true
+                    emit(RunEvent.HostedToolStarted(event.callId, event.tool))
+                }
+                is ModelEvent.SourceCited -> {
+                    shown = true
+                    emit(RunEvent.SourceCited(event.url, event.title))
+                }
                 is ModelEvent.HostedToolFinished -> {
+                    shown = true
                     telemetry.event(TelemetryEvent.HOSTED_TOOL_USED, hostedToolAttributes(checkpoint, event))
                     emit(RunEvent.HostedToolFinished(event.callId, event.tool, event.action, event.arguments))
                 }
@@ -250,7 +332,60 @@ class AgentRunner(
                 errorType = assembler.failure?.let { it::class.simpleName },
             ),
         )
-        return assembler
+        return ModelTurn(assembler, shown)
+    }
+
+    private fun toolSpecs(): List<ToolSpec> = tools.definitions.map { ToolSpec(it.id.value, it.description, it.inputSchema) }
+
+    /**
+     * Summarizes the conversation's older steps when it has outgrown the model's window ([force] skips the
+     * size check, after the provider said it was too long). Recent steps stay word for word. If summarizing
+     * fails, the run carries on as it was.
+     */
+    private suspend fun FlowCollector<RunEvent>.compactIfNeeded(
+        checkpoint: RunCheckpoint,
+        connection: ModelConnection,
+        force: Boolean,
+    ): Outcome<RunCheckpoint> {
+        val conversation = checkpoint.conversation
+        val extra = toolSpecs().sumOf { it.name.length + it.description.length + it.inputSchema.toString().length }
+        if (!force && !compaction.needsCompaction(checkpoint.model, conversation, extra)) return Outcome.Success(checkpoint)
+        val cut = compaction.cutIndex(checkpoint.model, conversation.messages) ?: return Outcome.Success(checkpoint)
+        val older = conversation.messages.take(cut)
+        emit(RunEvent.CompactionStarted)
+        val request = ModelRequest(
+            model = checkpoint.model,
+            systemPrompt = compactionPrompt,
+            messages = listOf(Message.userText(compaction.transcript(checkpoint.model, older))),
+            tools = emptyList(),
+            maxOutputTokens = limits.context.summaryMaxOutputTokens,
+            reasoningEffort = checkpoint.reasoningEffort,
+            hostedTools = emptySet(),
+        )
+        val turn = retrying(checkpoint, announce = false) {
+            val assembler = AssistantTurnAssembler()
+            connection.adapter.stream(request, connection.provider, connection.apiKey).collect(assembler::accept)
+            ModelTurn(assembler, shownToUser = false)
+        }
+        val summary = turn.assembler.toMessage().text.trim()
+        if (turn.assembler.failure != null || summary.isEmpty()) {
+            telemetry.event(TelemetryEvent.CONTEXT_COMPACTED, runAttributes(checkpoint) + Attributes.of { flag(AttributeKeys.SUCCEEDED, false) })
+            emit(RunEvent.CompactionFinished(summarizedMessages = 0))
+            return Outcome.Success(checkpoint)
+        }
+        val messages = compaction.compacted(summary, older, conversation.messages.drop(cut), this@AgentRunner.messages)
+        val compacted = persist(
+            checkpoint.copy(conversation = conversation.copy(messages = messages), usage = checkpoint.usage + turn.assembler.usage),
+        ).getOrElse { return Outcome.Failure(it) }
+        telemetry.event(
+            TelemetryEvent.CONTEXT_COMPACTED,
+            runAttributes(compacted) + Attributes.of {
+                flag(AttributeKeys.SUCCEEDED, true)
+                number(AttributeKeys.SUMMARIZED_MESSAGES, older.size)
+            },
+        )
+        emit(RunEvent.CompactionFinished(summarizedMessages = older.size))
+        return Outcome.Success(compacted)
     }
 
     /** Provider-run tools can't wait for a decision, so they are offered only on steps where policy allows them. */
@@ -404,9 +539,9 @@ class AgentRunner(
         if (missing != null) emit(RunEvent.CapabilityRequested(missing, call.id))
         val note = when {
             missing != null -> messages.capabilityMissing(call.toolName, missing.value)
-            output.isError -> messages.decisionFailed(call.toolName, truncate(output.content))
-            provenance is Provenance.Untrusted -> messages.decisionApprovedUntrusted(call.toolName, provenance.sourceLabel, truncate(output.content))
-            else -> messages.decisionApproved(call.toolName, truncate(output.content))
+            output.isError -> messages.decisionFailed(call.toolName, fitted(output.content, call, journaled))
+            provenance is Provenance.Untrusted -> messages.decisionApprovedUntrusted(call.toolName, provenance.sourceLabel, fitted(output.content, call, journaled))
+            else -> messages.decisionApproved(call.toolName, fitted(output.content, call, journaled))
         }
         emit(RunEvent.DecisionResolved(pending, input.answer, output))
         return persist(
@@ -497,7 +632,7 @@ class AgentRunner(
         }
         val result = ContentBlock.ToolResult(
             toolCallId = call.id,
-            content = truncate(output.content),
+            content = fitted(output.content, call, checkpoint),
             isError = output.isError,
             provenance = output.provenance,
             personalData = !output.isError && tool.definition.exposesPersonalData,
@@ -547,6 +682,26 @@ class AgentRunner(
 
     private fun errorResult(call: ContentBlock.ToolCall, content: String) =
         ContentBlock.ToolResult(call.id, content, isError = true, provenance = Provenance.Trusted)
+
+    /**
+     * Output short enough goes to the model as it is. Longer output is saved in the chat's workspace and the
+     * model gets its start and end with the path; with nowhere to save it, it's cut.
+     */
+    private suspend fun fitted(content: String, call: ContentBlock.ToolCall, checkpoint: RunCheckpoint): String {
+        val policy = limits.toolOutput
+        if (content.length <= policy.saveAboveChars) return truncate(content)
+        val workspace = checkpoint.workspace
+        val path = if (workspace != null) outputs?.save(workspace, checkpoint.runId, call.id, content)?.getOrNull() else null
+        if (path == null) return truncate(content)
+        telemetry.event(
+            TelemetryEvent.TOOL_OUTPUT_SAVED,
+            runAttributes(checkpoint) + Attributes.of {
+                metadata(AttributeKeys.TOOL_ID, call.toolName)
+                number(AttributeKeys.OUTPUT_CHARS, content.length)
+            },
+        )
+        return messages.outputSaved(content.take(policy.previewHeadChars), content.takeLast(policy.previewTailChars), content.length, path)
+    }
 
     private fun truncate(content: String): String =
         if (content.length <= limits.maxToolOutputChars) {
@@ -634,6 +789,14 @@ class AgentRunner(
         RunStatus.FAILED -> false
         RunStatus.COMPLETED -> (pendingDecisions.isNotEmpty() || requestedCapabilities.isNotEmpty()) && inbox.hasInput(runId)
         RunStatus.RUNNING, RunStatus.PAUSED -> true
+    }
+
+    /** One model call's result, and whether any of it already reached the user (then it can't be retried). */
+    private class ModelTurn(val assembler: AssistantTurnAssembler, val shownToUser: Boolean)
+
+    private companion object {
+        /** A request the provider refused as such; with an overflow phrase, the conversation was too long. */
+        val CLIENT_ERRORS = 400..499
     }
 
     private class ModelConnection(

@@ -114,6 +114,16 @@ class RuleBasedPolicyEngineTest {
         assertIs<PolicyDecision.Ask>(engine.evaluate(tool("web.fetch", RiskTier.NETWORK_OUT), unattended))
     }
 
+    @Test
+    fun `a rule for runs that read outside content applies only once they have`() {
+        val rules = baseRules.copy(rules = listOf(PolicyRule("remember-after-outside", RuleEffect.ASK, ToolMatcher(toolIdPattern = "remember"), whenTainted = true)))
+        val engine = RuleBasedPolicyEngine(rules)
+        val remember = tool("remember", RiskTier.WORKSPACE)
+
+        assertIs<PolicyDecision.Allow>(engine.evaluate(remember, context()))
+        assertEquals(DecisionReason.Rule("remember-after-outside"), assertIs<PolicyDecision.Ask>(engine.evaluate(remember, context(tainted = true))).reason)
+    }
+
     private fun tool(id: String, risk: RiskTier) = ToolDefinition(
         id = ToolId(id),
         description = id,

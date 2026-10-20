@@ -49,7 +49,7 @@
     "allowedHosts": ["esm.sh", "cdn.jsdelivr.net", "unpkg.com"],
     "maxModuleBytes": 8388608
   },
-  "ignoredDirectories": ["node_modules", ".git"],
+  "ignoredDirectories": ["node_modules", ".git", ".whittle"],
   "maxSourceFiles": 2000,
   "maxMessages": 20,
   "timeoutSeconds": 120,

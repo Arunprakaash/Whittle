@@ -30,6 +30,10 @@ your keys never leave the phone.
 - **Use your accounts.** Connect **Supabase** to build apps with shared data and sign-in, or add **any MCP
   server**. You can ask Whittle to add one; it asks on a card first.
 - **Use the phone.** Contacts, calendar and message drafts, each behind Android's own permission.
+- **Remember you.** Tell Whittle how you like things done, or ask it to remember something, and it uses that in
+  every new chat. Memories stay on the phone, encrypted, and you can see and delete them in Settings.
+- **Stay on long tasks.** When a task outgrows the model's context, Whittle summarizes the earlier steps and keeps
+  going. Long tool output is saved on the phone for it to read in parts, and a provider hiccup is retried.
 
 ## Safety and privacy
 

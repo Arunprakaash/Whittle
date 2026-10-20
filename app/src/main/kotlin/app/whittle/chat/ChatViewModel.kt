@@ -105,7 +105,17 @@ data class StatusUi(
     val plan: List<PlanItem>? = null,
     /** The reply is streaming in, with no step running. */
     val writing: Boolean = false,
+    /** Housekeeping the harness is doing between steps, shown in place of "Thinking". */
+    val phase: StatusPhase? = null,
 )
+
+enum class StatusPhase {
+    /** The provider failed for a passing reason and the call is being tried again. */
+    Retrying,
+
+    /** The conversation outgrew the model's window and older steps are being summarized. */
+    Summarizing,
+}
 
 /**
  * Turns the harness's run events into the thread the user reads: narration, grouped step rows and
@@ -189,6 +199,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
                 SystemPromptVariables.CURRENT_DATE to LocalDate.now().toString(),
                 SystemPromptVariables.USER_LOCALE to Locale.getDefault().toLanguageTag(),
                 SystemPromptVariables.USER_TIME_ZONE to ZoneId.systemDefault().id,
+                SystemPromptVariables.MEMORIES to graph.agentMessages.memories(graph.memory.all.value.map { it.id to it.text }),
             ),
         )
         collect(runId, graph.runner.start(request))
@@ -417,6 +428,9 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             is RunEvent.Completed -> onCompleted()
             is RunEvent.Paused -> end(if (event.reason == PauseReason.TOKEN_BUDGET) NoticeKind.PausedBudget else NoticeKind.PausedSteps)
             is RunEvent.Failed -> end(event.error.toNotice(), statusCode = (event.error as? HarnessError.Provider)?.statusCode)
+            is RunEvent.ModelRetrying -> setStatus(AgentState.Thinking, verb = null, phase = StatusPhase.Retrying)
+            RunEvent.CompactionStarted -> setStatus(AgentState.Thinking, verb = null, phase = StatusPhase.Summarizing)
+            is RunEvent.CompactionFinished -> setStatus(AgentState.Thinking, verb = null)
         }
     }
 
@@ -638,9 +652,10 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     /** With no step running, the line shows the plan's current step, when there is a plan. */
-    private fun setStatus(agentState: AgentState, verb: String?, writing: Boolean = false) = _state.update { state ->
+    private fun setStatus(agentState: AgentState, verb: String?, writing: Boolean = false, phase: StatusPhase? = null) = _state.update { state ->
         val planStep = state.status?.plan?.firstOrNull { it.status == PlanStatus.IN_PROGRESS }?.content
-        state.copy(status = state.status?.copy(state = agentState, verb = verb ?: planStep, writing = writing))
+        val shown = if (phase != null) null else verb ?: planStep
+        state.copy(status = state.status?.copy(state = agentState, verb = shown, writing = writing, phase = phase))
     }
 
     private fun stepRunning(): Boolean = _state.value.items.drop(segment.start).any { item ->

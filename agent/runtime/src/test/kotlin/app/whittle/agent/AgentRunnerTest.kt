@@ -2,6 +2,7 @@ package app.whittle.agent
 
 import app.whittle.core.common.EpochClock
 import app.whittle.core.common.IdGenerator
+import app.whittle.core.common.HarnessError
 import app.whittle.core.common.Outcome
 import app.whittle.core.config.AgentLimits
 import app.whittle.core.config.ConfigName
@@ -25,6 +26,7 @@ import app.whittle.tools.api.CapabilityId
 import app.whittle.tools.api.RiskTier
 import app.whittle.tools.api.Tool
 import app.whittle.tools.api.ToolRegistry
+import app.whittle.tools.api.WorkspaceId
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
@@ -402,7 +404,7 @@ class AgentRunnerTest {
 
     @Test
     fun `model failure fails the run`() = runTest {
-        val adapter = ScriptedAdapter(listOf(listOf(ModelEvent.Failed(app.whittle.core.common.HarnessError.Network("offline")))))
+        val adapter = ScriptedAdapter(listOf(listOf(ModelEvent.Failed(app.whittle.core.common.HarnessError.Authentication("bad key")))))
 
         val events = runner(adapter).start(request()).toList()
 
@@ -410,10 +412,124 @@ class AgentRunnerTest {
         assertEquals(RunStatus.FAILED, savedCheckpoint().status)
     }
 
+    @Test
+    fun `a failure that passes is retried after a wait, and the run carries on`() = runTest {
+        val adapter = ScriptedAdapter(
+            listOf(
+                listOf(ModelEvent.Failed(HarnessError.Provider(503, "busy"))),
+                textTurn("Done."),
+            ),
+        )
+
+        val events = runner(adapter).start(request()).toList()
+
+        assertEquals(RunEvent.ModelRetrying(attempt = 1, delayMillis = 100), events.filterIsInstance<RunEvent.ModelRetrying>().single())
+        assertIs<RunEvent.Completed>(events.last())
+        assertEquals(2, adapter.requests.size)
+    }
+
+    @Test
+    fun `a call is not repeated once part of the reply reached the user, nor for a bad key`() = runTest {
+        val streamed = ScriptedAdapter(listOf(listOf(ModelEvent.TextDelta("Hal"), ModelEvent.Failed(HarnessError.Network("dropped")))))
+        assertIs<RunEvent.Failed>(runner(streamed).start(request()).toList().last())
+        assertEquals(1, streamed.requests.size)
+
+        val badKey = ScriptedAdapter(listOf(listOf(ModelEvent.Failed(HarnessError.Provider(401, "bad key")))))
+        assertIs<RunEvent.Failed>(runner(badKey).start(request()).toList().last())
+        assertEquals(1, badKey.requests.size)
+    }
+
+    @Test
+    fun `retries stop after the last attempt`() = runTest {
+        val failure = listOf(ModelEvent.Failed(HarnessError.Network("offline")))
+        val adapter = ScriptedAdapter(listOf(failure, failure, failure))
+
+        val events = runner(adapter).start(request()).toList()
+
+        assertIs<RunEvent.Failed>(events.last())
+        assertEquals(testRetry.maxAttempts, adapter.requests.size)
+        assertEquals(listOf(100L, 200L), events.filterIsInstance<RunEvent.ModelRetrying>().map { it.delayMillis })
+    }
+
+    @Test
+    fun `a long output is saved in the workspace and the model gets its start, end and path`() = runTest {
+        val output = "A".repeat(400) + "B".repeat(300)
+        val saved = mutableListOf<String>()
+        val store = ToolOutputStore { _, _, callId, content -> saved += content; Outcome.Success(".whittle/outputs/${callId.value}.txt") }
+        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "big")), textTurn("Done.")))
+        val tool = FakeTool("big", RiskTier.READ) { output }
+
+        runner(adapter, setOf(tool), outputs = store).start(request().copy(workspace = WorkspaceId("chat1"))).toList()
+
+        assertEquals(listOf(output), saved)
+        assertEquals("A".repeat(20) + "…" + "B".repeat(10) + " [700 saved at .whittle/outputs/c1.txt]", lastToolResult(adapter).content)
+    }
+
+    @Test
+    fun `without a workspace a long output is cut instead`() = runTest {
+        val store = ToolOutputStore { _, _, _, _ -> error("nowhere to save") }
+        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "big")), textTurn("Done.")))
+        val tool = FakeTool("big", RiskTier.READ) { "x".repeat(2_000) }
+
+        runner(adapter, setOf(tool), outputs = store).start(request()).toList()
+
+        assertTrue(lastToolResult(adapter).content.endsWith("[truncated at 1000]"))
+    }
+
+    @Test
+    fun `a conversation past the window is summarized first, keeping recent steps and the outside-content mark`() = runTest {
+        val adapter = ScriptedAdapter(listOf(textTurn("SUMMARY"), textTurn("Done.")))
+        val small = testContext.copy(fallbackContextTokens = 2_000)
+
+        val events = runner(adapter, limits = testLimits(context = small)).start(request().copy(priorMessages = longHistory())).toList()
+
+        val summarize = adapter.requests.first()
+        assertEquals("Summarize.", summarize.systemPrompt)
+        assertTrue(summarize.tools.isEmpty())
+        assertTrue("[result from web, outside content]" in summarize.messages.single().text)
+        val sent = adapter.requests.last().messages
+        val summary = sent.first().content.single() as ContentBlock.Text
+        assertEquals("summary: SUMMARY", summary.text)
+        assertIs<Provenance.Untrusted>(summary.provenance)
+        assertEquals(Role.ASSISTANT, sent[1].role)
+        assertEquals("Earlier answer", sent[1].text)
+        assertTrue(events.any { it is RunEvent.CompactionStarted })
+        assertEquals(3, events.filterIsInstance<RunEvent.CompactionFinished>().single().summarizedMessages)
+        assertIs<RunEvent.Completed>(events.last())
+        assertTrue(savedCheckpoint().conversation.messages.first().carriesUntrustedContent())
+    }
+
+    @Test
+    fun `when the provider says the conversation is too long, it is summarized and the call tried again`() = runTest {
+        val adapter = ScriptedAdapter(
+            listOf(
+                listOf(ModelEvent.Failed(HarnessError.Provider(400, "This model's maximum is exceeded (context_length_exceeded)"))),
+                textTurn("SUMMARY"),
+                textTurn("Done."),
+            ),
+        )
+
+        val events = runner(adapter).start(request().copy(priorMessages = longHistory())).toList()
+
+        assertIs<RunEvent.Completed>(events.last())
+        assertEquals(3, adapter.requests.size)
+        assertEquals("summary: SUMMARY", adapter.requests.last().messages.first().text)
+    }
+
+    /** An earlier exchange: a question, a web read with a long result, then an answer. */
+    private fun longHistory() = listOf(
+        Message.userText("Find the opening hours"),
+        Message(Role.ASSISTANT, listOf(call("w1", "fetch"))),
+        Message(Role.USER, listOf(ContentBlock.ToolResult(ToolCallId("w1"), "page ".repeat(1_500), isError = false, provenance = Provenance.Untrusted("web")))),
+        Message(Role.ASSISTANT, listOf(ContentBlock.Text("Earlier answer"))),
+    )
+
     private fun runner(
         adapter: ScriptedAdapter? = null,
         tools: Set<Tool> = emptySet(),
         adapterRegistry: ModelAdapterRegistry = ModelAdapterRegistry(setOfNotNull(adapter)),
+        limits: AgentLimits = testLimits(),
+        outputs: ToolOutputStore? = null,
     ) = AgentRunner(
         adapters = adapterRegistry,
         providers = testCatalog,
@@ -423,10 +539,12 @@ class AgentRunnerTest {
         inbox = inbox,
         checkpoints = store,
         telemetry = LocalTelemetry(IdGenerator.Random),
-        limits = AgentLimits(maxStepsPerRun = 10, maxOutputTokensPerStep = 512, maxToolOutputChars = 1_000),
+        limits = limits,
         systemPrompt = PromptTemplate(ConfigName("system.md"), "System for {{user}}"),
         messages = testMessages,
         clock = EpochClock { 0L },
+        compactionPrompt = "Summarize.",
+        outputs = outputs,
     )
 
     private fun request() = RunRequest(

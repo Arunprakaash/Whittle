@@ -1,5 +1,7 @@
 package app.whittle.dev.cli
 
+import app.whittle.core.common.getOrNull
+import app.whittle.tools.workspace.WorkspaceOutputs
 import app.whittle.agent.AgentMessages
 import app.whittle.agent.AgentRunner
 import app.whittle.agent.AskUserTool
@@ -88,13 +90,14 @@ fun main(args: Array<String>) = runBlocking {
     val clock = EpochClock.System
     val inbox = RunInbox()
     val decisions = ConsoleDecisions(arguments.approvalMode, inbox)
+    val workspaces = Workspaces(Files.createTempDirectory(WORKSPACE_PREFIX).toFile())
     val runner = AgentRunner(
         adapters = ModelAdapterRegistry(
             setOf(OpenAiCompatibleAdapter(httpClient, IdGenerator.Random), OpenAiResponsesAdapter(httpClient)),
         ),
         providers = providers,
         credentials = credentials,
-        tools = ToolRegistry(setOf(AskUserTool(), DeviceClockTool(clock), WebFetchTool(httpClient)) + workspaceTools(loader)),
+        tools = ToolRegistry(setOf(AskUserTool(), DeviceClockTool(clock), WebFetchTool(httpClient)) + workspaceTools(loader, workspaces)),
         policy = RuleBasedPolicyEngine(rules),
         inbox = inbox,
         checkpoints = InMemoryRunCheckpointStore(),
@@ -103,6 +106,8 @@ fun main(args: Array<String>) = runBlocking {
         systemPrompt = systemPrompt,
         messages = messages,
         clock = clock,
+        compactionPrompt = source.read(ConfigFiles.compactionPrompt).orExit(),
+        outputs = WorkspaceOutputs(workspaces, harness.agent.toolOutput.directory)::save,
     )
     val reasoningEffort = arguments.reasoningEffort ?: modelDefaults.defaultReasoningEffort
     println(
@@ -123,6 +128,8 @@ fun main(args: Array<String>) = runBlocking {
                 SystemPromptVariables.CURRENT_DATE to LocalDate.now().toString(),
                 SystemPromptVariables.USER_LOCALE to Locale.getDefault().toLanguageTag(),
                 SystemPromptVariables.USER_TIME_ZONE to ZoneId.systemDefault().id,
+                // The command line keeps no memory between sessions.
+                SystemPromptVariables.MEMORIES to messages.memories(emptyList()),
             ),
         ),
     )
@@ -159,6 +166,9 @@ private fun render(event: RunEvent) {
         is RunEvent.Completed -> println("\n[done] tokens: ${event.usage}, open cards: ${event.openDecisions.size}")
         is RunEvent.Paused -> println("\n[paused] ${event.reason}, tokens: ${event.usage}")
         is RunEvent.Failed -> println("\n[failed] ${event.error}")
+        is RunEvent.ModelRetrying -> println("\n[retry] attempt ${event.attempt} failed; trying again in ${event.delayMillis} ms")
+        RunEvent.CompactionStarted -> println("\n[context] summarizing earlier steps")
+        is RunEvent.CompactionFinished -> println("[context] summarized ${event.summarizedMessages} messages")
     }
 }
 
@@ -180,11 +190,10 @@ private fun fail(message: String): Nothing {
 }
 
 /** A throwaway workspace for this session, using the desktop's own shell. */
-private fun workspaceTools(loader: ConfigLoader): List<app.whittle.tools.api.Tool> {
-    val root = Files.createTempDirectory(WORKSPACE_PREFIX).toFile()
-    println("[workspace] ${File(root, CLI_WORKSPACE)}")
+private fun workspaceTools(loader: ConfigLoader, workspaces: Workspaces): List<app.whittle.tools.api.Tool> {
+    workspaces.directory(WorkspaceId(CLI_WORKSPACE)).getOrNull()?.let { println("[workspace] $it") }
     return WorkspaceToolSet.create(
-        workspaces = Workspaces(root),
+        workspaces = workspaces,
         environment = ShellEnvironment(shell = DESKTOP_SHELL, path = System.getenv("PATH").orEmpty(), launcher = null, killProcessGroup = null),
         config = loader.load(TerminalConfig.FILE, TerminalConfig.serializer(), TerminalConfig.SCHEMA_VERSION).orExit(),
         // Bundling runs in the app's WebView; the desktop CLI has none, so build_web_app reports that.

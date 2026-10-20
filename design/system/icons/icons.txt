@@ -4,6 +4,9 @@ add
 arrow_back
 arrow_downward
 arrow_upward
+bookmark_add
+bookmark_remove
+bookmarks
 brightness_auto:fill
 build
 calendar_month

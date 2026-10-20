@@ -9,7 +9,13 @@ import kotlinx.serialization.json.JsonElement
 sealed interface ContentBlock {
     @Serializable
     @SerialName("text")
-    data class Text(val text: String) : ContentBlock
+    data class Text(
+        val text: String,
+        /** Untrusted when the text was made from outside content, such as a summary of earlier web reads. */
+        val provenance: Provenance = Provenance.Trusted,
+        /** The text holds the user's personal data, as when it summarizes contacts or events. */
+        val personalData: Boolean = false,
+    ) : ContentBlock
 
     @Serializable
     @SerialName("image")

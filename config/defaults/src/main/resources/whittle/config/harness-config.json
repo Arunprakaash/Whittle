@@ -4,7 +4,49 @@
     "maxStepsPerRun": 25,
     "maxOutputTokensPerStep": 4096,
     "maxToolOutputChars": 20000,
-    "maxPlanItems": 12
+    "maxPlanItems": 12,
+    "retry": {
+      "maxAttempts": 4,
+      "initialDelayMillis": 1000,
+      "maxDelayMillis": 20000,
+      "backoffMultiplier": 2.0,
+      "jitter": 0.3,
+      "retryableStatusCodes": [
+        408,
+        409,
+        425,
+        429,
+        500,
+        502,
+        503,
+        504,
+        529
+      ]
+    },
+    "context": {
+      "compactAtFraction": 0.75,
+      "fallbackContextTokens": 128000,
+      "keepRecentFraction": 0.25,
+      "charsPerToken": 3.5,
+      "imageTokens": 1500,
+      "summaryMaxOutputTokens": 2000,
+      "transcriptBlockChars": 3000,
+      "overflowMarkers": [
+        "context_length_exceeded",
+        "context length",
+        "maximum context",
+        "context window",
+        "too many tokens",
+        "prompt is too long",
+        "input is too long"
+      ]
+    },
+    "toolOutput": {
+      "saveAboveChars": 12000,
+      "previewHeadChars": 3000,
+      "previewTailChars": 1000,
+      "directory": ".whittle/outputs"
+    }
   },
   "network": {
     "connectTimeoutMillis": 15000,

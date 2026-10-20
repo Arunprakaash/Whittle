@@ -54,7 +54,7 @@ class RuleBasedPolicyEngine(private val ruleSet: PolicyRuleSet) : PolicyEngine {
     }
 
     private fun firstRule(effect: RuleEffect, tool: ToolDefinition, context: RunContext): PolicyRule? =
-        ruleSet.rules.firstOrNull { it.effect == effect && it.appliesTo(tool, context.mode) }
+        ruleSet.rules.firstOrNull { it.effect == effect && it.appliesTo(tool, context) }
 
     private fun riskTierDefault(tool: ToolDefinition, context: RunContext): PolicyDecision {
         val default = ruleSet.riskTierDefaults.getValue(tool.riskTier)

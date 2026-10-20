@@ -408,10 +408,12 @@ private fun Dock(state: ChatState, viewModel: ChatViewModel, voiceDefaults: Voic
                 StatusLine(
                     state = status.state,
                     verb = status.verb ?: stringResource(
-                        when (status.state) {
-                            AgentState.Thinking -> R.string.status_thinking
-                            AgentState.Acting -> R.string.status_writing
-                            AgentState.Done -> R.string.status_done
+                        when {
+                            status.phase == StatusPhase.Retrying -> R.string.status_retrying
+                            status.phase == StatusPhase.Summarizing -> R.string.status_summarizing
+                            status.state == AgentState.Thinking -> R.string.status_thinking
+                            status.state == AgentState.Acting -> R.string.status_writing
+                            else -> R.string.status_done
                         },
                     ),
                     elapsed = elapsed(status.startedAtMillis),

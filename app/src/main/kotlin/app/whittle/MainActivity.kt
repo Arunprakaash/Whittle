@@ -1,5 +1,6 @@
 package app.whittle
 
+import app.whittle.settings.MemoryScreen
 import android.content.res.Configuration
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.WindowCompat
@@ -94,11 +95,14 @@ class MainActivity : ComponentActivity() {
                             var pickerOpenings by rememberSaveable { mutableIntStateOf(0) }
                             var showingModelPicker by rememberSaveable { mutableStateOf(false) }
                             var showingConnectionLibrary by rememberSaveable { mutableStateOf(false) }
+                            var showingMemory by rememberSaveable { mutableStateOf(false) }
                             var toolsOf by rememberSaveable { mutableStateOf<String?>(null) }
                             val connections by graph.connectors.all.collectAsStateWithLifecycle()
                             val toolsConnection = toolsOf?.let { id -> connections.firstOrNull { it.server.id == id } }
                             val artifact = fullScreenArtifact
-                            if (showingConnectionLibrary) {
+                            if (showingMemory) {
+                                MemoryScreen(graph, onBack = { showingMemory = false; showingSettings = true })
+                            } else if (showingConnectionLibrary) {
                                 ConnectionLibraryScreen(graph, onBack = { showingConnectionLibrary = false; showingSettings = true })
                             } else if (toolsConnection != null) {
                                 ConnectionToolsScreen(graph, toolsConnection, onBack = { toolsOf = null; showingSettings = true })
@@ -121,6 +125,7 @@ class MainActivity : ComponentActivity() {
                                     onDeleteAllChats = chat::deleteAllChats,
                                     onBrowseConnections = { showingSettings = false; showingConnectionLibrary = true },
                                     onConnectionTools = { connection -> showingSettings = false; toolsOf = connection.server.id },
+                                    onMemory = { showingSettings = false; showingMemory = true },
                                 )
                             } else if (artifact != null) {
                                 ArtifactScreen(artifact, graph.artifacts, state.workspaceRevision, onBack = { fullScreenArtifact = null })

@@ -345,6 +345,38 @@
         "approvedOutcome": "Searched",
         "declinedOutcome": "Not searched"
       }
+    },
+    "remember": {
+      "icon": "bookmark_add",
+      "running": "Remembering this",
+      "done": "Remembered: {{text}}",
+      "decision": {
+        "icon": "bookmark_add",
+        "title": "Remember this?",
+        "body": "Whittle will keep this on your phone and use it in future chats. You can delete it any time in Settings › Memory.",
+        "payloadArgument": "text",
+        "approve": "Remember",
+        "approveIcon": "check",
+        "decline": "Don't",
+        "approvedOutcome": "Remembered",
+        "declinedOutcome": "Not remembered"
+      }
+    },
+    "forget": {
+      "icon": "bookmark_remove",
+      "running": "Forgetting",
+      "done": "Forgot it",
+      "decision": {
+        "icon": "bookmark_remove",
+        "title": "Forget this?",
+        "body": "Whittle will delete this from what it remembers about you.",
+        "payloadArgument": "id",
+        "approve": "Forget",
+        "approveIcon": "check",
+        "decline": "Keep it",
+        "approvedOutcome": "Forgotten",
+        "declinedOutcome": "Kept"
+      }
     }
   },
   "capabilities": {

@@ -1,6 +1,9 @@
 package app.whittle
 
 import app.whittle.connectors.FindConnectionTool
+import app.whittle.memory.ForgetTool
+import app.whittle.memory.MemoryStore
+import app.whittle.memory.RememberTool
 import app.whittle.connectors.Connectors
 import app.whittle.connectors.AddConnectionTool
 import app.whittle.agent.PlanTool
@@ -29,6 +32,8 @@ object ToolCatalog {
         ComposeMessageTool.DEFINITION,
         AddConnectionTool.DEFINITION,
         FindConnectionTool.DEFINITION,
+        RememberTool.DEFINITION,
+        ForgetTool.DEFINITION,
     ) + WorkspaceToolSet.DEFINITIONS
 
     fun create(
@@ -38,6 +43,7 @@ object ToolCatalog {
         workspaceTools: List<Tool>,
         maxPlanItems: Int,
         connectors: Connectors,
+        memory: MemoryStore,
     ): Set<Tool> = (
         setOf(
             AskUserTool(),
@@ -49,6 +55,8 @@ object ToolCatalog {
             ComposeMessageTool(context),
             AddConnectionTool(context.applicationContext, connectors),
             FindConnectionTool(connectors),
+            RememberTool(memory),
+            ForgetTool(memory),
         ) + workspaceTools
         ).also { tools ->
         check(tools.map { it.definition }.toSet() == definitions.toSet()) { "ToolCatalog.definitions is out of step with create()" }

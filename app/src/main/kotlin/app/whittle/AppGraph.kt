@@ -1,5 +1,7 @@
 package app.whittle
 
+import app.whittle.memory.MemoryStore
+import app.whittle.tools.workspace.WorkspaceOutputs
 import app.whittle.settings.VoiceDefaults
 import app.whittle.connectors.CustomConnectorStore
 import app.whittle.connectors.mcp.ConnectorsConfig
@@ -149,6 +151,7 @@ class AppGraph(context: Context) {
 
     /** Lives as long as the process: for writes that must finish even when a screen goes away. */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    val memory = MemoryStore(File(context.filesDir, appDefaults.memory.fileName), cipher, clock, idGenerator, appDefaults.memory, appScope)
 
     /** The user's settings, kept current; null until the saved choices have loaded. */
     val currentSettings: StateFlow<UserSettings?> = settings.settings.stateIn(appScope, SharingStarted.Eagerly, null)
@@ -174,19 +177,23 @@ class AppGraph(context: Context) {
     val presenter = ToolPresenter(load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION))
     val inbox = RunInbox()
 
+    val agentMessages = load(ConfigFiles.agentMessages, AgentMessages.serializer(), AgentMessages.SCHEMA_VERSION)
+
     val runner = AgentRunner(
         adapters = ModelAdapterRegistry(setOf(OpenAiCompatibleAdapter(httpClient, idGenerator), OpenAiResponsesAdapter(httpClient))),
         providers = providers,
         credentials = SecretStoreCredentialsProvider(secrets),
-        tools = ToolRegistry(ToolCatalog.create(context, clock, httpClient, workspaceTools(context), harness.agent.maxPlanItems, connectors), connectors::tools),
+        tools = ToolRegistry(ToolCatalog.create(context, clock, httpClient, workspaceTools(context), harness.agent.maxPlanItems, connectors, memory), connectors::tools),
         policy = RuleBasedPolicyEngine(load(ConfigFiles.policyRules, PolicyRuleSet.serializer(), PolicyRuleSet.SCHEMA_VERSION)),
         inbox = inbox,
         checkpoints = checkpoints,
         telemetry = telemetry(context),
         limits = harness.agent,
         systemPrompt = PromptTemplate.load(configSource, ConfigFiles.agentSystemPrompt).orThrow(ConfigFiles.agentSystemPrompt),
-        messages = load(ConfigFiles.agentMessages, AgentMessages.serializer(), AgentMessages.SCHEMA_VERSION),
+        messages = agentMessages,
         clock = clock,
+        compactionPrompt = configSource.read(ConfigFiles.compactionPrompt).orThrow(ConfigFiles.compactionPrompt),
+        outputs = WorkspaceOutputs(workspaces, harness.agent.toolOutput.directory)::save,
     )
 
     /** The terminal and file tools: one folder per chat, in the app's private storage. */

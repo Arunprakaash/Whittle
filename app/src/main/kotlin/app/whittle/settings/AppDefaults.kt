@@ -19,6 +19,7 @@ data class AppDefaults(
     val export: ExportDefaults,
     val voice: VoiceDefaults,
     val toolRuntime: ToolRuntimeDefaults,
+    val memory: MemoryDefaults,
 ) : VersionedConfig {
     companion object {
         const val SCHEMA_VERSION = 1
@@ -167,3 +168,16 @@ data class VoiceDefaults(
     /** Silence that ends listening, as a hint to the recognizer. */
     val silenceMillis: Long,
 )
+
+/** What Whittle remembers about the user across chats: kept encrypted on the phone, shown in Settings. */
+@Serializable
+data class MemoryDefaults(
+    val fileName: String,
+    /** Facts kept at most; the agent is told to forget something first when it's full. */
+    val maxItems: Int,
+    val maxItemChars: Int,
+) {
+    init {
+        require(fileName.isNotBlank() && maxItems > 0 && maxItemChars > 0) { "memory limits must be positive" }
+    }
+}

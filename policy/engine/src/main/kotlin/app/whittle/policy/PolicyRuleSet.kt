@@ -62,9 +62,14 @@ data class PolicyRule(
     val matcher: ToolMatcher,
     /** Run modes this rule applies to. Null applies to all modes. */
     val modes: Set<RunMode>? = null,
+    /**
+     * True: only once the run has read outside content (web pages, files, connected services), which could be
+     * steering the model. False: only before. Null: either way.
+     */
+    val whenTainted: Boolean? = null,
 ) {
-    fun appliesTo(tool: ToolDefinition, mode: RunMode): Boolean =
-        (modes == null || mode in modes) && matcher.matches(tool)
+    fun appliesTo(tool: ToolDefinition, context: RunContext): Boolean =
+        (modes == null || context.mode in modes) && (whenTainted == null || whenTainted == context.tainted) && matcher.matches(tool)
 }
 
 @Serializable

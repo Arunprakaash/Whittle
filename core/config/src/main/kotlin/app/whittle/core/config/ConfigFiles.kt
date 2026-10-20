@@ -11,4 +11,7 @@ object ConfigFiles {
     val agentMessages = ConfigName("agent-messages.json")
     val toolPresentation = ConfigName("tool-presentation.json")
     val agentSystemPrompt = ConfigName("prompts/agent-system.md")
+
+    /** What the model is told when it summarizes a conversation's older steps to make room. */
+    val compactionPrompt = ConfigName("prompts/compaction.md")
 }

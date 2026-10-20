@@ -23,6 +23,9 @@ data class AgentLimits(
     val maxToolOutputChars: Int,
     /** Longest plan (update_plan) the agent may write. */
     val maxPlanItems: Int = DEFAULT_MAX_PLAN_ITEMS,
+    val retry: ModelRetryPolicy,
+    val context: ContextPolicy,
+    val toolOutput: ToolOutputPolicy,
 ) {
     init {
         require(maxStepsPerRun > 0) { "maxStepsPerRun must be positive" }
@@ -33,6 +36,73 @@ data class AgentLimits(
 
     private companion object {
         const val DEFAULT_MAX_PLAN_ITEMS = 12
+    }
+}
+
+/** How a model call that failed for a passing reason (network, rate limit, busy server) is tried again. */
+@Serializable
+data class ModelRetryPolicy(
+    /** Tries in all, the first included. */
+    val maxAttempts: Int,
+    val initialDelayMillis: Long,
+    val maxDelayMillis: Long,
+    /** Each wait is this many times the last, up to [maxDelayMillis]. */
+    val backoffMultiplier: Double,
+    /** Waits vary randomly by up to this share, so many phones don't retry in step. */
+    val jitter: Double,
+    /** Provider replies worth another try: timeouts, rate limits and server errors. */
+    val retryableStatusCodes: Set<Int>,
+) {
+    init {
+        require(maxAttempts >= 1) { "retry.maxAttempts must be at least 1" }
+        require(initialDelayMillis >= 0 && maxDelayMillis >= initialDelayMillis) { "retry delays must be ordered" }
+        require(backoffMultiplier >= 1.0) { "retry.backoffMultiplier must be at least 1" }
+        require(jitter in 0.0..1.0) { "retry.jitter must be between 0 and 1" }
+    }
+}
+
+/**
+ * Keeping long tasks inside the model's context window: once the conversation passes [compactAtFraction] of
+ * the window, older steps are summarized and the most recent ones kept word for word.
+ */
+@Serializable
+data class ContextPolicy(
+    val compactAtFraction: Double,
+    /** Window assumed for models whose catalog entry doesn't give one. */
+    val fallbackContextTokens: Long,
+    /** Share of the window the recent steps, kept as they are, may take after compaction. */
+    val keepRecentFraction: Double,
+    /** For estimating size before the provider counts it; low on purpose, so estimates err large. */
+    val charsPerToken: Double,
+    /** An image counted as this many tokens, whatever its size in characters. */
+    val imageTokens: Long,
+    val summaryMaxOutputTokens: Int,
+    /** Each message, tool call or result is cut to this many characters in what the summarizer reads. */
+    val transcriptBlockChars: Int,
+    /** Lowercase phrases in a provider's error that mean the conversation no longer fits its window. */
+    val overflowMarkers: List<String>,
+) {
+    init {
+        require(compactAtFraction > 0.0 && compactAtFraction < 1.0) { "context.compactAtFraction must be between 0 and 1" }
+        require(keepRecentFraction > 0.0 && keepRecentFraction < compactAtFraction) { "context.keepRecentFraction must be below compactAtFraction" }
+        require(fallbackContextTokens > 0 && charsPerToken > 0.0 && imageTokens >= 0) { "context sizes must be positive" }
+        require(summaryMaxOutputTokens > 0 && transcriptBlockChars > 0) { "context summary limits must be positive" }
+    }
+}
+
+/** Tool output too long for the conversation is saved in the chat's workspace; the model gets a preview and the path. */
+@Serializable
+data class ToolOutputPolicy(
+    val saveAboveChars: Int,
+    val previewHeadChars: Int,
+    val previewTailChars: Int,
+    /** Folder inside the workspace, relative to its root. */
+    val directory: String,
+) {
+    init {
+        require(saveAboveChars > 0 && previewHeadChars >= 0 && previewTailChars >= 0) { "toolOutput limits must be positive" }
+        require(previewHeadChars + previewTailChars < saveAboveChars) { "toolOutput previews must be shorter than saveAboveChars" }
+        require(directory.isNotBlank() && !directory.startsWith("/") && ".." !in directory.split('/')) { "toolOutput.directory must stay inside the workspace" }
     }
 }
 

@@ -73,6 +73,8 @@
     <string name="voice_failed">Couldn\'t catch that. Try again.</string>
     <string name="status_thinking">Thinking…</string>
     <string name="status_writing">Writing…</string>
+    <string name="status_retrying">Couldn\'t reach the model, trying again…</string>
+    <string name="status_summarizing">Summarizing earlier steps…</string>
     <string name="status_done">Done</string>
     <string name="status_stop">Stop</string>
     <string name="steer_label">Added while working</string>
@@ -123,6 +125,19 @@
     <string name="artifact_share">Share</string>
     <string name="artifact_install">Install</string>
     <string name="settings_section_connections">Connections</string>
+    <string name="settings_section_memory">Memory</string>
+    <string name="memory_title">What Whittle remembers</string>
+    <plurals name="memory_count">
+        <item quantity="one">%1$d thing, used in every chat</item>
+        <item quantity="other">%1$d things, used in every chat</item>
+    </plurals>
+    <string name="memory_about">Whittle remembers these from your chats and uses them in new ones. They stay on your phone, encrypted, and are only sent to your AI provider with your tasks. Ask Whittle to remember or forget something, or remove it here.</string>
+    <string name="memory_empty">Nothing yet. Tell Whittle about yourself or how you like things done, or say \"remember that…\", and it keeps it here for future chats.</string>
+    <string name="memory_forget">Forget</string>
+    <string name="memory_clear">Forget everything</string>
+    <string name="memory_clear_title">Forget everything?</string>
+    <string name="memory_clear_body">Whittle deletes everything it remembers about you from this phone. Your chats stay.</string>
+    <string name="memory_clear_confirm">Forget everything</string>
     <string name="settings_theme_title">Theme</string>
     <string name="settings_theme_system">System</string>
     <string name="settings_theme_light">Light</string>

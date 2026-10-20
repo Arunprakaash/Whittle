@@ -18,10 +18,14 @@ data class Message(
 
     /** Web pages, search results or other outside content came in with this message. */
     fun carriesUntrustedContent(): Boolean = content.any {
-        (it is ContentBlock.ToolResult && it.provenance is Provenance.Untrusted) || it is ContentBlock.HostedToolUse
+        (it is ContentBlock.ToolResult && it.provenance is Provenance.Untrusted) ||
+            (it is ContentBlock.Text && it.provenance is Provenance.Untrusted) ||
+            it is ContentBlock.HostedToolUse
     }
 
-    fun carriesPersonalData(): Boolean = content.any { it is ContentBlock.ToolResult && it.personalData }
+    fun carriesPersonalData(): Boolean = content.any {
+        (it is ContentBlock.ToolResult && it.personalData) || (it is ContentBlock.Text && it.personalData)
+    }
 
     companion object {
         fun userText(text: String): Message = Message(Role.USER, listOf(ContentBlock.Text(text)))

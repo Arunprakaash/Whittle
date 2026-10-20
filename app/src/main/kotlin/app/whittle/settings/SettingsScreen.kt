@@ -1,5 +1,7 @@
 package app.whittle.settings
 
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.runtime.collectAsState
 import app.whittle.connectors.mcp.McpConnection
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.role
@@ -63,6 +65,7 @@ fun SettingsScreen(
     onDeleteAllChats: () -> Unit,
     onBrowseConnections: () -> Unit,
     onConnectionTools: (McpConnection) -> Unit,
+    onMemory: () -> Unit,
 ) {
     BackHandler(onBack = onBack)
     var confirmingDelete by remember { mutableStateOf(false) }
@@ -100,6 +103,19 @@ fun SettingsScreen(
                 }
             }
             item { ConnectionsSection(graph, onBrowse = onBrowseConnections, onChooseTools = onConnectionTools) }
+            item {
+                val remembered by graph.memory.all.collectAsState()
+                SettingsSection(stringResource(R.string.settings_section_memory)) {
+                    SettingsRow(
+                        icon = "bookmarks",
+                        title = stringResource(R.string.memory_title),
+                        subtitle = pluralStringResource(R.plurals.memory_count, remembered.size, remembered.size),
+                        shape = segmentedShape(0, 1),
+                        onClick = onMemory,
+                        trailing = { WhittleIcon("chevron_right", size = WhittleSize.Icon.m, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    )
+                }
+            }
             item {
                 val wallpaperAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
                 SettingsSection(stringResource(R.string.settings_section_appearance)) {

@@ -1,6 +1,10 @@
 package app.whittle.agent
 
 import app.whittle.core.common.Outcome
+import app.whittle.core.config.AgentLimits
+import app.whittle.core.config.ContextPolicy
+import app.whittle.core.config.ModelRetryPolicy
+import app.whittle.core.config.ToolOutputPolicy
 import app.whittle.core.common.Secret
 import app.whittle.core.model.ContentBlock
 import app.whittle.core.model.ModelId
@@ -78,6 +82,42 @@ internal val testMessages = AgentMessages(
     toolFailed = "failed {{tool}}: {{detail}}",
     outputTruncated = "[truncated at {{limit}}]",
     planUnfinished = "unfinished: {{steps}}",
+    outputSaved = "{{head}}…{{tail}} [{{chars}} saved at {{path}}]",
+    compactedSummary = "summary: {{summary}}",
+    summarySource = "earlier steps",
+    memoryLine = "- {{text}} ({{id}})",
+    noMemories = "none",
+)
+
+internal val testRetry = ModelRetryPolicy(
+    maxAttempts = 3,
+    initialDelayMillis = 100,
+    maxDelayMillis = 1_000,
+    backoffMultiplier = 2.0,
+    jitter = 0.0,
+    retryableStatusCodes = setOf(429, 500, 503),
+)
+
+internal val testContext = ContextPolicy(
+    compactAtFraction = 0.75,
+    fallbackContextTokens = 128_000,
+    keepRecentFraction = 0.25,
+    charsPerToken = 4.0,
+    imageTokens = 1_000,
+    summaryMaxOutputTokens = 256,
+    transcriptBlockChars = 200,
+    overflowMarkers = listOf("context_length_exceeded"),
+)
+
+internal val testToolOutput = ToolOutputPolicy(saveAboveChars = 500, previewHeadChars = 20, previewTailChars = 10, directory = ".whittle/outputs")
+
+internal fun testLimits(maxToolOutputChars: Int = 1_000, context: ContextPolicy = testContext) = AgentLimits(
+    maxStepsPerRun = 10,
+    maxOutputTokensPerStep = 512,
+    maxToolOutputChars = maxToolOutputChars,
+    retry = testRetry,
+    context = context,
+    toolOutput = testToolOutput,
 )
 
 internal val testRules = PolicyRuleSet(

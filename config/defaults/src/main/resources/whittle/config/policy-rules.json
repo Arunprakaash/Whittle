@@ -3,6 +3,12 @@
   "hardDeny": [],
   "rules": [
     {
+      "id": "memory-after-outside-content-confirms",
+      "effect": "ASK",
+      "matcher": { "toolIdPattern": "remember" },
+      "whenTainted": true
+    },
+    {
       "id": "message-drafts-always-confirm",
       "effect": "ASK",
       "matcher": {

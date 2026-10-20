@@ -36,6 +36,16 @@ data class AgentMessages(
     val outputTruncated: String,
     /** Sent once when the model tries to finish while its plan still has open steps. */
     val planUnfinished: String,
+    /** A long tool output's start and end, with where the whole of it was saved in the workspace. */
+    val outputSaved: String,
+    /** Opens the summary that replaces a conversation's older steps. */
+    val compactedSummary: String,
+    /** Names a summary made from outside content, where approvals mention a source. */
+    val summarySource: String,
+    /** One remembered fact in the system prompt, with the id forget takes. */
+    val memoryLine: String,
+    /** The system prompt's memory section when nothing is remembered yet. */
+    val noMemories: String,
 ) : VersionedConfig {
     init {
         requirePlaceholders(unknownTool, TOOL)
@@ -55,6 +65,11 @@ data class AgentMessages(
         requirePlaceholders(toolFailed, TOOL, DETAIL)
         requirePlaceholders(outputTruncated, LIMIT)
         requirePlaceholders(planUnfinished, STEPS)
+        requirePlaceholders(outputSaved, HEAD, TAIL, CHARS, PATH)
+        requirePlaceholders(compactedSummary, SUMMARY)
+        requirePlaceholders(summarySource)
+        requirePlaceholders(memoryLine, ID, TEXT)
+        requirePlaceholders(noMemories)
     }
 
     fun unknownTool(tool: String): String = render(unknownTool, TOOL to tool)
@@ -101,8 +116,17 @@ data class AgentMessages(
 
     fun planUnfinished(steps: String): String = render(planUnfinished, STEPS to steps)
 
+    fun outputSaved(head: String, tail: String, chars: Int, path: String): String =
+        render(outputSaved, HEAD to head, TAIL to tail, CHARS to chars.toString(), PATH to path)
+
+    fun compactedSummary(summary: String): String = render(compactedSummary, SUMMARY to summary)
+
+    /** The memory section of the system prompt: one line per remembered fact, as (id, text) pairs. */
+    fun memories(items: List<Pair<String, String>>): String =
+        if (items.isEmpty()) noMemories else items.joinToString("\n") { (id, text) -> render(memoryLine, ID to id, TEXT to text) }
+
     companion object {
-        const val SCHEMA_VERSION = 4
+        const val SCHEMA_VERSION = 6
         private const val TOOL = "tool"
         private const val DETAIL = "detail"
         private const val LIMIT = "limit"
@@ -112,5 +136,12 @@ data class AgentMessages(
         private const val ANSWER = "answer"
         private const val CAPABILITY = "capability"
         private const val STEPS = "steps"
+        private const val HEAD = "head"
+        private const val TAIL = "tail"
+        private const val CHARS = "chars"
+        private const val PATH = "path"
+        private const val SUMMARY = "summary"
+        private const val ID = "id"
+        private const val TEXT = "text"
     }
 }

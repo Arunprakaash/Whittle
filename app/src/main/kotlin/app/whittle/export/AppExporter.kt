@@ -65,10 +65,14 @@ class AppExporter(
         }
     }
 
-    /** Everything beside the built page, with the page itself also served as the app's start page. */
+    /**
+     * Everything beside the built page, with the page itself also served as the app's start page. Hidden files
+     * and folders stay out, such as the tool outputs Whittle keeps in the workspace.
+     */
     private fun appFiles(page: File): Map<String, File> {
         val root = page.parentFile ?: return emptyMap()
         val files = root.walkTopDown()
+            .onEnter { it == root || !it.name.startsWith(HIDDEN_PREFIX) }
             .filter { it.isFile && !it.name.startsWith(HIDDEN_PREFIX) }
             .associateBy { it.relativeTo(root).invariantSeparatorsPath }
         return files + (START_PAGE to page)
