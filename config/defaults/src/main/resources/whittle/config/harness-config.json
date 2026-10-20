@@ -14,7 +14,16 @@
   "telemetry": {
     "defaultConsent": "METADATA",
     "posthogHost": "https://us.i.posthog.com",
-    "maxAttributeChars": 2000
+    "maxAttributeChars": 2000,
+    "sessionReplay": {
+      "enabled": true,
+      "screenshotMode": true,
+      "maskAllText": true,
+      "maskAllImages": true,
+      "captureTouches": true,
+      "captureLogcat": false,
+      "sampleRate": 1.0
+    }
   },
   "secrets": {
     "dataStoreName": "whittle_secrets",

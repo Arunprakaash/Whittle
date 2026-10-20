@@ -55,7 +55,32 @@ data class TelemetryConfig(
     val defaultConsent: ConsentLevel,
     val posthogHost: String,
     val maxAttributeChars: Int,
+    val sessionReplay: SessionReplayConfig,
 )
+
+/**
+ * Screen recordings for the analytics tool. Masking happens on the phone before anything is sent, so
+ * with text and images masked a recording shows layout, taps and navigation but no chat, key or page
+ * content. Recordings only run when the user's consent isn't OFF.
+ */
+@Serializable
+data class SessionReplayConfig(
+    val enabled: Boolean,
+    /** Compose UIs record as screenshots; the view-hierarchy wireframe mode can't see Compose content. */
+    val screenshotMode: Boolean,
+    /** Every text and text field drawn as a block. */
+    val maskAllText: Boolean,
+    val maskAllImages: Boolean,
+    val captureTouches: Boolean,
+    /** Logs can hold content, so they stay off unless deliberately turned on. */
+    val captureLogcat: Boolean,
+    /** Share of sessions recorded, 0.0 to 1.0. */
+    val sampleRate: Double,
+) {
+    init {
+        require(sampleRate in 0.0..1.0) { "sessionReplay.sampleRate must be between 0 and 1" }
+    }
+}
 
 @Serializable
 data class SecretStoreConfig(

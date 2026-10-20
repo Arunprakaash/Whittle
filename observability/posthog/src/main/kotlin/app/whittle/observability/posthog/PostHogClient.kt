@@ -1,6 +1,7 @@
 package app.whittle.observability.posthog
 
 import android.content.Context
+import app.whittle.core.config.ConsentLevel
 import app.whittle.core.config.TelemetryConfig
 import com.posthog.PostHog
 import com.posthog.android.PostHogAndroid
@@ -18,9 +19,22 @@ class PostHogAndroidClient : PostHogClient {
     }
 
     companion object {
-        /** [projectKey] is PostHog's public project key, supplied by the build, not by config files. */
+        /**
+         * [projectKey] is PostHog's public project key, supplied by the build, not by config files.
+         * Session replay also needs "Record user sessions" turned on in the PostHog project's settings.
+         */
         fun install(context: Context, projectKey: String, config: TelemetryConfig) {
-            PostHogAndroid.setup(context, PostHogAndroidConfig(apiKey = projectKey, host = config.posthogHost))
+            val replay = config.sessionReplay
+            val posthog = PostHogAndroidConfig(apiKey = projectKey, host = config.posthogHost).apply {
+                sessionReplay = replay.enabled && config.defaultConsent != ConsentLevel.OFF
+                sessionReplayConfig.screenshot = replay.screenshotMode
+                sessionReplayConfig.maskAllTextInputs = replay.maskAllText
+                sessionReplayConfig.maskAllImages = replay.maskAllImages
+                sessionReplayConfig.captureTouches = replay.captureTouches
+                sessionReplayConfig.captureLogcat = replay.captureLogcat
+                sessionReplayConfig.sampleRate = replay.sampleRate
+            }
+            PostHogAndroid.setup(context, posthog)
         }
     }
 }

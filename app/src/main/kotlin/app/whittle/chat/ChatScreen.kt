@@ -1,5 +1,6 @@
 package app.whittle.chat
 
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.SpanStyle
 import android.content.ClipData
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -70,6 +71,8 @@ import app.whittle.design.components.SourceUi
 import app.whittle.design.components.TopBarAction
 import app.whittle.design.components.TopBarActionGroup
 import app.whittle.design.components.TopBarButton
+import app.whittle.design.components.TopBarGroupAction
+import app.whittle.design.components.connectedShape
 import app.whittle.design.components.StatusLine
 import app.whittle.design.components.StepGroup
 import app.whittle.design.components.StepStatus
@@ -132,8 +135,14 @@ fun ChatScreen(state: ChatState, viewModel: ChatViewModel, sidebarMaxChats: Int,
                 },
                 actions = {
                     TopBarActionGroup(Modifier.padding(end = WhittleSpace.m)) {
-                        TopBarAction("edit_square", stringResource(R.string.sidebar_new_chat), viewModel::newChat)
-                        ChatMenu(onChangeModel = viewModel::changeModel)
+                        TopBarAction(
+                            icon = "edit_square",
+                            contentDescription = stringResource(R.string.sidebar_new_chat),
+                            onClick = viewModel::newChat,
+                            shape = connectedShape(0, TOP_BAR_ACTIONS),
+                            modifier = TopBarGroupAction,
+                        )
+                        ChatMenu(onChangeModel = viewModel::changeModel, shape = connectedShape(1, TOP_BAR_ACTIONS))
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -358,11 +367,11 @@ private fun answerSources(items: List<ThreadItem>): Map<String, ThreadItem.Sourc
 }
 
 @Composable
-private fun ChatMenu(onChangeModel: () -> Unit) {
+private fun ChatMenu(onChangeModel: () -> Unit, shape: Shape) {
     var open by remember { mutableStateOf(false) }
     // The menu anchors to this box, so it opens under the ⋮ button.
     Box {
-        TopBarAction("more_vert", stringResource(R.string.chat_more)) { open = true }
+        TopBarAction("more_vert", stringResource(R.string.chat_more), onClick = { open = true }, shape = shape, modifier = TopBarGroupAction)
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(text = { Text(stringResource(R.string.chat_change_model)) }, onClick = { open = false; onChangeModel() })
         }
@@ -472,3 +481,6 @@ private const val CAPABILITY_APPROVE_ICON = "check"
 private const val TICK_MILLIS = 250L
 private const val MILLIS_PER_SECOND = 1000L
 private const val SECONDS_PER_MINUTE = 60L
+
+/** New chat and the overflow menu share one connected group. */
+private const val TOP_BAR_ACTIONS = 2

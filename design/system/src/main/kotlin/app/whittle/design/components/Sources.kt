@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -28,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -85,10 +87,19 @@ fun AnswerFooter(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
-            CopyButton(footer.copyLabel, footer.copiedLabel, onCopy)
-            if (footer.sourcesLabel != null && footer.sources.isNotEmpty()) {
-                SourcesPill(footer.sourcesLabel, footer.sources.map { it.host }.distinct().take(STACKED_ICONS), footer.sourcesExpanded, onToggleSources)
+        // Copy and sources are one connected group, like the top bar's actions.
+        val hasSources = footer.sourcesLabel != null && footer.sources.isNotEmpty()
+        val count = if (hasSources) 2 else 1
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
+            CopyButton(footer.copyLabel, footer.copiedLabel, onCopy, connectedShape(0, count))
+            if (hasSources && footer.sourcesLabel != null) {
+                SourcesPill(
+                    footer.sourcesLabel,
+                    footer.sources.map { it.host }.distinct().take(STACKED_ICONS),
+                    footer.sourcesExpanded,
+                    onToggleSources,
+                    connectedShape(1, count),
+                )
             }
         }
         AnimatedVisibility(footer.sourcesExpanded && footer.sources.isNotEmpty()) { SourceList(footer.sources, onOpenSource) }
@@ -97,7 +108,7 @@ fun AnswerFooter(
 
 /** Copies, then shows a check for a moment so the tap visibly landed. */
 @Composable
-private fun CopyButton(label: String, copiedLabel: String, onCopy: () -> Unit) {
+private fun CopyButton(label: String, copiedLabel: String, onCopy: () -> Unit, shape: Shape) {
     val colors = MaterialTheme.colorScheme
     val haptics = WhittleTheme.haptics
     var copied by remember { mutableStateOf(false) }
@@ -109,8 +120,9 @@ private fun CopyButton(label: String, copiedLabel: String, onCopy: () -> Unit) {
     }
     Box(
         modifier = Modifier
-            .size(WhittleSize.Tile.s)
-            .clip(CircleShape)
+            .size(width = WhittleSize.Tile.m, height = WhittleSize.Tile.s)
+            .clip(shape)
+            .background(colors.surfaceContainerLow)
             .clickable(role = Role.Button, onClickLabel = label) {
                 haptics.perform(WhittleHaptic.Tap)
                 onCopy()
@@ -129,13 +141,20 @@ private fun CopyButton(label: String, copiedLabel: String, onCopy: () -> Unit) {
 }
 
 @Composable
-private fun SourcesPill(label: String, hosts: List<String>, expanded: Boolean, onToggle: () -> Unit) {
+private fun SourcesPill(
+    label: String,
+    hosts: List<String>,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    shape: Shape = RoundedCornerShape(WhittleRadius.full),
+) {
     val colors = MaterialTheme.colorScheme
     val haptics = WhittleTheme.haptics
     val chevron by animateFloatAsState(if (expanded) HALF_TURN else 0f, WhittleMotion.spatialDefault.spec(), label = "sourcesChevron")
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(WhittleRadius.full))
+            .height(WhittleSize.Tile.s)
+            .clip(shape)
             .background(colors.surfaceContainerLow)
             .clickable(role = Role.Button) { haptics.perform(WhittleHaptic.Tap); onToggle() }
             .padding(start = WhittleSpace.xs, top = WhittleSpace.xs, end = WhittleSpace.m, bottom = WhittleSpace.xs),
