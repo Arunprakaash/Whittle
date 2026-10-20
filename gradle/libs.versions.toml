@@ -43,5 +43,5 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 
 # Convention plugins (build-logic)
-mobileagent-jvm-library = { id = "mobileagent.jvm.library" }
-mobileagent-android-library = { id = "mobileagent.android.library" }
+whittle-jvm-library = { id = "whittle.jvm.library" }
+whittle-android-library = { id = "whittle.android.library" }

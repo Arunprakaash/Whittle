@@ -21,7 +21,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "mobile-agent"
+rootProject.name = "whittle"
 
 include(
     ":core:common",

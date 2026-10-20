@@ -1,11 +1,11 @@
 plugins {
-    alias(libs.plugins.mobileagent.android.library)
+    alias(libs.plugins.whittle.android.library)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
 }
 
 android {
-    namespace = "com.mobileagent.storage.runs"
+    namespace = "app.whittle.storage.runs"
 }
 
 ksp {

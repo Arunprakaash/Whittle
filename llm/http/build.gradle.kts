@@ -1,5 +1,5 @@
 plugins {
-    alias(libs.plugins.mobileagent.jvm.library)
+    alias(libs.plugins.whittle.jvm.library)
 }
 
 dependencies {

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "providers": [
+    {
+      "id": "openrouter",
+      "displayName": "OpenRouter",
+      "apiFormat": "OPENAI_CHAT_COMPLETIONS",
+      "baseUrl": "https://openrouter.ai/api/v1/",
+      "generationPath": "chat/completions",
+      "modelsPath": "models",
+      "auth": { "headerName": "Authorization", "valuePrefix": "Bearer " },
+      "maxOutputTokensParameter": "max_tokens",
+      "defaultHeaders": {
+        "X-Title": "Whittle"
+      },
+      "reasoning": {
+        "effortFieldPath": ["reasoning", "effort"],
+        "effortValues": { "LOW": "low", "MEDIUM": "medium", "HIGH": "high" }
+      }
+    },
+    {
+      "id": "openai",
+      "displayName": "OpenAI",
+      "apiFormat": "OPENAI_RESPONSES",
+      "baseUrl": "https://api.openai.com/v1/",
+      "generationPath": "responses",
+      "modelsPath": "models",
+      "auth": { "headerName": "Authorization", "valuePrefix": "Bearer " },
+      "maxOutputTokensParameter": "max_output_tokens",
+      "reasoning": {
+        "effortFieldPath": ["reasoning", "effort"],
+        "effortValues": { "NONE": "none", "LOW": "low", "MEDIUM": "medium", "HIGH": "high" }
+      },
+      "capabilityOverrides": [
+        {
+          "modelIdPattern": "gpt-5*",
+          "capabilities": { "toolCalling": true, "parallelToolCalls": true, "vision": true, "promptCaching": true, "reasoning": true }
+        },
+        {
+          "modelIdPattern": "gpt-6*",
+          "capabilities": { "toolCalling": true, "parallelToolCalls": true, "vision": true, "promptCaching": true, "reasoning": true }
+        }
+      ]
+    }
+  ]
+}

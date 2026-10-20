@@ -4,7 +4,7 @@
 set -e
 
 provider="${1:?Usage: save-dev-key.sh <provider-id>}"
-key_file="$HOME/.mobileagent/dev-keys.properties"
+key_file="$HOME/.whittle/dev-keys.properties"
 
 mkdir -p "$(dirname "$key_file")"
 umask 077

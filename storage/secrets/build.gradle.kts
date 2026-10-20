@@ -1,9 +1,9 @@
 plugins {
-    alias(libs.plugins.mobileagent.android.library)
+    alias(libs.plugins.whittle.android.library)
 }
 
 android {
-    namespace = "com.mobileagent.storage.secrets"
+    namespace = "app.whittle.storage.secrets"
 }
 
 dependencies {

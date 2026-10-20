@@ -1,4 +1,4 @@
-# Mobile Agent
+# Whittle
 
 A general AI agent harness for Android: any model, no backend, deterministic safety. Phase 1 contains the
 core harness only (no UI yet).
@@ -12,7 +12,7 @@ Architecture diagrams: `~/Desktop/mobile-agent-architecture-diagrams/`.
 | `core:common` | `Outcome`, typed `HarnessError`, `Secret`, clock and id abstractions, `ContentCipher` |
 | `core:model` | Canonical, provider-neutral messages, tool calls, provenance, token usage |
 | `core:config` | `ConfigLoader` (versioned, strict JSON), `HarnessConfig`, prompt templates |
-| `config:defaults` | Reviewed default config shipped with the app (`src/main/resources/mobileagent/config`) |
+| `config:defaults` | Reviewed default config shipped with the app (`src/main/resources/whittle/config`) |
 | `llm:api` | `ModelAdapter`, provider and model catalogs, trust tiers, stream events |
 | `llm:http` | Shared streaming plumbing: Server-Sent Events decoding, provider URLs and auth headers |
 | `llm:adapter-openai-compatible` | Streaming Chat Completions adapter (OpenRouter, Groq, Together, Ollama, …) and model lister |
@@ -29,7 +29,7 @@ Architecture diagrams: `~/Desktop/mobile-agent-architecture-diagrams/`.
 
 ## Configuration
 
-Nothing that may change lives in code. Defaults are in `config/defaults/src/main/resources/mobileagent/config`:
+Nothing that may change lives in code. Defaults are in `config/defaults/src/main/resources/whittle/config`:
 `harness-config.json`, `provider-catalog.json`, `model-trust.json`, `model-defaults.json`, `policy-rules.json`,
 `openrouter-auth.json`, `agent-messages.json` and `prompts/agent-system.md`. Every file has a `schemaVersion`
 and unknown keys are rejected. `openrouter-auth.json` contains a placeholder `callbackUrl` that must be replaced

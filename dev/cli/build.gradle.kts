@@ -1,10 +1,10 @@
 plugins {
-    alias(libs.plugins.mobileagent.jvm.library)
+    alias(libs.plugins.whittle.jvm.library)
     application
 }
 
 application {
-    mainClass.set("com.mobileagent.dev.cli.MainKt")
+    mainClass.set("app.whittle.dev.cli.MainKt")
 }
 
 tasks.named<JavaExec>("run") {
