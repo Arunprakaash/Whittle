@@ -4,6 +4,11 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Only for the run-finished swell on Android 16+; every other haptic uses the view system. -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Background tasks: a foreground service with an ongoing notification (a Live Update on Android 16). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
 
     <application
         android:name=".WhittleApplication"
@@ -22,6 +27,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Keeps a task the user started running while they are in another app; ends with the task. -->
+        <service
+            android:name=".background.AgentRunService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Finishes an AI agent task the user started in the app (model calls and tool steps), with a notification showing progress and a Stop button." />
+        </service>
         <!-- Hands a bundled web app to a browser or share target; only the shared-artifacts cache folder. -->
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -553,9 +553,6 @@ private fun noticeText(notice: ThreadItem.Notice): String = when (notice.kind) {
     NoticeKind.FailedGeneric -> stringResource(R.string.notice_failed_generic)
 }
 
-private val NoticeKind.isFailure: Boolean
-    get() = this == NoticeKind.FailedKey || this == NoticeKind.FailedNetwork || this == NoticeKind.FailedProvider || this == NoticeKind.FailedGeneric
-
 /** Permission cards always confirm with a check; their words come from config. */
 private const val CAPABILITY_APPROVE_ICON = "check"
 private const val TICK_MILLIS = 250L

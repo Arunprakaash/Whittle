@@ -1,7 +1,91 @@
 package app.whittle
 
+import android.app.Activity
 import android.app.Application
+import android.app.ForegroundServiceStartNotAllowedException
+import android.app.NotificationManager
+import android.content.Intent
+import android.os.Bundle
+import app.whittle.background.AgentRunService
+import app.whittle.background.RunNotifications
+import app.whittle.background.RunProgress
+import app.whittle.chat.ChatEvent
+import app.whittle.chat.ChatViewModel
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 class WhittleApplication : Application() {
     val graph: AppGraph by lazy { AppGraph(this) }
+
+    /**
+     * One chat session for the app's whole life, not tied to a screen: a task keeps going when the user
+     * leaves or swipes the app away, and the screen shows it live again when they come back.
+     */
+    val chat: ChatViewModel by lazy { ChatViewModel(graph) }
+
+    val notifications: RunNotifications by lazy { RunNotifications(this) }
+    val notificationManager: NotificationManager by lazy { getSystemService(NotificationManager::class.java) }
+
+    private val scope = MainScope()
+    private var visibleActivities = 0
+
+    /** Whether the user is looking at Whittle right now. */
+    val inForeground: Boolean get() = visibleActivities > 0
+
+    override fun onCreate() {
+        super.onCreate()
+        notifications.createChannels()
+        registerActivityLifecycleCallbacks(VisibilityTracker())
+        scope.launch {
+            chat.state.map { it.running }.distinctUntilChanged().collect { running -> if (running && keepRunningInBackground()) startRunService() }
+        }
+        scope.launch {
+            chat.events.collect { event ->
+                if (inForeground) return@collect
+                val title = runProgress()?.chatTitle ?: currentChatTitle()
+                when (event) {
+                    ChatEvent.NeedsYou -> notifications.needsYou(title)
+                    is ChatEvent.Finished -> notifications.finished(title, event.failed)
+                }
+            }
+        }
+    }
+
+    /** The running task as the ongoing notification shows it; null when nothing runs. */
+    fun runProgress(): RunProgress? {
+        val status = chat.state.value.status ?: return null
+        return RunProgress(chatTitle = currentChatTitle(), activity = status.verb, startedAtMillis = status.startedAtMillis)
+    }
+
+    private fun currentChatTitle(): String? = chat.state.value.let { state -> state.chats.firstOrNull { it.id == state.currentChat }?.title }
+
+    private fun keepRunningInBackground(): Boolean =
+        graph.currentSettings.value?.keepRunningInBackground ?: graph.defaultKeepRunningInBackground
+
+    private fun startRunService() {
+        try {
+            startForegroundService(Intent(this, AgentRunService::class.java))
+        } catch (exception: ForegroundServiceStartNotAllowedException) {
+            // Only possible if a task starts while Whittle is already in the background; it then runs as before.
+        }
+    }
+
+    private inner class VisibilityTracker : ActivityLifecycleCallbacks {
+        override fun onActivityStarted(activity: Activity) {
+            visibleActivities++
+            notifications.clearUpdates()
+        }
+
+        override fun onActivityStopped(activity: Activity) {
+            visibleActivities--
+        }
+
+        override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
+        override fun onActivityResumed(activity: Activity) = Unit
+        override fun onActivityPaused(activity: Activity) = Unit
+        override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
+        override fun onActivityDestroyed(activity: Activity) = Unit
+    }
 }

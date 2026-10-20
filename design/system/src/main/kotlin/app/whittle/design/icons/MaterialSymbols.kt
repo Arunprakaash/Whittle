@@ -38,6 +38,7 @@ object MaterialSymbols {
         "lock" to R.drawable.ms_lock,
         "mic" to R.drawable.ms_mic,
         "more_vert" to R.drawable.ms_more_vert,
+        "notifications" to R.drawable.ms_notifications,
         "open_in_new" to R.drawable.ms_open_in_new,
         "person" to R.drawable.ms_person,
         "person_search" to R.drawable.ms_person_search,

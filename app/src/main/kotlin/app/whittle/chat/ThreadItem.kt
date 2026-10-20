@@ -115,3 +115,7 @@ enum class StepState { Running, Done, Failed, Blocked, NeedsAccess, Stopped }
 
 @Serializable
 enum class NoticeKind { Stopped, PausedBudget, PausedSteps, FailedKey, FailedNetwork, FailedProvider, FailedGeneric }
+
+/** The task stopped because something went wrong, not because the user or a limit stopped it. */
+val NoticeKind.isFailure: Boolean
+    get() = this == NoticeKind.FailedKey || this == NoticeKind.FailedNetwork || this == NoticeKind.FailedProvider || this == NoticeKind.FailedGeneric

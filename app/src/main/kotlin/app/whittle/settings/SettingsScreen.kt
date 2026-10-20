@@ -1,5 +1,6 @@
 package app.whittle.settings
 
+import app.whittle.background.rememberNotificationPermissionRequest
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
@@ -49,6 +50,7 @@ fun SettingsScreen(
 ) {
     BackHandler(onBack = onBack)
     var confirmingDelete by remember { mutableStateOf(false) }
+    val requestNotifications = rememberNotificationPermissionRequest()
     // Writes go to the app's scope so leaving the screen never drops a change.
     val save = { change: suspend SettingsStore.() -> Unit -> graph.appScope.launch { graph.settings.change() }; Unit }
     Scaffold(
@@ -100,6 +102,22 @@ fun SettingsScreen(
                         checked = settings?.haptics == true,
                         onCheckedChange = { on -> save { setHaptics(on) } },
                         shape = segmentedShape(1, 2),
+                        enabled = settings != null,
+                    )
+                }
+            }
+            item {
+                SettingsSection(stringResource(R.string.settings_section_tasks)) {
+                    SettingsToggleRow(
+                        icon = "notifications",
+                        title = stringResource(R.string.settings_background_title),
+                        subtitle = stringResource(R.string.settings_background_body),
+                        checked = settings?.keepRunningInBackground == true,
+                        onCheckedChange = { on ->
+                            save { setKeepRunningInBackground(on) }
+                            if (on) requestNotifications()
+                        },
+                        shape = segmentedShape(0, 1),
                         enabled = settings != null,
                     )
                 }

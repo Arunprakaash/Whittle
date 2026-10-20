@@ -14,6 +14,7 @@ data class AppDefaults(
     val chatList: ChatListDefaults,
     val siteIcons: SiteIconDefaults,
     val artifacts: ArtifactDefaults,
+    val background: BackgroundDefaults,
     val toolRuntime: ToolRuntimeDefaults,
 ) : VersionedConfig {
     companion object {
@@ -62,6 +63,10 @@ data class SiteIconDefaults(
         require(sizePx > 0 && maxPageBytes > 0 && maxIconBytes > 0 && memoryEntries > 0) { "siteIcons limits must be positive" }
     }
 }
+
+/** Tasks keep running while the user is elsewhere, in a foreground service with an ongoing notification. */
+@Serializable
+data class BackgroundDefaults(val keepRunning: Boolean)
 
 /** How web apps the agent builds are shown, opened elsewhere and shared. */
 @Serializable

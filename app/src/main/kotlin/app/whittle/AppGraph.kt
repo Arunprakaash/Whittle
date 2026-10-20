@@ -118,8 +118,12 @@ class AppGraph(context: Context) {
             haptics = appDefaults.appearance.haptics,
             shareUsageData = harness.telemetry.defaultConsent != ConsentLevel.OFF,
             screenRecordings = harness.telemetry.sessionReplay.enabled,
+            keepRunningInBackground = appDefaults.background.keepRunning,
         ),
     )
+
+    /** Whether tasks keep running in the background before the user's saved choice has loaded. */
+    val defaultKeepRunningInBackground: Boolean get() = appDefaults.background.keepRunning
 
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(harness.network.connectTimeoutMillis, TimeUnit.MILLISECONDS)

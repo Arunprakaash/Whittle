@@ -1,5 +1,7 @@
 package app.whittle
 
+import androidx.compose.runtime.LaunchedEffect
+import app.whittle.background.rememberNotificationPermissionRequest
 import app.whittle.settings.SettingsScreen
 import app.whittle.design.theme.WhittleAppearance
 import app.whittle.artifacts.ArtifactScreen
@@ -24,7 +26,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.whittle.chat.AllChatsScreen
 import app.whittle.chat.ChatScreen
-import app.whittle.chat.ChatViewModel
 import app.whittle.connect.ConnectScreen
 import app.whittle.connect.ConnectViewModel
 import app.whittle.design.theme.WhittleTheme
@@ -52,7 +53,18 @@ class MainActivity : ComponentActivity() {
                             ConnectScreen(connect.state.collectAsStateWithLifecycle().value, connect)
                         }
                         Gate.Chat -> {
-                            val chat = viewModel { ChatViewModel(graph) }
+                            // The app owns the chat session, so a task outlives this screen.
+                            val chat = (application as WhittleApplication).chat
+                            // The first task asks once for notifications, so its background progress can show.
+                            val requestNotifications = rememberNotificationPermissionRequest()
+                            val running = chat.state.collectAsStateWithLifecycle().value.running
+                            var askedForNotifications by rememberSaveable { mutableStateOf(false) }
+                            LaunchedEffect(running) {
+                                if (running && !askedForNotifications && settings?.keepRunningInBackground == true) {
+                                    askedForNotifications = true
+                                    requestNotifications()
+                                }
+                            }
                             val state = chat.state.collectAsStateWithLifecycle().value
                             var showingAllChats by rememberSaveable { mutableStateOf(false) }
                             var fullScreenArtifact by remember { mutableStateOf<ArtifactRef?>(null) }

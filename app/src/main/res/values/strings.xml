@@ -60,6 +60,19 @@
     <string name="steer_label">Added while working</string>
     <string name="thread_latest">Latest</string>
     <string name="answer_copy">Copy</string>
+    <!-- Notifications -->
+    <string name="notify_channel_running">Running tasks</string>
+    <string name="notify_channel_running_body">Shows a task while it works in the background, with a Stop button.</string>
+    <string name="notify_channel_updates">Task updates</string>
+    <string name="notify_channel_updates_body">When a task finishes or needs your answer while you\'re away.</string>
+    <string name="notify_running_title">Whittle is working</string>
+    <string name="notify_running_public">Whittle is working on a task</string>
+    <string name="notify_finished_title">Task finished</string>
+    <string name="notify_finished_public">Whittle finished a task</string>
+    <string name="notify_failed_title">Task stopped</string>
+    <string name="notify_failed_public">A Whittle task stopped</string>
+    <string name="notify_needs_you_title">Whittle needs your answer</string>
+    <string name="notify_needs_you_public">Whittle is waiting for you</string>
     <!-- Settings -->
     <string name="settings_title">Settings</string>
     <string name="settings_back">Back</string>
@@ -72,6 +85,9 @@
     <string name="settings_wallpaper_unavailable">Needs Android 12 or newer.</string>
     <string name="settings_haptics_title">Haptics</string>
     <string name="settings_haptics_body">Gentle vibrations when steps finish and cards appear.</string>
+    <string name="settings_section_tasks">Tasks</string>
+    <string name="settings_background_title">Keep working in the background</string>
+    <string name="settings_background_body">Tasks keep going when you leave Whittle, with a notification to follow them or stop them.</string>
     <string name="settings_section_privacy">Privacy</string>
     <string name="settings_usage_title">Share usage data</string>
     <string name="settings_usage_body">Counts, timings and errors that help improve Whittle. Never your messages, files or keys.</string>

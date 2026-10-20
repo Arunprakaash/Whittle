@@ -49,6 +49,9 @@
     "maxIconBytes": 262144,
     "memoryEntries": 64
   },
+  "background": {
+    "keepRunning": true
+  },
   "artifacts": {
     "domainSuffix": "artifacts.whittle.invalid",
     "sharedDirectoryName": "shared-artifacts",

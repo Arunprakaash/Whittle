@@ -74,6 +74,15 @@ data class ChatState(
     val running: Boolean get() = status != null
 }
 
+/** What happened in a chat that the user may want to hear about while away from the screen. */
+sealed interface ChatEvent {
+    /** A question, approval or access card appeared. */
+    data object NeedsYou : ChatEvent
+
+    /** The task ended: done, or stopped by an error or a limit ([failed]). */
+    data class Finished(val failed: Boolean) : ChatEvent
+}
+
 /** A saved chat in the sidebar. A null [title] shows as an untitled chat. */
 data class ChatListItem(val id: ChatId, val title: String?, val updatedAtMillis: Long, val pinned: Boolean)
 
@@ -93,6 +102,11 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
 
     private val _haptics = MutableSharedFlow<WhittleHaptic>(extraBufferCapacity = HAPTIC_BUFFER)
     val haptics: SharedFlow<WhittleHaptic> = _haptics.asSharedFlow()
+
+    private val _events = MutableSharedFlow<ChatEvent>(extraBufferCapacity = EVENT_BUFFER)
+
+    /** Moments worth telling the user about when they aren't looking, e.g. as a notification. */
+    val events: SharedFlow<ChatEvent> = _events.asSharedFlow()
 
     private var activeJob: Job? = null
     private var activeRunId: RunId? = null
@@ -439,7 +453,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
                 text = text,
             ),
         )
-        _haptics.tryEmit(WhittleHaptic.DecisionShown)
+        cardShown()
     }
 
     private fun onQuestionRequested(event: RunEvent.DecisionRequested) {
@@ -447,7 +461,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val text = graph.presenter.question(call.toolName, event.arguments) ?: return
         val runId = activeRunId ?: return
         append(ThreadItem.Question("question-${call.id.value}", runId, call.id, text))
-        _haptics.tryEmit(WhittleHaptic.DecisionShown)
+        cardShown()
     }
 
     private fun onCapabilityRequested(event: RunEvent.CapabilityRequested) {
@@ -465,10 +479,17 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
                 presentation = presentation,
             ),
         )
+        cardShown()
+    }
+
+    /** A card is waiting for the user's choice; the run carries on regardless. */
+    private fun cardShown() {
         _haptics.tryEmit(WhittleHaptic.DecisionShown)
+        _events.tryEmit(ChatEvent.NeedsYou)
     }
 
     private fun onCompleted() {
+        _events.tryEmit(ChatEvent.Finished(failed = false))
         finishNarration()
         val said = _state.value.items.drop(segment.start).filterIsInstance<ThreadItem.Narration>().map { it.text }
         val sources = CitedSources.from(said, citedTitles)
@@ -480,6 +501,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     private fun end(notice: NoticeKind, statusCode: Int? = null) {
+        _events.tryEmit(ChatEvent.Finished(failed = notice.isFailure))
         finishNarration()
         _state.update { it.copy(status = null, items = it.items + ThreadItem.Notice(key(), notice, statusCode)) }
     }
@@ -652,6 +674,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
 
     private companion object {
         const val HAPTIC_BUFFER = 8
+        const val EVENT_BUFFER = 8
         const val MILLIS_PER_SECOND = 1000L
         val KEY_REJECTED_CODES = setOf(401, 403)
         val EMPTY_ARGUMENTS = JsonObject(emptyMap())
