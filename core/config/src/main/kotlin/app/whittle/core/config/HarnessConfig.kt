@@ -20,7 +20,6 @@ data class HarnessConfig(
 data class AgentLimits(
     val maxStepsPerRun: Int,
     val maxOutputTokensPerStep: Int,
-    val tokenBudgetPerRun: Long,
     val maxToolOutputChars: Int,
     /** Longest plan (update_plan) the agent may write. */
     val maxPlanItems: Int = DEFAULT_MAX_PLAN_ITEMS,
@@ -28,7 +27,6 @@ data class AgentLimits(
     init {
         require(maxStepsPerRun > 0) { "maxStepsPerRun must be positive" }
         require(maxOutputTokensPerStep > 0) { "maxOutputTokensPerStep must be positive" }
-        require(tokenBudgetPerRun > 0) { "tokenBudgetPerRun must be positive" }
         require(maxToolOutputChars > 0) { "maxToolOutputChars must be positive" }
         require(maxPlanItems > 0) { "maxPlanItems must be positive" }
     }

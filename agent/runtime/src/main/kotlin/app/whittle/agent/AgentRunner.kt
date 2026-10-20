@@ -94,7 +94,6 @@ class AgentRunner(
             preApprovedTools = request.preApprovedTools,
             approvedOnceTools = emptySet(),
             usage = TokenUsage.Zero,
-            tokenBudget = limits.tokenBudgetPerRun,
             status = RunStatus.RUNNING,
             workspace = request.workspace,
         )
@@ -110,9 +109,8 @@ class AgentRunner(
     /**
      * Continues a paused or interrupted run, or a completed one whose open decision the user just
      * answered. Submit the answer to the [RunInbox] first; it is applied before the next model call.
-     * [extraTokenBudget] lets the user allow more tokens.
      */
-    fun resume(runId: RunId, extraTokenBudget: Long = 0): Flow<RunEvent> = flow {
+    fun resume(runId: RunId): Flow<RunEvent> = flow {
         val checkpoint = checkpoints.load(runId).getOrElse {
             emit(RunEvent.Failed(it))
             return@flow
@@ -121,11 +119,7 @@ class AgentRunner(
             emit(RunEvent.Failed(HarnessError.NotFound("No resumable run ${runId.value}")))
             return@flow
         }
-        val resumed = checkpoint.copy(
-            status = RunStatus.RUNNING,
-            pauseReason = null,
-            tokenBudget = checkpoint.tokenBudget + extraTokenBudget,
-        )
+        val resumed = checkpoint.copy(status = RunStatus.RUNNING, pauseReason = null)
         telemetry.event(TelemetryEvent.RUN_RESUMED, runAttributes(resumed))
         drive(resumed)
     }
@@ -197,11 +191,8 @@ class AgentRunner(
         }
     }
 
-    private fun pauseReasonFor(checkpoint: RunCheckpoint): PauseReason? = when {
-        checkpoint.usage.totalTokens >= checkpoint.tokenBudget -> PauseReason.TOKEN_BUDGET
-        checkpoint.step >= limits.maxStepsPerRun -> PauseReason.STEP_LIMIT
-        else -> null
-    }
+    private fun pauseReasonFor(checkpoint: RunCheckpoint): PauseReason? =
+        PauseReason.STEP_LIMIT.takeIf { checkpoint.step >= limits.maxStepsPerRun }
 
     private suspend fun FlowCollector<RunEvent>.callModel(
         checkpoint: RunCheckpoint,

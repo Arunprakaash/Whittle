@@ -3,7 +3,6 @@
   "agent": {
     "maxStepsPerRun": 25,
     "maxOutputTokensPerStep": 4096,
-    "tokenBudgetPerRun": 400000,
     "maxToolOutputChars": 20000,
     "maxPlanItems": 12
   },

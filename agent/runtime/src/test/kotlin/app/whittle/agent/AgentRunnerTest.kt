@@ -334,20 +334,6 @@ class AgentRunnerTest {
     }
 
     @Test
-    fun `token budget pauses the run and resume continues it`() = runTest {
-        val clock = FakeTool("time.now", RiskTier.READ)
-        val heavyUsage = TokenUsage(inputTokens = 900, outputTokens = 100, cacheReadTokens = 0, cacheWriteTokens = 0)
-        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "time.now"), usage = heavyUsage), textTurn("done")))
-        val runner = runner(adapter, setOf(clock), budget = 500)
-
-        val paused = assertIs<RunEvent.Paused>(runner.start(request()).toList().last())
-        assertEquals(PauseReason.TOKEN_BUDGET, paused.reason)
-
-        val resumed = runner.resume(runId, extraTokenBudget = 10_000).toList()
-        assertIs<RunEvent.Completed>(resumed.last())
-    }
-
-    @Test
     fun `resume never re-runs a tool call that was in flight`() = runTest {
         val sender = FakeTool("message.send", RiskTier.READ)
         val inFlight = call("c1", "message.send")
@@ -405,7 +391,6 @@ class AgentRunnerTest {
     private fun runner(
         adapter: ScriptedAdapter? = null,
         tools: Set<Tool> = emptySet(),
-        budget: Long = DEFAULT_BUDGET,
         adapterRegistry: ModelAdapterRegistry = ModelAdapterRegistry(setOfNotNull(adapter)),
     ) = AgentRunner(
         adapters = adapterRegistry,
@@ -416,7 +401,7 @@ class AgentRunnerTest {
         inbox = inbox,
         checkpoints = store,
         telemetry = LocalTelemetry(IdGenerator.Random),
-        limits = AgentLimits(maxStepsPerRun = 10, maxOutputTokensPerStep = 512, tokenBudgetPerRun = budget, maxToolOutputChars = 1_000),
+        limits = AgentLimits(maxStepsPerRun = 10, maxOutputTokensPerStep = 512, maxToolOutputChars = 1_000),
         systemPrompt = PromptTemplate(ConfigName("system.md"), "System for {{user}}"),
         messages = testMessages,
         clock = EpochClock { 0L },
@@ -443,7 +428,6 @@ class AgentRunnerTest {
         preApprovedTools = emptySet(),
         approvedOnceTools = emptySet(),
         usage = TokenUsage.Zero,
-        tokenBudget = DEFAULT_BUDGET,
         status = RunStatus.RUNNING,
     )
 
@@ -456,6 +440,5 @@ class AgentRunnerTest {
         adapter.requests.last().messages.last().content.filterIsInstance<ContentBlock.ToolResult>().last()
 
     private companion object {
-        const val DEFAULT_BUDGET = 1_000_000L
     }
 }

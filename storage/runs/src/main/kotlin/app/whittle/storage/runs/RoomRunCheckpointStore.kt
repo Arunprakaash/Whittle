@@ -22,7 +22,8 @@ class RoomRunCheckpointStore(
     private val dao: RunCheckpointDao,
     private val cipher: ContentCipher,
     private val clock: EpochClock,
-    private val json: Json = Json,
+    /** Lenient, so runs saved by an older version still load after a field is dropped. */
+    private val json: Json = Json { ignoreUnknownKeys = true },
 ) : RunCheckpointStore {
     override suspend fun save(checkpoint: RunCheckpoint): Outcome<Unit> {
         val plaintext = json.encodeToString(RunCheckpoint.serializer(), checkpoint).toByteArray(Charsets.UTF_8)

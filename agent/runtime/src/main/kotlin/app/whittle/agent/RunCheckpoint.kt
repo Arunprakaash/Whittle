@@ -18,7 +18,11 @@ import kotlinx.serialization.Serializable
 enum class RunStatus { RUNNING, COMPLETED, FAILED, PAUSED }
 
 @Serializable
-enum class PauseReason { TOKEN_BUDGET, STEP_LIMIT }
+enum class PauseReason {
+    /** Only in runs saved by versions that capped tokens per task; resuming them simply continues. */
+    TOKEN_BUDGET,
+    STEP_LIMIT,
+}
 
 /**
  * Everything needed to continue a run after process death. Saved after every step and before every
@@ -36,8 +40,6 @@ data class RunCheckpoint(
     val preApprovedTools: Set<ToolId>,
     val approvedOnceTools: Set<ToolId>,
     val usage: TokenUsage,
-    /** Tokens this run may use before it pauses and asks the user to continue. */
-    val tokenBudget: Long,
     val status: RunStatus,
     val pauseReason: PauseReason? = null,
     /** A tool call that had started when the checkpoint was written. Its outcome is unknown on resume. */
