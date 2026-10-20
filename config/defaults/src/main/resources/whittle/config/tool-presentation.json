@@ -73,6 +73,66 @@
         "approvedOutcome": "Opened in Messages",
         "declinedOutcome": "Not sent"
       }
+    },
+    "run_command": {
+      "icon": "terminal",
+      "running": "Running a command",
+      "done": "Ran a command",
+      "decision": {
+        "icon": "terminal",
+        "title": "Run this command?",
+        "body": "Runs in this chat's workspace on your phone. It can't reach your other apps or files.",
+        "payloadArgument": "command",
+        "approve": "Run",
+        "approveIcon": "terminal",
+        "decline": "Not now",
+        "approvedOutcome": "Ran the command",
+        "declinedOutcome": "Didn't run"
+      }
+    },
+    "list_files": {
+      "icon": "folder",
+      "running": "Looking at the files",
+      "done": "Looked at the files"
+    },
+    "read_file": {
+      "icon": "description",
+      "running": "Reading {{path}}",
+      "done": "Read {{path}}"
+    },
+    "write_file": {
+      "icon": "edit_document",
+      "running": "Writing {{path}}",
+      "done": "Wrote {{path}}",
+      "decision": {
+        "icon": "edit_document",
+        "title": "Save {{path}}?",
+        "body": "Writes this file in the chat's workspace on your phone.",
+        "payloadArgument": "content",
+        "payloadLabelArgument": "path",
+        "approve": "Save",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Saved {{path}}",
+        "declinedOutcome": "Not saved"
+      }
+    },
+    "edit_file": {
+      "icon": "edit",
+      "running": "Editing {{path}}",
+      "done": "Edited {{path}}",
+      "decision": {
+        "icon": "edit",
+        "title": "Change {{path}}?",
+        "body": "Edits this file in the chat's workspace on your phone.",
+        "payloadArgument": "newText",
+        "payloadLabelArgument": "path",
+        "approve": "Change",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Changed {{path}}",
+        "declinedOutcome": "Not changed"
+      }
     }
   },
   "capabilities": {

@@ -93,6 +93,7 @@ class AgentRunner(
             usage = TokenUsage.Zero,
             tokenBudget = limits.tokenBudgetPerRun,
             status = RunStatus.RUNNING,
+            workspace = request.workspace,
         )
         // Saved before the first model call, so a run cut off mid-reply can still be continued.
         persist(checkpoint).getOrElse {
@@ -360,7 +361,7 @@ class AgentRunner(
         // Journal first: if the process dies mid-call, resume reports it instead of re-running it.
         val journaled = persist(approved.copy(inFlightDecision = call)).getOrElse { return Outcome.Failure(it) }
         val span = telemetry.startSpan(SpanName.TOOL_CALL, parent, toolAttributes(journaled, tool))
-        val output = runTool(tool, call, arguments, journaled.runId)
+        val output = runTool(tool, call, arguments, journaled)
         span.end(if (output.isError) SpanStatus.ERROR else SpanStatus.OK)
         if (output.isError) telemetry.event(TelemetryEvent.TOOL_FAILED, toolAttributes(journaled, tool))
         val provenance = output.provenance
@@ -445,7 +446,7 @@ class AgentRunner(
         // Journal the call first: if the process dies mid-call, resume reports it instead of re-running it.
         val journaled = persist(checkpoint.copy(inFlightToolCall = call)).getOrElse { return Outcome.Failure(it) }
         val span = telemetry.startSpan(SpanName.TOOL_CALL, parent, toolAttributes(checkpoint, tool))
-        val output = runTool(tool, call, arguments, checkpoint.runId)
+        val output = runTool(tool, call, arguments, checkpoint)
         span.end(if (output.isError) SpanStatus.ERROR else SpanStatus.OK)
         if (output.isError) telemetry.event(TelemetryEvent.TOOL_FAILED, toolAttributes(checkpoint, tool))
         val missing = output.missingCapability
@@ -461,8 +462,8 @@ class AgentRunner(
 
     /** Tools are a trust boundary: any failure becomes an error result for the model, never a crash. */
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun runTool(tool: Tool, call: ContentBlock.ToolCall, arguments: JsonObject, runId: RunId): ToolOutput = try {
-        tool.execute(arguments, ToolExecutionContext(runId, call.id))
+    private suspend fun runTool(tool: Tool, call: ContentBlock.ToolCall, arguments: JsonObject, checkpoint: RunCheckpoint): ToolOutput = try {
+        tool.execute(arguments, ToolExecutionContext(checkpoint.runId, call.id, checkpoint.workspace))
     } catch (cancellation: CancellationException) {
         throw cancellation
     } catch (exception: Exception) {

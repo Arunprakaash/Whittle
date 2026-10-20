@@ -76,7 +76,14 @@ sealed interface ThreadItem {
 }
 
 @Serializable
-data class StepModel(val id: String, val icon: String, val label: String, val status: StepState)
+data class StepModel(
+    val id: String,
+    val icon: String,
+    val label: String,
+    val status: StepState,
+    /** What ran and what came back, for the expandable step detail. */
+    val inspection: String? = null,
+)
 
 @Serializable
 enum class StepState { Running, Done, Failed, Blocked, NeedsAccess, Stopped }

@@ -12,10 +12,13 @@ chevron_right
 close
 contacts
 content_copy
+description
 do_not_disturb_on:fill
 edit
+edit_document
 error
 expand_more
+folder
 help
 info
 key
@@ -31,5 +34,6 @@ schedule
 settings
 sms
 stop:fill
+terminal
 visibility
 visibility_off

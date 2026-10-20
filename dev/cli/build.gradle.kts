@@ -18,5 +18,6 @@ dependencies {
     implementation(project(":llm:adapter-openai-responses"))
     implementation(project(":tools:device"))
     implementation(project(":tools:web"))
+    implementation(project(":tools:workspace"))
     implementation(libs.okhttp)
 }

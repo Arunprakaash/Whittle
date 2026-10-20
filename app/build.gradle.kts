@@ -32,6 +32,7 @@ dependencies {
     implementation(project(":tools:device"))
     implementation(project(":tools:web"))
     implementation(project(":tools:android"))
+    implementation(project(":tools:workspace"))
     implementation(project(":storage:secrets"))
     implementation(project(":storage:runs"))
     implementation(project(":storage:chats"))

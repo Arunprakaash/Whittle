@@ -24,6 +24,7 @@ import app.whittle.llm.api.ModelDescriptor
 import app.whittle.policy.PolicyDecision
 import app.whittle.policy.RunMode
 import app.whittle.storage.chats.ChatId
+import app.whittle.tools.api.WorkspaceId
 import app.whittle.tools.presentation.StepText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -46,7 +47,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import java.time.LocalDate
 import java.util.Locale
@@ -87,6 +90,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private val stepTexts = mutableMapOf<String, StepText>()
     private val parkedCalls = mutableSetOf<String>()
     private val needsAccess = mutableSetOf<String>()
+    private val stepArguments = mutableMapOf<String, JsonObject>()
     private var nextKey = 0L
     private var chatId: ChatId? = null
     private val saveLock = Mutex()
@@ -116,12 +120,15 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             return
         }
         val runId = RunId(graph.idGenerator.newId())
+        val chat = chatId ?: ChatId(graph.idGenerator.newId()).also { chatId = it }
         append(ThreadItem.User(key(), text, steer = false))
         val request = RunRequest(
             runId = runId,
             model = model,
             userMessage = Message.userText(text),
             priorMessages = history,
+            // One workspace per chat: files from earlier turns are still there for follow-ups.
+            workspace = WorkspaceId(chat.value),
             mode = RunMode.LIVE,
             reasoningEffort = graph.modelDefaults.defaultReasoningEffort,
             preApprovedTools = emptySet(),
@@ -244,8 +251,10 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private fun onToolCallDecided(event: RunEvent.ToolCallDecided) {
         finishNarration()
         val call = event.toolCall
-        val text = graph.presenter.step(call.toolName, arguments(call.argumentsJson))
+        val arguments = arguments(call.argumentsJson)
+        val text = graph.presenter.step(call.toolName, arguments)
         stepTexts[call.id.value] = text
+        stepArguments[call.id.value] = arguments
         when (event.decision) {
             is PolicyDecision.Allow -> {
                 addStep(StepModel(call.id.value, text.icon, text.running, StepState.Running))
@@ -264,7 +273,11 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             when {
                 step.status == StepState.Blocked -> step
                 id in needsAccess -> step.copy(status = StepState.NeedsAccess)
-                else -> step.copy(label = text?.done ?: step.label, status = if (event.result.isError) StepState.Failed else StepState.Done)
+                else -> step.copy(
+                    label = text?.done ?: step.label,
+                    status = if (event.result.isError) StepState.Failed else StepState.Done,
+                    inspection = inspection(stepArguments[id] ?: EMPTY_ARGUMENTS, event.result.content),
+                )
             }
         }
         if (!event.result.isError) _haptics.tryEmit(WhittleHaptic.StepDone)
@@ -390,6 +403,31 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         EMPTY_ARGUMENTS
     }
 
+    /**
+     * The call's arguments, then its result: JSON fields one per line, multi-line text (a command's
+     * output, a file) as a block. Capped so a huge result can't swamp the thread.
+     */
+    private fun inspection(arguments: JsonObject, result: String): String = buildString {
+        arguments.forEach { (name, value) -> appendField(name, value) }
+        val fields = try {
+            Json.parseToJsonElement(result) as? JsonObject
+        } catch (exception: SerializationException) {
+            null
+        }
+        if (isNotEmpty()) appendLine()
+        if (fields != null) fields.forEach { (name, value) -> appendField(name, value) } else append(result)
+    }.trimEnd().take(INSPECTION_MAX_CHARS)
+
+    private fun StringBuilder.appendField(name: String, value: JsonElement) {
+        val text = (value as? JsonPrimitive)?.takeIf { it.isString }?.content ?: value.toString()
+        if ('\n' in text.trimEnd()) {
+            appendLine("$name:")
+            appendLine(text.trimEnd())
+        } else {
+            appendLine("$name: $text")
+        }
+    }
+
     private fun HarnessError.toNotice(): NoticeKind = when (this) {
         is HarnessError.Authentication -> NoticeKind.FailedKey
         is HarnessError.Provider -> if (statusCode in KEY_REJECTED_CODES) NoticeKind.FailedKey else NoticeKind.FailedProvider
@@ -459,6 +497,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val KEY_REJECTED_CODES = setOf(401, 403)
         val EMPTY_ARGUMENTS = JsonObject(emptyMap())
         const val SAVE_DEBOUNCE_MILLIS = 400L
+        const val INSPECTION_MAX_CHARS = 4_000
         const val TITLE_MAX_CHARS = 80
         val CHAT_JSON = Json { ignoreUnknownKeys = true }
     }

@@ -12,6 +12,7 @@
   ],
   "riskTierDefaults": {
     "READ": "ALLOW",
+    "WORKSPACE": "ALLOW",
     "WRITE_LOCAL": "ALLOW",
     "NETWORK_OUT": "ASK_ONCE",
     "SEND_OR_SHARE": "ASK_EVERY_TIME",

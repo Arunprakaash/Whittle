@@ -7,6 +7,12 @@
   "storage": {
     "connectionStoreName": "whittle_connection",
     "runsDatabaseName": "whittle_runs.db",
-    "chatsDatabaseName": "whittle_chats.db"
+    "chatsDatabaseName": "whittle_chats.db",
+    "workspacesDirectoryName": "workspaces"
+  },
+  "terminal": {
+    "shell": "/system/bin/sh",
+    "path": "/system/bin",
+    "processGroupLauncher": "setsid"
   }
 }

@@ -38,6 +38,7 @@ include(
     ":tools:device",
     ":tools:web",
     ":tools:android",
+    ":tools:workspace",
     ":policy:engine",
     ":agent:runtime",
     ":observability:api",

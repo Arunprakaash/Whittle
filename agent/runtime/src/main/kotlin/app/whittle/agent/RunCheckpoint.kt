@@ -10,6 +10,7 @@ import app.whittle.llm.api.ReasoningEffort
 import app.whittle.policy.RunContext
 import app.whittle.policy.RunMode
 import app.whittle.tools.api.CapabilityId
+import app.whittle.tools.api.WorkspaceId
 import app.whittle.tools.api.ToolId
 import kotlinx.serialization.Serializable
 
@@ -52,6 +53,7 @@ data class RunCheckpoint(
     val inFlightDecision: ContentBlock.ToolCall? = null,
     /** Capabilities a tool needed that the user hasn't granted yet; each shows a card in the thread. */
     val requestedCapabilities: Set<CapabilityId> = emptySet(),
+    val workspace: WorkspaceId? = null,
 ) {
     fun runContext(): RunContext = RunContext(
         mode = mode,

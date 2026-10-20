@@ -6,6 +6,7 @@ import app.whittle.llm.api.ModelDescriptor
 import app.whittle.llm.api.ReasoningEffort
 import app.whittle.policy.RunMode
 import app.whittle.tools.api.ToolId
+import app.whittle.tools.api.WorkspaceId
 
 data class RunRequest(
     val runId: RunId,
@@ -13,6 +14,8 @@ data class RunRequest(
     val userMessage: Message,
     /** Earlier turns of the same chat, so a follow-up continues the conversation. Empty for a new chat. */
     val priorMessages: List<Message> = emptyList(),
+    /** Where workspace tools read, write and run commands. Usually one per chat. */
+    val workspace: WorkspaceId? = null,
     val mode: RunMode,
     val reasoningEffort: ReasoningEffort,
     val preApprovedTools: Set<ToolId>,

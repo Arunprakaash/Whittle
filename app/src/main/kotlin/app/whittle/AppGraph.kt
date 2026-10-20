@@ -1,6 +1,9 @@
 package app.whittle
 
 import android.content.Context
+import android.system.ErrnoException
+import android.system.Os
+import android.system.OsConstants
 import app.whittle.agent.AgentMessages
 import app.whittle.agent.AgentRunner
 import app.whittle.agent.RunInbox
@@ -40,13 +43,19 @@ import app.whittle.storage.secrets.EncryptedSecretStore
 import app.whittle.storage.secrets.SecretStore
 import app.whittle.storage.secrets.SecretStoreCredentialsProvider
 import app.whittle.storage.secrets.TinkContentCipher
+import app.whittle.tools.api.Tool
 import app.whittle.tools.api.ToolRegistry
 import app.whittle.tools.presentation.ToolPresentationConfig
 import app.whittle.tools.presentation.ToolPresenter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import app.whittle.tools.workspace.ShellEnvironment
+import app.whittle.tools.workspace.TerminalConfig
+import app.whittle.tools.workspace.WorkspaceToolSet
+import app.whittle.tools.workspace.Workspaces
 import kotlinx.serialization.KSerializer
+import java.io.File
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
@@ -96,7 +105,7 @@ class AppGraph(context: Context) {
         adapters = ModelAdapterRegistry(setOf(OpenAiCompatibleAdapter(httpClient, idGenerator), OpenAiResponsesAdapter(httpClient))),
         providers = providers,
         credentials = SecretStoreCredentialsProvider(secrets),
-        tools = ToolRegistry(ToolCatalog.create(context, clock, httpClient)),
+        tools = ToolRegistry(ToolCatalog.create(context, clock, httpClient, workspaceTools(context))),
         policy = RuleBasedPolicyEngine(load(ConfigFiles.policyRules, PolicyRuleSet.serializer(), PolicyRuleSet.SCHEMA_VERSION)),
         inbox = inbox,
         checkpoints = checkpoints,
@@ -106,6 +115,28 @@ class AppGraph(context: Context) {
         messages = load(ConfigFiles.agentMessages, AgentMessages.serializer(), AgentMessages.SCHEMA_VERSION),
         clock = clock,
     )
+
+    /** The terminal and file tools: one folder per chat, in the app's private storage. */
+    private fun workspaceTools(context: Context): List<Tool> {
+        val terminal = appDefaults.terminal
+        val environment = ShellEnvironment(
+            shell = terminal.shell,
+            path = terminal.path,
+            processGroupLauncher = terminal.processGroupLauncher,
+            killProcessGroup = { group ->
+                try {
+                    Os.kill(-group, OsConstants.SIGKILL)
+                } catch (exception: ErrnoException) {
+                    // Already gone; nothing left to stop.
+                }
+            },
+        )
+        return WorkspaceToolSet.create(
+            workspaces = Workspaces(File(context.filesDir, appDefaults.storage.workspacesDirectoryName)),
+            environment = environment,
+            config = load(TerminalConfig.FILE, TerminalConfig.serializer(), TerminalConfig.SCHEMA_VERSION),
+        )
+    }
 
     /** PostHog only when the build carries a project key; the user's consent level filters everything. */
     private fun telemetry(context: Context): Telemetry {

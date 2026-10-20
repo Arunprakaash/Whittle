@@ -8,6 +8,8 @@ import kotlinx.serialization.json.JsonObject
 data class ToolExecutionContext(
     val runId: RunId,
     val toolCallId: ToolCallId,
+    /** The run's workspace; null when the caller gave it none, and workspace tools then refuse. */
+    val workspace: WorkspaceId? = null,
 )
 
 data class ToolOutput(

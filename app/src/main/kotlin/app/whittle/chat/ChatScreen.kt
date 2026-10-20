@@ -329,6 +329,7 @@ private fun StepModel.toUi(): StepUi = StepUi(
         StepState.Blocked, StepState.NeedsAccess -> StepStatus.Blocked
         StepState.Stopped -> StepStatus.Stopped
     },
+    inspection = inspection,
 )
 
 @Composable

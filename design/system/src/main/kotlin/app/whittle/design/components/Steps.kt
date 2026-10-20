@@ -1,6 +1,8 @@
 package app.whittle.design.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,12 +17,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.whittle.design.theme.WhittleTheme
+import app.whittle.design.tokens.WhittleHaptic
+import app.whittle.design.tokens.WhittleRadius
 import app.whittle.design.tokens.WhittleSize
+import app.whittle.design.tokens.WhittleTextStyles
 import app.whittle.design.tokens.WhittleSpace
 
 enum class StepStatus { Running, Done, Failed, Blocked, Stopped }
@@ -33,14 +44,38 @@ data class StepUi(
     val label: String,
     val detail: String?,
     val status: StepStatus,
+    /** What exactly ran and what came back, shown in mono when the row is tapped. Null: nothing to show. */
+    val inspection: String? = null,
 )
 
 /** Consecutive steps as one segmented group: large outer corners, small corners between rows. */
 @Composable
-fun StepGroup(steps: List<StepUi>, modifier: Modifier = Modifier, onStepClick: ((StepUi) -> Unit)? = null) {
+fun StepGroup(steps: List<StepUi>, modifier: Modifier = Modifier) {
+    val haptics = WhittleTheme.haptics
+    var expanded by rememberSaveable { mutableStateOf(emptyList<String>()) }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
         steps.forEachIndexed { index, step ->
-            StepRow(step, segmentedShape(index, steps.size), onStepClick)
+            val open = step.id in expanded
+            val toggle = step.inspection?.let {
+                { _: StepUi ->
+                    haptics.perform(WhittleHaptic.Tap)
+                    expanded = if (open) expanded - step.id else expanded + step.id
+                }
+            }
+            StepRow(step, segmentedShape(index, steps.size), toggle)
+            AnimatedVisibility(open && step.inspection != null) {
+                Text(
+                    text = step.inspection.orEmpty(),
+                    style = WhittleTextStyles.mono,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = WhittleSpace.xs)
+                        .background(MaterialTheme.colorScheme.surfaceContainerLowest, RoundedCornerShape(WhittleRadius.m))
+                        .border(WhittleSpace.hairline / 2, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(WhittleRadius.m))
+                        .padding(WhittleSpace.m),
+                )
+            }
         }
     }
 }

@@ -10,6 +10,7 @@ data class AppDefaults(
     override val schemaVersion: Int,
     val appearance: AppearanceDefaults,
     val storage: AppStorageNames,
+    val terminal: TerminalDefaults,
 ) : VersionedConfig {
     companion object {
         const val SCHEMA_VERSION = 1
@@ -21,4 +22,13 @@ data class AppDefaults(
 data class AppearanceDefaults(val wallpaperColors: Boolean, val haptics: Boolean)
 
 @Serializable
-data class AppStorageNames(val connectionStoreName: String, val runsDatabaseName: String, val chatsDatabaseName: String)
+data class AppStorageNames(
+    val connectionStoreName: String,
+    val runsDatabaseName: String,
+    val chatsDatabaseName: String,
+    val workspacesDirectoryName: String,
+)
+
+/** The Android shell commands run in, and how each command gets its own process group. */
+@Serializable
+data class TerminalDefaults(val shell: String, val path: String, val processGroupLauncher: String?)

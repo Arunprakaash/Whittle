@@ -34,7 +34,14 @@ import app.whittle.policy.PolicyRuleSet
 import app.whittle.policy.RuleBasedPolicyEngine
 import app.whittle.policy.RunMode
 import app.whittle.tools.api.ToolRegistry
+import app.whittle.tools.api.WorkspaceId
+import app.whittle.tools.workspace.ShellEnvironment
+import app.whittle.tools.workspace.TerminalConfig
+import app.whittle.tools.workspace.WorkspaceToolSet
+import app.whittle.tools.workspace.Workspaces
 import kotlinx.coroutines.runBlocking
+import java.io.File
+import java.nio.file.Files
 import okhttp3.OkHttpClient
 import java.time.LocalDate
 import java.util.Locale
@@ -84,7 +91,7 @@ fun main(args: Array<String>) = runBlocking {
         ),
         providers = providers,
         credentials = credentials,
-        tools = ToolRegistry(setOf(AskUserTool(), DeviceClockTool(clock), WebFetchTool(httpClient))),
+        tools = ToolRegistry(setOf(AskUserTool(), DeviceClockTool(clock), WebFetchTool(httpClient)) + workspaceTools(loader)),
         policy = RuleBasedPolicyEngine(rules),
         inbox = inbox,
         checkpoints = InMemoryRunCheckpointStore(),
@@ -103,6 +110,7 @@ fun main(args: Array<String>) = runBlocking {
     var events = runner.start(
         RunRequest(
             runId = runId,
+            workspace = WorkspaceId(CLI_WORKSPACE),
             model = model,
             userMessage = Message.userText(prompt),
             mode = RunMode.LIVE,
@@ -164,7 +172,21 @@ private fun fail(message: String): Nothing {
     exitProcess(EXIT_FAILURE)
 }
 
+/** A throwaway workspace for this session, using the desktop's own shell. */
+private fun workspaceTools(loader: ConfigLoader): List<app.whittle.tools.api.Tool> {
+    val root = Files.createTempDirectory(WORKSPACE_PREFIX).toFile()
+    println("[workspace] ${File(root, CLI_WORKSPACE)}")
+    return WorkspaceToolSet.create(
+        workspaces = Workspaces(root),
+        environment = ShellEnvironment(shell = DESKTOP_SHELL, path = System.getenv("PATH").orEmpty(), processGroupLauncher = null, killProcessGroup = null),
+        config = loader.load(TerminalConfig.FILE, TerminalConfig.serializer(), TerminalConfig.SCHEMA_VERSION).orExit(),
+    )
+}
+
 private const val PREVIEW_CHARS = 300
+private const val CLI_WORKSPACE = "cli"
+private const val WORKSPACE_PREFIX = "whittle-cli"
+private const val DESKTOP_SHELL = "/bin/sh"
 private const val EXIT_USAGE = 2
 private const val EXIT_FAILURE = 1
 

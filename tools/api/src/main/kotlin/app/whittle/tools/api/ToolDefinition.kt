@@ -12,10 +12,18 @@ value class ToolId(val value: String)
 @JvmInline
 value class CapabilityId(val value: String)
 
+/** The folder a chat's tools work in: files the agent writes and where commands start. */
+@Serializable
+@JvmInline
+value class WorkspaceId(val value: String)
+
 /** Ordered from least to most risky; the policy engine compares tiers by this order. */
 @Serializable
 enum class RiskTier {
     READ,
+
+    /** Changes only the chat's own workspace inside Whittle; nothing else on the phone is touched. */
+    WORKSPACE,
     WRITE_LOCAL,
     NETWORK_OUT,
     SEND_OR_SHARE,

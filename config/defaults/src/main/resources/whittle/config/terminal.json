@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "defaultTimeoutSeconds": 30,
+  "maxTimeoutSeconds": 300,
+  "maxOutputChars": 20000,
+  "maxFileChars": 200000,
+  "maxListedEntries": 200
+}

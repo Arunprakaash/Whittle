@@ -82,6 +82,7 @@ internal val testRules = PolicyRuleSet(
     rules = emptyList(),
     riskTierDefaults = mapOf(
         RiskTier.READ to DefaultDecision.ALLOW,
+        RiskTier.WORKSPACE to DefaultDecision.ALLOW,
         RiskTier.WRITE_LOCAL to DefaultDecision.ALLOW,
         RiskTier.NETWORK_OUT to DefaultDecision.ASK_ONCE,
         RiskTier.SEND_OR_SHARE to DefaultDecision.ASK_EVERY_TIME,
