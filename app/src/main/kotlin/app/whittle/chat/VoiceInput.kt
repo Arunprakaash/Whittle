@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -31,23 +34,37 @@ enum class VoiceError { NoPermission, Unavailable, Network, Other }
  * the phone's default recognizer. Words arrive as they're spoken. Use from the main thread.
  */
 class VoiceInput(private val context: Context, private val config: VoiceDefaults) {
+    private val main = Handler(Looper.getMainLooper())
     private var recognizer: SpeechRecognizer? = null
-    private var triedDefault = false
+    private var session: Session? = null
+
+    /** The on-device recognizer failed once (no language pack, model not ready…); later sessions use the phone's default. */
+    private var onDeviceFailed = false
+    private var retriedBusy = false
 
     val available: Boolean get() = SpeechRecognizer.isRecognitionAvailable(context)
 
     fun start(listener: VoiceListener) {
         cancel()
-        triedDefault = false
-        listen(onDevice = config.preferOnDevice && onDeviceAvailable(), listener)
+        retriedBusy = false
+        listen(onDevice = config.preferOnDevice && !onDeviceFailed && onDeviceAvailable(), listener)
     }
 
     /** Stops listening; what was heard still arrives as the final result. */
     fun stop() {
-        recognizer?.stopListening()
+        val current = session ?: return
+        current.stopping = true
+        // Between a busy recognizer and its retry there's nothing listening yet to wait for.
+        val listening = recognizer ?: return current.giveUp.run()
+        listening.stopListening()
+        // Some recognizers never answer a stop; the mic mustn't stay open waiting for them.
+        main.postDelayed(current.giveUp, config.stopGraceMillis)
     }
 
+    /** Stops at once; nothing more arrives, not even [VoiceListener.onEnd]. */
     fun cancel() {
+        session?.let { main.removeCallbacks(it.giveUp) }
+        session = null
         recognizer?.destroy()
         recognizer = null
     }
@@ -61,8 +78,10 @@ class VoiceInput(private val context: Context, private val config: VoiceDefaults
         } else {
             SpeechRecognizer.createSpeechRecognizer(context)
         }
+        val next = Session(onDevice, listener)
         recognizer = created
-        created.setRecognitionListener(Listener(onDevice, listener))
+        session = next
+        created.setRecognitionListener(next)
         created.startListening(
             Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -73,36 +92,63 @@ class VoiceInput(private val context: Context, private val config: VoiceDefaults
         )
     }
 
-    private inner class Listener(private val onDevice: Boolean, private val listener: VoiceListener) : RecognitionListener {
+    /** One recognizer's run. Callbacks from a run that's been replaced or cancelled are dropped. */
+    private inner class Session(private val onDevice: Boolean, private val listener: VoiceListener) : RecognitionListener {
         private val loudness = VoiceLoudness()
+        private var heardWords = false
+        var stopping = false
+        val giveUp = Runnable { finish(null) }
+
+        private val current: Boolean get() = session === this
 
         override fun onPartialResults(partialResults: Bundle?) {
-            best(partialResults)?.let(listener::onPartial)
+            if (!current) return
+            best(partialResults)?.let { words ->
+                heardWords = true
+                listener.onPartial(words)
+            }
         }
 
         override fun onResults(results: Bundle?) {
+            if (!current) return
             best(results)?.let(listener::onFinal)
-            listener.onEnd(null)
+            finish(null)
         }
 
         override fun onRmsChanged(rmsdB: Float) {
-            listener.onLevel(loudness.level(rmsdB))
+            if (current) listener.onLevel(loudness.level(rmsdB))
         }
 
         override fun onError(error: Int) {
-            // The on-device model may lack this language; the phone's default recognizer can still try.
-            if (onDevice && !triedDefault && error in LANGUAGE_ERRORS) {
-                triedDefault = true
-                recognizer?.destroy()
+            if (!current) return
+            Log.i(TAG, "Recognizer error $error (on device: $onDevice, words heard: $heardWords, stopping: $stopping)")
+            val nothingYet = !heardWords && !stopping && error !in QUIET_ENDS && error != SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS
+            // The on-device model may lack this language or not be ready; the phone's default recognizer can still try.
+            if (onDevice && nothingYet) {
+                onDeviceFailed = true
+                cancel()
                 listen(onDevice = false, listener)
                 return
             }
-            listener.onEnd(
-                when (error) {
-                    SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> null
-                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> VoiceError.NoPermission
-                    SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT, SpeechRecognizer.ERROR_SERVER -> VoiceError.Network
-                    in LANGUAGE_ERRORS -> VoiceError.Unavailable
+            // The service was still busy with the last session; once is worth another go.
+            if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY && nothingYet && !retriedBusy) {
+                retriedBusy = true
+                cancel()
+                val retry = Session(onDevice, listener)
+                session = retry
+                main.postDelayed({ if (session === retry) listen(onDevice, listener) }, config.busyRetryMillis)
+                return
+            }
+            finish(
+                when {
+                    // Whatever was heard is already in the composer; that's a result, not a failure.
+                    heardWords -> null
+                    error in QUIET_ENDS -> null
+                    // Recognizers report the user's own stop as a client error.
+                    stopping && error == SpeechRecognizer.ERROR_CLIENT -> null
+                    error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> VoiceError.NoPermission
+                    error in NETWORK_ERRORS -> VoiceError.Network
+                    error in LANGUAGE_ERRORS -> VoiceError.Unavailable
                     else -> VoiceError.Other
                 },
             )
@@ -118,12 +164,23 @@ class VoiceInput(private val context: Context, private val config: VoiceDefaults
 
         override fun onEvent(eventType: Int, params: Bundle?) = Unit
 
+        private fun finish(error: VoiceError?) {
+            if (!current) return
+            cancel()
+            listener.onEnd(error)
+        }
+
         private fun best(bundle: Bundle?): String? =
             bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.takeIf { it.isNotBlank() }
     }
 
     private companion object {
+        const val TAG = "WhittleVoice"
         val LANGUAGE_ERRORS = setOf(SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE)
+        val NETWORK_ERRORS = setOf(SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT, SpeechRecognizer.ERROR_SERVER)
+
+        /** Nothing was heard: listening just ends. */
+        val QUIET_ENDS = setOf(SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT)
     }
 }
 

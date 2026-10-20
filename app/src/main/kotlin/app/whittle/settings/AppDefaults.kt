@@ -165,8 +165,12 @@ data class TerminalDefaults(val shell: String, val path: String)
 data class VoiceDefaults(
     /** Recognize on the phone itself when it can, so no audio leaves it. */
     val preferOnDevice: Boolean,
-    /** Silence that ends listening, as a hint to the recognizer. */
-    val silenceMillis: Long,
+    /** Silence that ends listening, as a hint to the recognizer (which reads it as an Int). */
+    val silenceMillis: Int,
+    /** After the user taps stop, how long to wait for the recognizer's last words before giving up on it. */
+    val stopGraceMillis: Long,
+    /** When the recognizer is still busy with the last session, how long to wait before trying once more. */
+    val busyRetryMillis: Long,
 )
 
 /** Where the phone keeps what Whittle remembers (encrypted); the limits are the harness's (MemoryPolicy). */

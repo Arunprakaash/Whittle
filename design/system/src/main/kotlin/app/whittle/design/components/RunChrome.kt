@@ -158,6 +158,8 @@ data class ComposerVoice(
     val startLabel: String,
     val stopLabel: String,
     val onToggle: () -> Unit,
+    /** The user typed while listening: their edit wins, so listening stops. */
+    val onTyped: () -> Unit,
 )
 
 /** Where the user types. While a run works, what they send is added to it rather than starting over. */
@@ -199,10 +201,14 @@ fun Composer(
             }
             BasicTextField(
                 value = value,
-                onValueChange = onValueChange,
+                onValueChange = { typed ->
+                    if (listening) voice?.onTyped?.invoke()
+                    onValueChange(typed)
+                },
                 enabled = enabled,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
-                cursorBrush = SolidColor(colors.primary),
+                // While the wave stands in for the placeholder, a cursor would blink over it.
+                cursorBrush = SolidColor(if (listening && value.isEmpty()) Color.Transparent else colors.primary),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { send() }),
                 maxLines = COMPOSER_MAX_LINES,

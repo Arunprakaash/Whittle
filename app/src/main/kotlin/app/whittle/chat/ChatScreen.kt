@@ -5,6 +5,8 @@ import app.whittle.design.components.ComposerVoice
 import android.Manifest
 import android.content.pm.PackageManager
 import android.widget.Toast
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.core.content.ContextCompat
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableFloatStateOf
@@ -86,10 +88,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import app.whittle.R
 import app.whittle.design.components.Composer
 import app.whittle.design.components.LatestPill
-import app.whittle.design.components.DecisionCard
-import app.whittle.design.components.DecisionUi
 import app.whittle.design.components.WhittleTransitions
 import app.whittle.design.tokens.WhittleMotion
+import app.whittle.design.components.DecisionCard
+import app.whittle.design.components.DecisionUi
 import app.whittle.design.components.Narration
 import app.whittle.design.components.QuestionCard
 import app.whittle.design.components.QuestionUi
@@ -295,11 +297,11 @@ private fun Thread(items: List<ThreadItem>, working: Boolean, viewModel: ChatVie
         AnimatedVisibility(
             visible = !following && listState.canScrollForward,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = WhittleSpace.s),
-        ) {
-            LatestPill(stringResource(R.string.thread_latest), working = working) {
             // A small surface: the fast spatial spring gives it Expressive's slight overshoot as it lands.
             enter = WhittleTransitions.riseIn(WhittleMotion.spatialFast),
             exit = WhittleTransitions.sinkOut(),
+        ) {
+            LatestPill(stringResource(R.string.thread_latest), working = working) {
                 following = true
                 scope.launch { listState.animateScrollToItem(items.lastIndex, scrollOffset = Int.MAX_VALUE) }
             }
@@ -470,6 +472,13 @@ private fun rememberVoice(defaults: VoiceDefaults, input: String, onInput: (Stri
         VoiceError.Network to stringResource(R.string.voice_network),
         VoiceError.Other to stringResource(R.string.voice_failed),
     )
+    val quiet = {
+        voice.cancel()
+        listening = false
+        level = 0f
+    }
+    // Listening belongs to the screen in front of the user; leaving the app ends it.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { if (listening) quiet() }
     val start = {
         // What was typed before speaking stays; each partial result replaces only what's been heard so far.
         val base = currentInput.trimEnd().let { if (it.isEmpty()) it else "$it " }
@@ -484,8 +493,7 @@ private fun rememberVoice(defaults: VoiceDefaults, input: String, onInput: (Stri
             }
 
             override fun onEnd(error: VoiceError?) {
-                listening = false
-                level = 0f
+                quiet()
                 error?.let { Toast.makeText(context, errors.getValue(it), Toast.LENGTH_LONG).show() }
             }
         })
@@ -506,6 +514,7 @@ private fun rememberVoice(defaults: VoiceDefaults, input: String, onInput: (Stri
                 else -> permission.launch(Manifest.permission.RECORD_AUDIO)
             }
         },
+        onTyped = { if (listening) quiet() },
     )
 }
 

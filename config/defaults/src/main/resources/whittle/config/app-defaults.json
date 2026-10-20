@@ -91,7 +91,9 @@
   },
   "voice": {
     "preferOnDevice": true,
-    "silenceMillis": 2000
+    "silenceMillis": 2000,
+    "stopGraceMillis": 2500,
+    "busyRetryMillis": 400
   },
   "memory": {
     "fileName": "memory.bin"
