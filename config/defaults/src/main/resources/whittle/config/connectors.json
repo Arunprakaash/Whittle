@@ -177,18 +177,24 @@
       },
       {
         "title": "Zapier",
-        "description": "Gmail, Slack, Google Calendar, Sheets and 8,000 more apps, through your Zapier account.",
+        "description": "Gmail, Google Calendar, Docs, Sheets, Outlook, Excel, Slack and 8,000 more apps, through your Zapier account.",
         "url": "https://mcp.zapier.com/api/mcp/mcp",
         "websiteUrl": "https://zapier.com",
         "category": "communication",
         "keywords": [
           "gmail",
           "email",
-          "slack",
-          "outlook",
           "google calendar",
+          "calendar",
+          "google docs",
           "google sheets",
+          "google drive",
+          "outlook",
+          "excel",
+          "word",
+          "onedrive",
           "teams",
+          "slack",
           "whatsapp",
           "automation"
         ]

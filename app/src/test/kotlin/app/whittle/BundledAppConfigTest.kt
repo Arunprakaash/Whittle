@@ -53,6 +53,8 @@ class BundledAppConfigTest {
         ).value.library
         library.categories.forEach { category -> assertTrue(library.servers.any { it.category == category.id }, "${category.title} is empty") }
         assertTrue(library.servers.all { it.url.startsWith("https://") })
-        assertEquals(listOf("Zapier"), library.servers.filter { it.matches("gmail") }.map { it.title })
+        listOf("gmail", "google calendar", "excel", "outlook", "google docs").forEach { app ->
+            assertEquals(listOf("Zapier"), library.servers.filter { it.matches(app) }.map { it.title }, app)
+        }
     }
 }
