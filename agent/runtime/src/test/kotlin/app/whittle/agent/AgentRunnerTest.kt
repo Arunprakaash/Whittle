@@ -33,6 +33,7 @@ import kotlinx.serialization.json.put
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class AgentRunnerTest {
@@ -334,6 +335,27 @@ class AgentRunnerTest {
     }
 
     @Test
+    fun `a stopped run leaves its whole conversation, with unfinished calls closed`() = runTest {
+        val first = call("c1", "time.now")
+        val second = call("c2", "time.now")
+        val done = ContentBlock.ToolResult(first.id, "12:00", isError = false, provenance = Provenance.Trusted)
+        store.save(
+            baseCheckpoint().copy(
+                conversation = Conversation("System", listOf(Message.userText("Build it"), Message(Role.ASSISTANT, listOf(first, second)))),
+                stepResults = listOf(done),
+            ),
+        )
+
+        val history = assertNotNull(runner().conversationAfter(runId))
+
+        assertEquals("Build it", history.first().text)
+        val results = history.last().content.filterIsInstance<ContentBlock.ToolResult>()
+        assertEquals(listOf(done), results.take(1))
+        assertEquals(second.id, results[1].toolCallId)
+        assertTrue(results[1].isError)
+    }
+
+    @Test
     fun `resume never re-runs a tool call that was in flight`() = runTest {
         val sender = FakeTool("message.send", RiskTier.READ)
         val inFlight = call("c1", "message.send")
@@ -439,6 +461,4 @@ class AgentRunnerTest {
     private fun lastToolResult(adapter: ScriptedAdapter): ContentBlock.ToolResult =
         adapter.requests.last().messages.last().content.filterIsInstance<ContentBlock.ToolResult>().last()
 
-    private companion object {
-    }
 }

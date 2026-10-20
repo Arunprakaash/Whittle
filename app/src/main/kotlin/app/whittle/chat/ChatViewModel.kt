@@ -230,6 +230,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     fun stop() {
+        val stopped = activeRunId
         activeJob?.cancel()
         activeJob = null
         activeRunId = null
@@ -242,6 +243,12 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
                 } + ThreadItem.Notice(key(), NoticeKind.Stopped),
             )
         }
+        // A follow-up after Stop still knows what was asked and what had been done.
+        stopped?.let { viewModelScope.launch { carryForward(it); save() } }
+    }
+
+    private suspend fun carryForward(runId: RunId) {
+        graph.runner.conversationAfter(runId)?.let { history = it }
     }
 
     fun toggleSources(key: String) = replace(key) { (it as ThreadItem.Sources).let { sources -> sources.copy(expanded = !sources.expanded) } }
@@ -358,11 +365,9 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         _state.update { it.copy(status = StatusUi(AgentState.Thinking, verb = null, startedAtMillis = segment.startedAtMillis)) }
         activeJob = viewModelScope.launch {
             // The loop encrypts and saves a checkpoint every step, so it runs off the main thread.
-            events.flowOn(Dispatchers.Default).collect { event ->
-                onEvent(event)
-                // The next message continues this conversation, including any tool results.
-                if (event is RunEvent.Completed) graph.checkpoints.load(runId).getOrNull()?.let { history = it.conversation.messages }
-            }
+            events.flowOn(Dispatchers.Default).collect(::onEvent)
+            // The next message continues this conversation, whether the run finished, paused or failed.
+            carryForward(runId)
             activeJob = null
             activeRunId = null
             save()

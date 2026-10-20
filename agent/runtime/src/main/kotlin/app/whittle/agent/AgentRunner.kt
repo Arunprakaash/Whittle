@@ -124,6 +124,22 @@ class AgentRunner(
         drive(resumed)
     }
 
+    /**
+     * What a run leaves for the chat's next message, however it ended (finished, paused, failed or stopped):
+     * its whole conversation, with tool calls it never got to closed as interrupted, so the next run sees
+     * everything that happened and its first model call is well formed.
+     */
+    suspend fun conversationAfter(runId: RunId): List<Message>? {
+        val checkpoint = checkpoints.load(runId).getOrNull() ?: return null
+        val history = checkpoint.conversation.messages
+        val open = history.lastOrNull()?.takeIf { it.role == Role.ASSISTANT }?.toolCalls.orEmpty()
+        if (open.isEmpty()) return history
+        val results = open.map { call ->
+            checkpoint.stepResults.firstOrNull { it.toolCallId == call.id } ?: errorResult(call, messages.interruptedToolCall(call.toolName))
+        }
+        return history + Message(Role.USER, results)
+    }
+
     private suspend fun FlowCollector<RunEvent>.drive(initial: RunCheckpoint) {
         val runSpan = telemetry.startSpan(SpanName.RUN, parent = null, runAttributes(initial))
         val final = runLoop(initial, runSpan.context)
