@@ -11,8 +11,8 @@ android {
     defaultConfig {
         applicationId = "app.whittle"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
         // PostHog's public project key comes from your Gradle properties, never from the repo.
         // Without it, telemetry stays on the device.
         val postHogProjectKey = providers.gradleProperty("whittle.posthogProjectKey").orElse("").get()
