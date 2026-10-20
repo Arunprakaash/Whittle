@@ -1,5 +1,6 @@
 package app.whittle.connect
 
+import app.whittle.observability.posthog.hiddenFromReplay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -113,7 +114,8 @@ private fun EnterKey(state: ConnectState, phase: ConnectPhase, viewModel: Connec
         },
         isError = (phase as? ConnectPhase.EnterKey)?.error != null,
         supportingText = (phase as? ConnectPhase.EnterKey)?.error?.let { error -> { Text(errorText(error, state.provider.displayName)) } },
-        modifier = Modifier.fillMaxWidth(),
+        // The key never appears in a session recording, even when shown or when recordings show content.
+        modifier = Modifier.fillMaxWidth().hiddenFromReplay(),
     )
     Button(
         onClick = { haptics.perform(WhittleHaptic.Tap); viewModel.connect() },

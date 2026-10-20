@@ -16,6 +16,10 @@ android {
         // Without it, telemetry stays on the device.
         val postHogProjectKey = providers.gradleProperty("whittle.posthogProjectKey").orElse("").get()
         buildConfigField("String", "POSTHOG_PROJECT_KEY", "\"$postHogProjectKey\"")
+        // Session recordings mask all text and images unless this build opts out, for the developer's own
+        // testing. Set whittle.replayShowContent=true in your Gradle properties; never in shipped builds.
+        val replayShowContent = providers.gradleProperty("whittle.replayShowContent").orElse("false").get().toBoolean()
+        buildConfigField("boolean", "REPLAY_SHOW_CONTENT", replayShowContent.toString())
     }
 
     // Release signing comes from a properties file outside the repo (storeFile, storePassword, keyAlias,
