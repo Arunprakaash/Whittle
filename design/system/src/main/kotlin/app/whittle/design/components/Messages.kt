@@ -1,5 +1,6 @@
 package app.whittle.design.components
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -68,6 +69,25 @@ fun Narration(text: String, streaming: Boolean, modifier: Modifier = Modifier) {
         background = MaterialTheme.colorScheme.surfaceContainerHigh,
     )
     val linkStyle = SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline)
+    val blocks = remember(text) { MarkdownBlocks.parse(text) }
+    // Text runs and tables in order; the streaming dot trails the last text run, or follows a final table.
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
+        blocks.forEachIndexed { index, block ->
+            val last = index == blocks.lastIndex
+            when (block) {
+                is MarkdownBlock.Text -> NarrationText(block.text, streaming && last, codeStyle, linkStyle)
+                is MarkdownBlock.Table -> {
+                    MarkdownTable(block.header, block.rows, codeStyle, linkStyle)
+                    if (streaming && last) NarrationText("", streaming = true, codeStyle, linkStyle)
+                }
+            }
+        }
+        if (blocks.isEmpty() && streaming) NarrationText("", streaming = true, codeStyle, linkStyle)
+    }
+}
+
+@Composable
+private fun NarrationText(text: String, streaming: Boolean, codeStyle: SpanStyle, linkStyle: SpanStyle) {
     val formatted = remember(text, codeStyle, linkStyle) { lightMarkdown(text, codeStyle, linkStyle) }
     val annotated = buildAnnotatedString {
         append(formatted)
@@ -82,7 +102,7 @@ fun Narration(text: String, streaming: Boolean, modifier: Modifier = Modifier) {
     } else {
         emptyMap()
     }
-    Text(annotated, modifier.fillMaxWidth(), style = MaterialTheme.typography.bodyLarge, inlineContent = inline)
+    Text(annotated, Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodyLarge, inlineContent = inline)
 }
 
 @Composable
