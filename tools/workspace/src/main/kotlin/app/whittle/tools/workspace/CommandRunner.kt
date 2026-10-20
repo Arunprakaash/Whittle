@@ -1,5 +1,6 @@
 package app.whittle.tools.workspace
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
@@ -48,7 +49,14 @@ class CommandRunner(private val environment: ShellEnvironment, private val maxOu
                 val stdout = async { process.inputStream.readCapped(firstLine = { processGroup = it.trim().toIntOrNull() }) }
                 val stderr = async { process.errorStream.readCapped(firstLine = null) }
                 val deadline = startedAt + TimeUnit.SECONDS.toMillis(timeoutSeconds.toLong())
-                while (process.isAlive && System.currentTimeMillis() < deadline) delay(POLL_MILLIS)
+                try {
+                    while (process.isAlive && System.currentTimeMillis() < deadline) delay(POLL_MILLIS)
+                } catch (cancellation: CancellationException) {
+                    // Kill first: the readers are blocked on the command's output and this scope waits for
+                    // them, so cleaning up later would never happen while the command holds its pipes open.
+                    withContext(NonCancellable) { kill(process, processGroup) }
+                    throw cancellation
+                }
                 val timedOut = process.isAlive
                 if (timedOut) kill(process, processGroup)
                 // A background job ("cmd &") can hold the output open after the shell exits; give it a moment, then end it.

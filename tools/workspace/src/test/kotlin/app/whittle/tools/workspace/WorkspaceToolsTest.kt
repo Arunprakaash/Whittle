@@ -4,6 +4,10 @@ import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.tools.api.ToolExecutionContext
 import app.whittle.tools.api.WorkspaceId
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -55,6 +59,17 @@ class WorkspaceToolsTest {
         val output = command("""sleep 5""", timeout = 1)
         assertEquals("1", output.field("timedOutAfterSeconds"))
         assertTrue(System.currentTimeMillis() - started < 4_000)
+    }
+
+    @Test
+    fun `cancelling a run stops its command at once`() = runBlocking<Unit> {
+        val runner = CommandRunner(environment, config.maxOutputChars)
+        val directory = File(root, "chat-1").apply { mkdirs() }
+        val job = launch(Dispatchers.IO) { runner.run("sleep 30", directory, timeoutSeconds = 60) }
+        delay(500)
+        val started = System.currentTimeMillis()
+        job.cancelAndJoin()
+        assertTrue(System.currentTimeMillis() - started < 3_000, "Stop must not wait for the command to finish")
     }
 
     @Test
