@@ -37,6 +37,9 @@ data class QuestionText(val icon: String, val question: String, val options: Lis
  * argument is missing), the tool's fallback text is used instead of showing a placeholder.
  */
 class ToolPresenter(private val config: ToolPresentationConfig) {
+    /** Every argument name that holds the address of a page a step reads. */
+    val siteArguments: Set<String> = config.tools.values.mapNotNullTo(mutableSetOf()) { it.siteArgument }
+
     fun step(toolId: String, arguments: JsonObject): StepText {
         val presentation = config.tools[toolId] ?: config.fallback
         val variables = variables(arguments)

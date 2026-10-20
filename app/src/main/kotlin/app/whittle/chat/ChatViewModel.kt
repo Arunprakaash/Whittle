@@ -283,7 +283,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val interrupted = document?.activeRunId
             ?.takeIf { graph.checkpoints.load(it).getOrNull()?.status == RunStatus.RUNNING }
             ?.let { ThreadItem.Interrupted(key(), it) }
-        val items = document?.items.orEmpty().map(::settle) + listOfNotNull(interrupted)
+        val restored = ThreadBackfill(graph.presenter.siteArguments, ::key).apply(document?.items.orEmpty())
+        val items = restored.map(::settle) + listOfNotNull(interrupted)
         savedItems = items
         _state.update { it.copy(items = items, status = null, input = "") }
     }
