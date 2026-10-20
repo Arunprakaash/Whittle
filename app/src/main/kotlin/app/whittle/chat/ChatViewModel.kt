@@ -556,19 +556,12 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             runIds = runIds,
         )
         graph.appScope.launch {
-            saveLock.withLock { graph.chats.save(id, title, CHAT_JSON.encodeToString(ChatDocument.serializer(), document)) }
+            saveLock.withLock { graph.chats.save(id, title, document.encode()) }
             refreshChats()
         }
     }
 
-    /** A chat from an incompatible version is skipped rather than shown half-read. */
-    private fun decode(document: String): ChatDocument? = try {
-        CHAT_JSON.decodeFromString(ChatDocument.serializer(), document).takeIf { it.schemaVersion == ChatDocument.SCHEMA_VERSION }
-    } catch (exception: SerializationException) {
-        null
-    } catch (exception: IllegalArgumentException) {
-        null
-    }
+    private fun decode(document: String): ChatDocument? = ChatDocument.decode(document)
 
     private fun key(): String = "item-${nextKey++}"
 
@@ -582,6 +575,5 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         const val SAVE_DEBOUNCE_MILLIS = 400L
         const val INSPECTION_MAX_CHARS = 4_000
         const val TITLE_MAX_CHARS = 80
-        val CHAT_JSON = Json { ignoreUnknownKeys = true }
     }
 }

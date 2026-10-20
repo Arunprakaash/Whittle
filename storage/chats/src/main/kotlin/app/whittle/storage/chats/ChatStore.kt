@@ -17,6 +17,9 @@ data class ChatSummary(val id: ChatId, val title: String?, val updatedAtMillis: 
 interface ChatStore {
     suspend fun save(id: ChatId, title: String, document: String): Outcome<Unit>
 
+    /** Saves a chat that keeps its own last-updated time, e.g. one restored from a backup. */
+    suspend fun importChat(id: ChatId, title: String, document: String, updatedAtMillis: Long): Outcome<Unit>
+
     /** Returns null when there is no chat with [id]. */
     suspend fun load(id: ChatId): Outcome<StoredChat?>
 

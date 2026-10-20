@@ -21,9 +21,12 @@ class RoomChatStore(
     private val clock: EpochClock,
 ) : ChatStore {
     override suspend fun save(id: ChatId, title: String, document: String): Outcome<Unit> =
+        importChat(id, title, document, clock.nowMillis())
+
+    override suspend fun importChat(id: ChatId, title: String, document: String, updatedAtMillis: Long): Outcome<Unit> =
         encrypt(document, documentBinding(id)).flatMap { encryptedDocument ->
             encrypt(title, titleBinding(id)).flatMap { encryptedTitle ->
-                storageCall { dao.upsert(ChatEntity(id.value, clock.nowMillis(), encryptedDocument, encryptedTitle)) }
+                storageCall { dao.upsert(ChatEntity(id.value, updatedAtMillis, encryptedDocument, encryptedTitle)) }
             }
         }
 
