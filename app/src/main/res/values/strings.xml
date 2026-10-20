@@ -30,7 +30,6 @@
     <string name="sidebar_recent">Recent</string>
     <string name="sidebar_empty">No chats yet</string>
     <string name="sidebar_untitled">New chat</string>
-    <string name="sidebar_chat_options">Chat options</string>
     <string name="sidebar_delete">Delete</string>
     <string name="sidebar_delete_title">Delete this chat?</string>
     <string name="sidebar_delete_body">Its messages, files and saved tasks are removed from this phone. This can\'t be undone.</string>

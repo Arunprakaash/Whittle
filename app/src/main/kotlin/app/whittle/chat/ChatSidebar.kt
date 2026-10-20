@@ -1,6 +1,8 @@
 package app.whittle.chat
 
-import android.text.format.DateUtils
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,15 +10,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -25,10 +25,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import app.whittle.R
 import app.whittle.design.components.WhittleIcon
+import app.whittle.design.components.segmentedShape
 import app.whittle.design.theme.WhittleTheme
 import app.whittle.design.tokens.WhittleHaptic
 import app.whittle.design.tokens.WhittleSize
@@ -66,10 +73,11 @@ fun ChatSidebar(
                 modifier = Modifier.padding(horizontal = WhittleSpace.s),
             )
             LazyColumn(verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
-                items(chats, key = { it.id.value }) { chat ->
+                itemsIndexed(chats, key = { _, chat -> chat.id.value }) { index, chat ->
                     ChatRow(
                         chat = chat,
                         selected = chat.id == current,
+                        shape = segmentedShape(index, chats.size),
                         onOpen = { haptics.perform(WhittleHaptic.Select); onOpen(chat.id) },
                         onDelete = { confirmDelete = chat },
                     )
@@ -92,35 +100,41 @@ fun ChatSidebar(
     }
 }
 
+/** One line per chat, styled like the model list. Long-press (or the accessibility action) offers Delete. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ChatRow(chat: ChatListItem, selected: Boolean, onOpen: () -> Unit, onDelete: () -> Unit) {
+private fun ChatRow(chat: ChatListItem, selected: Boolean, shape: Shape, onOpen: () -> Unit, onDelete: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val haptics = WhittleTheme.haptics
     var menuOpen by remember { mutableStateOf(false) }
-    NavigationDrawerItem(
-        selected = selected,
-        onClick = onOpen,
-        label = {
-            Column {
-                Text(chat.title ?: stringResource(R.string.sidebar_untitled), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
-                Text(
-                    DateUtils.getRelativeTimeSpanString(chat.updatedAtMillis, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    val deleteLabel = stringResource(R.string.sidebar_delete)
+    Box {
+        Text(
+            text = chat.title ?: stringResource(R.string.sidebar_untitled),
+            style = MaterialTheme.typography.titleSmall,
+            color = if (selected) colors.onSecondaryContainer else colors.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(if (selected) colors.secondaryContainer else colors.surfaceContainerHigh)
+                .combinedClickable(
+                    onClick = onOpen,
+                    onLongClick = { haptics.perform(WhittleHaptic.Select); menuOpen = true },
                 )
-            }
-        },
-        badge = {
-            Box {
-                IconButton(onClick = { menuOpen = true }) {
-                    WhittleIcon("more_vert", size = WhittleSize.Icon.m, contentDescription = stringResource(R.string.sidebar_chat_options))
+                .semantics {
+                    this.selected = selected
+                    customActions = listOf(CustomAccessibilityAction(deleteLabel) { onDelete(); true })
                 }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.sidebar_delete)) },
-                        leadingIcon = { WhittleIcon("delete", size = WhittleSize.Icon.m) },
-                        onClick = { menuOpen = false; onDelete() },
-                    )
-                }
-            }
-        },
-    )
+                .padding(horizontal = WhittleSpace.l, vertical = WhittleSpace.m),
+        )
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(
+                text = { Text(deleteLabel) },
+                leadingIcon = { WhittleIcon("delete", size = WhittleSize.Icon.m) },
+                onClick = { menuOpen = false; onDelete() },
+            )
+        }
+    }
 }
