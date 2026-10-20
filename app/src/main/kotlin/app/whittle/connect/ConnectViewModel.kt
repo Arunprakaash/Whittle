@@ -7,6 +7,7 @@ import app.whittle.core.common.HarnessError
 import app.whittle.core.common.Outcome
 import app.whittle.core.common.Secret
 import app.whittle.core.common.flatMap
+import app.whittle.core.common.getOrNull
 import app.whittle.core.common.map
 import app.whittle.core.model.ProviderId
 import app.whittle.llm.api.ModelDescriptor
@@ -23,6 +24,8 @@ data class ConnectState(
     val providerId: ProviderId,
     val key: String = "",
     val phase: ConnectPhase = ConnectPhase.EnterKey(error = null),
+    /** Changing the model of a provider already connected: its saved key is used, nothing is asked. */
+    val switching: Boolean = false,
 ) {
     val provider: ProviderDescriptor get() = providers.first { it.id == providerId }
 }
@@ -31,6 +34,9 @@ sealed interface ConnectPhase {
     data class EnterKey(val error: ConnectError?) : ConnectPhase
 
     data object Checking : ConnectPhase
+
+    /** The saved key's models couldn't be listed; the key itself is kept. */
+    data class LoadFailed(val error: ConnectError) : ConnectPhase
 
     data class ChooseModel(val models: List<ModelDescriptor>, val query: String = "") : ConnectPhase {
         /** Matches ignoring case, spaces and punctuation, so "gpt5" finds "gpt-5.6-terra". */
@@ -59,12 +65,42 @@ sealed interface ConnectError {
 /**
  * Connects a provider: the key is checked against the provider, the models are listed, and only then
  * is the key stored (encrypted, on this phone). Picking a model finishes the connection.
+ *
+ * Given the [current] model, it changes the model instead: the provider's saved key lists its models
+ * and is never asked for again. Only a key that's missing is asked for.
  */
-class ConnectViewModel(private val graph: AppGraph) : ViewModel() {
+class ConnectViewModel(private val graph: AppGraph, private val current: ModelDescriptor? = null) : ViewModel() {
     private val _state = MutableStateFlow(
-        ConnectState(providers = graph.providers.providers, providerId = graph.providers.providers.first().id),
+        ConnectState(
+            providers = graph.providers.providers,
+            providerId = current?.providerId ?: graph.providers.providers.first().id,
+            phase = if (current != null) ConnectPhase.Checking else ConnectPhase.EnterKey(error = null),
+            switching = current != null,
+        ),
     )
     val state: StateFlow<ConnectState> = _state.asStateFlow()
+
+    init {
+        retry()
+    }
+
+    /** Lists the current provider's models again with its saved key. */
+    fun retry() {
+        val provider = current?.providerId ?: return
+        _state.update { it.copy(phase = ConnectPhase.Checking) }
+        viewModelScope.launch {
+            val key = graph.secrets.get(SecretKey.providerApiKey(provider)).getOrNull()
+            val phase = if (key == null) {
+                ConnectPhase.EnterKey(error = null)
+            } else {
+                when (val listed = graph.modelLister.listModels(_state.value.provider, key)) {
+                    is Outcome.Success -> ConnectPhase.ChooseModel(usable(listed.value))
+                    is Outcome.Failure -> ConnectPhase.LoadFailed(listed.error.toConnectError())
+                }
+            }
+            _state.update { it.copy(phase = phase) }
+        }
+    }
 
     fun selectProvider(id: ProviderId) = _state.update { it.copy(providerId = id, phase = ConnectPhase.EnterKey(error = null)) }
 
@@ -89,19 +125,23 @@ class ConnectViewModel(private val graph: AppGraph) : ViewModel() {
                 .let { outcome ->
                     when (outcome) {
                         is Outcome.Failure -> ConnectPhase.EnterKey(outcome.error.toConnectError())
-                        is Outcome.Success -> ConnectPhase.ChooseModel(
-                            // Newest families first (gpt-6 before gpt-3.5); ids sort that way within a provider.
-                            outcome.value.filter { it.capabilities.toolCalling }.sortedByDescending { it.id.value },
-                        )
+                        is Outcome.Success -> ConnectPhase.ChooseModel(usable(outcome.value))
                     }
                 }
             _state.update { it.copy(phase = phase) }
         }
     }
 
-    fun choose(model: ModelDescriptor) {
-        viewModelScope.launch { graph.connections.save(model) }
+    fun choose(model: ModelDescriptor, then: () -> Unit = {}) {
+        viewModelScope.launch {
+            graph.connections.save(model)
+            then()
+        }
     }
+
+    /** Models that can use tools, newest families first (gpt-6 before gpt-3.5); ids sort that way within a provider. */
+    private fun usable(models: List<ModelDescriptor>): List<ModelDescriptor> =
+        models.filter { it.capabilities.toolCalling }.sortedByDescending { it.id.value }
 
     private fun HarnessError.toConnectError(): ConnectError = when (this) {
         is HarnessError.Authentication -> ConnectError.KeyRejected

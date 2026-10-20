@@ -1,5 +1,7 @@
 package app.whittle
 
+import androidx.compose.runtime.mutableIntStateOf
+import app.whittle.connect.ModelPickerScreen
 import app.whittle.chat.ArtifactsScreen
 import androidx.compose.runtime.LaunchedEffect
 import app.whittle.background.rememberNotificationPermissionRequest
@@ -71,14 +73,25 @@ class MainActivity : ComponentActivity() {
                             var showingArtifacts by rememberSaveable { mutableStateOf(false) }
                             var fullScreenArtifact by remember { mutableStateOf<ArtifactRef?>(null) }
                             var showingSettings by rememberSaveable { mutableStateOf(false) }
+                            var pickerOpenings by rememberSaveable { mutableIntStateOf(0) }
+                            var showingModelPicker by rememberSaveable { mutableStateOf(false) }
                             val artifact = fullScreenArtifact
-                            if (showingSettings) {
+                            if (showingModelPicker) {
+                                // A fresh picker each time it opens, so its models are listed again.
+                                val picker = viewModel(key = "modelPicker$pickerOpenings") { ConnectViewModel(graph, current = state.model) }
+                                ModelPickerScreen(
+                                    state = picker.state.collectAsStateWithLifecycle().value,
+                                    viewModel = picker,
+                                    onClose = { showingModelPicker = false; showingSettings = true },
+                                    onSwitchProvider = { showingModelPicker = false; chat.switchProvider() },
+                                )
+                            } else if (showingSettings) {
                                 SettingsScreen(
                                     graph = graph,
                                     settings = settings,
                                     model = state.model,
                                     onBack = { showingSettings = false },
-                                    onChangeModel = { showingSettings = false; chat.changeModel() },
+                                    onChangeModel = { showingSettings = false; pickerOpenings += 1; showingModelPicker = true },
                                     onDeleteAllChats = chat::deleteAllChats,
                                 )
                             } else if (artifact != null) {

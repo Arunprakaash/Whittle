@@ -15,6 +15,13 @@
     <string name="connect_search_models">Search models</string>
     <string name="connect_no_models">No models match.</string>
     <string name="connect_back">Back</string>
+    <string name="model_picker_other_provider">Use another provider</string>
+    <string name="model_picker_loading">Loading models…</string>
+    <string name="model_picker_retry">Try again</string>
+    <string name="model_picker_switch_title">Use another provider?</string>
+    <string name="model_picker_switch_body">Whittle forgets your %1$s key on this phone, and you\'ll connect the new provider with its own key.</string>
+    <string name="model_picker_switch_confirm">Forget key</string>
+    <string name="model_picker_cancel">Cancel</string>
     <string name="error_key_rejected">%1$s didn\'t accept that key. Check it and try again.</string>
     <string name="error_unreachable">Couldn\'t reach %1$s. Check your connection and try again.</string>
     <string name="error_provider">%1$s returned an error (%2$d). Try again in a moment.</string>

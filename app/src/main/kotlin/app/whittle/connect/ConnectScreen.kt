@@ -1,5 +1,7 @@
 package app.whittle.connect
 
+import androidx.compose.material3.AlertDialog
+import androidx.activity.compose.BackHandler
 import app.whittle.observability.posthog.hiddenFromReplay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -69,9 +71,79 @@ fun ConnectScreen(state: ConnectState, viewModel: ConnectViewModel) {
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.l),
     ) {
         when (val phase = state.phase) {
-            is ConnectPhase.ChooseModel -> ChooseModel(phase, viewModel)
+            is ConnectPhase.ChooseModel -> ChooseModel(phase, viewModel, onBack = viewModel::backToKey, onChoose = { viewModel.choose(it) })
             else -> EnterKey(state, phase, viewModel)
         }
+    }
+}
+
+/**
+ * Changing the model: the connected provider's models, listed with its saved key. Using another provider
+ * forgets this one's key, after asking.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun ModelPickerScreen(state: ConnectState, viewModel: ConnectViewModel, onClose: () -> Unit, onSwitchProvider: () -> Unit) {
+    BackHandler(onBack = onClose)
+    var confirming by remember { mutableStateOf(false) }
+    val haptics = WhittleTheme.haptics
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface)
+            .safeDrawingPadding()
+            .imePadding()
+            .padding(horizontal = WhittleSpace.xxl, vertical = WhittleSpace.xxl),
+        verticalArrangement = Arrangement.spacedBy(WhittleSpace.l),
+    ) {
+        val switchProvider: @Composable () -> Unit = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(state.provider.displayName, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                TextButton(onClick = { confirming = true }) { Text(stringResource(R.string.model_picker_other_provider)) }
+            }
+        }
+        when (val phase = state.phase) {
+            is ConnectPhase.ChooseModel -> ChooseModel(phase, viewModel, onBack = onClose, onChoose = { viewModel.choose(it, onClose) }, header = switchProvider)
+            ConnectPhase.Checking -> {
+                PickerTitle(onClose)
+                switchProvider()
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+                    CircularProgressIndicator(Modifier.size(WhittleSize.Icon.m), strokeWidth = WhittleSpace.hairline)
+                    Text(stringResource(R.string.model_picker_loading), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            is ConnectPhase.LoadFailed -> {
+                PickerTitle(onClose)
+                switchProvider()
+                Text(errorText(phase.error, state.provider.displayName), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                Button(onClick = { haptics.perform(WhittleHaptic.Tap); viewModel.retry() }, shapes = ButtonDefaults.shapes()) {
+                    Text(stringResource(R.string.model_picker_retry))
+                }
+            }
+            // The saved key is missing: ask for it, as when connecting.
+            is ConnectPhase.EnterKey -> EnterKey(state, phase, viewModel)
+        }
+    }
+    if (confirming) {
+        AlertDialog(
+            onDismissRequest = { confirming = false },
+            title = { Text(stringResource(R.string.model_picker_switch_title)) },
+            text = { Text(stringResource(R.string.model_picker_switch_body, state.provider.displayName)) },
+            confirmButton = {
+                TextButton(onClick = { confirming = false; onSwitchProvider() }) { Text(stringResource(R.string.model_picker_switch_confirm)) }
+            },
+            dismissButton = { TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.model_picker_cancel)) } },
+        )
+    }
+}
+
+@Composable
+private fun PickerTitle(onBack: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onBack) {
+            WhittleIcon("arrow_back", contentDescription = stringResource(R.string.connect_back))
+        }
+        Text(stringResource(R.string.connect_choose_model), style = MaterialTheme.typography.headlineSmall)
     }
 }
 
@@ -134,14 +206,16 @@ private fun EnterKey(state: ConnectState, phase: ConnectPhase, viewModel: Connec
 }
 
 @Composable
-private fun ChooseModel(phase: ConnectPhase.ChooseModel, viewModel: ConnectViewModel) {
+private fun ChooseModel(
+    phase: ConnectPhase.ChooseModel,
+    viewModel: ConnectViewModel,
+    onBack: () -> Unit,
+    onChoose: (ModelDescriptor) -> Unit,
+    header: (@Composable () -> Unit)? = null,
+) {
     val haptics = WhittleTheme.haptics
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = viewModel::backToKey) {
-            WhittleIcon("arrow_back", contentDescription = stringResource(R.string.connect_back))
-        }
-        Text(stringResource(R.string.connect_choose_model), style = MaterialTheme.typography.headlineSmall)
-    }
+    PickerTitle(onBack)
+    header?.invoke()
     val search = rememberTextFieldState(phase.query)
     LaunchedEffect(search) { snapshotFlow { search.text.toString() }.collect(viewModel::updateQuery) }
     WhittleSearchBar(search, placeholder = stringResource(R.string.connect_search_models), clearLabel = stringResource(R.string.search_clear))
@@ -151,7 +225,7 @@ private fun ChooseModel(phase: ConnectPhase.ChooseModel, viewModel: ConnectViewM
     }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
         itemsIndexed(models, key = { _, model -> model.id.value }) { index, model ->
-            ModelRow(model, segmentedShape(index, models.size)) { haptics.perform(WhittleHaptic.Approve); viewModel.choose(model) }
+            ModelRow(model, segmentedShape(index, models.size)) { haptics.perform(WhittleHaptic.Approve); onChoose(model) }
         }
     }
 }

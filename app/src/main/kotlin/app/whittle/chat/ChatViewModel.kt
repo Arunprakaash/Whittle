@@ -2,6 +2,7 @@
 
 package app.whittle.chat
 
+import app.whittle.storage.secrets.SecretKey
 import kotlinx.coroutines.delay
 import app.whittle.design.tokens.WhittleMotion
 import app.whittle.agent.PlanTool
@@ -316,9 +317,14 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         }
     }
 
-    fun changeModel() {
+    /** Leaves the current provider: its key is forgotten on this phone and the user connects another. */
+    fun switchProvider() {
+        val provider = _state.value.model?.providerId
         newChat()
-        viewModelScope.launch { graph.connections.clear() }
+        viewModelScope.launch {
+            provider?.let { graph.secrets.delete(SecretKey.providerApiKey(it)) }
+            graph.connections.clear()
+        }
     }
 
     /** Saves the current chat; a running task is cut off the way an app close would, so it can be continued. */

@@ -1,5 +1,7 @@
 package app.whittle.chat
 
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import app.whittle.design.components.WelcomeMascot
 import app.whittle.design.components.AgentState
 import app.whittle.design.components.StatusPlanUi
@@ -153,6 +155,15 @@ private fun ChatLayout(
     val scope = rememberCoroutineScope()
     // Back closes the chat list before it leaves the app.
     BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
+    // Opening the chat list puts the keyboard away; it belongs to the composer behind it.
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focus = LocalFocusManager.current
+    LaunchedEffect(drawer.targetValue) {
+        if (drawer.targetValue == DrawerValue.Open) {
+            keyboard?.hide()
+            focus.clearFocus()
+        }
+    }
     val closeThen = { action: () -> Unit -> scope.launch { drawer.close() }; action() }
     val title = state.chats.firstOrNull { it.id == state.currentChat }?.title
     ModalNavigationDrawer(
