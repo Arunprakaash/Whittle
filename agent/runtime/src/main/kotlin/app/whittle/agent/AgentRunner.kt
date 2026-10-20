@@ -57,9 +57,12 @@ import kotlinx.serialization.json.JsonObject
 
 /**
  * The agent loop: call the model, check every proposed tool call against the policy engine, run the
- * tool, and repeat. Calls that need the user's choice never block the run: they are parked as
- * [PendingDecision]s and the model carries on with independent work. The user's answers and any
- * mid-run instructions arrive through [RunInbox] and are applied at the next step boundary.
+ * tool, and repeat. A call that needs the user's approval, or access to something on the phone, pauses the run
+ * once the step's other calls are done; the model is called again only after every such card is answered, and
+ * learns the outcome.
+ * Questions (ask_user) don't pause: the model carries on with work that doesn't depend on the answer. The
+ * user's answers and any mid-run instructions arrive through [RunInbox] and are applied at the next step
+ * boundary.
  *
  * A checkpoint is saved after every step and before every tool call, so [resume] can continue after
  * process death, or after the user answers a waiting run, without repeating a side effect.
@@ -218,8 +221,12 @@ class AgentRunner(
         }
     }
 
-    private fun pauseReasonFor(checkpoint: RunCheckpoint): PauseReason? =
-        PauseReason.STEP_LIMIT.takeIf { checkpoint.step >= limits.maxStepsPerRun }
+    private fun pauseReasonFor(checkpoint: RunCheckpoint): PauseReason? = when {
+        checkpoint.pendingDecisions.any { it.kind == DecisionKind.APPROVAL } || checkpoint.requestedCapabilities.isNotEmpty() ->
+            PauseReason.AWAITING_USER
+        checkpoint.step >= limits.maxStepsPerRun -> PauseReason.STEP_LIMIT
+        else -> null
+    }
 
     /**
      * Calls the model, trying again with growing waits when it fails for a passing reason. Only a call that
@@ -378,7 +385,10 @@ class AgentRunner(
         }
     }
 
-    /** Parks a call or question for the user and tells the model it is waiting. The run does not block. */
+    /**
+     * Parks a call or question for the user and tells the model it is waiting. An approval pauses the run at
+     * the end of this step; a question doesn't.
+     */
     private suspend fun FlowCollector<RunEvent>.park(
         checkpoint: RunCheckpoint,
         tool: Tool,
@@ -422,7 +432,9 @@ class AgentRunner(
 
     /**
      * Runs or drops a parked call. Only the exact call the user saw can run, and the harness runs it
-     * itself, so the outcome never depends on the model repeating the call correctly.
+     * itself, so the outcome never depends on the model repeating the call correctly. The outcome becomes the
+     * call's own result in place of its "waiting" placeholder, as if the call had simply run (or been refused);
+     * a placeholder the model has already seen stays, and the outcome follows as a note.
      */
     private suspend fun FlowCollector<RunEvent>.resolveDecision(
         checkpoint: RunCheckpoint,
@@ -445,7 +457,7 @@ class AgentRunner(
         if (input.answer == DecisionAnswer.DECLINED || tool == null) {
             val note = if (tool == null) messages.unknownTool(call.toolName) else messages.decisionDeclined(call.toolName)
             emit(RunEvent.DecisionResolved(pending, input.answer, output = null))
-            return persist(remaining.copy(conversation = remaining.conversation.withUserContent(ContentBlock.Text(note))))
+            return persist(remaining.settled(errorResult(call, note)) ?: remaining.copy(conversation = remaining.conversation.withUserContent(ContentBlock.Text(note))))
         }
         val approved = if (pending.scope == ApprovalScope.ONCE_PER_RUN) {
             remaining.copy(approvedOnceTools = remaining.approvedOnceTools + tool.definition.id)
@@ -455,7 +467,7 @@ class AgentRunner(
         val arguments = argumentParser.parse(call.argumentsJson, tool.definition.inputSchema).getOrElse {
             val note = messages.decisionFailed(call.toolName, it.message)
             emit(RunEvent.DecisionResolved(pending, input.answer, output = null))
-            return persist(approved.copy(conversation = approved.conversation.withUserContent(ContentBlock.Text(note))))
+            return persist(approved.settled(errorResult(call, note)) ?: approved.copy(conversation = approved.conversation.withUserContent(ContentBlock.Text(note))))
         }
         // Journal first: if the process dies mid-call, resume reports it instead of re-running it.
         val journaled = persist(approved.copy(inFlightDecision = call)).getOrElse { return Outcome.Failure(it) }
@@ -466,22 +478,26 @@ class AgentRunner(
         val provenance = output.provenance
         val missing = output.missingCapability
         if (missing != null) emit(RunEvent.CapabilityRequested(missing, call.id))
-        val note = when {
-            missing != null -> messages.capabilityMissing(call.toolName, missing.value)
-            output.isError -> messages.decisionFailed(call.toolName, fitted(output.content, call, journaled))
-            provenance is Provenance.Untrusted -> messages.decisionApprovedUntrusted(call.toolName, provenance.sourceLabel, fitted(output.content, call, journaled))
-            else -> messages.decisionApproved(call.toolName, fitted(output.content, call, journaled))
+        val content = fitted(output.content, call, journaled)
+        val result = if (missing != null) {
+            errorResult(call, messages.capabilityMissing(call.toolName, missing.value))
+        } else {
+            ContentBlock.ToolResult(call.id, content, output.isError, provenance, personalData = !output.isError && tool.definition.exposesPersonalData)
         }
         emit(RunEvent.DecisionResolved(pending, input.answer, output))
-        return persist(
-            journaled.copy(
-                inFlightDecision = null,
-                conversation = journaled.conversation.withUserContent(ContentBlock.Text(note)),
-                tainted = journaled.tainted || (missing == null && provenance is Provenance.Untrusted),
-                personalDataRead = journaled.personalDataRead || (missing == null && !output.isError && tool.definition.exposesPersonalData),
-                requestedCapabilities = journaled.requestedCapabilities + listOfNotNull(missing),
-            ),
+        val after = journaled.copy(
+            inFlightDecision = null,
+            tainted = journaled.tainted || (missing == null && provenance is Provenance.Untrusted),
+            personalDataRead = journaled.personalDataRead || result.personalData,
+            requestedCapabilities = journaled.requestedCapabilities + listOfNotNull(missing),
         )
+        val note = when {
+            missing != null -> result.content
+            output.isError -> messages.decisionFailed(call.toolName, content)
+            provenance is Provenance.Untrusted -> messages.decisionApprovedUntrusted(call.toolName, provenance.sourceLabel, content)
+            else -> messages.decisionApproved(call.toolName, content)
+        }
+        return persist(after.settled(result) ?: after.copy(conversation = after.conversation.withUserContent(ContentBlock.Text(note))))
     }
 
     private suspend fun FlowCollector<RunEvent>.resolveQuestion(checkpoint: RunCheckpoint, input: RunInput.Answer): Outcome<RunCheckpoint> {
@@ -524,6 +540,21 @@ class AgentRunner(
         val call = checkpoint.inFlightDecision ?: return Outcome.Success(checkpoint)
         val note = ContentBlock.Text(messages.interruptedToolCall(call.toolName))
         return persist(checkpoint.copy(inFlightDecision = null, conversation = checkpoint.conversation.withUserContent(note)))
+    }
+
+    /**
+     * Puts [result] in place of its call's "waiting" placeholder, if the model hasn't seen that placeholder yet:
+     * it is in the step still being gathered, or in the latest message (the run paused before the next model
+     * call). Null when the model has already moved on past it.
+     */
+    private fun RunCheckpoint.settled(result: ContentBlock.ToolResult): RunCheckpoint? {
+        val swap = { block: ContentBlock -> if (block is ContentBlock.ToolResult && block.toolCallId == result.toolCallId) result else block }
+        if (stepResults.any { it.toolCallId == result.toolCallId }) {
+            return copy(stepResults = stepResults.map { swap(it) as ContentBlock.ToolResult })
+        }
+        val last = conversation.messages.lastOrNull() ?: return null
+        if (last.role != Role.USER || last.content.none { it is ContentBlock.ToolResult && it.toolCallId == result.toolCallId }) return null
+        return copy(conversation = conversation.copy(messages = conversation.messages.dropLast(1) + last.copy(content = last.content.map(swap))))
     }
 
     /** Adds harness or user text to the latest user turn, keeping user and assistant turns alternating. */

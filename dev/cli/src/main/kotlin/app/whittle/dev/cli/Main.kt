@@ -1,5 +1,6 @@
 package app.whittle.dev.cli
 
+import app.whittle.agent.PauseReason
 import app.whittle.agent.ForgetTool
 import app.whittle.agent.RememberTool
 import app.whittle.agent.MemoryStore
@@ -145,6 +146,7 @@ fun main(args: Array<String>) = runBlocking {
             render(event)
             if (event is RunEvent.DecisionRequested) decisions.answer(runId, event)
             if (event is RunEvent.Completed) openDecisions = event.openDecisions.isNotEmpty()
+            if (event is RunEvent.Paused && event.reason == PauseReason.AWAITING_USER) openDecisions = true
         }
         if (!openDecisions || !inbox.hasInput(runId)) break
         println("\n[run] continuing with your answers")

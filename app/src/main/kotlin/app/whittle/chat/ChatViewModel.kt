@@ -219,12 +219,11 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         submit(item.runId, RunInput.Answer(item.toolCallId, choice))
     }
 
-    /** Called with the system permission result. A refusal only reaches a run that is still working. */
+    /** Called with the system permission result; either way the paused run continues and hears it. */
     fun answer(item: ThreadItem.Capability, granted: Boolean) {
         val presentation = item.presentation
         replace(item.key) { ThreadItem.Resolved(item.key, if (granted) presentation.grantedOutcome else presentation.deniedOutcome, declined = !granted) }
-        val input = RunInput.CapabilityChanged(item.capability, granted)
-        if (granted || (activeJob?.isActive == true && activeRunId == item.runId)) submit(item.runId, input)
+        submit(item.runId, RunInput.CapabilityChanged(item.capability, granted))
     }
 
     private fun submit(runId: RunId, input: RunInput) {
@@ -422,7 +421,12 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             is RunEvent.DecisionResolved, is RunEvent.QuestionAnswered -> Unit // The card already shows the user's choice.
             is RunEvent.CapabilityRequested -> onCapabilityRequested(event)
             is RunEvent.Completed -> onCompleted()
-            is RunEvent.Paused -> end(if (event.reason == PauseReason.TOKEN_BUDGET) NoticeKind.PausedBudget else NoticeKind.PausedSteps)
+            is RunEvent.Paused -> when (event.reason) {
+                // The card is already in the thread (and its "needs you" notification sent); answering it continues.
+                PauseReason.AWAITING_USER -> waitForApproval()
+                PauseReason.TOKEN_BUDGET -> end(NoticeKind.PausedBudget)
+                PauseReason.STEP_LIMIT -> end(NoticeKind.PausedSteps)
+            }
             is RunEvent.Failed -> end(event.error.toNotice(), statusCode = (event.error as? HarnessError.Provider)?.statusCode)
             is RunEvent.ModelRetrying -> setStatus(AgentState.Thinking, verb = null, phase = StatusPhase.Retrying)
         }
@@ -574,6 +578,12 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             delay(WhittleMotion.STATUS_DONE_HOLD_MILLIS.toLong())
             _state.update { if (it.status?.state == AgentState.Done) it.copy(status = null) else it }
         }
+    }
+
+    /** The run stopped for the user's OK or access: the line leaves, the card stays, and nothing reads as finished. */
+    private fun waitForApproval() {
+        finishNarration()
+        _state.update { it.copy(status = null) }
     }
 
     private fun end(notice: NoticeKind, statusCode: Int? = null) {

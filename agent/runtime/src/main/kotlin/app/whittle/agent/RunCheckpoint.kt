@@ -22,6 +22,12 @@ enum class PauseReason {
     /** Only in runs saved by versions that capped tokens per task; resuming them simply continues. */
     TOKEN_BUDGET,
     STEP_LIMIT,
+
+    /**
+     * The user's approval or access to something on the phone is needed; the model isn't called again until
+     * every such card is answered. Questions (ask_user) never pause a run.
+     */
+    AWAITING_USER,
 }
 
 /**

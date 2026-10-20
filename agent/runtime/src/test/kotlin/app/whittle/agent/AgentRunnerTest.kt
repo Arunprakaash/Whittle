@@ -101,14 +101,16 @@ class AgentRunnerTest {
         val contacts = FakeTool("contacts", RiskTier.READ, personalData = true)
         val page = FakeTool("page", RiskTier.WEB_READ, Provenance.Untrusted("web page"))
         val adapter = ScriptedAdapter(
-            listOf(toolTurn(call("c1", "page")), toolTurn(call("c2", "contacts")), toolTurn(call("c3", "page")), textTurn("Done.")),
+            listOf(toolTurn(call("c1", "page")), toolTurn(call("c2", "contacts")), toolTurn(call("c3", "page"))),
         )
 
         val events = runner(adapter, setOf(contacts, page)).start(request()).toList()
 
         assertEquals(1, page.executions)
         assertEquals("c3", events.filterIsInstance<RunEvent.DecisionRequested>().single().decision.toolCall.id.value)
-        assertEquals(listOf(true, true, false, false), adapter.requests.map { HostedTool.WEB_SEARCH in it.hostedTools })
+        // Asking for c3 pauses the run, so there's no fourth model call until the user answers.
+        assertEquals(listOf(true, true, false), adapter.requests.map { HostedTool.WEB_SEARCH in it.hostedTools })
+        assertEquals(PauseReason.AWAITING_USER, assertIs<RunEvent.Paused>(events.last()).reason)
         assertTrue(savedCheckpoint().personalDataRead)
     }
 
@@ -148,10 +150,10 @@ class AgentRunnerTest {
     }
 
     @Test
-    fun `a call that needs a decision is parked and the run finishes without waiting`() = runTest {
+    fun `a call that needs approval pauses the run after the step's other calls, without calling the model again`() = runTest {
         val fetch = FakeTool("web.fetch", RiskTier.NETWORK_OUT)
         val clock = FakeTool("time.now", RiskTier.READ)
-        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "web.fetch"), call("c2", "time.now")), textTurn("Fetch is waiting on you.")))
+        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "web.fetch"), call("c2", "time.now"))))
 
         val events = runner(adapter, setOf(fetch, clock)).start(request()).toList()
 
@@ -159,18 +161,31 @@ class AgentRunnerTest {
         assertEquals("c1", requested.decision.toolCall.id.value)
         assertEquals(0, fetch.executions)
         assertEquals(1, clock.executions)
-        val toolResults = adapter.requests[1].messages.last().content.filterIsInstance<ContentBlock.ToolResult>()
-        assertEquals(listOf("waiting web.fetch", "ok from time.now"), toolResults.map { it.content })
-        val completed = assertIs<RunEvent.Completed>(events.last())
-        assertEquals(listOf("c1"), completed.openDecisions.map { it.toolCall.id.value })
-        assertEquals(RunStatus.COMPLETED, savedCheckpoint().status)
+        assertEquals(1, adapter.requests.size)
+        assertEquals(PauseReason.AWAITING_USER, assertIs<RunEvent.Paused>(events.last()).reason)
+        val saved = savedCheckpoint()
+        assertEquals(RunStatus.PAUSED, saved.status)
+        assertEquals(listOf("waiting web.fetch", "ok from time.now"), saved.conversation.messages.last().content.filterIsInstance<ContentBlock.ToolResult>().map { it.content })
+    }
+
+    @Test
+    fun `resuming before the user answers pauses again without calling the model`() = runTest {
+        val fetch = FakeTool("web.fetch", RiskTier.NETWORK_OUT)
+        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "web.fetch"))))
+        val runner = runner(adapter, setOf(fetch))
+        runner.start(request()).toList()
+
+        val events = runner.resume(runId).toList()
+
+        assertEquals(PauseReason.AWAITING_USER, assertIs<RunEvent.Paused>(events.last()).reason)
+        assertEquals(1, adapter.requests.size)
     }
 
     @Test
     fun `approving an open card later runs the exact call and continues the run`() = runTest {
         val fetch = FakeTool("web.fetch", RiskTier.NETWORK_OUT, Provenance.Untrusted("web page"))
         val adapter = ScriptedAdapter(
-            listOf(toolTurn(call("c1", "web.fetch", """{"url":"https://a.test"}""")), textTurn("Waiting."), textTurn("Here it is.")),
+            listOf(toolTurn(call("c1", "web.fetch", """{"url":"https://a.test"}""")), textTurn("Here it is.")),
         )
         val runner = runner(adapter, setOf(fetch))
         runner.start(request()).toList()
@@ -181,7 +196,11 @@ class AgentRunnerTest {
         assertEquals(1, fetch.executions)
         val resolved = events.filterIsInstance<RunEvent.DecisionResolved>().single()
         assertEquals(DecisionAnswer.APPROVED, resolved.answer)
-        assertEquals("approved web.fetch from web page: ok from web.fetch", lastUserText(adapter))
+        // The model sees the call's real output as its result, as if it had simply run.
+        val result = lastToolResult(adapter)
+        assertEquals("ok from web.fetch", result.content)
+        assertIs<Provenance.Untrusted>(result.provenance)
+        assertTrue(adapter.requests.last().messages.last().content.none { it is ContentBlock.Text })
         assertIs<RunEvent.Completed>(events.last())
         val saved = savedCheckpoint()
         assertTrue(saved.pendingDecisions.isEmpty())
@@ -191,7 +210,7 @@ class AgentRunnerTest {
     @Test
     fun `declining a decision tells the model and never runs the tool`() = runTest {
         val fetch = FakeTool("web.fetch", RiskTier.NETWORK_OUT)
-        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "web.fetch")), textTurn("Waiting."), textTurn("Okay.")))
+        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "web.fetch")), textTurn("Okay.")))
         val runner = runner(adapter, setOf(fetch))
         runner.start(request()).toList()
 
@@ -199,7 +218,9 @@ class AgentRunnerTest {
         val events = runner.resume(runId).toList()
 
         assertEquals(0, fetch.executions)
-        assertEquals("declined web.fetch", lastUserText(adapter))
+        val result = lastToolResult(adapter)
+        assertEquals("declined web.fetch", result.content)
+        assertTrue(result.isError)
         assertIs<RunEvent.Completed>(events.last())
     }
 
@@ -215,7 +236,8 @@ class AgentRunnerTest {
         val events = runner(adapter, setOf(fetch, slow)).start(request()).toList()
 
         assertEquals(1, fetch.executions)
-        assertEquals("approved web.fetch: ok from web.fetch", lastUserText(adapter))
+        val results = adapter.requests.last().messages.last().content.filterIsInstance<ContentBlock.ToolResult>()
+        assertEquals(listOf("ok from web.fetch", "read"), results.map { it.content })
         assertIs<RunEvent.Completed>(events.last())
     }
 
@@ -297,12 +319,14 @@ class AgentRunnerTest {
     @Test
     fun `a missing capability asks with a card and a grant lets the model continue`() = runTest {
         val contacts = PermissionedTool("contacts.search", CapabilityId("contacts"))
-        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "contacts.search")), textTurn("No access yet."), textTurn("Found Priya.")))
+        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "contacts.search")), textTurn("Found Priya.")))
         val runner = runner(adapter, setOf(contacts))
         val first = runner.start(request()).toList()
 
         assertEquals(CapabilityId("contacts"), first.filterIsInstance<RunEvent.CapabilityRequested>().single().capability)
-        assertEquals("contacts.search needs contacts", lastToolResult(adapter).content)
+        // The run waits for the user's answer instead of calling the model again.
+        assertEquals(PauseReason.AWAITING_USER, assertIs<RunEvent.Paused>(first.last()).reason)
+        assertEquals(1, adapter.requests.size)
         assertEquals(setOf(CapabilityId("contacts")), savedCheckpoint().requestedCapabilities)
 
         contacts.granted = true
