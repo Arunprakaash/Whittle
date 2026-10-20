@@ -1,12 +1,18 @@
 package app.whittle.settings
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.ButtonGroupDefaults
 import app.whittle.design.components.SettingsChoiceRow
 import app.whittle.design.tokens.WhittleHaptic
 import app.whittle.design.theme.WhittleTheme
 import app.whittle.design.theme.ThemeMode
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SegmentedButton
 import app.whittle.background.rememberNotificationPermissionRequest
 import android.os.Build
 import androidx.activity.compose.BackHandler
@@ -205,24 +211,37 @@ fun SettingsScreen(
 }
 
 
-/** System, Light or Dark, side by side; the choice applies at once. */
+/** System, Light or Dark as one connected button group (M3 Expressive); the choice applies at once. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ThemeChoice(selected: ThemeMode, enabled: Boolean, onSelect: (ThemeMode) -> Unit) {
     val haptics = WhittleTheme.haptics
-    val labels = mapOf(
-        ThemeMode.System to stringResource(R.string.settings_theme_system),
-        ThemeMode.Light to stringResource(R.string.settings_theme_light),
-        ThemeMode.Dark to stringResource(R.string.settings_theme_dark),
+    val choices = listOf(
+        Triple(ThemeMode.System, "brightness_auto", stringResource(R.string.settings_theme_system)),
+        Triple(ThemeMode.Light, "light_mode", stringResource(R.string.settings_theme_light)),
+        Triple(ThemeMode.Dark, "dark_mode", stringResource(R.string.settings_theme_dark)),
     )
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-        ThemeMode.entries.forEachIndexed { index, mode ->
-            SegmentedButton(
-                selected = mode == selected,
-                onClick = { haptics.perform(WhittleHaptic.Select); onSelect(mode) },
-                shape = SegmentedButtonDefaults.itemShape(index, ThemeMode.entries.size),
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+    ) {
+        choices.forEachIndexed { index, (mode, icon, label) ->
+            val checked = mode == selected
+            ToggleButton(
+                checked = checked,
+                onCheckedChange = { haptics.perform(WhittleHaptic.Select); onSelect(mode) },
                 enabled = enabled,
-                icon = {},
-            ) { Text(labels.getValue(mode), style = MaterialTheme.typography.labelMedium, maxLines = 1) }
+                shapes = when (index) {
+                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    choices.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                },
+                modifier = Modifier.weight(1f).semantics { role = Role.RadioButton },
+            ) {
+                WhittleIcon(icon, fill = checked, size = WhittleSize.Icon.m)
+                Spacer(Modifier.size(ToggleButtonDefaults.IconSpacing))
+                Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+            }
         }
     }
 }

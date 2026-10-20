@@ -4,6 +4,7 @@ add
 arrow_back
 arrow_downward
 arrow_upward
+brightness_auto:fill
 build
 calendar_month
 chat
@@ -16,6 +17,7 @@ cloud_upload
 contacts
 content_copy
 contrast
+dark_mode:fill
 database
 delete
 description
@@ -36,6 +38,7 @@ install_mobile
 keep
 key
 language
+light_mode:fill
 lock
 menu_book
 mic

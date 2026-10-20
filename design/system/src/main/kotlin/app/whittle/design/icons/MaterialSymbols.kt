@@ -11,6 +11,7 @@ object MaterialSymbols {
         "arrow_back" to R.drawable.ms_arrow_back,
         "arrow_downward" to R.drawable.ms_arrow_downward,
         "arrow_upward" to R.drawable.ms_arrow_upward,
+        "brightness_auto" to R.drawable.ms_brightness_auto,
         "build" to R.drawable.ms_build,
         "calendar_month" to R.drawable.ms_calendar_month,
         "chat" to R.drawable.ms_chat,
@@ -23,6 +24,7 @@ object MaterialSymbols {
         "contacts" to R.drawable.ms_contacts,
         "content_copy" to R.drawable.ms_content_copy,
         "contrast" to R.drawable.ms_contrast,
+        "dark_mode" to R.drawable.ms_dark_mode,
         "database" to R.drawable.ms_database,
         "delete" to R.drawable.ms_delete,
         "description" to R.drawable.ms_description,
@@ -43,6 +45,7 @@ object MaterialSymbols {
         "keep" to R.drawable.ms_keep,
         "key" to R.drawable.ms_key,
         "language" to R.drawable.ms_language,
+        "light_mode" to R.drawable.ms_light_mode,
         "lock" to R.drawable.ms_lock,
         "menu_book" to R.drawable.ms_menu_book,
         "mic" to R.drawable.ms_mic,
@@ -74,8 +77,11 @@ object MaterialSymbols {
     )
 
     private val filled: Map<String, Int> = mapOf(
+        "brightness_auto" to R.drawable.ms_brightness_auto_fill,
         "check_circle" to R.drawable.ms_check_circle_fill,
+        "dark_mode" to R.drawable.ms_dark_mode_fill,
         "do_not_disturb_on" to R.drawable.ms_do_not_disturb_on_fill,
+        "light_mode" to R.drawable.ms_light_mode_fill,
         "push_pin" to R.drawable.ms_push_pin_fill,
         "search" to R.drawable.ms_search_fill,
         "stop" to R.drawable.ms_stop_fill,
