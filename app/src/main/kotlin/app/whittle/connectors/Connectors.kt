@@ -126,6 +126,25 @@ class Connectors(
         scope.launch { custom.setExcludedTools(connection.server.id, names) }
     }
 
+    /**
+     * Renames a server the user added. Only what the user sees changes: its tools, sign-in and switched-off
+     * tools are keyed by its id, which stays.
+     */
+    fun rename(connection: McpConnection, name: String) {
+        val trimmed = name.trim()
+        if (!isCustom(connection) || trimmed.isEmpty() || trimmed == connection.server.name) return
+        scope.launch {
+            val renamed = changes.withLock {
+                val saved = custom.load().map { if (it.id == connection.server.id) it.copy(name = trimmed) else it }
+                custom.save(saved)
+                val server = saved.firstOrNull { it.id == connection.server.id } ?: return@launch
+                connection(serverFor(server)).also { fresh -> _all.update { list -> list.map { if (it === connection) fresh else it } } }
+            }
+            renamed.exclude(connection.excludedTools)
+            renamed.restore()
+        }
+    }
+
     /** Forgets a server the user added, with its sign-in. */
     fun remove(connection: McpConnection) {
         if (!isCustom(connection)) return

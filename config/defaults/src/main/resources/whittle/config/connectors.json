@@ -77,16 +77,16 @@
     "pageSize": 30,
     "featured": [
       {
-        "title": "Linear",
-        "description": "Find, create and update issues and projects in Linear.",
-        "url": "https://mcp.linear.app/mcp",
-        "websiteUrl": "https://linear.app"
-      },
-      {
         "title": "Notion",
         "description": "Search, read and write your Notion pages and databases.",
         "url": "https://mcp.notion.com/mcp",
         "websiteUrl": "https://www.notion.so"
+      },
+      {
+        "title": "Linear",
+        "description": "Find, create and update issues and projects in Linear.",
+        "url": "https://mcp.linear.app/mcp",
+        "websiteUrl": "https://linear.app"
       },
       {
         "title": "Atlassian",
@@ -95,22 +95,10 @@
         "websiteUrl": "https://www.atlassian.com"
       },
       {
-        "title": "Sentry",
-        "description": "Look into errors and issues in your Sentry projects.",
-        "url": "https://mcp.sentry.dev/mcp",
-        "websiteUrl": "https://sentry.io"
-      },
-      {
         "title": "Stripe",
         "description": "Customers, payments and products in your Stripe account.",
         "url": "https://mcp.stripe.com",
         "websiteUrl": "https://stripe.com"
-      },
-      {
-        "title": "Hugging Face",
-        "description": "Search models, datasets and Spaces on Hugging Face.",
-        "url": "https://huggingface.co/mcp?login",
-        "websiteUrl": "https://huggingface.co"
       },
       {
         "title": "Context7",
@@ -124,24 +112,6 @@
             "isSecret": true
           }
         ]
-      },
-      {
-        "title": "Exa",
-        "description": "Web search and page contents from Exa.",
-        "url": "https://mcp.exa.ai/mcp",
-        "websiteUrl": "https://exa.ai"
-      },
-      {
-        "title": "DeepWiki",
-        "description": "Ask questions about public GitHub repositories.",
-        "url": "https://mcp.deepwiki.com/mcp",
-        "websiteUrl": "https://deepwiki.com"
-      },
-      {
-        "title": "Cloudflare Docs",
-        "description": "Search Cloudflare's documentation.",
-        "url": "https://docs.mcp.cloudflare.com/mcp",
-        "websiteUrl": "https://developers.cloudflare.com"
       }
     ]
   }

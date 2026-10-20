@@ -17,6 +17,7 @@ data class AppDefaults(
     val artifacts: ArtifactDefaults,
     val background: BackgroundDefaults,
     val export: ExportDefaults,
+    val voice: VoiceDefaults,
     val toolRuntime: ToolRuntimeDefaults,
 ) : VersionedConfig {
     companion object {
@@ -157,3 +158,12 @@ data class ToolRuntimeDefaults(
 /** The Android shell commands run in, and how each command gets its own process group. */
 @Serializable
 data class TerminalDefaults(val shell: String, val path: String)
+
+/** Speaking instead of typing in the composer. */
+@Serializable
+data class VoiceDefaults(
+    /** Recognize on the phone itself when it can, so no audio leaves it. */
+    val preferOnDevice: Boolean,
+    /** Silence that ends listening, as a hint to the recognizer. */
+    val silenceMillis: Long,
+)

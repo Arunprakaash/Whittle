@@ -141,6 +141,7 @@ class MainActivity : ComponentActivity() {
                                     sidebarMaxChats = graph.sidebarMaxChats,
                                     artifacts = graph.artifacts,
                                     artifactSheetHeight = graph.artifactSheetHeight,
+                                    voiceDefaults = graph.voiceDefaults,
                                     onViewAllChats = { showingAllChats = true },
                                     onOpenArtifactFullScreen = { fullScreenArtifact = it },
                                     onOpenSettings = { showingSettings = true },

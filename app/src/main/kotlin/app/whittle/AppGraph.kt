@@ -1,5 +1,6 @@
 package app.whittle
 
+import app.whittle.settings.VoiceDefaults
 import app.whittle.connectors.CustomConnectorStore
 import app.whittle.connectors.mcp.ConnectorsConfig
 import app.whittle.connectors.Connectors
@@ -168,6 +169,7 @@ class AppGraph(context: Context) {
     )
     val appExporter = AppExporter(context, workspaces, appDefaults.export, context.applicationInfo.minSdkVersion)
     val artifactSheetHeight: Float get() = appDefaults.artifacts.sheetHeightFraction
+    val voiceDefaults: VoiceDefaults get() = appDefaults.voice
     val siteIcons = SiteIconLoader(httpClient, File(context.cacheDir, appDefaults.siteIcons.cacheDirectoryName), appDefaults.siteIcons)
     val presenter = ToolPresenter(load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION))
     val inbox = RunInbox()

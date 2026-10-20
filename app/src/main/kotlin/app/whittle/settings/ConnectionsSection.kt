@@ -1,5 +1,10 @@
 package app.whittle.settings
 
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.layout.Row
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -53,11 +58,14 @@ fun ConnectionsSection(graph: AppGraph, onBrowse: () -> Unit, onChooseTools: (Mc
     var askingKeys by remember { mutableStateOf<McpConnection?>(null) }
     var adding by remember { mutableStateOf(false) }
     ConnectorFailures(graph)
-    SettingsSection(stringResource(R.string.settings_section_connections)) {
+    SettingsSection(stringResource(R.string.settings_section_connections), description = stringResource(R.string.connector_section_about)) {
         val count = connections.size + 2
         connections.forEachIndexed { index, connection ->
             val state by connection.state.collectAsState()
             val connected = state is ConnectorState.Connected
+            val connect = {
+                if (connection.server.auth == McpAuthMode.TOKEN) askingKeys = connection else connectors.connect(context, connection)
+            }
             SettingsRow(
                 icon = connection.server.icon,
                 title = connection.server.name,
@@ -68,15 +76,10 @@ fun ConnectionsSection(graph: AppGraph, onBrowse: () -> Unit, onChooseTools: (Mc
                     else -> null
                 },
                 shape = segmentedShape(index, count),
-                onClick = {
-                    when {
-                        connected -> managing = connection
-                        connection.server.auth == McpAuthMode.TOKEN -> askingKeys = connection
-                        else -> connectors.connect(context, connection)
-                    }
-                },
-                trailing = if (connected) null else {
-                    { Text(stringResource(R.string.connector_connect), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
+                // Services the user added open their details (rename, tools, remove) even before they connect.
+                onClick = { if (connected || connectors.isCustom(connection)) managing = connection else connect() },
+                trailing = if (connected || state == ConnectorState.Connecting) null else {
+                    { TextButton(onClick = connect) { Text(stringResource(R.string.connector_connect)) } }
                 },
             )
         }
@@ -96,7 +99,16 @@ fun ConnectionsSection(graph: AppGraph, onBrowse: () -> Unit, onChooseTools: (Mc
         )
     }
     managing?.let { connection ->
-        ManageDialog(graph, connection, onChooseTools = { managing = null; onChooseTools(connection) }, onDone = { managing = null })
+        ManageDialog(
+            graph = graph,
+            connection = connection,
+            onConnect = {
+                managing = null
+                if (connection.server.auth == McpAuthMode.TOKEN) askingKeys = connection else connectors.connect(context, connection)
+            },
+            onChooseTools = { managing = null; onChooseTools(connection) },
+            onDone = { managing = null },
+        )
     }
     askingKeys?.let { connection ->
         KeysDialog(connection.server.name, connection.server.headers, onDismiss = { askingKeys = null }) { values ->
@@ -121,23 +133,94 @@ internal fun connectAdded(graph: AppGraph, context: android.content.Context, add
     }
 }
 
+/**
+ * A connection's details: its name (renamable when the user added it), where it lives, its tools, and the way
+ * to remove or disconnect it.
+ */
 @Composable
-private fun ManageDialog(graph: AppGraph, connection: McpConnection, onChooseTools: () -> Unit, onDone: () -> Unit) {
-    val name = connection.server.name
+private fun ManageDialog(graph: AppGraph, connection: McpConnection, onConnect: () -> Unit, onChooseTools: () -> Unit, onDone: () -> Unit) {
+    val server = connection.server
     val custom = graph.connectors.isCustom(connection)
+    val state by connection.state.collectAsState()
+    val connected = state is ConnectorState.Connected
+    var name by remember(connection) { mutableStateOf(server.name) }
+    var confirmingRemove by remember(connection) { mutableStateOf(false) }
+    val save = { graph.connectors.rename(connection, name); onDone() }
+    if (confirmingRemove) {
+        AlertDialog(
+            onDismissRequest = { confirmingRemove = false },
+            title = { Text(stringResource(if (custom) R.string.connector_remove_title else R.string.connector_disconnect_title, server.name)) },
+            text = { Text(stringResource(if (custom) R.string.connector_manage_body else R.string.connector_disconnect_body, server.name)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (custom) graph.connectors.remove(connection) else graph.connectors.disconnect(connection)
+                    onDone()
+                }) { Text(stringResource(if (custom) R.string.connector_remove else R.string.connector_disconnect), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { confirmingRemove = false }) { Text(stringResource(R.string.connector_cancel)) } },
+        )
+        return
+    }
     AlertDialog(
         onDismissRequest = onDone,
-        title = { Text(name) },
-        text = { Text(stringResource(if (custom) R.string.connector_manage_body else R.string.connector_disconnect_body, name)) },
-        confirmButton = { TextButton(onClick = onChooseTools) { Text(stringResource(R.string.connector_choose_tools)) } },
-        dismissButton = {
-            if (custom) {
-                TextButton(onClick = { graph.connectors.remove(connection); onDone() }) { Text(stringResource(R.string.connector_remove)) }
-            } else {
-                TextButton(onClick = { graph.connectors.disconnect(connection); onDone() }) { Text(stringResource(R.string.connector_disconnect)) }
+        title = { Text(server.name) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
+                if (custom) {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text(stringResource(R.string.connector_add_name)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { save() }),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                Detail(stringResource(R.string.connector_detail_address), server.url)
+                Detail(
+                    stringResource(R.string.connector_detail_status),
+                    when {
+                        connected -> pluralStringResource(R.plurals.connector_tools_on, connection.tools.size, connection.tools.size, connection.offered.size)
+                        state == ConnectorState.Connecting -> stringResource(R.string.connector_connecting)
+                        else -> stringResource(R.string.connector_not_connected)
+                    },
+                )
+                Detail(
+                    stringResource(R.string.connector_detail_sign_in),
+                    stringResource(
+                        when (server.auth) {
+                            McpAuthMode.OAUTH -> R.string.connector_sign_in_oauth
+                            McpAuthMode.TOKEN -> R.string.connector_sign_in_key
+                            McpAuthMode.NONE -> R.string.connector_sign_in_none
+                        },
+                    ),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+                    if (connected) {
+                        OutlinedButton(onClick = onChooseTools) { Text(stringResource(R.string.connector_choose_tools)) }
+                    } else if (state != ConnectorState.Connecting) {
+                        OutlinedButton(onClick = onConnect) { Text(stringResource(R.string.connector_connect)) }
+                    }
+                    if (custom || connected) {
+                        TextButton(onClick = { confirmingRemove = true }) {
+                            Text(stringResource(if (custom) R.string.connector_remove else R.string.connector_disconnect), color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
             }
         },
+        confirmButton = { TextButton(onClick = save, enabled = !custom || name.isNotBlank()) { Text(stringResource(R.string.connector_done)) } },
     )
+}
+
+/** One fact about a connection: a small label over its value. */
+@Composable
+private fun Detail(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyMedium)
+    }
 }
 
 /**

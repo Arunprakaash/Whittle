@@ -64,6 +64,13 @@
     <string name="composer_placeholder">Get something done…</string>
     <string name="composer_placeholder_running">Add to this task…</string>
     <string name="composer_send">Send</string>
+    <string name="composer_speak">Speak</string>
+    <string name="composer_stop_listening">Stop listening</string>
+    <string name="composer_listening">Listening…</string>
+    <string name="voice_no_permission">Whittle needs the microphone to hear you. You can allow it in Android settings.</string>
+    <string name="voice_unavailable">Speech recognition isn\'t available for your language on this phone.</string>
+    <string name="voice_network">Couldn\'t reach speech recognition. Check your connection.</string>
+    <string name="voice_failed">Couldn\'t catch that. Try again.</string>
     <string name="status_thinking">Thinking…</string>
     <string name="status_writing">Writing…</string>
     <string name="status_done">Done</string>
@@ -147,8 +154,22 @@
     <string name="connector_add_url">Server address (https)</string>
     <string name="connector_add_action">Add</string>
     <string name="connector_manage_title">%1$s</string>
-    <string name="connector_manage_body">Remove %1$s? Whittle forgets this server and its sign-in on this phone.</string>
+    <string name="connector_manage_body">Whittle forgets this server and its sign-in on this phone.</string>
     <string name="connector_remove">Remove</string>
+    <string name="connector_remove_title">Remove %1$s?</string>
+    <string name="connector_done">Done</string>
+    <string name="connector_not_connected">Not connected</string>
+    <string name="connector_detail_address">Address</string>
+    <string name="connector_detail_status">Status</string>
+    <string name="connector_detail_sign_in">Sign-in</string>
+    <string name="connector_sign_in_oauth">With your account, in the browser</string>
+    <string name="connector_sign_in_key">With a key you paste</string>
+    <string name="connector_sign_in_none">None needed</string>
+    <string name="connector_section_about">Let Whittle use your other services, like Notion or Linear. Each one is an MCP server: pick one from the library or add any server by its address. Tap a connection to rename it, choose its tools or remove it.</string>
+    <plurals name="connector_tools_on">
+        <item quantity="one">Connected, %1$d of %2$d tools on</item>
+        <item quantity="other">Connected, %1$d of %2$d tools on</item>
+    </plurals>
     <string name="connector_token_title">Key for %1$s</string>
     <string name="connector_token_label">Key</string>
     <string name="connector_failed">Couldn\'t connect: %1$s</string>

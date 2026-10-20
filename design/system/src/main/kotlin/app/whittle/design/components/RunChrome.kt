@@ -134,6 +134,16 @@ private val TYPING_DOT_SIZE = 5.dp
 private val TYPING_DOT_GAP = 3.dp
 
 /** Where the user types. While a run works, what they send is added to it rather than starting over. */
+/** Speaking instead of typing: [listening] while the words come in, [level] (0–1) how loud they are. */
+data class ComposerVoice(
+    val listening: Boolean,
+    val level: Float,
+    val listeningPlaceholder: String,
+    val startLabel: String,
+    val stopLabel: String,
+    val onToggle: () -> Unit,
+)
+
 @Composable
 fun Composer(
     value: String,
@@ -143,10 +153,12 @@ fun Composer(
     onSend: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    /** When set, an empty composer offers a mic instead of send. */
+    voice: ComposerVoice? = null,
 ) {
     val colors = MaterialTheme.colorScheme
     val haptics = WhittleTheme.haptics
-    val canSend = enabled && value.isNotBlank()
+    val canSend = enabled && value.isNotBlank() && voice?.listening != true
     val send = { if (canSend) { haptics.perform(WhittleHaptic.Send); onSend() } }
     Row(
         modifier = modifier
@@ -157,7 +169,9 @@ fun Composer(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.weight(1f).padding(vertical = WhittleSpace.s)) {
-            if (value.isEmpty()) Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant)
+            if (value.isEmpty()) {
+                Text(if (voice?.listening == true) voice.listeningPlaceholder else placeholder, style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant)
+            }
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
@@ -179,6 +193,10 @@ fun Composer(
                     },
             )
         }
+        if (voice != null && (value.isBlank() || voice.listening)) {
+            VoiceButton(voice, enabled)
+            return@Row
+        }
         FilledIconButton(
             onClick = send,
             enabled = canSend,
@@ -193,3 +211,34 @@ fun Composer(
 
 private const val QUARTER_TURN = 90f
 private const val COMPOSER_MAX_LINES = 6
+
+/** The mic: tonal while idle; while listening a filled stop button inside a ring that swells with the voice. */
+@Composable
+private fun VoiceButton(voice: ComposerVoice, enabled: Boolean) {
+    val colors = MaterialTheme.colorScheme
+    val haptics = WhittleTheme.haptics
+    val swell by animateFloatAsState(if (voice.listening) 1f + voice.level * VOICE_SWELL else 1f, WhittleMotion.spatialFast.spec(), label = "voiceSwell")
+    val size = WhittleSize.touchTarget - WhittleSpace.xs
+    Box(contentAlignment = Alignment.Center) {
+        if (voice.listening) {
+            Box(Modifier.size(size).graphicsLayer { scaleX = swell; scaleY = swell }.background(colors.primary.copy(alpha = VOICE_RING_ALPHA), CircleShape))
+        }
+        FilledIconButton(
+            onClick = { haptics.perform(if (voice.listening) WhittleHaptic.Tap else WhittleHaptic.Select); voice.onToggle() },
+            enabled = enabled,
+            shape = CircleShape,
+            colors = if (voice.listening) {
+                IconButtonDefaults.filledIconButtonColors(containerColor = colors.primary, contentColor = colors.onPrimary)
+            } else {
+                IconButtonDefaults.filledIconButtonColors(containerColor = colors.secondaryContainer, contentColor = colors.onSecondaryContainer)
+            },
+            modifier = Modifier.size(size).semantics { contentDescription = if (voice.listening) voice.stopLabel else voice.startLabel },
+        ) {
+            WhittleIcon(if (voice.listening) "stop" else "mic", fill = voice.listening, size = WhittleSize.Icon.xl)
+        }
+    }
+}
+
+/** How far the ring grows at full voice. */
+private const val VOICE_SWELL = 0.35f
+private const val VOICE_RING_ALPHA = 0.25f

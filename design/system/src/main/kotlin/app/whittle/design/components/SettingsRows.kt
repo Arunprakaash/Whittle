@@ -31,7 +31,7 @@ import app.whittle.design.tokens.WhittleSpace
 
 /** A titled group of rows, joined like the chat list: large outer corners, small ones between rows. */
 @Composable
-fun SettingsSection(title: String, modifier: Modifier = Modifier, rows: @Composable ColumnScope.() -> Unit) {
+fun SettingsSection(title: String, modifier: Modifier = Modifier, description: String? = null, rows: @Composable ColumnScope.() -> Unit) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
         Text(
             title,
@@ -39,6 +39,14 @@ fun SettingsSection(title: String, modifier: Modifier = Modifier, rows: @Composa
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = WhittleSpace.m),
         )
+        description?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = WhittleSpace.m),
+            )
+        }
         Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline), content = rows)
     }
 }

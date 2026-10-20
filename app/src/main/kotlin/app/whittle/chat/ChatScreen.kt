@@ -1,5 +1,14 @@
 package app.whittle.chat
 
+import app.whittle.settings.VoiceDefaults
+import app.whittle.design.components.ComposerVoice
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.core.content.ContextCompat
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import app.whittle.design.components.WhittleMenu
 import app.whittle.design.components.MenuAction
 import app.whittle.observability.posthog.userContent
@@ -116,6 +125,7 @@ fun ChatScreen(
     sidebarMaxChats: Int,
     artifacts: Artifacts,
     artifactSheetHeight: Float,
+    voiceDefaults: VoiceDefaults,
     onViewAllChats: () -> Unit,
     onOpenArtifactFullScreen: (ArtifactRef) -> Unit,
     onOpenSettings: () -> Unit,
@@ -133,7 +143,7 @@ fun ChatScreen(
         )
     }
     CompositionLocalProvider(LocalOpenArtifact provides { ref -> sheetArtifact = ref }) {
-        ChatLayout(state, viewModel, sidebarMaxChats, onViewAllChats, onOpenSettings, onOpenArtifacts)
+        ChatLayout(state, viewModel, sidebarMaxChats, voiceDefaults, onViewAllChats, onOpenSettings, onOpenArtifacts)
     }
 }
 
@@ -145,6 +155,7 @@ private fun ChatLayout(
     state: ChatState,
     viewModel: ChatViewModel,
     sidebarMaxChats: Int,
+    voiceDefaults: VoiceDefaults,
     onViewAllChats: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenArtifacts: () -> Unit,
@@ -237,7 +248,7 @@ private fun ChatLayout(
                     else -> key(state.currentChat) { Thread(state.items, state.running, viewModel, requestCapability) }
                 }
             }
-            Dock(state, viewModel)
+            Dock(state, viewModel, voiceDefaults)
         }
     }
     }
@@ -386,7 +397,8 @@ private fun ThreadRow(
 }
 
 @Composable
-private fun Dock(state: ChatState, viewModel: ChatViewModel) {
+private fun Dock(state: ChatState, viewModel: ChatViewModel, voiceDefaults: VoiceDefaults) {
+    val voice = rememberVoice(voiceDefaults, state.input, viewModel::updateInput)
     Column(
         Modifier.padding(start = WhittleSpace.m, end = WhittleSpace.m, bottom = WhittleSpace.s),
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.s),
@@ -424,8 +436,68 @@ private fun Dock(state: ChatState, viewModel: ChatViewModel) {
             onSend = viewModel::send,
             enabled = state.model != null,
             modifier = Modifier.userContent(),
+            voice = voice,
         )
     }
+}
+
+/**
+ * The composer's mic: tap to speak, and the words land in the input as they're heard, after anything already
+ * typed. Null when the phone has no speech recognizer.
+ */
+@Composable
+private fun rememberVoice(defaults: VoiceDefaults, input: String, onInput: (String) -> Unit): ComposerVoice? {
+    val context = LocalContext.current
+    val voice = remember(context, defaults) { VoiceInput(context, defaults) }
+    if (!remember(voice) { voice.available }) return null
+    DisposableEffect(voice) { onDispose { voice.cancel() } }
+    var listening by remember { mutableStateOf(false) }
+    var level by remember { mutableFloatStateOf(0f) }
+    val currentInput by rememberUpdatedState(input)
+    val currentOnInput by rememberUpdatedState(onInput)
+    val errors = mapOf(
+        VoiceError.NoPermission to stringResource(R.string.voice_no_permission),
+        VoiceError.Unavailable to stringResource(R.string.voice_unavailable),
+        VoiceError.Network to stringResource(R.string.voice_network),
+        VoiceError.Other to stringResource(R.string.voice_failed),
+    )
+    val start = {
+        // What was typed before speaking stays; each partial result replaces only what's been heard so far.
+        val base = currentInput.trimEnd().let { if (it.isEmpty()) it else "$it " }
+        listening = true
+        voice.start(object : VoiceListener {
+            override fun onPartial(text: String) = currentOnInput(base + text)
+
+            override fun onFinal(text: String) = currentOnInput(base + text)
+
+            override fun onLevel(heard: Float) {
+                level = heard
+            }
+
+            override fun onEnd(error: VoiceError?) {
+                listening = false
+                level = 0f
+                error?.let { Toast.makeText(context, errors.getValue(it), Toast.LENGTH_LONG).show() }
+            }
+        })
+    }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) start() else Toast.makeText(context, errors.getValue(VoiceError.NoPermission), Toast.LENGTH_LONG).show()
+    }
+    return ComposerVoice(
+        listening = listening,
+        level = level,
+        listeningPlaceholder = stringResource(R.string.composer_listening),
+        startLabel = stringResource(R.string.composer_speak),
+        stopLabel = stringResource(R.string.composer_stop_listening),
+        onToggle = {
+            when {
+                listening -> voice.stop()
+                ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> start()
+                else -> permission.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        },
+    )
 }
 
 @Composable
