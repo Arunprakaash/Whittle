@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.whittle.AppGraph
 import app.whittle.agent.DecisionAnswer
+import app.whittle.agent.DecisionKind
 import app.whittle.agent.PauseReason
 import app.whittle.agent.RunEvent
 import app.whittle.agent.RunInput
@@ -16,6 +17,7 @@ import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.design.components.AgentState
 import app.whittle.design.components.DecisionUi
+import app.whittle.design.components.QuestionUi
 import app.whittle.design.tokens.WhittleHaptic
 import app.whittle.llm.api.ModelDescriptor
 import app.whittle.policy.PolicyDecision
@@ -70,6 +72,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private var segment = Segment(start = 0, startedAtMillis = 0)
     private val stepTexts = mutableMapOf<String, StepText>()
     private val parkedCalls = mutableSetOf<String>()
+    private val needsAccess = mutableSetOf<String>()
     private var nextKey = 0L
 
     init {
@@ -114,10 +117,26 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             ThreadItem.Resolved(item.key, if (approve) item.approvedOutcome else item.declinedOutcome, declined = !approve)
         }
         val answer = if (approve) DecisionAnswer.APPROVED else DecisionAnswer.DECLINED
-        graph.inbox.submit(item.runId, RunInput.Decision(item.toolCallId, answer))
+        submit(item.runId, RunInput.Decision(item.toolCallId, answer))
+    }
+
+    fun answer(item: ThreadItem.Question, choice: String) {
+        replace(item.key) { ThreadItem.Resolved(item.key, choice, declined = false) }
+        submit(item.runId, RunInput.Answer(item.toolCallId, choice))
+    }
+
+    /** Called with the system permission result. A refusal only reaches a run that is still working. */
+    fun answer(item: ThreadItem.Capability, granted: Boolean) {
+        replace(item.key) { ThreadItem.Resolved(item.key, if (granted) item.grantedOutcome else item.deniedOutcome, declined = !granted) }
+        val input = RunInput.CapabilityChanged(item.capability, granted)
+        if (granted || (activeJob?.isActive == true && activeRunId == item.runId)) submit(item.runId, input)
+    }
+
+    private fun submit(runId: RunId, input: RunInput) {
+        graph.inbox.submit(runId, input)
         when {
-            activeJob?.isActive != true -> collect(item.runId, graph.runner.resume(item.runId))
-            activeRunId != item.runId && item.runId !in waitingToContinue -> waitingToContinue.addLast(item.runId)
+            activeJob?.isActive != true -> collect(runId, graph.runner.resume(runId))
+            activeRunId != runId && runId !in waitingToContinue -> waitingToContinue.addLast(runId)
         }
     }
 
@@ -177,7 +196,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             is RunEvent.ToolCallDecided -> onToolCallDecided(event)
             is RunEvent.ToolCallFinished -> onToolCallFinished(event)
             is RunEvent.DecisionRequested -> onDecisionRequested(event)
-            is RunEvent.DecisionResolved -> Unit // The card already shows the user's choice; the model reports the result.
+            is RunEvent.DecisionResolved, is RunEvent.QuestionAnswered -> Unit // The card already shows the user's choice.
+            is RunEvent.CapabilityRequested -> onCapabilityRequested(event)
             is RunEvent.Completed -> onCompleted()
             is RunEvent.Paused -> end(if (event.reason == PauseReason.TOKEN_BUDGET) NoticeKind.PausedBudget else NoticeKind.PausedSteps)
             is RunEvent.Failed -> end(event.error.toNotice(), statusCode = (event.error as? HarnessError.Provider)?.statusCode)
@@ -204,13 +224,17 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         if (id in parkedCalls) return
         val text = stepTexts[id]
         updateStep(id) { step ->
-            if (step.status == StepState.Blocked) return@updateStep step
-            step.copy(label = text?.done ?: step.label, status = if (event.result.isError) StepState.Failed else StepState.Done)
+            when {
+                step.status == StepState.Blocked -> step
+                id in needsAccess -> step.copy(status = StepState.NeedsAccess)
+                else -> step.copy(label = text?.done ?: step.label, status = if (event.result.isError) StepState.Failed else StepState.Done)
+            }
         }
         if (!event.result.isError) _haptics.tryEmit(WhittleHaptic.StepDone)
     }
 
     private fun onDecisionRequested(event: RunEvent.DecisionRequested) {
+        if (event.decision.kind == DecisionKind.QUESTION) return onQuestionRequested(event)
         val call = event.decision.toolCall
         val text = graph.presenter.decision(call.toolName, event.arguments)
         val runId = activeRunId ?: return
@@ -232,6 +256,44 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
                 ),
                 approvedOutcome = text.approvedOutcome,
                 declinedOutcome = text.declinedOutcome,
+            ),
+        )
+        _haptics.tryEmit(WhittleHaptic.DecisionShown)
+    }
+
+    private fun onQuestionRequested(event: RunEvent.DecisionRequested) {
+        val call = event.decision.toolCall
+        val text = graph.presenter.question(call.toolName, event.arguments) ?: return
+        val runId = activeRunId ?: return
+        append(ThreadItem.Question("question-${call.id.value}", runId, call.id, QuestionUi(call.id.value, text.icon, text.question, text.options)))
+        _haptics.tryEmit(WhittleHaptic.DecisionShown)
+    }
+
+    private fun onCapabilityRequested(event: RunEvent.CapabilityRequested) {
+        needsAccess += event.toolCallId.value
+        val capability = event.capability
+        val presentation = graph.presenter.capability(capability.value) ?: return
+        val runId = activeRunId ?: return
+        // One card per capability: several tools may need the same access in one run.
+        if (_state.value.items.any { it is ThreadItem.Capability && it.capability == capability }) return
+        append(
+            ThreadItem.Capability(
+                key = "capability-${capability.value}-${key()}",
+                runId = runId,
+                capability = capability,
+                ui = DecisionUi(
+                    id = capability.value,
+                    icon = presentation.icon,
+                    title = presentation.title,
+                    body = presentation.body,
+                    payloadLabel = null,
+                    payload = null,
+                    approveLabel = presentation.approve,
+                    approveIcon = CAPABILITY_APPROVE_ICON,
+                    declineLabel = presentation.decline,
+                ),
+                grantedOutcome = presentation.grantedOutcome,
+                deniedOutcome = presentation.deniedOutcome,
             ),
         )
         _haptics.tryEmit(WhittleHaptic.DecisionShown)
@@ -331,5 +393,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         const val MILLIS_PER_SECOND = 1000L
         val KEY_REJECTED_CODES = setOf(401, 403)
         val EMPTY_ARGUMENTS = JsonObject(emptyMap())
+        /** Permission cards always confirm with a check; the words come from config. */
+        const val CAPABILITY_APPROVE_ICON = "check"
     }
 }

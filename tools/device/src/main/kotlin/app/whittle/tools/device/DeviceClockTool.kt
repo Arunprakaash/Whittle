@@ -21,18 +21,7 @@ import java.time.format.DateTimeFormatter
 
 /** Read-only tool: the current date and time, optionally in a given IANA time zone. */
 class DeviceClockTool(private val clock: EpochClock) : Tool {
-    override val definition = ToolDefinition(
-        id = ToolId("device_clock_now"),
-        description = "Returns the current date and time. Optionally pass an IANA time zone such as Asia/Kolkata.",
-        inputSchema = Json.parseToJsonElement(
-            """{"type":"object","properties":{"timeZone":{"type":"string","description":"IANA time zone id"}}}""",
-        ).jsonObject,
-        riskTier = RiskTier.READ,
-        executionSite = ExecutionSite.DEVICE,
-        requiredCapabilities = emptySet(),
-        consentTextKey = "consent_device_clock_now",
-        outputProvenance = Provenance.Trusted,
-    )
+    override val definition = DEFINITION
 
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
         val zoneName = arguments["timeZone"]?.jsonPrimitive?.contentOrNull
@@ -43,5 +32,20 @@ class DeviceClockTool(private val clock: EpochClock) : Tool {
         }
         val now = Instant.ofEpochMilli(clock.nowMillis()).atZone(zone)
         return ToolOutput(DateTimeFormatter.RFC_1123_DATE_TIME.format(now), isError = false, provenance = Provenance.Trusted)
+    }
+
+    companion object {
+        val DEFINITION = ToolDefinition(
+            id = ToolId("device_clock_now"),
+            description = "Returns the current date and time. Optionally pass an IANA time zone such as Asia/Kolkata.",
+            inputSchema = Json.parseToJsonElement(
+                """{"type":"object","properties":{"timeZone":{"type":"string","description":"IANA time zone id"}}}""",
+            ).jsonObject,
+            riskTier = RiskTier.READ,
+            executionSite = ExecutionSite.DEVICE,
+            requiredCapabilities = emptySet(),
+            consentTextKey = "consent_device_clock_now",
+            outputProvenance = Provenance.Trusted,
+        )
     }
 }

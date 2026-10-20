@@ -9,6 +9,7 @@ import app.whittle.llm.api.ModelDescriptor
 import app.whittle.llm.api.ReasoningEffort
 import app.whittle.policy.RunContext
 import app.whittle.policy.RunMode
+import app.whittle.tools.api.CapabilityId
 import app.whittle.tools.api.ToolId
 import kotlinx.serialization.Serializable
 
@@ -49,6 +50,8 @@ data class RunCheckpoint(
     val pendingDecisions: List<PendingDecision> = emptyList(),
     /** An approved decision whose tool had started when the checkpoint was written. */
     val inFlightDecision: ContentBlock.ToolCall? = null,
+    /** Capabilities a tool needed that the user hasn't granted yet; each shows a card in the thread. */
+    val requestedCapabilities: Set<CapabilityId> = emptySet(),
 ) {
     fun runContext(): RunContext = RunContext(
         mode = mode,

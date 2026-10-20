@@ -24,6 +24,13 @@ data class AgentMessages(
     val decisionApprovedUntrusted: String,
     val decisionDeclined: String,
     val decisionFailed: String,
+    /** Tool result for a question shown to the user as a card. */
+    val questionShown: String,
+    val questionAnswered: String,
+    /** Tool result when a tool needs a capability the user hasn't granted. */
+    val capabilityMissing: String,
+    val capabilityGranted: String,
+    val capabilityDenied: String,
     val interruptedToolCall: String,
     val toolFailed: String,
     val outputTruncated: String,
@@ -37,6 +44,11 @@ data class AgentMessages(
         requirePlaceholders(decisionApprovedUntrusted, TOOL, SOURCE, OUTPUT)
         requirePlaceholders(decisionDeclined, TOOL)
         requirePlaceholders(decisionFailed, TOOL, DETAIL)
+        requirePlaceholders(questionShown, TOOL)
+        requirePlaceholders(questionAnswered, QUESTION, ANSWER)
+        requirePlaceholders(capabilityMissing, TOOL, CAPABILITY)
+        requirePlaceholders(capabilityGranted, CAPABILITY)
+        requirePlaceholders(capabilityDenied, CAPABILITY)
         requirePlaceholders(interruptedToolCall, TOOL)
         requirePlaceholders(toolFailed, TOOL, DETAIL)
         requirePlaceholders(outputTruncated, LIMIT)
@@ -59,6 +71,16 @@ data class AgentMessages(
 
     fun decisionFailed(tool: String, detail: String): String = render(decisionFailed, TOOL to tool, DETAIL to detail)
 
+    fun questionShown(tool: String): String = render(questionShown, TOOL to tool)
+
+    fun questionAnswered(question: String, answer: String): String = render(questionAnswered, QUESTION to question, ANSWER to answer)
+
+    fun capabilityMissing(tool: String, capability: String): String = render(capabilityMissing, TOOL to tool, CAPABILITY to capability)
+
+    fun capabilityGranted(capability: String): String = render(capabilityGranted, CAPABILITY to capability)
+
+    fun capabilityDenied(capability: String): String = render(capabilityDenied, CAPABILITY to capability)
+
     fun interruptedToolCall(tool: String): String = render(interruptedToolCall, TOOL to tool)
 
     fun toolFailed(tool: String, detail: String): String = render(toolFailed, TOOL to tool, DETAIL to detail)
@@ -75,11 +97,14 @@ data class AgentMessages(
     }
 
     companion object {
-        const val SCHEMA_VERSION = 2
+        const val SCHEMA_VERSION = 3
         private const val TOOL = "tool"
         private const val DETAIL = "detail"
         private const val LIMIT = "limit"
         private const val OUTPUT = "output"
         private const val SOURCE = "source"
+        private const val QUESTION = "question"
+        private const val ANSWER = "answer"
+        private const val CAPABILITY = "capability"
     }
 }

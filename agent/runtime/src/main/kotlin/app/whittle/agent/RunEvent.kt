@@ -5,6 +5,8 @@ import app.whittle.core.model.ContentBlock
 import app.whittle.core.model.Message
 import app.whittle.core.model.TokenUsage
 import app.whittle.policy.PolicyDecision
+import app.whittle.core.model.ToolCallId
+import app.whittle.tools.api.CapabilityId
 import app.whittle.tools.api.ToolDefinition
 import app.whittle.tools.api.ToolOutput
 import kotlinx.serialization.json.JsonObject
@@ -25,6 +27,12 @@ sealed interface RunEvent {
         val tool: ToolDefinition,
         val arguments: JsonObject,
     ) : RunEvent
+
+    /** The user picked [choice] on a question card. */
+    data class QuestionAnswered(val decision: PendingDecision, val choice: String) : RunEvent
+
+    /** A tool needs a capability the user hasn't granted; show a card asking for it. The run keeps going. */
+    data class CapabilityRequested(val capability: CapabilityId, val toolCallId: ToolCallId) : RunEvent
 
     /** The user answered a card. [output] is set when an approved call ran. */
     data class DecisionResolved(

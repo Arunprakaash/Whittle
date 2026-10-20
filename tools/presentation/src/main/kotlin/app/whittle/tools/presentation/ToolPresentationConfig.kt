@@ -14,6 +14,8 @@ data class ToolPresentationConfig(
     /** Used for a tool that has no entry, so a missing entry never shows a tool id. */
     val fallback: ToolPresentation,
     val tools: Map<String, ToolPresentation>,
+    /** Cards asking for a capability a tool needs, keyed by capability id. */
+    val capabilities: Map<String, CapabilityPresentation> = emptyMap(),
 ) : VersionedConfig {
     companion object {
         const val SCHEMA_VERSION = 1
@@ -28,6 +30,26 @@ data class ToolPresentation(
     val done: String,
     /** Required for any tool the policy engine may ask about. */
     val decision: DecisionPresentation? = null,
+    /** For tools that ask the user a question: which arguments hold the question and its options. */
+    val question: QuestionPresentation? = null,
+)
+
+@Serializable
+data class QuestionPresentation(
+    val icon: String,
+    val questionArgument: String,
+    val optionsArgument: String,
+)
+
+@Serializable
+data class CapabilityPresentation(
+    val icon: String,
+    val title: String,
+    val body: String,
+    val approve: String,
+    val decline: String,
+    val grantedOutcome: String,
+    val deniedOutcome: String,
 )
 
 @Serializable

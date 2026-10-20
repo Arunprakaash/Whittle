@@ -5,10 +5,12 @@ arrow_back
 arrow_downward
 arrow_upward
 build
+calendar_month
 check
 check_circle:fill
 chevron_right
 close
+contacts
 content_copy
 do_not_disturb_on:fill
 edit
@@ -23,9 +25,11 @@ mic
 more_vert
 open_in_new
 person
+person_search
 refresh
 schedule
 settings
+sms
 stop:fill
 visibility
 visibility_off

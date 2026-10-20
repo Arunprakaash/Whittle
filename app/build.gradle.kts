@@ -31,6 +31,7 @@ dependencies {
     implementation(project(":tools:presentation"))
     implementation(project(":tools:device"))
     implementation(project(":tools:web"))
+    implementation(project(":tools:android"))
     implementation(project(":storage:secrets"))
     implementation(project(":storage:runs"))
     implementation(project(":observability:api"))

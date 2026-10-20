@@ -2,6 +2,7 @@ package app.whittle.dev.cli
 
 import app.whittle.agent.AgentMessages
 import app.whittle.agent.AgentRunner
+import app.whittle.agent.AskUserTool
 import app.whittle.agent.InMemoryRunCheckpointStore
 import app.whittle.agent.RunEvent
 import app.whittle.agent.RunInbox
@@ -83,7 +84,7 @@ fun main(args: Array<String>) = runBlocking {
         ),
         providers = providers,
         credentials = credentials,
-        tools = ToolRegistry(setOf(DeviceClockTool(clock), WebFetchTool(httpClient))),
+        tools = ToolRegistry(setOf(AskUserTool(), DeviceClockTool(clock), WebFetchTool(httpClient))),
         policy = RuleBasedPolicyEngine(rules),
         inbox = inbox,
         checkpoints = InMemoryRunCheckpointStore(),
@@ -137,6 +138,8 @@ private fun render(event: RunEvent) {
         )
         is RunEvent.ToolCallFinished -> println("[tool] result${if (event.result.isError) " (error)" else ""}: ${preview(event.result.content)}")
         is RunEvent.DecisionRequested -> Unit
+        is RunEvent.QuestionAnswered -> println("[question] answered: ${event.choice}")
+        is RunEvent.CapabilityRequested -> println("[capability] ${event.capability.value} is not available from the command line")
         is RunEvent.DecisionResolved -> println("[decision] ${event.decision.toolId.value} ${event.answer}${event.output?.let { ": " + preview(it.content) } ?: ""}")
         is RunEvent.Completed -> println("\n[done] tokens: ${event.usage}, open cards: ${event.openDecisions.size}")
         is RunEvent.Paused -> println("\n[paused] ${event.reason}, tokens: ${event.usage}")

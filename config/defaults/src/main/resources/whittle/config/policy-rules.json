@@ -1,7 +1,15 @@
 {
   "schemaVersion": 1,
   "hardDeny": [],
-  "rules": [],
+  "rules": [
+    {
+      "id": "message-drafts-always-confirm",
+      "effect": "ASK",
+      "matcher": {
+        "toolIdPattern": "compose_message"
+      }
+    }
+  ],
   "riskTierDefaults": {
     "READ": "ALLOW",
     "WRITE_LOCAL": "ALLOW",
@@ -10,8 +18,20 @@
     "DELETE_OR_PAY": "ASK_EVERY_TIME"
   },
   "trustTierLimits": {
-    "A": { "deniedRiskTiers": [], "askEveryTimeFrom": "SEND_OR_SHARE" },
-    "B": { "deniedRiskTiers": [], "askEveryTimeFrom": "NETWORK_OUT" },
-    "C": { "deniedRiskTiers": ["SEND_OR_SHARE", "DELETE_OR_PAY"], "askEveryTimeFrom": "WRITE_LOCAL" }
+    "A": {
+      "deniedRiskTiers": [],
+      "askEveryTimeFrom": "SEND_OR_SHARE"
+    },
+    "B": {
+      "deniedRiskTiers": [],
+      "askEveryTimeFrom": "NETWORK_OUT"
+    },
+    "C": {
+      "deniedRiskTiers": [
+        "SEND_OR_SHARE",
+        "DELETE_OR_PAY"
+      ],
+      "askEveryTimeFrom": "WRITE_LOCAL"
+    }
   }
 }

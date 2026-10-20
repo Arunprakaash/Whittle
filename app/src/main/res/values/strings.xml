@@ -39,6 +39,7 @@
     <string name="step_blocked">Not allowed by your settings</string>
     <string name="step_failed">Didn\'t work</string>
     <string name="step_stopped">Stopped</string>
+    <string name="step_needs_access">Needs your OK to access this</string>
     <plurals name="run_summary">
         <item quantity="one">%1$d step · %2$ds</item>
         <item quantity="other">%1$d steps · %2$ds</item>

@@ -1,5 +1,6 @@
 package app.whittle.design.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,6 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -94,6 +97,46 @@ fun DecisionCard(decision: DecisionUi, onApprove: () -> Unit, onDecline: () -> U
             }
             TextButton(onClick = { haptics.perform(WhittleHaptic.Reject); onDecline() }) {
                 Text(decision.declineLabel)
+            }
+        }
+    }
+}
+
+/** A question the agent asked, with the options the user can tap. */
+@Immutable
+data class QuestionUi(val id: String, val icon: String, val question: String, val options: List<String>)
+
+/** Inline question card. Like a decision card it never blocks; the tapped option goes back to the agent. */
+@Composable
+fun QuestionCard(question: QuestionUi, onPick: (String) -> Unit, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val haptics = WhittleTheme.haptics
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { liveRegion = LiveRegionMode.Polite }
+            .background(colors.surfaceContainerLow, RoundedCornerShape(WhittleRadius.xl))
+            .padding(WhittleSpace.m),
+        verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
+            Box(
+                Modifier.size(WhittleSize.Tile.s).background(colors.decisionContainer, RoundedCornerShape(WhittleRadius.m)),
+                contentAlignment = Alignment.Center,
+            ) {
+                WhittleIcon(question.icon, size = WhittleSize.Icon.m, tint = colors.onDecisionContainer)
+            }
+            Text(question.question, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s), verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+            question.options.forEach { option ->
+                OutlinedButton(
+                    onClick = { haptics.perform(WhittleHaptic.Select); onPick(option) },
+                    border = BorderStroke(WhittleSpace.hairline / 2, colors.outlineVariant),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = colors.surfaceContainerLowest, contentColor = colors.onSurface),
+                ) {
+                    Text(option, style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
     }

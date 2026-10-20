@@ -24,18 +24,7 @@ import java.io.IOException
  * later outbound calls need the user's choice again.
  */
 class WebFetchTool(private val httpClient: OkHttpClient) : Tool {
-    override val definition = ToolDefinition(
-        id = ToolId("web_fetch"),
-        description = "Downloads a web page over https and returns its raw text.",
-        inputSchema = Json.parseToJsonElement(
-            """{"type":"object","properties":{"url":{"type":"string","description":"https URL"}},"required":["url"]}""",
-        ).jsonObject,
-        riskTier = RiskTier.NETWORK_OUT,
-        executionSite = ExecutionSite.DEVICE,
-        requiredCapabilities = emptySet(),
-        consentTextKey = "consent_web_fetch",
-        outputProvenance = Provenance.Untrusted(SOURCE_LABEL),
-    )
+    override val definition = DEFINITION
 
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
         val url = arguments.getValue("url").jsonPrimitive.content.toHttpUrlOrNull()
@@ -54,7 +43,20 @@ class WebFetchTool(private val httpClient: OkHttpClient) : Tool {
 
     private fun failure(message: String) = ToolOutput(message, isError = true, provenance = Provenance.Trusted)
 
-    private companion object {
-        const val SOURCE_LABEL = "web page"
+    companion object {
+        val DEFINITION = ToolDefinition(
+            id = ToolId("web_fetch"),
+            description = "Downloads a web page over https and returns its raw text.",
+            inputSchema = Json.parseToJsonElement(
+                """{"type":"object","properties":{"url":{"type":"string","description":"https URL"}},"required":["url"]}""",
+            ).jsonObject,
+            riskTier = RiskTier.NETWORK_OUT,
+            executionSite = ExecutionSite.DEVICE,
+            requiredCapabilities = emptySet(),
+            consentTextKey = "consent_web_fetch",
+            outputProvenance = Provenance.Untrusted(SOURCE_LABEL),
+        )
+
+        private const val SOURCE_LABEL = "web page"
     }
 }

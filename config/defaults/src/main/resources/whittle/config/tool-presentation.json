@@ -36,6 +36,63 @@
         "approvedOutcome": "Read {{url_host}}",
         "declinedOutcome": "Not read"
       }
+    },
+    "ask_user": {
+      "icon": "help",
+      "running": "Asking you",
+      "done": "Asked you",
+      "question": {
+        "icon": "help",
+        "questionArgument": "question",
+        "optionsArgument": "options"
+      }
+    },
+    "contacts_search": {
+      "icon": "person_search",
+      "running": "Looking up {{query}}",
+      "done": "Looked up {{query}}"
+    },
+    "calendar_events": {
+      "icon": "calendar_month",
+      "running": "Checking your calendar",
+      "done": "Checked your calendar"
+    },
+    "compose_message": {
+      "icon": "sms",
+      "running": "Opening Messages",
+      "done": "Opened Messages",
+      "decision": {
+        "icon": "sms",
+        "title": "Send this to {{recipientName}}?",
+        "body": "Opens Messages with the text ready. Nothing is sent until you tap send there.",
+        "payloadArgument": "text",
+        "payloadLabelArgument": "recipientName",
+        "approve": "Open in Messages",
+        "approveIcon": "open_in_new",
+        "decline": "Not now",
+        "approvedOutcome": "Opened in Messages",
+        "declinedOutcome": "Not sent"
+      }
+    }
+  },
+  "capabilities": {
+    "contacts": {
+      "icon": "contacts",
+      "title": "Let Whittle read your contacts?",
+      "body": "So it can find who you mean. Only the contacts it looks up are shared with your AI provider.",
+      "approve": "Allow",
+      "decline": "Not now",
+      "grantedOutcome": "Contacts allowed",
+      "deniedOutcome": "Contacts not allowed"
+    },
+    "calendar": {
+      "icon": "calendar_month",
+      "title": "Let Whittle read your calendar?",
+      "body": "So it can check your plans. Only the events it reads are shared with your AI provider.",
+      "approve": "Allow",
+      "decline": "Not now",
+      "grantedOutcome": "Calendar allowed",
+      "deniedOutcome": "Calendar not allowed"
     }
   }
 }

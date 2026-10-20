@@ -37,6 +37,7 @@ include(
     ":tools:presentation",
     ":tools:device",
     ":tools:web",
+    ":tools:android",
     ":policy:engine",
     ":agent:runtime",
     ":observability:api",

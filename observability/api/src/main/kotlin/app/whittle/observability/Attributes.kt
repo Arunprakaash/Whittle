@@ -66,6 +66,7 @@ object AttributeKeys {
     const val DECISION = "decision"
     const val DECISION_REASON = "decision_reason"
     const val DECISION_ANSWER = "decision_answer"
+    const val DECISION_KIND = "decision_kind"
     const val OPEN_DECISIONS = "open_decisions"
     const val ERROR_TYPE = "error_type"
     const val ERROR_MESSAGE = "error_message"

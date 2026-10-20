@@ -14,7 +14,18 @@ data class ToolOutput(
     val content: String,
     val isError: Boolean,
     val provenance: Provenance,
+    /** Set when the tool couldn't run because the user hasn't granted this capability yet. */
+    val missingCapability: CapabilityId? = null,
 )
+
+/**
+ * A tool that asks the user to choose instead of acting. The harness shows it as an inline card and
+ * never calls [execute]; the user's choice goes back to the model as a note.
+ */
+interface UserQuestionTool : Tool {
+    /** The question text, for the note that reports the answer. */
+    fun question(arguments: JsonObject): String
+}
 
 /** A capability the agent can call. Implementations register themselves through DI. */
 interface Tool {

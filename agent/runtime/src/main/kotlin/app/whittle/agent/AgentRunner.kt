@@ -6,6 +6,7 @@ import app.whittle.core.common.Outcome
 import app.whittle.core.common.Secret
 import app.whittle.core.common.flatMap
 import app.whittle.core.common.getOrElse
+import app.whittle.core.common.getOrNull
 import app.whittle.core.common.map
 import app.whittle.core.config.AgentLimits
 import app.whittle.core.config.PromptTemplate
@@ -43,6 +44,7 @@ import app.whittle.tools.api.ToolExecutionContext
 import app.whittle.tools.api.ToolId
 import app.whittle.tools.api.ToolOutput
 import app.whittle.tools.api.ToolRegistry
+import app.whittle.tools.api.UserQuestionTool
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -258,6 +260,8 @@ class AgentRunner(
         val arguments = argumentParser.parse(call.argumentsJson, tool.definition.inputSchema).getOrElse {
             return recordResult(checkpoint, errorResult(call, messages.invalidArguments(call.toolName, it.message)))
         }
+        // Asking the user is always allowed and never acts, so questions skip the policy engine.
+        if (tool is UserQuestionTool) return park(checkpoint, tool, call, arguments, ApprovalScope.EVERY_CALL, DecisionKind.QUESTION)
         val decision = policy.evaluate(tool.definition, checkpoint.runContext())
         telemetry.event(TelemetryEvent.POLICY_DECISION, decisionAttributes(checkpoint, tool, decision))
         emit(RunEvent.ToolCallDecided(call, decision))
@@ -265,22 +269,30 @@ class AgentRunner(
         return when (decision) {
             is PolicyDecision.Deny -> recordResult(checkpoint, errorResult(call, messages.policyDenied(call.toolName)))
             is PolicyDecision.Allow -> execute(checkpoint, tool, call, arguments, parent)
-            is PolicyDecision.Ask -> park(checkpoint, tool, call, arguments, decision.scope)
+            is PolicyDecision.Ask -> park(checkpoint, tool, call, arguments, decision.scope, DecisionKind.APPROVAL)
         }
     }
 
-    /** Parks a call for the user's choice and tells the model it is waiting. The run does not block. */
+    /** Parks a call or question for the user and tells the model it is waiting. The run does not block. */
     private suspend fun FlowCollector<RunEvent>.park(
         checkpoint: RunCheckpoint,
         tool: Tool,
         call: ContentBlock.ToolCall,
         arguments: JsonObject,
         scope: ApprovalScope,
+        kind: DecisionKind,
     ): Outcome<RunCheckpoint> {
-        val pending = PendingDecision(call, tool.definition.id, scope, checkpoint.step)
-        telemetry.event(TelemetryEvent.DECISION_REQUESTED, toolAttributes(checkpoint, tool))
+        val pending = PendingDecision(call, tool.definition.id, scope, checkpoint.step, kind)
+        telemetry.event(
+            TelemetryEvent.DECISION_REQUESTED,
+            toolAttributes(checkpoint, tool) + Attributes.of { metadata(AttributeKeys.DECISION_KIND, kind.name) },
+        )
         emit(RunEvent.DecisionRequested(pending, tool.definition, arguments))
-        val awaiting = ContentBlock.ToolResult(call.id, messages.awaitingUser(call.toolName), isError = false, provenance = Provenance.Trusted)
+        val waiting = when (kind) {
+            DecisionKind.APPROVAL -> messages.awaitingUser(call.toolName)
+            DecisionKind.QUESTION -> messages.questionShown(call.toolName)
+        }
+        val awaiting = ContentBlock.ToolResult(call.id, waiting, isError = false, provenance = Provenance.Trusted)
         return recordResult(checkpoint.copy(pendingDecisions = checkpoint.pendingDecisions + pending), awaiting)
     }
 
@@ -291,6 +303,8 @@ class AgentRunner(
             checkpoint = when (input) {
                 is RunInput.Steer -> steer(checkpoint, input.text)
                 is RunInput.Decision -> resolveDecision(checkpoint, input, parent)
+                is RunInput.Answer -> resolveQuestion(checkpoint, input)
+                is RunInput.CapabilityChanged -> capabilityChanged(checkpoint, input)
             }.getOrElse { return Outcome.Failure(it) }
         }
         return Outcome.Success(checkpoint)
@@ -311,7 +325,8 @@ class AgentRunner(
         parent: SpanContext,
     ): Outcome<RunCheckpoint> {
         // Unknown ids are stale or repeated taps; nothing to do.
-        val pending = checkpoint.pendingDecisions.firstOrNull { it.toolCall.id == input.toolCallId } ?: return Outcome.Success(checkpoint)
+        val pending = checkpoint.pendingDecisions.firstOrNull { it.toolCall.id == input.toolCallId && it.kind == DecisionKind.APPROVAL }
+            ?: return Outcome.Success(checkpoint)
         val remaining = checkpoint.copy(pendingDecisions = checkpoint.pendingDecisions - pending)
         val call = pending.toolCall
         val tool = tools.find(pending.toolId)
@@ -344,7 +359,10 @@ class AgentRunner(
         span.end(if (output.isError) SpanStatus.ERROR else SpanStatus.OK)
         if (output.isError) telemetry.event(TelemetryEvent.TOOL_FAILED, toolAttributes(journaled, tool))
         val provenance = output.provenance
+        val missing = output.missingCapability
+        if (missing != null) emit(RunEvent.CapabilityRequested(missing, call.id))
         val note = when {
+            missing != null -> messages.capabilityMissing(call.toolName, missing.value)
             output.isError -> messages.decisionFailed(call.toolName, truncate(output.content))
             provenance is Provenance.Untrusted -> messages.decisionApprovedUntrusted(call.toolName, provenance.sourceLabel, truncate(output.content))
             else -> messages.decisionApproved(call.toolName, truncate(output.content))
@@ -354,7 +372,43 @@ class AgentRunner(
             journaled.copy(
                 inFlightDecision = null,
                 conversation = journaled.conversation.withUserContent(ContentBlock.Text(note)),
-                tainted = journaled.tainted || provenance is Provenance.Untrusted,
+                tainted = journaled.tainted || (missing == null && provenance is Provenance.Untrusted),
+                requestedCapabilities = journaled.requestedCapabilities + listOfNotNull(missing),
+            ),
+        )
+    }
+
+    private suspend fun FlowCollector<RunEvent>.resolveQuestion(checkpoint: RunCheckpoint, input: RunInput.Answer): Outcome<RunCheckpoint> {
+        val pending = checkpoint.pendingDecisions.firstOrNull { it.toolCall.id == input.toolCallId && it.kind == DecisionKind.QUESTION }
+            ?: return Outcome.Success(checkpoint)
+        val tool = tools.find(pending.toolId) as? UserQuestionTool
+        val arguments = tool?.let { argumentParser.parse(pending.toolCall.argumentsJson, it.definition.inputSchema).getOrNull() }
+        val question = arguments?.let { tool.question(it) }.orEmpty()
+        telemetry.event(
+            TelemetryEvent.DECISION_ANSWERED,
+            runAttributes(checkpoint) + Attributes.of {
+                metadata(AttributeKeys.TOOL_ID, pending.toolId.value)
+                metadata(AttributeKeys.DECISION_KIND, DecisionKind.QUESTION.name)
+            },
+        )
+        emit(RunEvent.QuestionAnswered(pending, input.choice))
+        val note = ContentBlock.Text(messages.questionAnswered(question, input.choice))
+        return persist(
+            checkpoint.copy(
+                pendingDecisions = checkpoint.pendingDecisions - pending,
+                conversation = checkpoint.conversation.withUserContent(note),
+            ),
+        )
+    }
+
+    private suspend fun capabilityChanged(checkpoint: RunCheckpoint, input: RunInput.CapabilityChanged): Outcome<RunCheckpoint> {
+        if (input.capability !in checkpoint.requestedCapabilities) return Outcome.Success(checkpoint)
+        val capability = input.capability.value
+        val note = if (input.granted) messages.capabilityGranted(capability) else messages.capabilityDenied(capability)
+        return persist(
+            checkpoint.copy(
+                requestedCapabilities = checkpoint.requestedCapabilities - input.capability,
+                conversation = checkpoint.conversation.withUserContent(ContentBlock.Text(note)),
             ),
         )
     }
@@ -389,6 +443,13 @@ class AgentRunner(
         val output = runTool(tool, call, arguments, checkpoint.runId)
         span.end(if (output.isError) SpanStatus.ERROR else SpanStatus.OK)
         if (output.isError) telemetry.event(TelemetryEvent.TOOL_FAILED, toolAttributes(checkpoint, tool))
+        val missing = output.missingCapability
+        if (missing != null) {
+            // The user is asked with a card; the model hears that from the harness, not from the tool.
+            emit(RunEvent.CapabilityRequested(missing, call.id))
+            val result = errorResult(call, messages.capabilityMissing(call.toolName, missing.value))
+            return recordResult(journaled.copy(inFlightToolCall = null, requestedCapabilities = journaled.requestedCapabilities + missing), result)
+        }
         val result = ContentBlock.ToolResult(call.id, truncate(output.content), output.isError, output.provenance)
         return recordResult(journaled.copy(inFlightToolCall = null), result)
     }
@@ -501,7 +562,7 @@ class AgentRunner(
     /** Failed runs are final; completed runs only continue when the user answers an open card. */
     private fun RunCheckpoint.canContinue(): Boolean = when (status) {
         RunStatus.FAILED -> false
-        RunStatus.COMPLETED -> pendingDecisions.isNotEmpty() && inbox.hasInput(runId)
+        RunStatus.COMPLETED -> (pendingDecisions.isNotEmpty() || requestedCapabilities.isNotEmpty()) && inbox.hasInput(runId)
         RunStatus.RUNNING, RunStatus.PAUSED -> true
     }
 

@@ -3,6 +3,7 @@ package app.whittle.tools.presentation
 import app.whittle.core.config.ConfigName
 import app.whittle.core.config.PromptTemplate
 import app.whittle.core.common.getOrElse
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -24,6 +25,8 @@ data class DecisionText(
     val approvedOutcome: String,
     val declinedOutcome: String,
 )
+
+data class QuestionText(val icon: String, val question: String, val options: List<String>)
 
 /**
  * Turns a tool call into the words the user sees. When a template can't be filled (an optional
@@ -58,6 +61,19 @@ class ToolPresenter(private val config: ToolPresentationConfig) {
             declinedOutcome = fill(decision.declinedOutcome, variables, fallback.declinedOutcome),
         )
     }
+
+    /** The question and its options, or null when the call doesn't carry a usable question. */
+    fun question(toolId: String, arguments: JsonObject): QuestionText? {
+        val presentation = config.tools[toolId]?.question ?: return null
+        val question = (arguments[presentation.questionArgument] as? JsonPrimitive)?.contentOrNull?.trim().orEmpty()
+        val options = (arguments[presentation.optionsArgument] as? JsonArray).orEmpty()
+            .mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf(String::isNotEmpty) }
+            .distinct()
+        return if (question.isEmpty() || options.isEmpty()) null else QuestionText(presentation.icon, question, options)
+    }
+
+    /** The card asking for [capabilityId], or null when config has none (the tool then just reports it). */
+    fun capability(capabilityId: String): CapabilityPresentation? = config.capabilities[capabilityId]
 
     private fun fill(template: String, variables: Map<String, String>, fallback: String): String =
         PromptTemplate(TEMPLATE_NAME, template).render(variables).getOrElse { fallback }

@@ -39,10 +39,8 @@ import app.whittle.storage.secrets.SecretStore
 import app.whittle.storage.secrets.SecretStoreCredentialsProvider
 import app.whittle.storage.secrets.TinkContentCipher
 import app.whittle.tools.api.ToolRegistry
-import app.whittle.tools.device.DeviceClockTool
 import app.whittle.tools.presentation.ToolPresentationConfig
 import app.whittle.tools.presentation.ToolPresenter
-import app.whittle.tools.web.WebFetchTool
 import kotlinx.serialization.KSerializer
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
@@ -89,7 +87,7 @@ class AppGraph(context: Context) {
         adapters = ModelAdapterRegistry(setOf(OpenAiCompatibleAdapter(httpClient, idGenerator), OpenAiResponsesAdapter(httpClient))),
         providers = providers,
         credentials = SecretStoreCredentialsProvider(secrets),
-        tools = ToolRegistry(setOf(DeviceClockTool(clock), WebFetchTool(httpClient))),
+        tools = ToolRegistry(ToolCatalog.create(context, clock, httpClient)),
         policy = RuleBasedPolicyEngine(load(ConfigFiles.policyRules, PolicyRuleSet.serializer(), PolicyRuleSet.SCHEMA_VERSION)),
         inbox = inbox,
         checkpoints = checkpoints,

@@ -66,6 +66,11 @@ internal val testMessages = AgentMessages(
     decisionApprovedUntrusted = "approved {{tool}} from {{source}}: {{output}}",
     decisionDeclined = "declined {{tool}}",
     decisionFailed = "approval failed {{tool}}: {{detail}}",
+    questionShown = "question shown {{tool}}",
+    questionAnswered = "answered {{question}}: {{answer}}",
+    capabilityMissing = "{{tool}} needs {{capability}}",
+    capabilityGranted = "granted {{capability}}",
+    capabilityDenied = "denied {{capability}}",
     interruptedToolCall = "interrupted {{tool}}",
     toolFailed = "failed {{tool}}: {{detail}}",
     outputTruncated = "[truncated at {{limit}}]",
@@ -132,6 +137,33 @@ internal class FakeTool(
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
         executions++
         return ToolOutput(behaviour(), isError = false, provenance = provenance)
+    }
+}
+
+/** A tool that reports a missing capability until [granted] is set. */
+internal class PermissionedTool(id: String, private val capability: app.whittle.tools.api.CapabilityId) : Tool {
+    var granted = false
+    var executions = 0
+        private set
+
+    override val definition = ToolDefinition(
+        id = ToolId(id),
+        description = "Needs ${capability.value}",
+        inputSchema = Json.parseToJsonElement("""{"type":"object","properties":{}}""").jsonObject,
+        riskTier = RiskTier.READ,
+        executionSite = ExecutionSite.DEVICE,
+        requiredCapabilities = setOf(capability),
+        consentTextKey = "consent_$id",
+        outputProvenance = Provenance.Trusted,
+    )
+
+    override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
+        executions++
+        return if (granted) {
+            ToolOutput("data from ${definition.id.value}", isError = false, provenance = Provenance.Trusted)
+        } else {
+            ToolOutput("", isError = true, provenance = Provenance.Trusted, missingCapability = capability)
+        }
     }
 }
 

@@ -3,6 +3,8 @@ package app.whittle.chat
 import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.design.components.DecisionUi
+import app.whittle.design.components.QuestionUi
+import app.whittle.tools.api.CapabilityId
 
 /** One entry in the conversation, in the order the user reads it. */
 sealed interface ThreadItem {
@@ -25,6 +27,24 @@ sealed interface ThreadItem {
         val declinedOutcome: String,
     ) : ThreadItem
 
+    /** An open question card; the picked option goes back to [runId]. */
+    data class Question(
+        override val key: String,
+        val runId: RunId,
+        val toolCallId: ToolCallId,
+        val ui: QuestionUi,
+    ) : ThreadItem
+
+    /** A card asking for a capability a tool needs, such as reading contacts. */
+    data class Capability(
+        override val key: String,
+        val runId: RunId,
+        val capability: CapabilityId,
+        val ui: DecisionUi,
+        val grantedOutcome: String,
+        val deniedOutcome: String,
+    ) : ThreadItem
+
     data class Resolved(override val key: String, val outcome: String, val declined: Boolean) : ThreadItem
 
     /** A finished run's steps, folded into one chip. */
@@ -41,6 +61,6 @@ sealed interface ThreadItem {
 
 data class StepModel(val id: String, val icon: String, val label: String, val status: StepState)
 
-enum class StepState { Running, Done, Failed, Blocked, Stopped }
+enum class StepState { Running, Done, Failed, Blocked, NeedsAccess, Stopped }
 
 enum class NoticeKind { Stopped, PausedBudget, PausedSteps, FailedKey, FailedNetwork, FailedProvider, FailedGeneric }

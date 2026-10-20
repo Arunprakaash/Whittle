@@ -4,6 +4,7 @@ import app.whittle.core.model.ContentBlock
 import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.policy.ApprovalScope
+import app.whittle.tools.api.CapabilityId
 import app.whittle.tools.api.ToolId
 import kotlinx.serialization.Serializable
 import java.util.concurrent.ConcurrentHashMap
@@ -21,7 +22,17 @@ data class PendingDecision(
     val scope: ApprovalScope,
     /** The step that proposed the call; lets the UI place the card in the thread. */
     val step: Int,
+    val kind: DecisionKind = DecisionKind.APPROVAL,
 )
+
+@Serializable
+enum class DecisionKind {
+    /** May this call run? Answered with approve or decline. */
+    APPROVAL,
+
+    /** The model asked the user to choose; answered with one of its options. */
+    QUESTION,
+}
 
 @Serializable
 enum class DecisionAnswer { APPROVED, DECLINED }
@@ -33,6 +44,12 @@ sealed interface RunInput {
 
     /** The user's choice on a decision card. */
     data class Decision(val toolCallId: ToolCallId, val answer: DecisionAnswer) : RunInput
+
+    /** The option the user picked on a question card. */
+    data class Answer(val toolCallId: ToolCallId, val choice: String) : RunInput
+
+    /** The user granted or refused a capability a tool asked for, such as reading contacts. */
+    data class CapabilityChanged(val capability: CapabilityId, val granted: Boolean) : RunInput
 }
 
 /**

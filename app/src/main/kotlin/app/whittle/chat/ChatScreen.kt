@@ -1,5 +1,7 @@
 package app.whittle.chat
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,11 +31,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import app.whittle.R
@@ -41,6 +45,7 @@ import app.whittle.design.components.Composer
 import app.whittle.design.components.LatestPill
 import app.whittle.design.components.DecisionCard
 import app.whittle.design.components.Narration
+import app.whittle.design.components.QuestionCard
 import app.whittle.design.components.ResolvedChip
 import app.whittle.design.components.RunSummaryChip
 import app.whittle.design.components.StatusLine
@@ -51,6 +56,7 @@ import app.whittle.design.components.UserMessage
 import app.whittle.design.components.WhittleIcon
 import app.whittle.design.theme.WhittleTheme
 import app.whittle.design.tokens.WhittleSpace
+import app.whittle.tools.android.AndroidCapabilities
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -59,6 +65,7 @@ import kotlinx.coroutines.launch
 fun ChatScreen(state: ChatState, viewModel: ChatViewModel) {
     val haptics = WhittleTheme.haptics
     LaunchedEffect(viewModel) { viewModel.haptics.collect { haptics.perform(it) } }
+    val requestCapability = rememberCapabilityRequest(state.items, viewModel)
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
@@ -71,7 +78,7 @@ fun ChatScreen(state: ChatState, viewModel: ChatViewModel) {
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                if (state.items.isEmpty()) EmptyThread(state) else Thread(state.items, viewModel)
+                if (state.items.isEmpty()) EmptyThread(state) else Thread(state.items, viewModel, requestCapability)
             }
             Dock(state, viewModel)
         }
@@ -83,7 +90,7 @@ fun ChatScreen(state: ChatState, viewModel: ChatViewModel) {
  * as it streams; scrolling up stops following, and the Latest pill brings them back.
  */
 @Composable
-private fun Thread(items: List<ThreadItem>, viewModel: ChatViewModel) {
+private fun Thread(items: List<ThreadItem>, viewModel: ChatViewModel, requestCapability: (ThreadItem.Capability) -> Unit) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var following by remember { mutableStateOf(true) }
@@ -104,7 +111,7 @@ private fun Thread(items: List<ThreadItem>, viewModel: ChatViewModel) {
             verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
             modifier = Modifier.fillMaxSize(),
         ) {
-            items(items, key = { it.key }) { item -> ThreadRow(item, viewModel, Modifier.animateItem()) }
+            items(items, key = { it.key }) { item -> ThreadRow(item, viewModel, requestCapability, Modifier.animateItem()) }
         }
         AnimatedVisibility(
             visible = !following && listState.canScrollForward,
@@ -119,12 +126,19 @@ private fun Thread(items: List<ThreadItem>, viewModel: ChatViewModel) {
 }
 
 @Composable
-private fun ThreadRow(item: ThreadItem, viewModel: ChatViewModel, modifier: Modifier = Modifier) {
+private fun ThreadRow(
+    item: ThreadItem,
+    viewModel: ChatViewModel,
+    requestCapability: (ThreadItem.Capability) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     when (item) {
         is ThreadItem.User -> UserMessage(item.text, modifier, steerLabel = if (item.steer) stringResource(R.string.steer_label) else null)
         is ThreadItem.Narration -> Narration(item.text, item.streaming, modifier)
         is ThreadItem.Steps -> StepGroup(item.steps.map { it.toUi() }, modifier)
         is ThreadItem.Decision -> DecisionCard(item.ui, onApprove = { viewModel.answer(item, approve = true) }, onDecline = { viewModel.answer(item, approve = false) }, modifier = modifier)
+        is ThreadItem.Question -> QuestionCard(item.ui, onPick = { viewModel.answer(item, it) }, modifier = modifier)
+        is ThreadItem.Capability -> DecisionCard(item.ui, onApprove = { requestCapability(item) }, onDecline = { viewModel.answer(item, granted = false) }, modifier = modifier)
         is ThreadItem.Resolved -> ResolvedChip(item.outcome, item.declined, modifier)
         is ThreadItem.Summary -> Column(modifier, verticalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
             RunSummaryChip(
@@ -134,7 +148,7 @@ private fun ThreadRow(item: ThreadItem, viewModel: ChatViewModel, modifier: Modi
             )
             AnimatedVisibility(item.expanded) {
                 Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
-                    item.folded.forEach { folded -> ThreadRow(folded, viewModel) }
+                    item.folded.forEach { folded -> ThreadRow(folded, viewModel, requestCapability) }
                 }
             }
         }
@@ -198,6 +212,29 @@ private fun ChatMenu(onNewTask: () -> Unit, onChangeModel: () -> Unit) {
     }
 }
 
+/**
+ * Allow on a capability card shows Android's own permission prompt, then reports the result. If access
+ * was already granted (say, in system settings), it reports straight away.
+ */
+@Composable
+private fun rememberCapabilityRequest(items: List<ThreadItem>, viewModel: ChatViewModel): (ThreadItem.Capability) -> Unit {
+    val context = LocalContext.current
+    var requestingKey by rememberSaveable { mutableStateOf<String?>(null) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        items.firstOrNull { it.key == requestingKey }?.let { viewModel.answer(it as ThreadItem.Capability, granted) }
+        requestingKey = null
+    }
+    return { item ->
+        val permission = AndroidCapabilities.permissionFor(item.capability)
+        if (permission == null || AndroidCapabilities.isGranted(context, item.capability)) {
+            viewModel.answer(item, granted = true)
+        } else {
+            requestingKey = item.key
+            launcher.launch(permission)
+        }
+    }
+}
+
 /** Ticks while the status line is visible. */
 @Composable
 private fun elapsed(startedAtMillis: Long): String {
@@ -221,13 +258,14 @@ private fun StepModel.toUi(): StepUi = StepUi(
         StepState.Blocked -> stringResource(R.string.step_blocked)
         StepState.Failed -> stringResource(R.string.step_failed)
         StepState.Stopped -> stringResource(R.string.step_stopped)
+        StepState.NeedsAccess -> stringResource(R.string.step_needs_access)
         StepState.Running, StepState.Done -> null
     },
     status = when (status) {
         StepState.Running -> StepStatus.Running
         StepState.Done -> StepStatus.Done
         StepState.Failed -> StepStatus.Failed
-        StepState.Blocked -> StepStatus.Blocked
+        StepState.Blocked, StepState.NeedsAccess -> StepStatus.Blocked
         StepState.Stopped -> StepStatus.Stopped
     },
 )

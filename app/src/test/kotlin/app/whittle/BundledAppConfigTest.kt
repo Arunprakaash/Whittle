@@ -28,7 +28,8 @@ class BundledAppConfigTest {
             loader.load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION),
         ).value
         val presentations = config.tools.values + config.fallback
-        val named = presentations.flatMap { listOfNotNull(it.icon, it.decision?.icon, it.decision?.approveIcon) }.toSet()
+        val named = presentations.flatMap { listOfNotNull(it.icon, it.decision?.icon, it.decision?.approveIcon, it.question?.icon) }.toSet() +
+            config.capabilities.values.map { it.icon }
         val missing = named - MaterialSymbols.names
         assertTrue(missing.isEmpty(), "Add these to design/system/icons/icons.txt: $missing")
     }

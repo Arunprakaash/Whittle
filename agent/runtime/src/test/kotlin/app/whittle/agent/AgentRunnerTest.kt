@@ -20,6 +20,7 @@ import app.whittle.llm.api.ReasoningEffort
 import app.whittle.observability.LocalTelemetry
 import app.whittle.policy.RuleBasedPolicyEngine
 import app.whittle.policy.RunMode
+import app.whittle.tools.api.CapabilityId
 import app.whittle.tools.api.RiskTier
 import app.whittle.tools.api.Tool
 import app.whittle.tools.api.ToolRegistry
@@ -188,6 +189,52 @@ class AgentRunnerTest {
 
         assertIs<RunEvent.Failed>(events.single())
         assertEquals(1, adapter.requests.size)
+    }
+
+    @Test
+    fun `a question is parked as a card and the answer reaches the model`() = runTest {
+        val ask = AskUserTool()
+        val adapter = ScriptedAdapter(
+            listOf(
+                toolTurn(call("q1", AskUserTool.ID, """{"question":"Clock or widget?","options":["Clock","Widget"]}""")),
+                textTurn("I'll wait for your pick."),
+                textTurn("Building the clock."),
+            ),
+        )
+        val runner = runner(adapter, setOf(ask))
+        val first = runner.start(request()).toList()
+
+        val requested = first.filterIsInstance<RunEvent.DecisionRequested>().single()
+        assertEquals(DecisionKind.QUESTION, requested.decision.kind)
+        assertEquals("question shown ask_user", lastToolResult(adapter).content)
+        assertEquals(1, assertIs<RunEvent.Completed>(first.last()).openDecisions.size)
+
+        inbox.submit(runId, RunInput.Answer(ToolCallId("q1"), "Clock"))
+        val second = runner.resume(runId).toList()
+
+        assertEquals("Clock", second.filterIsInstance<RunEvent.QuestionAnswered>().single().choice)
+        assertEquals("answered Clock or widget?: Clock", lastUserText(adapter))
+        assertTrue(savedCheckpoint().pendingDecisions.isEmpty())
+    }
+
+    @Test
+    fun `a missing capability asks with a card and a grant lets the model continue`() = runTest {
+        val contacts = PermissionedTool("contacts.search", CapabilityId("contacts"))
+        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "contacts.search")), textTurn("No access yet."), textTurn("Found Priya.")))
+        val runner = runner(adapter, setOf(contacts))
+        val first = runner.start(request()).toList()
+
+        assertEquals(CapabilityId("contacts"), first.filterIsInstance<RunEvent.CapabilityRequested>().single().capability)
+        assertEquals("contacts.search needs contacts", lastToolResult(adapter).content)
+        assertEquals(setOf(CapabilityId("contacts")), savedCheckpoint().requestedCapabilities)
+
+        contacts.granted = true
+        inbox.submit(runId, RunInput.CapabilityChanged(CapabilityId("contacts"), granted = true))
+        val second = runner.resume(runId).toList()
+
+        assertEquals("granted contacts", lastUserText(adapter))
+        assertIs<RunEvent.Completed>(second.last())
+        assertTrue(savedCheckpoint().requestedCapabilities.isEmpty())
     }
 
     @Test
