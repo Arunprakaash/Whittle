@@ -1,5 +1,8 @@
 package app.whittle.chat
 
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,13 +42,14 @@ fun ChatSidebar(
     onPin: (ChatId, Boolean) -> Unit,
     onDelete: (ChatId) -> Unit,
     onViewAll: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val haptics = WhittleTheme.haptics
     val groups = remember(chats, maxChats) {
         ChatSections.sidebar(ChatSections.group(chats, System.currentTimeMillis(), ZoneId.systemDefault()), maxChats)
     }
     ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Column(Modifier.padding(horizontal = WhittleSpace.m, vertical = WhittleSpace.l)) {
+        Column(Modifier.fillMaxHeight().padding(horizontal = WhittleSpace.m, vertical = WhittleSpace.l)) {
             Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = WhittleSpace.s))
             // Material 3 Expressive medium button: taller, fully rounded, morphs on press, filled icon.
             val height = ButtonDefaults.MediumContainerHeight
@@ -67,25 +71,35 @@ fun ChatSidebar(
                     modifier = Modifier.padding(start = WhittleSpace.s, top = WhittleSpace.l),
                 )
             }
-            ChatGroupList(
-                groups = groups,
-                current = current,
-                onOpen = onOpen,
-                onPin = onPin,
-                onDelete = onDelete,
-                footer = {
-                    if (chats.isNotEmpty()) {
-                        item(key = "view-all") {
-                            TextButton(
-                                onClick = { haptics.perform(WhittleHaptic.Tap); onViewAll() },
-                                modifier = Modifier.padding(top = WhittleSpace.s),
-                            ) {
-                                Text(stringResource(R.string.sidebar_view_all))
-                                WhittleIcon("chevron_right", size = WhittleSize.Icon.m)
+            // The list takes the room between New chat and Settings, which stays at the bottom.
+            Box(Modifier.weight(1f)) {
+                ChatGroupList(
+                    groups = groups,
+                    current = current,
+                    onOpen = onOpen,
+                    onPin = onPin,
+                    onDelete = onDelete,
+                    footer = {
+                        if (chats.isNotEmpty()) {
+                            item(key = "view-all") {
+                                TextButton(
+                                    onClick = { haptics.perform(WhittleHaptic.Tap); onViewAll() },
+                                    modifier = Modifier.padding(top = WhittleSpace.s),
+                                ) {
+                                    Text(stringResource(R.string.sidebar_view_all))
+                                    WhittleIcon("chevron_right", size = WhittleSize.Icon.m)
+                                }
                             }
                         }
-                    }
-                },
+                    },
+                )
+            }
+            NavigationDrawerItem(
+                label = { Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.titleSmall) },
+                icon = { WhittleIcon("settings", size = WhittleSize.Icon.xl) },
+                selected = false,
+                onClick = { haptics.perform(WhittleHaptic.Tap); onOpenSettings() },
+                modifier = Modifier.padding(top = WhittleSpace.s),
             )
         }
     }

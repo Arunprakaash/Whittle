@@ -28,6 +28,7 @@ data class AppearanceDefaults(val wallpaperColors: Boolean, val haptics: Boolean
 @Serializable
 data class AppStorageNames(
     val connectionStoreName: String,
+    val settingsStoreName: String,
     val runsDatabaseName: String,
     val chatsDatabaseName: String,
     val workspacesDirectoryName: String,

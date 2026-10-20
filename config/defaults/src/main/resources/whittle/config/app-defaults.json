@@ -6,6 +6,7 @@
   },
   "storage": {
     "connectionStoreName": "whittle_connection",
+    "settingsStoreName": "whittle_settings",
     "runsDatabaseName": "whittle_runs.db",
     "chatsDatabaseName": "whittle_chats.db",
     "workspacesDirectoryName": "workspaces"

@@ -1,5 +1,8 @@
 package app.whittle.chat
 
+import androidx.activity.compose.BackHandler
+import app.whittle.design.tokens.WhittleSize
+import androidx.compose.material3.AlertDialog
 import app.whittle.design.components.StatusLine
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
@@ -104,6 +107,7 @@ fun ChatScreen(
     artifactSheetHeight: Float,
     onViewAllChats: () -> Unit,
     onOpenArtifactFullScreen: (ArtifactRef) -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     var sheetArtifact by remember { mutableStateOf<ArtifactRef?>(null) }
     sheetArtifact?.let { ref ->
@@ -117,7 +121,7 @@ fun ChatScreen(
         )
     }
     CompositionLocalProvider(LocalOpenArtifact provides { ref -> sheetArtifact = ref }) {
-        ChatLayout(state, viewModel, sidebarMaxChats, onViewAllChats)
+        ChatLayout(state, viewModel, sidebarMaxChats, onViewAllChats, onOpenSettings)
     }
 }
 
@@ -125,12 +129,14 @@ fun ChatScreen(
 private val LocalOpenArtifact = staticCompositionLocalOf<(ArtifactRef) -> Unit> { {} }
 
 @Composable
-private fun ChatLayout(state: ChatState, viewModel: ChatViewModel, sidebarMaxChats: Int, onViewAllChats: () -> Unit) {
+private fun ChatLayout(state: ChatState, viewModel: ChatViewModel, sidebarMaxChats: Int, onViewAllChats: () -> Unit, onOpenSettings: () -> Unit) {
     val haptics = WhittleTheme.haptics
     LaunchedEffect(viewModel) { viewModel.haptics.collect { haptics.perform(it) } }
     val requestCapability = rememberCapabilityRequest(state.items, viewModel)
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    // Back closes the chat list before it leaves the app.
+    BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
     val closeThen = { action: () -> Unit -> scope.launch { drawer.close() }; action() }
     val title = state.chats.firstOrNull { it.id == state.currentChat }?.title
     ModalNavigationDrawer(
@@ -145,6 +151,7 @@ private fun ChatLayout(state: ChatState, viewModel: ChatViewModel, sidebarMaxCha
                 onPin = viewModel::setPinned,
                 onDelete = viewModel::deleteChat,
                 onViewAll = { closeThen(onViewAllChats) },
+                onOpenSettings = { closeThen(onOpenSettings) },
             )
         },
     ) {
@@ -177,7 +184,13 @@ private fun ChatLayout(state: ChatState, viewModel: ChatViewModel, sidebarMaxCha
                             shape = connectedShape(0, TOP_BAR_ACTIONS),
                             modifier = TopBarGroupAction,
                         )
-                        ChatMenu(onChangeModel = viewModel::changeModel, shape = connectedShape(1, TOP_BAR_ACTIONS))
+                        val current = state.chats.firstOrNull { it.id == state.currentChat }
+                        ChatMenu(
+                            pinned = current?.pinned,
+                            onPin = { pinned -> current?.let { viewModel.setPinned(it.id, pinned) } },
+                            onDelete = { current?.let { viewModel.deleteChat(it.id) } },
+                            shape = connectedShape(1, TOP_BAR_ACTIONS),
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -403,15 +416,45 @@ private fun Answer(item: ThreadItem.Narration, footer: TurnFooter, viewModel: Ch
     }
 }
 
+/**
+ * The open chat's own actions: pin it to the top of the list, or delete it. [pinned] is null while the chat
+ * hasn't been saved yet (nothing sent), so there is nothing to pin or delete.
+ */
 @Composable
-private fun ChatMenu(onChangeModel: () -> Unit, shape: Shape) {
+private fun ChatMenu(pinned: Boolean?, onPin: (Boolean) -> Unit, onDelete: () -> Unit, shape: Shape) {
     var open by remember { mutableStateOf(false) }
+    var confirmingDelete by remember { mutableStateOf(false) }
+    val haptics = WhittleTheme.haptics
     // The menu anchors to this box, so it opens under the ⋮ button.
     Box {
         TopBarAction("more_vert", stringResource(R.string.chat_more), onClick = { open = true }, shape = shape, modifier = TopBarGroupAction)
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            DropdownMenuItem(text = { Text(stringResource(R.string.chat_change_model)) }, onClick = { open = false; onChangeModel() })
+            DropdownMenuItem(
+                text = { Text(stringResource(if (pinned == true) R.string.chat_unpin else R.string.chat_pin)) },
+                leadingIcon = { WhittleIcon("keep", size = WhittleSize.Icon.l) },
+                enabled = pinned != null,
+                onClick = { open = false; onPin(pinned != true) },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_delete), color = MaterialTheme.colorScheme.error) },
+                leadingIcon = { WhittleIcon("delete", size = WhittleSize.Icon.l, tint = MaterialTheme.colorScheme.error) },
+                enabled = pinned != null,
+                onClick = { open = false; confirmingDelete = true },
+            )
         }
+    }
+    if (confirmingDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmingDelete = false },
+            title = { Text(stringResource(R.string.sidebar_delete_title)) },
+            text = { Text(stringResource(R.string.sidebar_delete_body)) },
+            confirmButton = {
+                TextButton(onClick = { haptics.perform(WhittleHaptic.Reject); confirmingDelete = false; onDelete() }) {
+                    Text(stringResource(R.string.sidebar_delete_confirm), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmingDelete = false }) { Text(stringResource(R.string.sidebar_delete_cancel)) } },
+        )
     }
 }
 
