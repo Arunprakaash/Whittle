@@ -1,6 +1,6 @@
 package app.whittle.chat
 
-import app.whittle.design.components.ComposerActivity
+import app.whittle.design.components.StatusLine
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
 import app.whittle.design.components.ArtifactCard
@@ -339,14 +339,16 @@ private fun Dock(state: ChatState, viewModel: ChatViewModel) {
         Modifier.padding(start = WhittleSpace.m, end = WhittleSpace.m, bottom = WhittleSpace.s),
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.s),
     ) {
-        val activity = state.status?.let { status ->
-            ComposerActivity(
-                state = status.state,
-                verb = status.verb ?: stringResource(R.string.status_thinking),
-                elapsed = elapsed(status.startedAtMillis),
-                stopLabel = stringResource(R.string.status_stop),
-                onStop = viewModel::stop,
-            )
+        AnimatedVisibility(state.status != null) {
+            state.status?.let { status ->
+                StatusLine(
+                    state = status.state,
+                    verb = status.verb ?: stringResource(R.string.status_thinking),
+                    elapsed = elapsed(status.startedAtMillis),
+                    stopLabel = stringResource(R.string.status_stop),
+                    onStop = viewModel::stop,
+                )
+            }
         }
         Composer(
             value = state.input,
@@ -355,7 +357,6 @@ private fun Dock(state: ChatState, viewModel: ChatViewModel) {
             sendLabel = stringResource(R.string.composer_send),
             onSend = viewModel::send,
             enabled = state.model != null,
-            activity = activity,
         )
     }
 }

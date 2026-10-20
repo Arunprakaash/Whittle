@@ -1,8 +1,16 @@
 package app.whittle.design.components
 
-import app.whittle.design.tokens.WhittleTextStyles
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.runtime.Immutable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.StartOffset
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -67,41 +75,65 @@ fun RunSummaryChip(text: String, expanded: Boolean, onToggle: () -> Unit, modifi
     }
 }
 
-/** Shown when new content arrives below the fold; tapping jumps to it and resumes following. */
+/**
+ * Shown when new content arrives below the fold; tapping jumps to it and resumes following. While the agent is
+ * still responding out of view it shrinks to a disc of the same height with three pulsing dots.
+ */
 @Composable
 fun LatestPill(label: String, modifier: Modifier = Modifier, working: Boolean = false, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val haptics = WhittleTheme.haptics
-    Row(
+    Box(
         modifier = modifier
+            .height(WhittleSize.Tile.s)
             .clip(RoundedCornerShape(WhittleRadius.full))
             .background(colors.inverseSurface)
-            .clickable(role = Role.Button) { haptics.perform(WhittleHaptic.Tap); onClick() }
-            .padding(start = WhittleSpace.s, top = WhittleSpace.xs, end = WhittleSpace.m, bottom = WhittleSpace.xs),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(WhittleSpace.xs),
+            .clickable(role = Role.Button, onClickLabel = label) { haptics.perform(WhittleHaptic.Tap); onClick() }
+            .animateContentSize(WhittleMotion.spatialDefault.spec()),
+        contentAlignment = Alignment.Center,
     ) {
-        WhittleIcon("arrow_downward", size = WhittleSize.Icon.m, tint = colors.inverseOnSurface)
-        Text(label, style = MaterialTheme.typography.labelLarge, color = colors.inverseOnSurface)
-        // The agent is still writing below, out of view.
-        if (working) AgentIndicator(AgentState.Thinking, color = colors.inversePrimary)
+        if (working) {
+            TypingDots(colors.inversePrimary, Modifier.size(WhittleSize.Tile.s))
+        } else {
+            Row(
+                Modifier.padding(start = WhittleSpace.s, end = WhittleSpace.m),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(WhittleSpace.xs),
+            ) {
+                WhittleIcon("arrow_downward", size = WhittleSize.Icon.m, tint = colors.inverseOnSurface)
+                Text(label, style = MaterialTheme.typography.labelLarge, color = colors.inverseOnSurface)
+            }
+        }
     }
 }
 
-/** What the agent is doing, shown inside the composer while a run works. */
-@Immutable
-data class ComposerActivity(
-    val state: AgentState,
-    val verb: String,
-    val elapsed: String,
-    val stopLabel: String,
-    val onStop: () -> Unit,
-)
+/** Three dots pulsing one after another: someone is still talking. */
+@Composable
+private fun TypingDots(color: Color, modifier: Modifier = Modifier) {
+    val pulse = rememberInfiniteTransition(label = "typingDots")
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(TYPING_DOT_GAP, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+        repeat(TYPING_DOTS) { index ->
+            val alpha by pulse.animateFloat(
+                initialValue = TYPING_DIM,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    tween(WhittleMotion.AGENT_BREATHE_MILLIS / 2),
+                    RepeatMode.Reverse,
+                    initialStartOffset = StartOffset(index * WhittleMotion.AGENT_BREATHE_MILLIS / (2 * TYPING_DOTS)),
+                ),
+                label = "typingDot$index",
+            )
+            Box(Modifier.size(TYPING_DOT_SIZE).graphicsLayer { this.alpha = alpha }.background(color, CircleShape))
+        }
+    }
+}
 
-/**
- * Where the user types. While a run works ([activity] set), the empty composer shows what the agent is doing
- * and its button stops the run; once the user types, the button sends, adding to the run rather than starting over.
- */
+private const val TYPING_DOTS = 3
+private const val TYPING_DIM = 0.3f
+private val TYPING_DOT_SIZE = 5.dp
+private val TYPING_DOT_GAP = 3.dp
+
+/** Where the user types. While a run works, what they send is added to it rather than starting over. */
 @Composable
 fun Composer(
     value: String,
@@ -111,12 +143,10 @@ fun Composer(
     onSend: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    activity: ComposerActivity? = null,
 ) {
     val colors = MaterialTheme.colorScheme
     val haptics = WhittleTheme.haptics
     val canSend = enabled && value.isNotBlank()
-    val showStop = activity != null && value.isBlank()
     val send = { if (canSend) { haptics.perform(WhittleHaptic.Send); onSend() } }
     Row(
         modifier = modifier
@@ -127,9 +157,7 @@ fun Composer(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.weight(1f).padding(vertical = WhittleSpace.s)) {
-            if (value.isEmpty()) {
-                if (activity != null) ActivityLine(activity) else Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant)
-            }
+            if (value.isEmpty()) Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant)
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
@@ -151,43 +179,15 @@ fun Composer(
                     },
             )
         }
-        if (showStop && activity != null) {
-            FilledIconButton(
-                onClick = { haptics.perform(WhittleHaptic.Reject); activity.onStop() },
-                shape = CircleShape,
-                colors = IconButtonDefaults.filledIconButtonColors(containerColor = colors.surfaceContainerHighest, contentColor = colors.onSurface),
-                modifier = Modifier.size(WhittleSize.touchTarget - WhittleSpace.xs).semantics { contentDescription = activity.stopLabel },
-            ) {
-                WhittleIcon("stop", fill = true, size = WhittleSize.Icon.l)
-            }
-        } else {
-            FilledIconButton(
-                onClick = send,
-                enabled = canSend,
-                shape = CircleShape,
-                colors = IconButtonDefaults.filledIconButtonColors(containerColor = colors.primary, contentColor = colors.onPrimary),
-                modifier = Modifier.size(WhittleSize.touchTarget - WhittleSpace.xs).semantics { contentDescription = sendLabel },
-            ) {
-                WhittleIcon("arrow_upward", size = WhittleSize.Icon.xl)
-            }
+        FilledIconButton(
+            onClick = send,
+            enabled = canSend,
+            shape = CircleShape,
+            colors = IconButtonDefaults.filledIconButtonColors(containerColor = colors.primary, contentColor = colors.onPrimary),
+            modifier = Modifier.size(WhittleSize.touchTarget - WhittleSpace.xs).semantics { contentDescription = sendLabel },
+        ) {
+            WhittleIcon("arrow_upward", size = WhittleSize.Icon.xl)
         }
-    }
-}
-
-/** Agent dot, what it's doing now (shimmering), and how long the run has taken. */
-@Composable
-private fun ActivityLine(activity: ComposerActivity) {
-    val colors = MaterialTheme.colorScheme
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
-        AgentIndicator(activity.state)
-        Text(
-            text = activity.verb,
-            style = MaterialTheme.typography.bodyLarge.copy(brush = rememberShimmerBrush(colors.onSurfaceVariant, colors.primary)),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        Text(activity.elapsed, style = WhittleTextStyles.monoTimer, color = colors.onSurfaceVariant)
     }
 }
 
