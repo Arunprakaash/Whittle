@@ -56,6 +56,166 @@
       },
       "capabilityOverrides": [
         {
+          "modelIdPattern": "babbage*",
+          "capabilities": {
+            "toolCalling": false,
+            "parallelToolCalls": false,
+            "vision": false,
+            "promptCaching": false,
+            "reasoning": false
+          }
+        },
+        {
+          "modelIdPattern": "davinci*",
+          "capabilities": {
+            "toolCalling": false,
+            "parallelToolCalls": false,
+            "vision": false,
+            "promptCaching": false,
+            "reasoning": false
+          }
+        },
+        {
+          "modelIdPattern": "*embedding*",
+          "capabilities": {
+            "toolCalling": false,
+            "parallelToolCalls": false,
+            "vision": false,
+            "promptCaching": false,
+            "reasoning": false
+          }
+        },
+        {
+          "modelIdPattern": "tts*",
+          "capabilities": {
+            "toolCalling": false,
+            "parallelToolCalls": false,
+            "vision": false,
+            "promptCaching": false,
+            "reasoning": false
+          }
+        },
+        {
+          "modelIdPattern": "*-tts*",
+          "capabilities": {
+            "toolCalling": false,
+            "parallelToolCalls": false,
+            "vision": false,
+            "promptCaching": false,
+            "reasoning": false
+          }
+        },
+        {
+          "modelIdPattern": "whisper*",
+          "capabilities": {
+            "toolCalling": false,
+            "parallelToolCalls": false,
+            "vision": false,
+            "promptCaching": false,
+            "reasoning": false
+          }
+        },
+        {
+          "modelIdPattern": "*transcribe*",
+          "capabilities": {
+            "toolCalling": false,
+            "parallelToolCalls": false,
+            "vision": false,
+            "promptCaching": false,
+            "reasoning": false
+          }
+        },
+        {
+          "modelIdPattern": "dall-e*",
+          "capabilities": {
+            "toolCalling": false,
+            "parallelToolCalls": false,
+            "vision": false,
+            "promptCaching": false,
+            "reasoning": false
+          }
+        },
+        {
+          "modelIdPattern": "*image*",
+          "capabilities": {
+            "toolCalling": false,
+            "parallelToolCalls": false,
+            "vision": false,
+            "promptCaching": false,
+            "reasoning": false
+          }
+        },
+        {
+          "modelIdPattern": "sora*",
+          "capabilities": {
+            "toolCalling": false,
+            "parallelToolCalls": false,
+            "vision": false,
+            "promptCaching": false,
+            "reasoning": false
+          }
+        },
+        {
+          "modelIdPattern": "*audio*",
+          "capabilities": {
+            "toolCalling": false,
+            "parallelToolCalls": false,
+            "vision": false,
+            "promptCaching": false,
+            "reasoning": false
+          }
+        },
+        {
+          "modelIdPattern": "*realtime*",
+          "capabilities": {
+            "toolCalling": false,
+            "parallelToolCalls": false,
+            "vision": false,
+            "promptCaching": false,
+            "reasoning": false
+          }
+        },
+        {
+          "modelIdPattern": "*moderation*",
+          "capabilities": {
+            "toolCalling": false,
+            "parallelToolCalls": false,
+            "vision": false,
+            "promptCaching": false,
+            "reasoning": false
+          }
+        },
+        {
+          "modelIdPattern": "computer-use*",
+          "capabilities": {
+            "toolCalling": false,
+            "parallelToolCalls": false,
+            "vision": false,
+            "promptCaching": false,
+            "reasoning": false
+          }
+        },
+        {
+          "modelIdPattern": "*search*",
+          "capabilities": {
+            "toolCalling": false,
+            "parallelToolCalls": false,
+            "vision": false,
+            "promptCaching": false,
+            "reasoning": false
+          }
+        },
+        {
+          "modelIdPattern": "*instruct*",
+          "capabilities": {
+            "toolCalling": false,
+            "parallelToolCalls": false,
+            "vision": false,
+            "promptCaching": false,
+            "reasoning": false
+          }
+        },
+        {
           "modelIdPattern": "gpt-5*",
           "capabilities": {
             "toolCalling": true,

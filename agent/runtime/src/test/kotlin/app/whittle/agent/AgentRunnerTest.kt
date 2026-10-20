@@ -25,6 +25,7 @@ import app.whittle.tools.api.RiskTier
 import app.whittle.tools.api.Tool
 import app.whittle.tools.api.ToolRegistry
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -293,6 +294,23 @@ class AgentRunnerTest {
     }
 
     @Test
+    fun `a run cut off during its first reply can be continued`() = runTest {
+        val hanging = object : app.whittle.llm.api.ModelAdapter {
+            override val apiFormat = app.whittle.llm.api.ApiFormat.OPENAI_CHAT_COMPLETIONS
+            override fun stream(request: app.whittle.llm.api.ModelRequest, provider: app.whittle.llm.api.ProviderDescriptor, apiKey: app.whittle.core.common.Secret) =
+                kotlinx.coroutines.flow.flow<ModelEvent> { kotlinx.coroutines.awaitCancellation() }
+        }
+        val firstAttempt = runner(adapterRegistry = ModelAdapterRegistry(setOf(hanging)))
+        val job = backgroundScope.launch { firstAttempt.start(request()).toList() }
+        testScheduler.runCurrent()
+        job.cancel()
+
+        assertEquals(RunStatus.RUNNING, savedCheckpoint().status)
+        val events = runner(ScriptedAdapter(listOf(textTurn("Here you go.")))).resume(runId).toList()
+        assertIs<RunEvent.Completed>(events.last())
+    }
+
+    @Test
     fun `missing prompt variable fails before calling the model`() = runTest {
         val adapter = ScriptedAdapter(emptyList())
         val events = runner(adapter).start(request().copy(promptVariables = emptyMap())).toList()
@@ -312,11 +330,12 @@ class AgentRunnerTest {
     }
 
     private fun runner(
-        adapter: ScriptedAdapter,
+        adapter: ScriptedAdapter? = null,
         tools: Set<Tool> = emptySet(),
         budget: Long = DEFAULT_BUDGET,
+        adapterRegistry: ModelAdapterRegistry = ModelAdapterRegistry(setOfNotNull(adapter)),
     ) = AgentRunner(
-        adapters = ModelAdapterRegistry(setOf(adapter)),
+        adapters = adapterRegistry,
         providers = testCatalog,
         credentials = fixedKey,
         tools = ToolRegistry(tools),

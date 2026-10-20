@@ -90,7 +90,8 @@ class ConnectViewModel(private val graph: AppGraph) : ViewModel() {
                     when (outcome) {
                         is Outcome.Failure -> ConnectPhase.EnterKey(outcome.error.toConnectError())
                         is Outcome.Success -> ConnectPhase.ChooseModel(
-                            outcome.value.filter { it.capabilities.toolCalling }.sortedBy { it.displayName.lowercase() },
+                            // Newest families first (gpt-6 before gpt-3.5); ids sort that way within a provider.
+                            outcome.value.filter { it.capabilities.toolCalling }.sortedByDescending { it.id.value },
                         )
                     }
                 }

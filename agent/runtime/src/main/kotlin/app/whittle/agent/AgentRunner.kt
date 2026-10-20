@@ -94,6 +94,11 @@ class AgentRunner(
             tokenBudget = limits.tokenBudgetPerRun,
             status = RunStatus.RUNNING,
         )
+        // Saved before the first model call, so a run cut off mid-reply can still be continued.
+        persist(checkpoint).getOrElse {
+            emit(RunEvent.Failed(it))
+            return@flow
+        }
         telemetry.event(TelemetryEvent.RUN_STARTED, runAttributes(checkpoint))
         drive(checkpoint)
     }

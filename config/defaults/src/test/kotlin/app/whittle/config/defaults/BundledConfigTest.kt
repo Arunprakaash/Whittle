@@ -70,6 +70,18 @@ class BundledConfigTest {
     }
 
     @Test
+    fun `models that can't chat with tools never reach the picker`() {
+        val catalog = assertIs<Outcome.Success<ProviderCatalog>>(
+            loader.load(ConfigFiles.providerCatalog, ProviderCatalog.serializer(), ProviderCatalog.SCHEMA_VERSION),
+        ).value
+        val openai = catalog.providers.single { it.id.value == "openai" }
+        listOf("babbage-002", "chatgpt-image-latest", "computer-use-preview", "text-embedding-3-small", "gpt-3.5-turbo-instruct")
+            .forEach { assertEquals(false, openai.capabilitiesFor(app.whittle.core.model.ModelId(it))?.toolCalling, it) }
+        assertEquals(true, openai.capabilitiesFor(app.whittle.core.model.ModelId("gpt-5.6-terra"))?.toolCalling)
+        assertEquals(null, openai.capabilitiesFor(app.whittle.core.model.ModelId("gpt-4o")), "unlisted chat models use the fallback")
+    }
+
+    @Test
     fun `wrong schema version is rejected`() {
         val result = loader.load(ConfigFiles.harness, HarnessConfig.serializer(), HarnessConfig.SCHEMA_VERSION + 1)
         assertIs<Outcome.Failure>(result)
