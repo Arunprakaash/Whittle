@@ -85,6 +85,14 @@ class ResponsesStreamParserTest {
     }
 
     @Test
+    fun `url citations on the answer become cited sources`() {
+        val events = parser.onData(
+            """{"type":"response.output_item.done","item":{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"output_text","text":"Sunny.","annotations":[{"type":"url_citation","start_index":0,"end_index":5,"title":"Chennai forecast","url":"https://example.com/chennai?utm_source=openai"},{"type":"file_citation","file_id":"f"}]}]}}""",
+        )
+        assertEquals(listOf(ModelEvent.SourceCited("https://example.com/chennai?utm_source=openai", "Chennai forecast")), events)
+    }
+
+    @Test
     fun `unknown events are ignored`() {
         assertEquals(emptyList(), parser.onData("""{"type":"response.content_part.added","part":{}}"""))
     }

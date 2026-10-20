@@ -33,16 +33,19 @@
     },
     "web_search.open_page": {
       "icon": "language",
+      "siteArgument": "url",
       "running": "Reading {{url_host}}",
       "done": "Read {{url_host}}"
     },
     "web_search.find_in_page": {
       "icon": "language",
+      "siteArgument": "url",
       "running": "Looking through {{url_host}}",
       "done": "Looked through {{url_host}}"
     },
     "web_fetch": {
       "icon": "language",
+      "siteArgument": "url",
       "running": "Reading {{url_host}}",
       "done": "Read {{url_host}}",
       "decision": {

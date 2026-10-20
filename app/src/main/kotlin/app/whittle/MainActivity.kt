@@ -1,5 +1,7 @@
 package app.whittle
 
+import app.whittle.design.components.LocalSiteIcons
+import androidx.compose.runtime.CompositionLocalProvider
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -34,6 +36,7 @@ class MainActivity : ComponentActivity() {
                 val gate by remember { graph.connections.model.map { if (it == null) Gate.Connect else Gate.Chat } }
                     .collectAsStateWithLifecycle(Gate.Loading)
                 // Surface sets the content color, so text on every screen follows the theme in light and dark.
+                CompositionLocalProvider(LocalSiteIcons provides graph.siteIcons) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
                     when (gate) {
                         Gate.Loading -> Unit
@@ -58,6 +61,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+                }
                 }
             }
         }

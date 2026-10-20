@@ -210,6 +210,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         }
     }
 
+    fun toggleSources(key: String) = replace(key) { (it as ThreadItem.Sources).let { sources -> sources.copy(expanded = !sources.expanded) } }
+
     fun toggleSummary(key: String) = replace(key) { (it as ThreadItem.Summary).let { summary -> summary.copy(expanded = !summary.expanded) } }
 
     /** Starts a fresh chat; the current one stays saved on the phone. */
@@ -301,6 +303,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private fun collect(runId: RunId, events: Flow<RunEvent>) {
         activeRunId = runId
         segment = Segment(start = _state.value.items.size, startedAtMillis = graph.clock.nowMillis())
+        citedTitles.clear()
         _state.update { it.copy(status = StatusUi(AgentState.Thinking, verb = null, startedAtMillis = segment.startedAtMillis)) }
         activeJob = viewModelScope.launch {
             // The loop encrypts and saves a checkpoint every step, so it runs off the main thread.
@@ -327,6 +330,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             is RunEvent.AssistantTextDelta -> appendNarration(event.text)
             is RunEvent.ToolCallDecided -> onToolCallDecided(event)
             is RunEvent.ToolCallFinished -> onToolCallFinished(event)
+            is RunEvent.SourceCited -> CitedSources.clean(event.url)?.let { url -> event.title?.let { citedTitles[url.toString()] = it } }
             is RunEvent.HostedToolStarted -> onHostedToolStarted(event)
             is RunEvent.HostedToolFinished -> onHostedToolFinished(event)
             is RunEvent.DecisionRequested -> onDecisionRequested(event)
@@ -347,10 +351,10 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         stepArguments[call.id.value] = arguments
         when (event.decision) {
             is PolicyDecision.Allow -> {
-                addStep(StepModel(call.id.value, text.icon, text.running, StepState.Running))
+                addStep(StepModel(call.id.value, text.icon, text.running, StepState.Running, site = text.site))
                 setStatus(AgentState.Acting, text.running)
             }
-            is PolicyDecision.Deny -> addStep(StepModel(call.id.value, text.icon, text.running, StepState.Blocked))
+            is PolicyDecision.Deny -> addStep(StepModel(call.id.value, text.icon, text.running, StepState.Blocked, site = text.site))
             is PolicyDecision.Ask -> parkedCalls += call.id.value
         }
     }
@@ -383,7 +387,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private fun onHostedToolFinished(event: RunEvent.HostedToolFinished) {
         // Each action (search, open a page, ...) has its own wording, keyed "<tool>.<action>".
         val text = graph.presenter.step("${event.tool.toolName}$HOSTED_ACTION_SEPARATOR${event.action}", event.arguments)
-        val done = StepModel(event.callId, text.icon, text.done, StepState.Done, inspection(event.arguments, result = ""))
+        val done = StepModel(event.callId, text.icon, text.done, StepState.Done, inspection(event.arguments, result = ""), site = text.site)
         val shown = _state.value.items.any { item -> item is ThreadItem.Steps && item.steps.any { it.id == event.callId } }
         if (shown) updateStep(event.callId) { done } else addStep(done)
         _haptics.tryEmit(WhittleHaptic.StepDone)
@@ -433,7 +437,10 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
 
     private fun onCompleted() {
         finishNarration()
+        val said = _state.value.items.drop(segment.start).filterIsInstance<ThreadItem.Narration>().map { it.text }
+        val sources = CitedSources.from(said, citedTitles)
         foldSegment()
+        if (sources.isNotEmpty()) placeAfterAnswer(ThreadItem.Sources(key(), sources))
         _state.update { it.copy(status = null) }
         _haptics.tryEmit(WhittleHaptic.RunDone)
     }
@@ -458,6 +465,13 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val seconds = ((graph.clock.nowMillis() - segment.startedAtMillis) / MILLIS_PER_SECOND).coerceAtLeast(1)
         val summary = ThreadItem.Summary(key(), stepCount, seconds, expanded = false, folded = folded)
         state.copy(items = before + summary + kept)
+    }
+
+    /** Sources sit right under the answer, above any cards the run left open. */
+    private fun placeAfterAnswer(item: ThreadItem) = _state.update { state ->
+        val answer = state.items.indexOfLast { it is ThreadItem.Narration }
+        if (answer < 0) return@update state.copy(items = state.items + item)
+        state.copy(items = state.items.take(answer + 1) + item + state.items.drop(answer + 1))
     }
 
     private fun appendNarration(text: String) = _state.update { state ->
@@ -586,6 +600,9 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private fun decode(document: String): ChatDocument? = ChatDocument.decode(document)
 
     private fun key(): String = "item-${nextKey++}"
+
+    /** Page titles from the provider's citations in the current run, keyed by cleaned address. */
+    private val citedTitles = mutableMapOf<String, String>()
 
     private data class Segment(val start: Int, val startedAtMillis: Long)
 

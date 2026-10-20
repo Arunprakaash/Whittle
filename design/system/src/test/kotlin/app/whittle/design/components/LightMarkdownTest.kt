@@ -51,4 +51,12 @@ class LightMarkdownTest {
         assertEquals("https://www.accuweather.com/en/in/chennai", (link.item as LinkAnnotation.Url).url)
         assertEquals("accuweather.com", result.text.substring(link.start, link.end))
     }
+
+    @Test
+    fun `markdown links are listed in order`() {
+        assertEquals(
+            listOf(MarkdownLink("a.com", "https://a.com/x"), MarkdownLink("B", "http://b.org")),
+            markdownLinks("See [a.com](https://a.com/x), [B](http://b.org) and [c](ftp://c)."),
+        )
+    }
 }

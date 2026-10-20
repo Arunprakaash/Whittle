@@ -52,6 +52,13 @@ fun lightMarkdown(text: String, code: SpanStyle, link: SpanStyle = SpanStyle()):
     }
 }
 
+/** A `[label](https://…)` link in model prose. */
+data class MarkdownLink(val label: String, val url: String)
+
+/** The web links in [text], in order, as [lightMarkdown] makes them tappable. */
+fun markdownLinks(text: String): List<MarkdownLink> =
+    LINK.findAll(text).map { MarkdownLink(label = it.groupValues[1], url = it.groupValues[2]) }.toList()
+
 private class InlineStyles(val code: SpanStyle, val link: SpanStyle)
 
 private fun AnnotatedString.Builder.appendInline(text: String, styles: InlineStyles) {

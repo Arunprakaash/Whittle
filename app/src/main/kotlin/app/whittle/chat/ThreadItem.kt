@@ -71,6 +71,11 @@ sealed interface ThreadItem {
         val folded: List<ThreadItem>,
     ) : ThreadItem
 
+    /** The pages the answer above cites, shown as a pill that opens into a list. */
+    @Serializable
+    @SerialName("sources")
+    data class Sources(override val key: String, val sources: List<SourceModel>, val expanded: Boolean = false) : ThreadItem
+
     @Serializable
     @SerialName("notice")
     data class Notice(override val key: String, val kind: NoticeKind, val statusCode: Int? = null) : ThreadItem
@@ -89,6 +94,8 @@ data class StepModel(
     val status: StepState,
     /** What ran and what came back, for the expandable step detail. */
     val inspection: String? = null,
+    /** Host of the web page the step reads; its site icon replaces [icon]. */
+    val site: String? = null,
 )
 
 @Serializable

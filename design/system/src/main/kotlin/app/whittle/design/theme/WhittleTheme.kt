@@ -13,12 +13,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import app.whittle.design.tokens.CreationColors
 import app.whittle.design.tokens.CreationTone
 import app.whittle.design.tokens.WhittleColors
 import app.whittle.design.tokens.WhittleCreationColors
 import app.whittle.design.tokens.WhittleFonts
+import app.whittle.design.tokens.WhittleSiteIconColors
 import app.whittle.design.tokens.WhittleTextStyles
 
 /** User-facing appearance choices. Defaults come from config, not from here. */
@@ -31,6 +33,7 @@ data class WhittleAppearance(
 
 private val LocalCreationColors = staticCompositionLocalOf { WhittleCreationColors.Light }
 private val LocalWhittleHaptics = staticCompositionLocalOf<WhittleHaptics> { WhittleHaptics.Off }
+private val LocalSiteIconBackdrop = staticCompositionLocalOf { WhittleSiteIconColors.Light }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -49,6 +52,7 @@ fun WhittleTheme(
     CompositionLocalProvider(
         LocalCreationColors provides if (darkTheme) WhittleCreationColors.Dark else WhittleCreationColors.Light,
         LocalWhittleHaptics provides rememberWhittleHaptics(appearance.haptics),
+        LocalSiteIconBackdrop provides if (darkTheme) WhittleSiteIconColors.Dark else WhittleSiteIconColors.Light,
     ) {
         // Expressive motion (springs) for every Material component; our own shapes stay plain and rounded.
         MaterialExpressiveTheme(
@@ -67,6 +71,10 @@ object WhittleTheme {
 
     val haptics: WhittleHaptics
         @Composable @ReadOnlyComposable get() = LocalWhittleHaptics.current
+
+    /** The disc behind site icons; light in both themes. */
+    val siteIconBackdrop: Color
+        @Composable @ReadOnlyComposable get() = LocalSiteIconBackdrop.current
 }
 
 /** Material slots filled from the type tokens; display styles only swap in the bundled family. */

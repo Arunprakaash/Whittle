@@ -944,6 +944,13 @@
       "$description": "Icons on tiles are filled."
     }
   },
+  "siteIcon": {
+    "$description": "Site icons (favicons) on steps and sources sit on a light disc in both themes: sites draw them for white browser tabs, so dark logos would vanish on a dark surface.",
+    "backdrop": {
+      "light": { "$type": "color", "$value": "#FFFFFF" },
+      "dark": { "$type": "color", "$value": "#E8EEE9" }
+    }
+  },
   "haptics": {
     "$description": "Semantic haptic events for HapticsController. Never per streamed token; respect system and in-app settings; none in background.",
     "tap": {

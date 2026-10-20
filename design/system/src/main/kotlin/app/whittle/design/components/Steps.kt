@@ -46,6 +46,8 @@ data class StepUi(
     val status: StepStatus,
     /** What exactly ran and what came back, shown in mono when the row is tapped. Null: nothing to show. */
     val inspection: String? = null,
+    /** Host of the web page this step reads; its own icon is shown instead of [icon] once loaded. */
+    val site: String? = null,
 )
 
 /** Consecutive steps as one segmented group: large outer corners, small corners between rows. */
@@ -96,9 +98,13 @@ private fun StepRow(step: StepUi, shape: Shape, onClick: ((StepUi) -> Unit)?) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m),
     ) {
-        Box(Modifier.size(WhittleSize.Tile.s).background(iconContainer, CircleShape), contentAlignment = Alignment.Center) {
-            WhittleIcon(if (step.status == StepStatus.Failed) "error" else step.icon, size = WhittleSize.Icon.m, tint = iconContent)
+        val iconTile: @Composable () -> Unit = {
+            Box(Modifier.size(WhittleSize.Tile.s).background(iconContainer, CircleShape), contentAlignment = Alignment.Center) {
+                WhittleIcon(if (step.status == StepStatus.Failed) "error" else step.icon, size = WhittleSize.Icon.m, tint = iconContent)
+            }
         }
+        val site = step.site?.takeIf { step.status != StepStatus.Failed }
+        if (site != null) SiteIcon(site, containerSize = WhittleSize.Tile.s, iconSize = WhittleSize.Icon.l, fallback = iconTile) else iconTile()
         Column(Modifier.weight(1f)) {
             val labelStyle = MaterialTheme.typography.titleSmall
             Text(

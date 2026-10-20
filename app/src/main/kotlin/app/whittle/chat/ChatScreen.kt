@@ -44,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,7 +57,9 @@ import app.whittle.design.components.Narration
 import app.whittle.design.components.QuestionCard
 import app.whittle.design.components.QuestionUi
 import app.whittle.design.components.ResolvedChip
+import app.whittle.design.components.AnswerSources
 import app.whittle.design.components.RunSummaryChip
+import app.whittle.design.components.SourceUi
 import app.whittle.design.components.StatusLine
 import app.whittle.design.components.StepGroup
 import app.whittle.design.components.StepStatus
@@ -234,6 +237,17 @@ private fun ThreadRow(
                 }
             }
         }
+        is ThreadItem.Sources -> {
+            val uriHandler = LocalUriHandler.current
+            AnswerSources(
+                label = pluralStringResource(R.plurals.sources_count, item.sources.size, item.sources.size),
+                sources = item.sources.map { SourceUi(it.title, it.host, it.url) },
+                expanded = item.expanded,
+                onToggle = { viewModel.toggleSources(item.key) },
+                onOpen = { uriHandler.openUri(it.url) },
+                modifier = modifier,
+            )
+        }
         is ThreadItem.Notice -> Text(
             noticeText(item),
             modifier = modifier,
@@ -374,6 +388,7 @@ private fun StepModel.toUi(): StepUi = StepUi(
         StepState.Stopped -> StepStatus.Stopped
     },
     inspection = inspection,
+    site = site,
 )
 
 @Composable

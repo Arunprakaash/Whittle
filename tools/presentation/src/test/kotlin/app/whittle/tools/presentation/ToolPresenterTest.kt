@@ -1,5 +1,7 @@
 package app.whittle.tools.presentation
 
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
@@ -29,7 +31,7 @@ class ToolPresenterTest {
                 decision = decision.copy(title = "Allow this action?", payloadArgument = null, payloadLabelArgument = null, icon = "help"),
             ),
             tools = mapOf(
-                "web_fetch" to ToolPresentation("language", "Reading {{url_host}}", "Read {{url_host}}"),
+                "web_fetch" to ToolPresentation("language", "Reading {{url_host}}", "Read {{url_host}}", siteArgument = "url"),
                 "compose_message" to ToolPresentation("sms", "Writing to {{to}}", "Wrote to {{to}}", decision),
             ),
         ),
@@ -38,7 +40,14 @@ class ToolPresenterTest {
     @Test
     fun `labels use argument values and url hosts`() {
         val step = presenter.step("web_fetch", args("""{"url":"https://www.example.com/a?b=1"}"""))
-        assertEquals(StepText("language", "Reading example.com", "Read example.com"), step)
+        assertEquals(StepText("language", "Reading example.com", "Read example.com", site = "example.com"), step)
+    }
+
+    @Test
+    fun `steps that read a page name its site, others don't`() {
+        val read = presenter.step("web_fetch", JsonObject(mapOf("url" to JsonPrimitive("https://www.techcrunch.com/a"))))
+        assertEquals("techcrunch.com", read.site)
+        assertEquals(null, presenter.step("compose_message", JsonObject(mapOf("to" to JsonPrimitive("Asha")))).site)
     }
 
     @Test

@@ -10,6 +10,7 @@ internal object ItemType {
     const val FUNCTION_CALL = "function_call"
     const val FUNCTION_CALL_OUTPUT = "function_call_output"
     const val REASONING = "reasoning"
+    const val URL_CITATION = "url_citation"
     const val FUNCTION = "function"
 }
 
@@ -91,6 +92,8 @@ internal object Field {
     const val QUERIES = "queries"
     const val URL = "url"
     const val PATTERN = "pattern"
+    const val ANNOTATIONS = "annotations"
+    const val TITLE = "title"
 }
 
 /** Ask for encrypted reasoning so it can be sent back on the next request without server-side storage. */

@@ -56,6 +56,7 @@ import app.whittle.tools.workspace.WorkspaceToolSet
 import app.whittle.tools.workspace.Workspaces
 import kotlinx.serialization.KSerializer
 import java.io.File
+import app.whittle.web.SiteIconLoader
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
@@ -102,6 +103,7 @@ class AppGraph(context: Context) {
 
     val modelLister = OpenAiCompatibleModelLister(httpClient, modelTrust, modelDefaults.fallbackCapabilities)
     val keyVerifier = ApiKeyVerifier(httpClient)
+    val siteIcons = SiteIconLoader(httpClient, File(context.cacheDir, appDefaults.siteIcons.cacheDirectoryName), appDefaults.siteIcons)
     val presenter = ToolPresenter(load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION))
     val inbox = RunInbox()
 

@@ -40,6 +40,9 @@ sealed interface RunEvent {
         val arguments: JsonObject,
     ) : RunEvent
 
+    /** The answer cites [url] (from the provider's citations); [title] is the page title when known. */
+    data class SourceCited(val url: String, val title: String?) : RunEvent
+
     /** The user picked [choice] on a question card. */
     data class QuestionAnswered(val decision: PendingDecision, val choice: String) : RunEvent
 

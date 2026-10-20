@@ -91,8 +91,19 @@ internal class ResponsesStreamParser : StreamEventParser {
             )
         }
         ItemType.REASONING -> listOf(ModelEvent.ReasoningState(ReasoningStateCodec.wrap(item)))
+        ItemType.MESSAGE -> citations(item)
         else -> item?.let { done -> HostedToolWire.fromItemType(done.string(Field.TYPE))?.let { listOf(hostedToolFinished(done, it)) } }.orEmpty()
     }
+
+    /** Web search answers carry url_citation annotations on their text: the pages the answer relies on. */
+    private fun citations(message: JsonObject): List<ModelEvent> =
+        (message[Field.CONTENT] as? JsonArray).orEmpty()
+            .flatMap { part -> ((part as? JsonObject)?.get(Field.ANNOTATIONS) as? JsonArray).orEmpty() }
+            .mapNotNull { annotation ->
+                val citation = annotation as? JsonObject
+                if (citation?.string(Field.TYPE) != ItemType.URL_CITATION) return@mapNotNull null
+                citation.string(Field.URL)?.let { url -> ModelEvent.SourceCited(url, citation.string(Field.TITLE)) }
+            }
 
     private fun onFinished(response: JsonObject?, incomplete: Boolean): List<ModelEvent> {
         usage = response?.obj(Field.USAGE)?.let(::toTokenUsage)

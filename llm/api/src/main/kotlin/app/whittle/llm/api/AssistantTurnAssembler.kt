@@ -28,7 +28,7 @@ class AssistantTurnAssembler {
             is ModelEvent.ReasoningDelta -> reasoning.append(event.text)
             is ModelEvent.ReasoningState -> reasoningStates += event.providerState
             is ModelEvent.ToolCallCompleted -> toolCalls += event.toolCall
-            is ModelEvent.HostedToolStarted -> Unit
+            is ModelEvent.HostedToolStarted, is ModelEvent.SourceCited -> Unit
             is ModelEvent.HostedToolFinished -> hostedToolUses += ContentBlock.HostedToolUse(
                 toolName = event.tool.toolName,
                 action = event.action,

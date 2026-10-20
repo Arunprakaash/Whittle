@@ -17,5 +17,13 @@
   },
   "chatList": {
     "sidebarMaxChats": 25
+  },
+  "siteIcons": {
+    "enabled": true,
+    "cacheDirectoryName": "site-icons",
+    "sizePx": 96,
+    "maxPageBytes": 131072,
+    "maxIconBytes": 262144,
+    "memoryEntries": 64
   }
 }

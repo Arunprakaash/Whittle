@@ -94,6 +94,15 @@ internal class DesignTokenKotlin(
         appendLine("}")
         appendLine()
 
+        val siteIconBackdrop = group("siteIcon").group("backdrop")
+        appendLine("/** The light disc site icons sit on, per theme. */")
+        appendLine("object WhittleSiteIconColors {")
+        listOf("light", "dark").forEach { mode ->
+            appendLine("    val ${mode.capitalized()}: Color = ${color(siteIconBackdrop.group(mode).value())}")
+        }
+        appendLine("}")
+        appendLine()
+
         appendLine("// Semantic pairs: what a container means, independent of which role draws it.")
         tokenEntries(group("semantic")).forEach { (name, token) ->
             val roles = (token.value() as String).split("/")

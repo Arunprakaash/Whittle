@@ -219,6 +219,7 @@ class AgentRunner(
             when (event) {
                 is ModelEvent.TextDelta -> emit(RunEvent.AssistantTextDelta(event.text))
                 is ModelEvent.HostedToolStarted -> emit(RunEvent.HostedToolStarted(event.callId, event.tool))
+                is ModelEvent.SourceCited -> emit(RunEvent.SourceCited(event.url, event.title))
                 is ModelEvent.HostedToolFinished -> {
                     telemetry.event(TelemetryEvent.HOSTED_TOOL_USED, hostedToolAttributes(checkpoint, event))
                     emit(RunEvent.HostedToolFinished(event.callId, event.tool, event.action, event.arguments))

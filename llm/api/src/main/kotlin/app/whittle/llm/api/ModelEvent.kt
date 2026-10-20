@@ -33,6 +33,9 @@ sealed interface ModelEvent {
         val arguments: JsonObject,
     ) : ModelEvent
 
+    /** The answer cites [url]; [title] is the page title when the provider reports one. */
+    data class SourceCited(val url: String, val title: String?) : ModelEvent
+
     data class Usage(val usage: TokenUsage) : ModelEvent
 
     data class Completed(val stopReason: StopReason) : ModelEvent

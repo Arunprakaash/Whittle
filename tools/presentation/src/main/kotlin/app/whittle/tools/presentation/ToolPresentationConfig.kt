@@ -32,6 +32,8 @@ data class ToolPresentation(
     val decision: DecisionPresentation? = null,
     /** For tools that ask the user a question: which arguments hold the question and its options. */
     val question: QuestionPresentation? = null,
+    /** The argument holding the web address a step reads; its site's icon is shown on the step. */
+    val siteArgument: String? = null,
 )
 
 @Serializable

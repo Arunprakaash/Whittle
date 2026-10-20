@@ -11,9 +11,9 @@ import kotlinx.serialization.json.contentOrNull
 import java.net.URI
 import java.net.URISyntaxException
 
-/** Labels for one tool call, ready to show. */
+/** Labels for one tool call, ready to show. [site] is the host of the page it reads, if any. */
 @Serializable
-data class StepText(val icon: String, val running: String, val done: String)
+data class StepText(val icon: String, val running: String, val done: String, val site: String? = null)
 
 @Serializable
 data class DecisionText(
@@ -44,6 +44,7 @@ class ToolPresenter(private val config: ToolPresentationConfig) {
             icon = presentation.icon,
             running = fill(presentation.running, variables, config.fallback.running),
             done = fill(presentation.done, variables, config.fallback.done),
+            site = presentation.siteArgument?.let { variables["$it$HOST_SUFFIX"] },
         )
     }
 
