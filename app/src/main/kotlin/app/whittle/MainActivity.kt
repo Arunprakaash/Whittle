@@ -88,7 +88,6 @@ class MainActivity : ComponentActivity() {
                                     artifacts = state.artifacts,
                                     onBack = { showingArtifacts = false },
                                     onOpen = { fullScreenArtifact = it },
-                                    onOpenChat = { id -> chat.openChat(id); showingArtifacts = false },
                                 )
                             } else if (showingAllChats) {
                                 BackHandler { showingAllChats = false }

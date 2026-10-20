@@ -7,11 +7,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -21,21 +19,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import app.whittle.R
 import app.whittle.artifacts.ArtifactRef
-import app.whittle.storage.chats.ChatId
 import app.whittle.design.components.SettingsRow
-import app.whittle.design.components.TopBarAction
 import app.whittle.design.components.TopBarButton
 import app.whittle.design.components.segmentedShape
-import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
 
-/** Every app the agent made, across all chats. Tapping one opens it; the chat button goes to where it was made. */
+/** Every app the agent made, across all chats, with the chat it came from. Tapping one opens it. */
 @Composable
 fun ArtifactsScreen(
     artifacts: List<ArtifactListItem>,
     onBack: () -> Unit,
     onOpen: (ArtifactRef) -> Unit,
-    onOpenChat: (ChatId) -> Unit,
 ) {
     BackHandler(onBack = onBack)
     Scaffold(
@@ -66,16 +60,12 @@ fun ArtifactsScreen(
             verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline),
         ) {
             itemsIndexed(artifacts, key = { _, item -> item.ref.workspace + "/" + item.ref.path }) { index, item ->
-                val openChat = stringResource(R.string.artifacts_open_chat)
                 SettingsRow(
                     icon = "web_asset",
                     title = item.ref.title,
                     subtitle = stringResource(R.string.artifacts_from_chat, item.chatTitle ?: stringResource(R.string.sidebar_untitled)),
                     shape = segmentedShape(index, artifacts.size),
                     onClick = { onOpen(item.ref) },
-                    trailing = {
-                        TopBarAction("chat", openChat, onClick = { onOpenChat(item.chatId) }, shape = CircleShape, modifier = Modifier.size(WhittleSize.Tile.l))
-                    },
                 )
             }
         }
