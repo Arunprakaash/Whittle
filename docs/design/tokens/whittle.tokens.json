@@ -208,10 +208,10 @@
       "$value": "primaryContainer/onPrimaryContainer",
       "$description": "On badges, completed summary icon."
     },
-    "waiting": {
+    "decision": {
       "$type": "string",
       "$value": "tertiaryContainer/onTertiaryContainer",
-      "$description": "Review badges, decision icon, Live Update chip."
+      "$description": "Decision card icon and Home badges for an open card. Never a blocking state."
     },
     "failed": {
       "$type": "string",
@@ -798,7 +798,7 @@
     }
   },
   "agentIndicator": {
-    "$description": "The agent's state mark: one primary dot, 8dp, in a 28dp box. No morphing shapes.",
+    "$description": "The agent's state mark while a run is working: one primary dot, 8dp, in a 28dp box. No morphing shapes, and no waiting state: open decisions never hold a run.",
     "dotSize": {
       "$type": "dimension",
       "$value": "8px"
@@ -816,11 +816,6 @@
       "$type": "string",
       "$value": "orbit",
       "$description": "A 2dp arc circles the dot."
-    },
-    "waiting": {
-      "$type": "string",
-      "$value": "hold",
-      "$description": "Dot turns tertiary and holds still."
     },
     "done": {
       "$type": "string",

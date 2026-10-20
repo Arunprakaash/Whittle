@@ -142,12 +142,11 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
 .spring .track { position: relative; height: 28px; border-radius: 14px; background: var(--code); }
 .spring .dot { position: absolute; top: 4px; left: 4px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); }
 .spring p { margin: 0; font-size: 13px; color: var(--ink-3); }
-.agent-states { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+.agent-states { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .agent-state { background: var(--paper); border: 1px solid var(--rule); border-radius: 18px; padding: 16px; display: grid; justify-items: center; align-content: start; gap: 8px; text-align: center; }
 .agent-state .tile-demo { display: grid; place-items: center; height: 72px; }
 .agent-state .agent-ind { transform: scale(2.2); margin: 22px 0; }
 .agent-state .agent-ind { color: var(--accent); }
-.agent-state .agent-ind[data-state="waiting"] { color: #e6a42c; }
 .mark { display: grid; place-items: center; border-radius: 30%; background: #2b6a55; flex: 0 0 auto; }
 .mark::after { content: ""; width: 30%; height: 30%; border-radius: 50%; background: #f6faf7; }
 .agent-ind { position: relative; width: 28px; height: 28px; display: grid; place-items: center; flex: 0 0 auto; color: var(--ind, var(--accent)); }
@@ -155,7 +154,6 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
 .agent-ind::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; border: 2px solid transparent; }
 .agent-ind[data-state="thinking"]::before { animation: ind-breathe var(--breathe, 1200ms) ease-in-out infinite; }
 .agent-ind[data-state="acting"]::after { border-top-color: currentColor; animation: ind-orbit var(--orbit, 900ms) linear infinite; }
-.agent-ind[data-state="waiting"] { color: var(--ind-wait, #e6a42c); }
 .agent-ind[data-state="done"]::before { opacity: 0; transform: scale(.4); }
 .agent-ind .ms { position: absolute; font-size: 18px; }
 @keyframes ind-breathe { 50% { transform: scale(.6); opacity: .55; } }
@@ -232,9 +230,6 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
 .c-resolved { display: inline-flex; align-items: center; gap: 8px; justify-self: start; padding: 6px 12px 6px 8px; border-radius: var(--radius-full); background: var(--surfaceContainerLow); color: var(--onSurfaceVariant); }
 .c-resolved .ms { font-size: 18px; color: var(--primary); }
 .c-resolved.declined .ms { color: var(--onSurfaceVariant); }
-.c-waiting { display: flex; align-items: center; gap: 10px; height: var(--size-statusLine); padding: 0 6px 0 12px; background: var(--tertiaryContainer); color: var(--onTertiaryContainer); border-radius: var(--radius-full); }
-.c-waiting > span:not(.agent-ind) { flex: 1; }
-.c-waiting button { height: 36px; padding: 0 14px; border-radius: var(--radius-full); background: transparent; color: var(--onTertiaryContainer); }
 .c-scope { display: flex; gap: var(--space-hairline); margin-top: 14px; }
 .c-scope button { flex: 1; height: 40px; background: transparent; border: 1px solid var(--outlineVariant); color: var(--onSurfaceVariant); border-radius: var(--radius-s); }
 .c-scope button:first-child { border-radius: var(--radius-lIncreased) var(--radius-s) var(--radius-s) var(--radius-lIncreased); }
@@ -268,7 +263,7 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
 .c-lrow .meta { color: var(--onSurfaceVariant); }
 .c-badge { padding: 4px 10px; border-radius: var(--radius-full); white-space: nowrap; }
 .c-badge.done { background: var(--primaryContainer); color: var(--onPrimaryContainer); }
-.c-badge.waiting { background: var(--tertiaryContainer); color: var(--onTertiaryContainer); }
+.c-badge.decision { background: var(--tertiaryContainer); color: var(--onTertiaryContainer); }
 .c-badge.failed { background: var(--errorContainer); color: var(--onErrorContainer); }
 .c-shelf { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
 .c-tile { display: grid; gap: 8px; justify-items: center; text-align: center; background: var(--surfaceContainerLow); padding: 14px 6px 12px; border-radius: var(--radius-lIncreased); }
@@ -352,7 +347,7 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
 
     <section class="block" id="color">
       <h2>Color</h2>
-      <p class="sub">Seed Pine with a Marigold accent. Tonal Material 3 roles: surfaces separate content by tone, not borders. Marigold only means "waiting on you". Wallpaper colors (Material You) is an opt-in setting.</p>
+      <p class="sub">Seed Pine with a Marigold accent. Tonal Material 3 roles: surfaces separate content by tone, not borders. Marigold only marks a choice for you: decision cards and open-card badges. Wallpaper colors (Material You) is an opt-in setting.</p>
       <div class="toolbar-row"><span>Theme</span><span class="mode" id="swatchMode"><button type="button" data-mode="light" aria-pressed="true">Light</button><button type="button" data-mode="dark" aria-pressed="false">Dark</button></span></div>
       <div class="swatches" id="swatches"></div>
       <h3>Contrast, measured from the tokens</h3>
@@ -457,7 +452,7 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
         <div class="box"><h3>Accessibility</h3><ul>
           <li>48dp touch targets; text reflows at 200% font scale; no fixed-height text containers.</li>
           <li>TalkBack hears one "Working: checking your calendar" per step, never per token; the answer is read once.</li>
-          <li>Decision cards are announced politely once ("Needs your choice: Send this to Priya?"); the waiting count stays visible as text.</li>
+          <li>Decision cards are announced politely once ("Needs your choice: Send this to Priya?"); nothing else is announced and nothing takes focus.</li>
           <li>Every icon-only button has a content description.</li>
           <li>State is never shown by color, motion or haptics alone.</li>
           <li>Key-entry screens use <code>FLAG_SECURE</code>.</li>
@@ -573,7 +568,7 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
     ["onPrimary", "primary", "text", "Filled buttons"],
     ["onPrimaryContainer", "primaryContainer", "text", "User messages, On badges"],
     ["onSecondaryContainer", "secondaryContainer", "text", "Tonal buttons, step icons"],
-    ["onTertiaryContainer", "tertiaryContainer", "text", "Waiting on you"],
+    ["onTertiaryContainer", "tertiaryContainer", "text", "Decision card icon, open-card badge"],
     ["onErrorContainer", "errorContainer", "text", "Failed steps"],
     ["inverseOnSurface", "inverseSurface", "text", "Snackbars, Latest pill"],
     ["outline", "surface", "ui", "Non-text boundaries"],
@@ -595,7 +590,7 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
 
   /* ---------- type ---------- */
   const samples = {
-    headlineLarge: "What should we make first?", headlineMediumEmphasized: "Two things running, one waiting on you.",
+    headlineLarge: "What should we make first?", headlineMediumEmphasized: "Two things running, one needs your OK.",
     headlineSmall: "Your stuff", titleLarge: "Send this to Priya?", titleMedium: "Plant reminder", titleSmall: "Checked your calendar · tonight",
     bodyLarge: "Let me check when dinner is and how far away you are.", bodyMedium: "Opens Messages with the text ready.",
     bodySmall: "Dinner with Priya, 8:00 PM · 2s", labelLarge: "Open in Messages", labelMedium: "Review", labelSmall: "ONLY IF",
@@ -668,7 +663,7 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
       requestAnimationFrame(step);
     });
   });
-  $("#agentStates").innerHTML = ["thinking", "acting", "waiting", "done"].map((state) => {
+  $("#agentStates").innerHTML = ["thinking", "acting", "done"].map((state) => {
     const t = T.agentIndicator[state];
     return `<div class="agent-state">${agentInd(state)}<b>${state[0].toUpperCase() + state.slice(1)}</b><span>${t.$value} · ${t.$description}</span></div>`;
   }).join("");
@@ -701,7 +696,6 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
     comp("Decision card · capability, with scope", `<div class="c-decision"><div class="dh"><span class="gl">${ms("notifications")}</span><div><div class="t-titleMedium">Let Plant reminder notify you?</div><div class="why t-bodySmall">Only this automation, only for the reminder.</div></div></div><div class="acts"><button class="c-btn sm filled t-labelLarge">${ms("check")}Allow</button><button class="c-btn sm text t-labelLarge">Not now</button><span class="scope-note t-bodySmall">${ms("info")}Asks again if it wants more</span></div></div>`),
     comp("Question card · options", `<div class="c-decision"><div class="dh"><span class="gl">${ms("help")}</span><div><div class="t-titleMedium">Which Priya?</div><div class="why t-bodySmall">You have two contacts with that name.</div></div></div><div class="c-options"><button class="c-option t-labelLarge">${ms("person")}Priya Sharma</button><button class="c-option t-labelLarge">${ms("person")}Priya K (work)</button></div></div>`),
     comp("Resolved · after a tap the card shrinks to its outcome", `<div class="c-resolved t-labelLarge">${ms("check_circle", "fill")}Opened in Messages · just now</div><div class="c-resolved declined t-labelLarge">${ms("do_not_disturb_on")}Not sent</div>`),
-    comp("Run ended, waiting on you (replaces the status line)", `<div class="c-waiting"><span class="agent-ind" data-state="waiting" style="--ind-wait:currentColor" aria-hidden="true"></span><span class="t-labelLarge">Waiting on 1 choice</span><button class="t-labelLarge">Show</button></div>`),
     comp("Automation card", `<div class="c-card"><div class="head">${tileSpan("pine", mode, "water_drop", 40)}<div><div class="t-titleMedium">Plant reminder</div><div class="meta t-bodySmall">Automation · runs on this phone</div></div></div>
       <div class="row first">${ms("schedule")}<div><div class="k t-labelSmall">When</div><div class="t-titleSmall">Every morning at 8:00</div></div></div>
       <div class="row">${ms("rainy")}<div><div class="k t-labelSmall">Only if</div><div class="t-titleSmall">No rain for 3 days</div></div></div>
@@ -710,7 +704,7 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
     comp("Assist chips · tags", `<div class="c-chips"><button class="c-chip t-labelLarge">${ms("alarm")}Remind me to leave</button><button class="c-chip t-labelLarge">${ms("map")}Directions</button></div><div class="c-chips"><span class="c-tag t-labelMedium">${ms("wifi_off")}Offline</span><span class="c-tag t-labelMedium">${ms("lock")}No permissions</span></div>`),
     comp("Buttons", `<div class="c-btns"><button class="c-btn filled t-labelLarge">Filled</button><button class="c-btn tonal t-labelLarge">Tonal</button><button class="c-btn outlined t-labelLarge">Outlined</button><button class="c-btn text t-labelLarge">Text</button></div>`),
     comp("List rows · semantic badges", `<div class="c-list">
-      <div class="c-lrow">${tileSpan("gold", mode, "sms", 44)}<div><div class="t-titleSmall">Dinner note to Priya</div><div class="meta t-bodySmall">Waiting on 1 choice</div></div><span class="c-badge waiting t-labelMedium">Show</span></div>
+      <div class="c-lrow">${tileSpan("gold", mode, "sms", 44)}<div><div class="t-titleSmall">Dinner note to Priya</div><div class="meta t-bodySmall">Ready to send</div></div><span class="c-badge decision t-labelMedium">Open</span></div>
       <div class="c-lrow">${tileSpan("pine", mode, "water_drop", 44)}<div><div class="t-titleSmall">Plant reminder</div><div class="meta t-bodySmall">Next check tomorrow 8:00</div></div><span class="c-badge done t-labelMedium">On</span></div>
       <div class="c-lrow">${tileSpan("clay", mode, "wb_sunny", 44)}<div><div class="t-titleSmall">Morning brief</div><div class="meta t-bodySmall">Couldn't reach the news source</div></div><span class="c-badge failed t-labelMedium">Failed</span></div></div>`),
     comp("Creation tiles", `<div class="c-shelf">
