@@ -13,6 +13,7 @@ object MaterialSymbols {
         "arrow_upward" to R.drawable.ms_arrow_upward,
         "build" to R.drawable.ms_build,
         "calendar_month" to R.drawable.ms_calendar_month,
+        "chat_add_on" to R.drawable.ms_chat_add_on,
         "check" to R.drawable.ms_check,
         "check_circle" to R.drawable.ms_check_circle,
         "chevron_right" to R.drawable.ms_chevron_right,
@@ -24,7 +25,6 @@ object MaterialSymbols {
         "do_not_disturb_on" to R.drawable.ms_do_not_disturb_on,
         "edit" to R.drawable.ms_edit,
         "edit_document" to R.drawable.ms_edit_document,
-        "edit_square" to R.drawable.ms_edit_square,
         "error" to R.drawable.ms_error,
         "expand_more" to R.drawable.ms_expand_more,
         "folder" to R.drawable.ms_folder,
@@ -42,6 +42,7 @@ object MaterialSymbols {
         "push_pin" to R.drawable.ms_push_pin,
         "refresh" to R.drawable.ms_refresh,
         "schedule" to R.drawable.ms_schedule,
+        "search" to R.drawable.ms_search,
         "settings" to R.drawable.ms_settings,
         "sms" to R.drawable.ms_sms,
         "stop" to R.drawable.ms_stop,
@@ -51,9 +52,11 @@ object MaterialSymbols {
     )
 
     private val filled: Map<String, Int> = mapOf(
+        "chat_add_on" to R.drawable.ms_chat_add_on_fill,
         "check_circle" to R.drawable.ms_check_circle_fill,
         "do_not_disturb_on" to R.drawable.ms_do_not_disturb_on_fill,
         "push_pin" to R.drawable.ms_push_pin_fill,
+        "search" to R.drawable.ms_search_fill,
         "stop" to R.drawable.ms_stop_fill,
     )
 

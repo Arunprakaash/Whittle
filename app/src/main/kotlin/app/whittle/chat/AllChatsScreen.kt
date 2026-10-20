@@ -3,26 +3,22 @@ package app.whittle.chat
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import app.whittle.R
 import app.whittle.design.components.WhittleIcon
+import app.whittle.design.components.WhittleSearchBar
 import app.whittle.design.tokens.WhittleSpace
 import app.whittle.storage.chats.ChatId
 import java.time.ZoneId
@@ -31,7 +27,8 @@ import java.time.ZoneId
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AllChatsScreen(state: ChatState, viewModel: ChatViewModel, onBack: () -> Unit, onOpen: (ChatId) -> Unit) {
-    var query by rememberSaveable { mutableStateOf("") }
+    val search = rememberTextFieldState()
+    val query = search.text.toString()
     val groups = remember(state.chats, query) {
         val needle = query.searchable()
         val matching = if (needle.isEmpty()) state.chats else state.chats.filter { (it.title ?: "").searchable().contains(needle) }
@@ -48,13 +45,7 @@ fun AllChatsScreen(state: ChatState, viewModel: ChatViewModel, onBack: () -> Uni
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = WhittleSpace.l)) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                label = { Text(stringResource(R.string.chats_search)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            WhittleSearchBar(search, placeholder = stringResource(R.string.chats_search), clearLabel = stringResource(R.string.search_clear))
             if (groups.isEmpty()) {
                 Text(
                     stringResource(if (state.chats.isEmpty()) R.string.sidebar_empty else R.string.chats_no_match),

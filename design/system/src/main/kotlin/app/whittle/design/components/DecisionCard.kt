@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -50,6 +51,7 @@ data class DecisionUi(
  * An inline card for a choice. It never blocks: the run keeps going around it, and the answer is
  * applied whenever the user taps, even after the run has finished. Announced politely, once.
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun DecisionCard(decision: DecisionUi, onApprove: () -> Unit, onDecline: () -> Unit, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
@@ -91,11 +93,11 @@ fun DecisionCard(decision: DecisionUi, onApprove: () -> Unit, onDecline: () -> U
             }
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s), verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
-            Button(onClick = { haptics.perform(WhittleHaptic.Approve); onApprove() }) {
+            Button(onClick = { haptics.perform(WhittleHaptic.Approve); onApprove() }, shapes = ButtonDefaults.shapes()) {
                 WhittleIcon(decision.approveIcon, size = WhittleSize.Icon.m)
                 Text(decision.approveLabel, Modifier.padding(start = WhittleSpace.s))
             }
-            TextButton(onClick = { haptics.perform(WhittleHaptic.Reject); onDecline() }) {
+            TextButton(onClick = { haptics.perform(WhittleHaptic.Reject); onDecline() }, shapes = ButtonDefaults.shapes()) {
                 Text(decision.declineLabel)
             }
         }
@@ -107,6 +109,7 @@ fun DecisionCard(decision: DecisionUi, onApprove: () -> Unit, onDecline: () -> U
 data class QuestionUi(val id: String, val icon: String, val question: String, val options: List<String>)
 
 /** Inline question card. Like a decision card it never blocks; the tapped option goes back to the agent. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun QuestionCard(question: QuestionUi, onPick: (String) -> Unit, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
@@ -132,6 +135,7 @@ fun QuestionCard(question: QuestionUi, onPick: (String) -> Unit, modifier: Modif
             question.options.forEach { option ->
                 OutlinedButton(
                     onClick = { haptics.perform(WhittleHaptic.Select); onPick(option) },
+                    shapes = ButtonDefaults.shapes(),
                     border = BorderStroke(WhittleSpace.hairline / 2, colors.outlineVariant),
                     colors = ButtonDefaults.outlinedButtonColors(containerColor = colors.surfaceContainerLowest, contentColor = colors.onSurface),
                 ) {

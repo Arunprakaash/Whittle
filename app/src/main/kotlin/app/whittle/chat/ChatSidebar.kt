@@ -5,7 +5,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.Text
@@ -24,6 +28,7 @@ import app.whittle.storage.chats.ChatId
 import java.time.ZoneId
 
 /** New chat, then pinned chats and the last week (capped); everything else is one tap away on the Chats page. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ChatSidebar(
     chats: List<ChatListItem>,
@@ -42,12 +47,17 @@ fun ChatSidebar(
     ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(Modifier.padding(horizontal = WhittleSpace.m, vertical = WhittleSpace.l)) {
             Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = WhittleSpace.s))
-            FilledTonalButton(
+            // Material 3 Expressive medium button: taller, fully rounded, morphs on press, filled icon.
+            val height = ButtonDefaults.MediumContainerHeight
+            Button(
                 onClick = { haptics.perform(WhittleHaptic.Tap); onNewChat() },
-                modifier = Modifier.fillMaxWidth().padding(top = WhittleSpace.m).height(WhittleSize.Button.default),
+                shapes = ButtonDefaults.shapes(),
+                contentPadding = ButtonDefaults.contentPaddingFor(height),
+                modifier = Modifier.fillMaxWidth().padding(top = WhittleSpace.m).height(height),
             ) {
-                WhittleIcon("edit_square", size = WhittleSize.Icon.m)
-                Text(stringResource(R.string.sidebar_new_chat), Modifier.padding(start = WhittleSpace.s))
+                WhittleIcon("chat_add_on", fill = true, size = ButtonDefaults.iconSizeFor(height))
+                Spacer(Modifier.width(ButtonDefaults.iconSpacingFor(height)))
+                Text(stringResource(R.string.sidebar_new_chat), style = ButtonDefaults.textStyleFor(height))
             }
             if (chats.isEmpty()) {
                 Text(

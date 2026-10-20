@@ -2,7 +2,9 @@ package app.whittle.design.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -30,6 +32,7 @@ data class WhittleAppearance(
 private val LocalCreationColors = staticCompositionLocalOf { WhittleCreationColors.Light }
 private val LocalWhittleHaptics = staticCompositionLocalOf<WhittleHaptics> { WhittleHaptics.Off }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun WhittleTheme(
     appearance: WhittleAppearance,
@@ -47,7 +50,13 @@ fun WhittleTheme(
         LocalCreationColors provides if (darkTheme) WhittleCreationColors.Dark else WhittleCreationColors.Light,
         LocalWhittleHaptics provides rememberWhittleHaptics(appearance.haptics),
     ) {
-        MaterialTheme(colorScheme = colorScheme, typography = WhittleTypography, content = content)
+        // Expressive motion (springs) for every Material component; our own shapes stay plain and rounded.
+        MaterialExpressiveTheme(
+            colorScheme = colorScheme,
+            motionScheme = MotionScheme.expressive(),
+            typography = WhittleTypography,
+            content = content,
+        )
     }
 }
 

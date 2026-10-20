@@ -116,7 +116,7 @@ fun ChatScreen(state: ChatState, viewModel: ChatViewModel, sidebarMaxChats: Int,
                 },
                 actions = {
                     IconButton(onClick = { haptics.perform(WhittleHaptic.Tap); viewModel.newChat() }) {
-                        WhittleIcon("edit_square", contentDescription = stringResource(R.string.sidebar_new_chat))
+                        WhittleIcon("chat_add_on", fill = true, contentDescription = stringResource(R.string.sidebar_new_chat))
                     }
                     ChatMenu(onChangeModel = viewModel::changeModel)
                 },

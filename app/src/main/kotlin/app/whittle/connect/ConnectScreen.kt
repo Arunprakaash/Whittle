@@ -19,6 +19,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,7 +30,10 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +48,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import app.whittle.R
 import app.whittle.design.components.WhittleIcon
+import app.whittle.design.components.WhittleSearchBar
 import app.whittle.design.components.segmentedShape
 import app.whittle.design.theme.WhittleTheme
 import app.whittle.design.tokens.WhittleHaptic
@@ -68,6 +74,7 @@ fun ConnectScreen(state: ConnectState, viewModel: ConnectViewModel) {
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun EnterKey(state: ConnectState, phase: ConnectPhase, viewModel: ConnectViewModel) {
     val haptics = WhittleTheme.haptics
@@ -110,6 +117,7 @@ private fun EnterKey(state: ConnectState, phase: ConnectPhase, viewModel: Connec
     )
     Button(
         onClick = { haptics.perform(WhittleHaptic.Tap); viewModel.connect() },
+        shapes = ButtonDefaults.shapes(),
         enabled = state.key.isNotBlank() && !checking,
         modifier = Modifier.fillMaxWidth().height(WhittleSize.Button.default),
     ) {
@@ -132,13 +140,9 @@ private fun ChooseModel(phase: ConnectPhase.ChooseModel, viewModel: ConnectViewM
         }
         Text(stringResource(R.string.connect_choose_model), style = MaterialTheme.typography.headlineSmall)
     }
-    OutlinedTextField(
-        value = phase.query,
-        onValueChange = viewModel::updateQuery,
-        label = { Text(stringResource(R.string.connect_search_models)) },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
-    )
+    val search = rememberTextFieldState(phase.query)
+    LaunchedEffect(search) { snapshotFlow { search.text.toString() }.collect(viewModel::updateQuery) }
+    WhittleSearchBar(search, placeholder = stringResource(R.string.connect_search_models), clearLabel = stringResource(R.string.search_clear))
     val models = phase.visible
     if (models.isEmpty()) {
         Text(stringResource(R.string.connect_no_models), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
