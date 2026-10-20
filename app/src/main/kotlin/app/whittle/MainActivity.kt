@@ -1,5 +1,6 @@
 package app.whittle
 
+import app.whittle.chat.ArtifactsScreen
 import androidx.compose.runtime.LaunchedEffect
 import app.whittle.background.rememberNotificationPermissionRequest
 import app.whittle.settings.SettingsScreen
@@ -67,6 +68,7 @@ class MainActivity : ComponentActivity() {
                             }
                             val state = chat.state.collectAsStateWithLifecycle().value
                             var showingAllChats by rememberSaveable { mutableStateOf(false) }
+                            var showingArtifacts by rememberSaveable { mutableStateOf(false) }
                             var fullScreenArtifact by remember { mutableStateOf<ArtifactRef?>(null) }
                             var showingSettings by rememberSaveable { mutableStateOf(false) }
                             val artifact = fullScreenArtifact
@@ -81,6 +83,13 @@ class MainActivity : ComponentActivity() {
                                 )
                             } else if (artifact != null) {
                                 ArtifactScreen(artifact, graph.artifacts, state.workspaceRevision, onBack = { fullScreenArtifact = null })
+                            } else if (showingArtifacts) {
+                                ArtifactsScreen(
+                                    artifacts = state.artifacts,
+                                    onBack = { showingArtifacts = false },
+                                    onOpen = { fullScreenArtifact = it },
+                                    onOpenChat = { id -> chat.openChat(id); showingArtifacts = false },
+                                )
                             } else if (showingAllChats) {
                                 BackHandler { showingAllChats = false }
                                 AllChatsScreen(
@@ -99,6 +108,7 @@ class MainActivity : ComponentActivity() {
                                     onViewAllChats = { showingAllChats = true },
                                     onOpenArtifactFullScreen = { fullScreenArtifact = it },
                                     onOpenSettings = { showingSettings = true },
+                                    onOpenArtifacts = { showingArtifacts = true },
                                 )
                             }
                         }

@@ -13,6 +13,7 @@ object MaterialSymbols {
         "arrow_upward" to R.drawable.ms_arrow_upward,
         "build" to R.drawable.ms_build,
         "calendar_month" to R.drawable.ms_calendar_month,
+        "chat" to R.drawable.ms_chat,
         "check" to R.drawable.ms_check,
         "check_circle" to R.drawable.ms_check_circle,
         "chevron_right" to R.drawable.ms_chevron_right,

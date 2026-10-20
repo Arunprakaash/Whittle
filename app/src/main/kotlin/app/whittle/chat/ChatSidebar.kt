@@ -43,6 +43,8 @@ fun ChatSidebar(
     onDelete: (ChatId) -> Unit,
     onViewAll: () -> Unit,
     onOpenSettings: () -> Unit,
+    artifactCount: Int,
+    onOpenArtifacts: () -> Unit,
 ) {
     val haptics = WhittleTheme.haptics
     val groups = remember(chats, maxChats) {
@@ -63,6 +65,14 @@ fun ChatSidebar(
                 Spacer(Modifier.width(ButtonDefaults.iconSpacingFor(height)))
                 Text(stringResource(R.string.sidebar_new_chat), style = ButtonDefaults.textStyleFor(height))
             }
+            NavigationDrawerItem(
+                label = { Text(stringResource(R.string.artifacts_title), style = MaterialTheme.typography.titleSmall) },
+                icon = { WhittleIcon("web_asset", size = WhittleSize.Icon.xl) },
+                badge = { if (artifactCount > 0) Text(artifactCount.toString(), style = MaterialTheme.typography.labelLarge) },
+                selected = false,
+                onClick = { haptics.perform(WhittleHaptic.Tap); onOpenArtifacts() },
+                modifier = Modifier.padding(top = WhittleSpace.s),
+            )
             if (chats.isEmpty()) {
                 Text(
                     stringResource(R.string.sidebar_empty),

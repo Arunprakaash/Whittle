@@ -68,6 +68,8 @@ data class ChatState(
     /** Saved chats, newest first, for the sidebar. */
     val chats: List<ChatListItem> = emptyList(),
     val currentChat: ChatId? = null,
+    /** Apps the agent made, across every chat, newest chat first. */
+    val artifacts: List<ArtifactListItem> = emptyList(),
     /** Goes up whenever a tool finishes in this chat, so an open artifact reloads after the agent edits it. */
     val workspaceRevision: Int = 0,
 ) {
@@ -330,12 +332,15 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private fun refreshChats() {
         graph.appScope.launch {
             val summaries = graph.chats.list().getOrNull() ?: return@launch
-            val items = summaries.map { summary ->
-                // Chats saved before titles were stored: read the title from the chat itself.
-                val title = summary.title ?: graph.chats.load(summary.id).getOrNull()?.let { decode(it.document)?.title }
-                ChatListItem(summary.id, title?.takeIf { it.isNotBlank() }, summary.updatedAtMillis, summary.pinned)
+            // Each chat is read once: for its apps, and for the title of chats saved before titles were stored.
+            val loaded = summaries.map { summary ->
+                val document = graph.chats.load(summary.id).getOrNull()?.let { decode(it.document) }
+                val title = summary.title ?: document?.title
+                ChatListItem(summary.id, title?.takeIf { it.isNotBlank() }, summary.updatedAtMillis, summary.pinned) to document
             }
-            _state.update { it.copy(chats = items) }
+            val artifacts = ArtifactIndex.from(loaded.mapNotNull { (chat, document) -> document?.let { chat to it } })
+                .filter { graph.artifacts.exists(it.ref) }
+            _state.update { it.copy(chats = loaded.map { (chat, _) -> chat }, artifacts = artifacts) }
         }
     }
 

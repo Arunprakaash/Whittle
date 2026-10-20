@@ -6,6 +6,7 @@ arrow_downward
 arrow_upward
 build
 calendar_month
+chat
 check
 check_circle:fill
 chevron_right

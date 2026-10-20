@@ -108,6 +108,7 @@ fun ChatScreen(
     onViewAllChats: () -> Unit,
     onOpenArtifactFullScreen: (ArtifactRef) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenArtifacts: () -> Unit,
 ) {
     var sheetArtifact by remember { mutableStateOf<ArtifactRef?>(null) }
     sheetArtifact?.let { ref ->
@@ -121,7 +122,7 @@ fun ChatScreen(
         )
     }
     CompositionLocalProvider(LocalOpenArtifact provides { ref -> sheetArtifact = ref }) {
-        ChatLayout(state, viewModel, sidebarMaxChats, onViewAllChats, onOpenSettings)
+        ChatLayout(state, viewModel, sidebarMaxChats, onViewAllChats, onOpenSettings, onOpenArtifacts)
     }
 }
 
@@ -129,7 +130,14 @@ fun ChatScreen(
 private val LocalOpenArtifact = staticCompositionLocalOf<(ArtifactRef) -> Unit> { {} }
 
 @Composable
-private fun ChatLayout(state: ChatState, viewModel: ChatViewModel, sidebarMaxChats: Int, onViewAllChats: () -> Unit, onOpenSettings: () -> Unit) {
+private fun ChatLayout(
+    state: ChatState,
+    viewModel: ChatViewModel,
+    sidebarMaxChats: Int,
+    onViewAllChats: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenArtifacts: () -> Unit,
+) {
     val haptics = WhittleTheme.haptics
     LaunchedEffect(viewModel) { viewModel.haptics.collect { haptics.perform(it) } }
     val requestCapability = rememberCapabilityRequest(state.items, viewModel)
@@ -152,6 +160,8 @@ private fun ChatLayout(state: ChatState, viewModel: ChatViewModel, sidebarMaxCha
                 onDelete = viewModel::deleteChat,
                 onViewAll = { closeThen(onViewAllChats) },
                 onOpenSettings = { closeThen(onOpenSettings) },
+                artifactCount = state.artifacts.size,
+                onOpenArtifacts = { closeThen(onOpenArtifacts) },
             )
         },
     ) {
