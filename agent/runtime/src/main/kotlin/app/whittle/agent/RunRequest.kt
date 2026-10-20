@@ -11,9 +11,17 @@ data class RunRequest(
     val runId: RunId,
     val model: ModelDescriptor,
     val userMessage: Message,
+    /** Earlier turns of the same chat, so a follow-up continues the conversation. Empty for a new chat. */
+    val priorMessages: List<Message> = emptyList(),
     val mode: RunMode,
     val reasoningEffort: ReasoningEffort,
     val preApprovedTools: Set<ToolId>,
     /** Values for the system prompt template's placeholders (date, locale, ...). */
     val promptVariables: Map<String, String>,
 )
+
+/** Placeholders the bundled system prompt expects in [RunRequest.promptVariables]. */
+object SystemPromptVariables {
+    const val CURRENT_DATE = "currentDate"
+    const val USER_LOCALE = "userLocale"
+}

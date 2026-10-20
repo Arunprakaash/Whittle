@@ -1,6 +1,7 @@
 package app.whittle.config.defaults
 
 import app.whittle.agent.AgentMessages
+import app.whittle.agent.SystemPromptVariables
 import app.whittle.core.common.Outcome
 import app.whittle.core.config.ConfigFiles
 import app.whittle.core.config.ConfigLoader
@@ -65,7 +66,7 @@ class BundledConfigTest {
     fun `system prompt declares the expected placeholders`() {
         val template = PromptTemplate.load(source, ConfigFiles.agentSystemPrompt)
         assertIs<Outcome.Success<PromptTemplate>>(template)
-        assertEquals(setOf("currentDate", "userLocale"), template.value.placeholders)
+        assertEquals(setOf(SystemPromptVariables.CURRENT_DATE, SystemPromptVariables.USER_LOCALE), template.value.placeholders)
     }
 
     @Test

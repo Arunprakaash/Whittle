@@ -6,6 +6,7 @@ import app.whittle.agent.InMemoryRunCheckpointStore
 import app.whittle.agent.RunEvent
 import app.whittle.agent.RunInbox
 import app.whittle.agent.RunRequest
+import app.whittle.agent.SystemPromptVariables
 import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.core.common.EpochClock
 import app.whittle.core.common.IdGenerator
@@ -107,8 +108,8 @@ fun main(args: Array<String>) = runBlocking {
             reasoningEffort = reasoningEffort,
             preApprovedTools = emptySet(),
             promptVariables = mapOf(
-                "currentDate" to LocalDate.now().toString(),
-                "userLocale" to Locale.getDefault().toLanguageTag(),
+                SystemPromptVariables.CURRENT_DATE to LocalDate.now().toString(),
+                SystemPromptVariables.USER_LOCALE to Locale.getDefault().toLanguageTag(),
             ),
         ),
     )

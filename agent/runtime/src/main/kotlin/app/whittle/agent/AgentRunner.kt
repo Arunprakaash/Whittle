@@ -84,7 +84,7 @@ class AgentRunner(
             mode = request.mode,
             reasoningEffort = request.reasoningEffort,
             step = 0,
-            conversation = Conversation(prompt, listOf(request.userMessage)),
+            conversation = Conversation(prompt, request.priorMessages + request.userMessage),
             tainted = false,
             preApprovedTools = request.preApprovedTools,
             approvedOnceTools = emptySet(),

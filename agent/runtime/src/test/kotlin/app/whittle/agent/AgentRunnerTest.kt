@@ -47,6 +47,16 @@ class AgentRunnerTest {
     }
 
     @Test
+    fun `a follow-up continues the earlier conversation`() = runTest {
+        val adapter = ScriptedAdapter(listOf(textTurn("Sure.")))
+        val earlier = listOf(Message.userText("Plan dinner"), Message(Role.ASSISTANT, listOf(ContentBlock.Text("Toit at 8?"))))
+
+        runner(adapter).start(request().copy(priorMessages = earlier)).toList()
+
+        assertEquals(earlier + Message.userText("Hi"), adapter.requests.single().messages)
+    }
+
+    @Test
     fun `allowed tool runs and its result goes back to the model`() = runTest {
         val clock = FakeTool("time.now", RiskTier.READ)
         val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "time.now")), textTurn("It is noon.")))

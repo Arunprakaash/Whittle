@@ -46,6 +46,8 @@ data class ProviderDescriptor(
     val baseUrl: String,
     val generationPath: String,
     val modelsPath: String? = null,
+    /** An endpoint that requires a valid key, used to check one before it is saved. Model lists can be public. */
+    val keyCheckPath: String? = null,
     val auth: ProviderAuth,
     /** Request field that caps output tokens; providers disagree (e.g. "max_tokens" vs "max_completion_tokens"). */
     val maxOutputTokensParameter: String,

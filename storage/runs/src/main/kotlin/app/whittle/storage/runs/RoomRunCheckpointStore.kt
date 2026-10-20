@@ -1,6 +1,8 @@
 package app.whittle.storage.runs
 
+import android.content.Context
 import android.util.Base64
+import androidx.room.Room
 import app.whittle.agent.RunCheckpoint
 import app.whittle.agent.RunCheckpointStore
 import app.whittle.agent.RunStatus
@@ -11,9 +13,9 @@ import app.whittle.core.common.Outcome
 import app.whittle.core.common.flatMap
 import app.whittle.core.common.map
 import app.whittle.core.model.RunId
+import java.io.IOException
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
-import java.io.IOException
 
 /** Persists run checkpoints in Room, encrypted at rest with [cipher]. */
 class RoomRunCheckpointStore(
@@ -69,4 +71,14 @@ class RoomRunCheckpointStore(
     }
 
     private fun associatedData(runId: RunId): ByteArray = runId.value.toByteArray(Charsets.UTF_8)
+
+    companion object {
+        /** Opens the on-device runs database. Create one store per process. */
+        fun open(context: Context, databaseName: String, cipher: ContentCipher, clock: EpochClock): RoomRunCheckpointStore =
+            RoomRunCheckpointStore(
+                Room.databaseBuilder(context, RunsDatabase::class.java, databaseName).build().runCheckpoints(),
+                cipher,
+                clock,
+            )
+    }
 }
