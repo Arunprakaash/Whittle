@@ -9,6 +9,7 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import app.whittle.settings.VoiceDefaults
 import java.util.Locale
+import kotlin.math.min
 
 /** What a listening session reports, on the main thread. */
 interface VoiceListener {
@@ -73,6 +74,8 @@ class VoiceInput(private val context: Context, private val config: VoiceDefaults
     }
 
     private inner class Listener(private val onDevice: Boolean, private val listener: VoiceListener) : RecognitionListener {
+        private val loudness = VoiceLoudness()
+
         override fun onPartialResults(partialResults: Bundle?) {
             best(partialResults)?.let(listener::onPartial)
         }
@@ -83,7 +86,7 @@ class VoiceInput(private val context: Context, private val config: VoiceDefaults
         }
 
         override fun onRmsChanged(rmsdB: Float) {
-            listener.onLevel(((rmsdB - QUIET_DB) / (LOUD_DB - QUIET_DB)).coerceIn(0f, 1f))
+            listener.onLevel(loudness.level(rmsdB))
         }
 
         override fun onError(error: Int) {
@@ -120,9 +123,30 @@ class VoiceInput(private val context: Context, private val config: VoiceDefaults
     }
 
     private companion object {
-        /** The recognizer reports loudness in dB, roughly −2 (silence) to 10 (loud speech). */
-        const val QUIET_DB = -2f
-        const val LOUD_DB = 10f
         val LANGUAGE_ERRORS = setOf(SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE)
+    }
+}
+
+/**
+ * Turns the recognizer's loudness reports (dB) into 0 to 1. Phones and rooms differ in how loud silence is, so
+ * it counts from the session's own noise floor: steady noise reads as quiet, and the voice rises above it.
+ */
+class VoiceLoudness(
+    /** How far above the floor counts as full voice; recognizers span about 12 dB from silence to loud speech. */
+    private val rangeDb: Float = VOICE_RANGE_DB,
+    /** How fast the floor rises per report (about ten a second), so one quiet blip doesn't stick. */
+    private val creepDb: Float = FLOOR_CREEP_DB,
+) {
+    private var floor: Float? = null
+
+    fun level(db: Float): Float {
+        val quiet = min(floor?.plus(creepDb) ?: db, db)
+        floor = quiet
+        return ((db - quiet) / rangeDb).coerceIn(0f, 1f)
+    }
+
+    private companion object {
+        const val VOICE_RANGE_DB = 9f
+        const val FLOOR_CREEP_DB = 0.02f
     }
 }

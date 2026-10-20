@@ -1,5 +1,22 @@
 package app.whittle.design.components
 
+import android.provider.Settings
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameMillis
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.platform.LocalContext
+import kotlin.math.PI
+import kotlin.math.max
+import kotlin.math.sin
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.unit.dp
@@ -133,7 +150,6 @@ private const val TYPING_DIM = 0.3f
 private val TYPING_DOT_SIZE = 5.dp
 private val TYPING_DOT_GAP = 3.dp
 
-/** Where the user types. While a run works, what they send is added to it rather than starting over. */
 /** Speaking instead of typing: [listening] while the words come in, [level] (0–1) how loud they are. */
 data class ComposerVoice(
     val listening: Boolean,
@@ -144,6 +160,7 @@ data class ComposerVoice(
     val onToggle: () -> Unit,
 )
 
+/** Where the user types. While a run works, what they send is added to it rather than starting over. */
 @Composable
 fun Composer(
     value: String,
@@ -168,9 +185,17 @@ fun Composer(
             .padding(start = WhittleSpace.l, end = WhittleSpace.xs, top = WhittleSpace.xs, bottom = WhittleSpace.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.weight(1f).padding(vertical = WhittleSpace.s)) {
-            if (value.isEmpty()) {
-                Text(if (voice?.listening == true) voice.listeningPlaceholder else placeholder, style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant)
+        val listening = voice?.listening == true
+        Box(Modifier.weight(1f).padding(vertical = WhittleSpace.s), contentAlignment = Alignment.CenterStart) {
+            when {
+                value.isNotEmpty() -> Unit
+                // Nothing heard yet: the wave stands in for the placeholder.
+                listening -> VoiceWaveform(
+                    level = voice.level,
+                    color = colors.primary,
+                    modifier = Modifier.fillMaxWidth().height(WAVE_HEIGHT).semantics { contentDescription = voice.listeningPlaceholder },
+                )
+                else -> Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant)
             }
             BasicTextField(
                 value = value,
@@ -194,6 +219,10 @@ fun Composer(
             )
         }
         if (voice != null && (value.isBlank() || voice.listening)) {
+            // Words are coming in: the wave moves beside the stop button, out of their way.
+            if (listening && value.isNotEmpty()) {
+                VoiceWaveform(voice.level, colors.primary, Modifier.padding(horizontal = WhittleSpace.s).width(WAVE_COMPACT_WIDTH).height(WAVE_HEIGHT))
+            }
             VoiceButton(voice, enabled)
             return@Row
         }
@@ -212,33 +241,85 @@ fun Composer(
 private const val QUARTER_TURN = 90f
 private const val COMPOSER_MAX_LINES = 6
 
-/** The mic: tonal while idle; while listening a filled stop button inside a ring that swells with the voice. */
+/** The mic: tonal while idle, a filled stop button while listening. */
 @Composable
 private fun VoiceButton(voice: ComposerVoice, enabled: Boolean) {
     val colors = MaterialTheme.colorScheme
     val haptics = WhittleTheme.haptics
-    val swell by animateFloatAsState(if (voice.listening) 1f + voice.level * VOICE_SWELL else 1f, WhittleMotion.spatialFast.spec(), label = "voiceSwell")
-    val size = WhittleSize.touchTarget - WhittleSpace.xs
-    Box(contentAlignment = Alignment.Center) {
-        if (voice.listening) {
-            Box(Modifier.size(size).graphicsLayer { scaleX = swell; scaleY = swell }.background(colors.primary.copy(alpha = VOICE_RING_ALPHA), CircleShape))
+    FilledIconButton(
+        onClick = { haptics.perform(if (voice.listening) WhittleHaptic.Tap else WhittleHaptic.Select); voice.onToggle() },
+        enabled = enabled,
+        shape = CircleShape,
+        colors = if (voice.listening) {
+            IconButtonDefaults.filledIconButtonColors(containerColor = colors.primary, contentColor = colors.onPrimary)
+        } else {
+            IconButtonDefaults.filledIconButtonColors(containerColor = colors.secondaryContainer, contentColor = colors.onSecondaryContainer)
+        },
+        modifier = Modifier.size(WhittleSize.touchTarget - WhittleSpace.xs).semantics { contentDescription = if (voice.listening) voice.stopLabel else voice.startLabel },
+    ) {
+        WhittleIcon(if (voice.listening) "stop" else "mic", fill = voice.listening, size = WhittleSize.Icon.xl)
+    }
+}
+
+/**
+ * The voice as it's heard: one bar per moment, newest on the right, each as tall as the voice was loud then,
+ * so the wave scrolls with the user's speech. A soft ripple keeps it alive through pauses. With animations
+ * off in Android's settings it holds still.
+ */
+@Composable
+private fun VoiceWaveform(level: Float, color: Color, modifier: Modifier) {
+    val context = LocalContext.current
+    val animate = remember(context) {
+        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f
+    }
+    val heard by rememberUpdatedState(level)
+    val history = remember { FloatArray(WAVE_SAMPLES) }
+    var head by remember { mutableIntStateOf(0) }
+    var now by remember { mutableLongStateOf(0L) }
+    if (animate) {
+        LaunchedEffect(Unit) {
+            var sampledAt = 0L
+            var smoothed = 0f
+            while (true) {
+                withFrameMillis { frame ->
+                    now = frame
+                    // The recognizer reports loudness in steps; easing toward it keeps the bars from jittering.
+                    smoothed += (heard - smoothed) * WAVE_EASING
+                    if (frame - sampledAt >= WAVE_STEP_MILLIS) {
+                        history[head] = smoothed
+                        head = (head + 1) % WAVE_SAMPLES
+                        sampledAt = frame
+                    }
+                }
+            }
         }
-        FilledIconButton(
-            onClick = { haptics.perform(if (voice.listening) WhittleHaptic.Tap else WhittleHaptic.Select); voice.onToggle() },
-            enabled = enabled,
-            shape = CircleShape,
-            colors = if (voice.listening) {
-                IconButtonDefaults.filledIconButtonColors(containerColor = colors.primary, contentColor = colors.onPrimary)
-            } else {
-                IconButtonDefaults.filledIconButtonColors(containerColor = colors.secondaryContainer, contentColor = colors.onSecondaryContainer)
-            },
-            modifier = Modifier.size(size).semantics { contentDescription = if (voice.listening) voice.stopLabel else voice.startLabel },
-        ) {
-            WhittleIcon(if (voice.listening) "stop" else "mic", fill = voice.listening, size = WhittleSize.Icon.xl)
+    }
+    Canvas(modifier) {
+        val bar = WAVE_BAR.toPx()
+        val pitch = bar + WAVE_GAP.toPx()
+        val count = ((size.width + WAVE_GAP.toPx()) / pitch).toInt().coerceIn(1, WAVE_SAMPLES)
+        val left = size.width - count * pitch + WAVE_GAP.toPx()
+        val radius = CornerRadius(bar / 2)
+        val newest = head
+        for (index in 0 until count) {
+            val sample = history[(newest - count + index + WAVE_SAMPLES) % WAVE_SAMPLES]
+            val ripple = WAVE_IDLE * (0.5f + 0.5f * sin(2 * PI.toFloat() * now / WAVE_IDLE_PERIOD_MILLIS + index * WAVE_IDLE_SPREAD))
+            val height = max(bar, (ripple + sample * (1f - ripple)) * size.height)
+            drawRoundRect(color, Offset(left + index * pitch, (size.height - height) / 2), Size(bar, height), radius)
         }
     }
 }
 
-/** How far the ring grows at full voice. */
-private const val VOICE_SWELL = 0.35f
-private const val VOICE_RING_ALPHA = 0.25f
+/** The wave keeps this many moments, enough to fill the widest composer; at [WAVE_STEP_MILLIS] each, about six seconds. */
+private const val WAVE_SAMPLES = 96
+private const val WAVE_STEP_MILLIS = 60L
+private const val WAVE_EASING = 0.35f
+
+/** Height of the ripple in silence, as a share of the wave's height, and how it travels along the bars. */
+private const val WAVE_IDLE = 0.3f
+private const val WAVE_IDLE_PERIOD_MILLIS = 1400f
+private const val WAVE_IDLE_SPREAD = 0.55f
+private val WAVE_BAR = 3.dp
+private val WAVE_GAP = 3.dp
+private val WAVE_HEIGHT = 24.dp
+private val WAVE_COMPACT_WIDTH = 72.dp

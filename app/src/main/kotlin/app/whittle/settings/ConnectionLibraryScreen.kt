@@ -57,8 +57,9 @@ import kotlinx.coroutines.launch
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
- * MCP servers to add: Whittle's featured list first, then a search over the MCP Registry, which anyone can
- * publish to, so it's labelled as unreviewed. Adding signs in the way the server needs.
+ * MCP servers to add: Whittle's short featured list, and a search over the MCP Registry, which anyone can
+ * publish to, so its results are labelled as unreviewed and only come up when the user searches. Adding signs
+ * in the way the server needs.
  */
 @Composable
 fun ConnectionLibraryScreen(graph: AppGraph, onBack: () -> Unit) {
@@ -100,7 +101,9 @@ fun ConnectionLibraryScreen(graph: AppGraph, onBack: () -> Unit) {
             // Old results would read as answers to the new search while it loads.
             results.clear()
             next = null
-            load(cursor = null)
+            failed = null
+            // The registry is long and unreviewed: it answers searches, it doesn't fill the page.
+            if (text.isNotBlank()) load(cursor = null)
         }
     }
     fun add(server: LibraryServer) {
@@ -147,13 +150,17 @@ fun ConnectionLibraryScreen(graph: AppGraph, onBack: () -> Unit) {
             item {
                 Column(Modifier.padding(top = WhittleSpace.l, bottom = WhittleSpace.s), verticalArrangement = Arrangement.spacedBy(WhittleSpace.xs)) {
                     SectionLabel(stringResource(R.string.connector_library_registry))
-                    Text(stringResource(R.string.connector_library_registry_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        stringResource(if (query.isBlank()) R.string.connector_library_registry_hint else R.string.connector_library_registry_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
             itemsIndexed(results, key = { _, it -> "registry:" + it.url }) { index, server ->
                 LibraryRow(server, connectors.added(server.url) != null, adding == server.url, segmentedShape(index, results.size)) { add(server) }
             }
-            item {
+            if (query.isNotBlank()) item {
                 Row(Modifier.fillMaxWidth().padding(vertical = WhittleSpace.m), horizontalArrangement = Arrangement.Center) {
                     when {
                         loading -> CircularProgressIndicator(Modifier.size(WhittleSize.Icon.xl), strokeWidth = WhittleSpace.hairline)

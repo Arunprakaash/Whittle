@@ -142,6 +142,7 @@
     <string name="connector_library_featured">Featured</string>
     <string name="connector_library_registry">From the MCP Registry</string>
     <string name="connector_library_registry_note">Anyone can publish here; Whittle hasn\'t reviewed these. Only add services you trust.</string>
+    <string name="connector_library_registry_hint">Looking for something else? Search to find more servers. Anyone can publish there, so only add services you trust.</string>
     <string name="connector_library_retry">Couldn\'t load. Try again</string>
     <string name="connector_library_none">Nothing found.</string>
     <string name="connector_library_more">Show more</string>
