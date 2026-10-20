@@ -39,6 +39,7 @@ include(
     ":tools:web",
     ":tools:android",
     ":tools:workspace",
+    ":connectors:mcp",
     ":policy:engine",
     ":agent:runtime",
     ":observability:api",

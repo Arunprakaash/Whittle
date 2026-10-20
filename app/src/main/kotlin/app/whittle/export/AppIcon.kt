@@ -4,18 +4,19 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.RectF
 import android.graphics.Typeface
 import java.io.ByteArrayOutputStream
 
-/** A launcher icon for an exported app: its first letter on a rounded square whose colour comes from the app. */
+/**
+ * The layer of an exported app's launcher icon: its first letter on a full square whose colour comes from the app.
+ * The launcher crops it to its own shape, so the letter stays inside the middle that every shape keeps.
+ */
 object AppIcon {
     fun png(label: String, seed: Int, sizePx: Int, palette: List<String>): ByteArray {
         val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor(palette[Math.floorMod(seed, palette.size)]) }
-        val corner = sizePx * CORNER_FRACTION
-        canvas.drawRoundRect(RectF(0f, 0f, sizePx.toFloat(), sizePx.toFloat()), corner, corner, fill)
+        canvas.drawRect(0f, 0f, sizePx.toFloat(), sizePx.toFloat(), fill)
         val letter = label.firstOrNull { it.isLetterOrDigit() }?.uppercase() ?: FALLBACK_LETTER
         val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
@@ -31,8 +32,8 @@ object AppIcon {
         }
     }
 
-    private const val CORNER_FRACTION = 0.22f
-    private const val LETTER_FRACTION = 0.5f
+    /** Adaptive icons keep the middle 66 of 108 units visible; the letter sits well inside that. */
+    private const val LETTER_FRACTION = 0.34f
     private const val FALLBACK_LETTER = "A"
     private const val PNG_QUALITY = 100
 }

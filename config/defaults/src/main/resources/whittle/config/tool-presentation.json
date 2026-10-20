@@ -204,6 +204,115 @@
         "approvedOutcome": "Changed {{path}}",
         "declinedOutcome": "Not changed"
       }
+    },
+    "supabase_list_projects": {
+      "icon": "database",
+      "running": "Looking at your Supabase projects",
+      "done": "Looked at your Supabase projects"
+    },
+    "supabase_get_project": {
+      "icon": "database",
+      "running": "Looking at the Supabase project",
+      "done": "Looked at the Supabase project"
+    },
+    "supabase_list_tables": {
+      "icon": "table",
+      "running": "Checking the database tables",
+      "done": "Checked the database tables"
+    },
+    "supabase_get_project_url": {
+      "icon": "database",
+      "running": "Getting the project's address",
+      "done": "Got the project's address"
+    },
+    "supabase_get_publishable_keys": {
+      "icon": "key",
+      "running": "Getting the app's public key",
+      "done": "Got the app's public key"
+    },
+    "supabase_search_docs": {
+      "icon": "menu_book",
+      "running": "Reading the Supabase docs",
+      "done": "Read the Supabase docs"
+    },
+    "supabase_apply_migration": {
+      "icon": "database",
+      "running": "Updating the database",
+      "done": "Updated the database",
+      "decision": {
+        "icon": "database",
+        "title": "Change your Supabase database?",
+        "body": "Runs this change on your Supabase project. It can add or change tables, their rules and the data in them.",
+        "payloadArgument": "query",
+        "approve": "Run change",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Database updated",
+        "declinedOutcome": "Database not changed"
+      }
+    },
+    "supabase_execute_sql": {
+      "icon": "database",
+      "running": "Running a database query",
+      "done": "Ran a database query",
+      "decision": {
+        "icon": "database",
+        "title": "Run this on your Supabase database?",
+        "body": "Runs this SQL on your Supabase project. It can read or change your data.",
+        "payloadArgument": "query",
+        "approve": "Run",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Ran the query",
+        "declinedOutcome": "Query not run"
+      }
+    },
+    "supabase_create_project": {
+      "icon": "database",
+      "running": "Creating a Supabase project",
+      "done": "Created a Supabase project",
+      "decision": {
+        "icon": "database",
+        "title": "Create a Supabase project?",
+        "body": "Creates a new project in your Supabase account. Depending on your plan, this can cost money.",
+        "payloadArgument": "name",
+        "approve": "Create project",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Project created",
+        "declinedOutcome": "Project not created"
+      }
+    },
+    "supabase_confirm_cost": {
+      "icon": "payments",
+      "running": "Confirming the cost with Supabase",
+      "done": "Confirmed the cost",
+      "decision": {
+        "icon": "payments",
+        "title": "Accept this Supabase cost?",
+        "body": "Supabase asks you to accept the cost of a new project before it's created.",
+        "approve": "Accept cost",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Cost accepted",
+        "declinedOutcome": "Cost not accepted"
+      }
+    },
+    "supabase_deploy_edge_function": {
+      "icon": "cloud_upload",
+      "running": "Deploying a server function",
+      "done": "Deployed a server function",
+      "decision": {
+        "icon": "cloud_upload",
+        "title": "Deploy a function to Supabase?",
+        "body": "Puts this function live on your Supabase project, where anyone with its address can call it.",
+        "payloadArgument": "name",
+        "approve": "Deploy",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Function deployed",
+        "declinedOutcome": "Function not deployed"
+      }
     }
   },
   "capabilities": {
@@ -224,6 +333,23 @@
       "decline": "Not now",
       "grantedOutcome": "Calendar allowed",
       "deniedOutcome": "Calendar not allowed"
+    }
+  },
+  "toolPrefixes": {
+    "supabase_": {
+      "icon": "database",
+      "running": "Working in Supabase",
+      "done": "Worked in Supabase",
+      "decision": {
+        "icon": "database",
+        "title": "Allow this Supabase step?",
+        "body": "Whittle needs your OK before it does this in your Supabase account.",
+        "approve": "Allow",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Allowed",
+        "declinedOutcome": "Not allowed"
+      }
     }
   }
 }

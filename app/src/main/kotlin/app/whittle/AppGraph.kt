@@ -1,5 +1,7 @@
 package app.whittle
 
+import app.whittle.connectors.mcp.ConnectorsConfig
+import app.whittle.connectors.Connectors
 import app.whittle.export.AppExporter
 import app.whittle.runtimes.CommandSandbox
 import app.whittle.design.theme.WhittleAppearance
@@ -150,6 +152,17 @@ class AppGraph(context: Context) {
     val modelLister = OpenAiCompatibleModelLister(httpClient, modelTrust, modelDefaults.fallbackCapabilities)
     val keyVerifier = ApiKeyVerifier(httpClient)
     val artifacts = Artifacts(context, workspaces, appDefaults.artifacts)
+    /** Services the user connects with their own account; their tools join the agent's once signed in. */
+    val connectors = Connectors(
+        context = context,
+        secrets = secrets,
+        config = load(ConnectorsConfig.FILE, ConnectorsConfig.serializer(), ConnectorsConfig.SCHEMA_VERSION),
+        http = httpClient,
+        clock = clock,
+        scope = appScope,
+        directory = File(context.filesDir, appDefaults.storage.connectorsDirectoryName),
+        clientVersion = BuildConfig.VERSION_NAME,
+    )
     val appExporter = AppExporter(context, workspaces, appDefaults.export, context.applicationInfo.minSdkVersion)
     val artifactSheetHeight: Float get() = appDefaults.artifacts.sheetHeightFraction
     val siteIcons = SiteIconLoader(httpClient, File(context.cacheDir, appDefaults.siteIcons.cacheDirectoryName), appDefaults.siteIcons)
@@ -160,7 +173,7 @@ class AppGraph(context: Context) {
         adapters = ModelAdapterRegistry(setOf(OpenAiCompatibleAdapter(httpClient, idGenerator), OpenAiResponsesAdapter(httpClient))),
         providers = providers,
         credentials = SecretStoreCredentialsProvider(secrets),
-        tools = ToolRegistry(ToolCatalog.create(context, clock, httpClient, workspaceTools(context), harness.agent.maxPlanItems)),
+        tools = ToolRegistry(ToolCatalog.create(context, clock, httpClient, workspaceTools(context), harness.agent.maxPlanItems), connectors::tools),
         policy = RuleBasedPolicyEngine(load(ConfigFiles.policyRules, PolicyRuleSet.serializer(), PolicyRuleSet.SCHEMA_VERSION)),
         inbox = inbox,
         checkpoints = checkpoints,

@@ -106,7 +106,16 @@
     <string name="artifact_browser">Browser</string>
     <string name="artifact_share">Share</string>
     <string name="artifact_install">Install</string>
-    <string name="export_preparing">Making the app…</string>
+    <string name="settings_section_connections">Connections</string>
+    <string name="connector_connected">Connected</string>
+    <string name="connector_connecting">Connecting…</string>
+    <string name="connector_connect">Connect</string>
+    <string name="connector_disconnect_title">Disconnect %1$s?</string>
+    <string name="connector_disconnect_body">Whittle forgets its sign-in on this phone. Your %1$s projects and data stay as they are.</string>
+    <string name="connector_disconnect">Disconnect</string>
+    <string name="connector_cancel">Cancel</string>
+    <string name="connector_failed">Couldn\'t connect: %1$s</string>
+    <string name="export_preparing">Making the app… If Play Protect warns about it, choose Install anyway.</string>
     <string name="export_allow">Allow Whittle to install apps, then tap Install again.</string>
     <string name="export_installed">App installed</string>
     <string name="export_failed">Couldn\'t install the app.</string>

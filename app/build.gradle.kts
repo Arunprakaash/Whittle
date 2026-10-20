@@ -169,6 +169,8 @@ dependencies {
     implementation(project(":observability:posthog"))
     implementation(libs.androidx.webkit)
     implementation(libs.apksig)
+    implementation(project(":connectors:mcp"))
+    implementation(libs.androidx.browser)
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

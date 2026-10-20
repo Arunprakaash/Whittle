@@ -34,6 +34,8 @@ data class AppStorageNames(
     val runsDatabaseName: String,
     val chatsDatabaseName: String,
     val workspacesDirectoryName: String,
+    /** Connector tool lists, kept so connected tools are there at start-up. Tokens live in the secret store. */
+    val connectorsDirectoryName: String,
 )
 
 /** How many chats the sidebar shows before pointing to the Chats page. */
@@ -72,6 +74,8 @@ data class ExportDefaults(
     val packagePrefix: String,
     val maxNameChars: Int,
     val maxLabelChars: Int,
+    /** A title is cut before the first of these for the home-screen name, so subtitles don't take the space. */
+    val labelSeparators: List<String>,
     val signingKeyAlias: String,
     val certificateSubject: String,
     val certificateValidityYears: Long,

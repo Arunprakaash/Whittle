@@ -14,6 +14,8 @@ data class ToolPresentationConfig(
     /** Used for a tool that has no entry, so a missing entry never shows a tool id. */
     val fallback: ToolPresentation,
     val tools: Map<String, ToolPresentation>,
+    /** For tools without their own entry whose id starts with the key, such as a connector's tools. */
+    val toolPrefixes: Map<String, ToolPresentation> = emptyMap(),
     /** Cards asking for a capability a tool needs, keyed by capability id. */
     val capabilities: Map<String, CapabilityPresentation> = emptyMap(),
 ) : VersionedConfig {

@@ -1,21 +1,19 @@
-package app.whittle.llm.openrouter
+package app.whittle.core.common
 
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
 
-/** PKCE helpers (RFC 7636) using base64url without padding. */
+/** PKCE helpers (RFC 7636) using base64url without padding, for sign-ins that need no client secret. */
 class Pkce(private val random: SecureRandom = SecureRandom()) {
     fun randomToken(entropyBytes: Int): String {
         val bytes = ByteArray(entropyBytes).also(random::nextBytes)
         return encoder.encodeToString(bytes)
     }
 
-    fun challengeFor(verifier: String, method: CodeChallengeMethod): String = when (method) {
-        CodeChallengeMethod.S256 -> encoder.encodeToString(
-            MessageDigest.getInstance(SHA_256).digest(verifier.toByteArray(Charsets.US_ASCII)),
-        )
-    }
+    /** The S256 challenge for [verifier]: base64url(SHA-256(verifier)). */
+    fun s256Challenge(verifier: String): String =
+        encoder.encodeToString(MessageDigest.getInstance(SHA_256).digest(verifier.toByteArray(Charsets.US_ASCII)))
 
     private companion object {
         const val SHA_256 = "SHA-256"

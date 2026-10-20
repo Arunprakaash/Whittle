@@ -2,6 +2,7 @@ package app.whittle.llm.openrouter
 
 import app.whittle.core.common.HarnessError
 import app.whittle.core.common.Outcome
+import app.whittle.core.common.Pkce
 import app.whittle.core.common.Secret
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -38,12 +39,16 @@ class OpenRouterAuthorizer(
         val state = pkce.randomToken(config.stateEntropyBytes)
         val url = config.authorizeUrl.toHttpUrl().newBuilder()
             .addQueryParameter(Param.CALLBACK_URL, config.callbackUrl)
-            .addQueryParameter(Param.CODE_CHALLENGE, pkce.challengeFor(verifier, config.codeChallengeMethod))
+            .addQueryParameter(Param.CODE_CHALLENGE, challengeFor(verifier))
             .addQueryParameter(Param.CODE_CHALLENGE_METHOD, config.codeChallengeMethod.name)
             .addQueryParameter(Param.KEY_LABEL, config.keyLabel)
             .addQueryParameter(Param.STATE, state)
             .build()
         return AuthorizationRequest(url.toString(), Secret(verifier), state)
+    }
+
+    private fun challengeFor(verifier: String): String = when (config.codeChallengeMethod) {
+        CodeChallengeMethod.S256 -> pkce.s256Challenge(verifier)
     }
 
     /** Validates the redirect and extracts the one-time code. Rejects mismatched state (CSRF). */

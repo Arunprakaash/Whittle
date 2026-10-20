@@ -42,7 +42,7 @@ class ToolPresenter(private val config: ToolPresentationConfig) {
     val siteArguments: Set<String> = config.tools.values.mapNotNullTo(mutableSetOf()) { it.siteArgument }
 
     fun step(toolId: String, arguments: JsonObject): StepText {
-        val presentation = config.tools[toolId] ?: config.fallback
+        val presentation = presentation(toolId) ?: config.fallback
         val variables = variables(arguments)
         return StepText(
             icon = presentation.icon,
@@ -53,7 +53,7 @@ class ToolPresenter(private val config: ToolPresentationConfig) {
     }
 
     fun decision(toolId: String, arguments: JsonObject): DecisionText {
-        val decision = config.tools[toolId]?.decision ?: config.fallback.decision
+        val decision = presentation(toolId)?.decision ?: config.fallback.decision
             ?: error("tool-presentation.json must define fallback.decision")
         val fallback = config.fallback.decision ?: decision
         val variables = variables(arguments)
@@ -85,6 +85,9 @@ class ToolPresenter(private val config: ToolPresentationConfig) {
         decision.flagNotes.filterKeys { (arguments[it] as? JsonPrimitive)?.booleanOrNull == true }.values.toList()
 
     /** The card asking for [capabilityId], or null when config has none (the tool then just reports it). */
+    private fun presentation(toolId: String): ToolPresentation? =
+        config.tools[toolId] ?: config.toolPrefixes.entries.firstOrNull { toolId.startsWith(it.key) }?.value
+
     fun capability(capabilityId: String): CapabilityPresentation? = config.capabilities[capabilityId]
 
     private fun fill(template: String, variables: Map<String, String>, fallback: String): String =

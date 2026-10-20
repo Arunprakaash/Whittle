@@ -1,5 +1,11 @@
 package app.whittle.settings
 
+import app.whittle.connectors.mcp.McpConnection
+import app.whittle.connectors.mcp.ConnectorState
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
+import android.widget.Toast
 import app.whittle.background.rememberNotificationPermissionRequest
 import android.os.Build
 import androidx.activity.compose.BackHandler
@@ -50,6 +56,9 @@ fun SettingsScreen(
 ) {
     BackHandler(onBack = onBack)
     var confirmingDelete by remember { mutableStateOf(false) }
+    var disconnecting by remember { mutableStateOf<McpConnection?>(null) }
+    val context = LocalContext.current
+    ConnectorFailures(graph)
     val requestNotifications = rememberNotificationPermissionRequest()
     // Writes go to the app's scope so leaving the screen never drops a change.
     val save = { change: suspend SettingsStore.() -> Unit -> graph.appScope.launch { graph.settings.change() }; Unit }
@@ -81,6 +90,29 @@ fun SettingsScreen(
                         onClick = onChangeModel,
                         trailing = { WhittleIcon("chevron_right", size = WhittleSize.Icon.m, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                     )
+                }
+            }
+            item {
+                SettingsSection(stringResource(R.string.settings_section_connections)) {
+                    graph.connectors.all.forEachIndexed { index, connection ->
+                        val state by connection.state.collectAsState()
+                        SettingsRow(
+                            icon = connection.server.icon,
+                            title = connection.server.name,
+                            subtitle = when (state) {
+                                is ConnectorState.Connected -> stringResource(R.string.connector_connected)
+                                ConnectorState.Connecting -> stringResource(R.string.connector_connecting)
+                                ConnectorState.Disconnected -> null
+                            },
+                            shape = segmentedShape(index, graph.connectors.all.size),
+                            onClick = {
+                                if (state is ConnectorState.Connected) disconnecting = connection else graph.connectors.connect(context, connection)
+                            },
+                            trailing = if (state is ConnectorState.Connected) null else {
+                                { Text(stringResource(R.string.connector_connect), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary) }
+                            },
+                        )
+                    }
                 }
             }
             item {
@@ -169,6 +201,17 @@ fun SettingsScreen(
             }
         }
     }
+    disconnecting?.let { connection ->
+        AlertDialog(
+            onDismissRequest = { disconnecting = null },
+            title = { Text(stringResource(R.string.connector_disconnect_title, connection.server.name)) },
+            text = { Text(stringResource(R.string.connector_disconnect_body, connection.server.name)) },
+            confirmButton = {
+                TextButton(onClick = { graph.connectors.disconnect(connection); disconnecting = null }) { Text(stringResource(R.string.connector_disconnect)) }
+            },
+            dismissButton = { TextButton(onClick = { disconnecting = null }) { Text(stringResource(R.string.connector_cancel)) } },
+        )
+    }
     if (confirmingDelete) {
         AlertDialog(
             onDismissRequest = { confirmingDelete = false },
@@ -181,5 +224,16 @@ fun SettingsScreen(
             },
             dismissButton = { TextButton(onClick = { confirmingDelete = false }) { Text(stringResource(R.string.settings_cancel)) } },
         )
+    }
+}
+
+/** Says why connecting a service failed, while Settings is open. */
+@Composable
+private fun ConnectorFailures(graph: AppGraph) {
+    val context = LocalContext.current
+    LaunchedEffect(graph) {
+        graph.connectors.failures.collect { reason ->
+            Toast.makeText(context, context.getString(R.string.connector_failed, reason), Toast.LENGTH_LONG).show()
+        }
     }
 }

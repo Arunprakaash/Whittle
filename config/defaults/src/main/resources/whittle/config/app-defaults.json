@@ -9,7 +9,8 @@
     "settingsStoreName": "whittle_settings",
     "runsDatabaseName": "whittle_runs.db",
     "chatsDatabaseName": "whittle_chats.db",
-    "workspacesDirectoryName": "workspaces"
+    "workspacesDirectoryName": "workspaces",
+    "connectorsDirectoryName": "connectors"
   },
   "terminal": {
     "shell": "/system/bin/sh",
@@ -53,10 +54,11 @@
     "packagePrefix": "app.whittle.apps",
     "maxNameChars": 24,
     "maxLabelChars": 30,
+    "labelSeparators": [" — ", " – ", " | ", ": ", " - "],
     "signingKeyAlias": "whittle_export_signing",
     "certificateSubject": "CN=Whittle Apps",
     "certificateValidityYears": 30,
-    "iconSizePx": 192,
+    "iconSizePx": 432,
     "iconColors": ["#2E6B57", "#3F5F99", "#8A4F7D", "#B0603A", "#4F7A2E", "#6B5BA8", "#2F7F8C", "#9A4A4A"],
     "maxAppBytes": 52428800,
     "workDirectoryName": "export"

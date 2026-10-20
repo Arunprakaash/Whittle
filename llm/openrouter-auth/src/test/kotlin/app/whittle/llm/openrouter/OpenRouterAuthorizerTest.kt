@@ -1,6 +1,7 @@
 package app.whittle.llm.openrouter
 
 import app.whittle.core.common.Outcome
+import app.whittle.core.common.Pkce
 import app.whittle.core.common.Secret
 import app.whittle.core.model.ProviderId
 import kotlinx.coroutines.test.runTest
@@ -27,7 +28,7 @@ class OpenRouterAuthorizerTest {
     @Test
     fun `S256 challenge matches the RFC 7636 example`() {
         val verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
-        assertEquals("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM", Pkce().challengeFor(verifier, CodeChallengeMethod.S256))
+        assertEquals("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM", Pkce().s256Challenge(verifier))
     }
 
     @Test

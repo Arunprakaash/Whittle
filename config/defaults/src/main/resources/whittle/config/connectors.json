@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "protocolVersion": "2025-06-18",
+  "clientName": "Whittle",
+  "verifierEntropyBytes": 64,
+  "stateEntropyBytes": 32,
+  "refreshBeforeExpiryMillis": 120000,
+  "maxResultChars": 60000,
+  "servers": [
+    {
+      "id": "supabase",
+      "name": "Supabase",
+      "icon": "database",
+      "url": "https://mcp.supabase.com/mcp",
+      "query": { "features": "account,database,development,docs,debugging,functions" },
+      "redirectUri": "app.whittle://oauth/supabase",
+      "scopes": [
+        "organizations:read", "projects:read", "projects:write", "database:read", "database:write", "analytics:read",
+        "secrets:read", "edge_functions:read", "edge_functions:write", "environment:read", "environment:write"
+      ],
+      "toolPrefix": "supabase_",
+      "sourceLabel": "Supabase",
+      "defaultRiskTier": "NETWORK_OUT",
+      "riskTiers": {
+        "search_docs": "WEB_READ",
+        "list_organizations": "WEB_READ",
+        "get_organization": "WEB_READ",
+        "list_projects": "WEB_READ",
+        "get_project": "WEB_READ",
+        "get_cost": "WEB_READ",
+        "list_tables": "WEB_READ",
+        "list_extensions": "WEB_READ",
+        "list_migrations": "WEB_READ",
+        "get_project_url": "WEB_READ",
+        "get_publishable_keys": "WEB_READ",
+        "get_anon_key": "WEB_READ",
+        "generate_typescript_types": "WEB_READ",
+        "get_logs": "WEB_READ",
+        "query_logs": "WEB_READ",
+        "get_advisors": "WEB_READ",
+        "list_edge_functions": "WEB_READ",
+        "get_edge_function": "WEB_READ",
+        "list_branches": "WEB_READ",
+        "apply_migration": "NETWORK_OUT",
+        "execute_sql": "NETWORK_OUT",
+        "deploy_edge_function": "NETWORK_OUT",
+        "restore_project": "NETWORK_OUT",
+        "create_project": "DELETE_OR_PAY",
+        "confirm_cost": "DELETE_OR_PAY",
+        "pause_project": "DELETE_OR_PAY",
+        "create_edge_function_secret": "DELETE_OR_PAY",
+        "delete_branch": "DELETE_OR_PAY"
+      }
+    }
+  ]
+}

@@ -46,7 +46,7 @@ class AppExporter(
         val identity = digest(ref.workspace + IDENTITY_SEPARATOR + ref.path)
         val bundle = AppBundle(
             packageName = packageName(ref.title, identity),
-            label = ref.title.take(config.maxLabelChars),
+            label = label(ref.title),
             iconPng = AppIcon.png(ref.title, identity.first().toInt(), config.iconSizePx, config.iconColors),
             files = files,
         )
@@ -72,6 +72,14 @@ class AppExporter(
             .filter { it.isFile && !it.name.startsWith(HIDDEN_PREFIX) }
             .associateBy { it.relativeTo(root).invariantSeparatorsPath }
         return files + (START_PAGE to page)
+    }
+
+    /** A home-screen name: the title before any subtitle ("Habits — a tracker"), cut at a word if still long. */
+    private fun label(title: String): String {
+        val name = config.labelSeparators.fold(title) { text, separator -> text.substringBefore(separator) }.trim().ifEmpty { title.trim() }
+        if (name.length <= config.maxLabelChars) return name
+        val cut = name.take(config.maxLabelChars + 1)
+        return cut.substringBeforeLast(' ', cut.take(config.maxLabelChars)).trim()
     }
 
     private fun packageName(title: String, identity: ByteArray): String {

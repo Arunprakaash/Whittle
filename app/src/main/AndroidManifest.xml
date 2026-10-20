@@ -38,6 +38,20 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Finishes an AI agent task the user started in the app (model calls and tool steps), with a notification showing progress and a Stop button." />
         </service>
+        <!-- Connector sign-in pages send the user back here; the address matches redirectUri in connectors.json. -->
+        <activity
+            android:name=".connectors.ConnectorRedirectActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="app.whittle" android:host="oauth" />
+            </intent-filter>
+        </activity>
         <receiver
             android:name=".export.InstallResultReceiver"
             android:exported="false" />

@@ -12,8 +12,10 @@ check_circle:fill
 checklist
 chevron_right
 close
+cloud_upload
 contacts
 content_copy
+database
 delete
 description
 do_not_disturb_on:fill
@@ -33,10 +35,12 @@ keep
 key
 language
 lock
+menu_book
 mic
 more_vert
 notifications
 open_in_new
+payments
 person
 person_search
 push_pin:fill
@@ -51,6 +55,7 @@ short_text
 smart_toy
 sms
 stop:fill
+table
 terminal
 vibration
 visibility
