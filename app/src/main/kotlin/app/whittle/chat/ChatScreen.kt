@@ -33,6 +33,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -128,7 +129,8 @@ fun ChatScreen(state: ChatState, viewModel: ChatViewModel, sidebarMaxChats: Int,
                 when {
                     state.restoring -> Unit
                     state.items.isEmpty() -> EmptyThread(state)
-                    else -> Thread(state.items, viewModel, requestCapability)
+                    // One list per chat: switching replaces the thread instead of animating one chat into another.
+                    else -> key(state.currentChat) { Thread(state.items, viewModel, requestCapability) }
                 }
             }
             Dock(state, viewModel)
