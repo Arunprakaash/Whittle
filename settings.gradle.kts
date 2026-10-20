@@ -44,6 +44,7 @@ include(
     ":observability:posthog",
     ":storage:secrets",
     ":storage:runs",
+    ":storage:chats",
     ":design:system",
     ":app",
     ":dev:cli",

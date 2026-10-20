@@ -33,6 +33,8 @@ import app.whittle.policy.PolicyRuleSet
 import app.whittle.policy.RuleBasedPolicyEngine
 import app.whittle.settings.AppDefaults
 import app.whittle.settings.ConnectionStore
+import app.whittle.storage.chats.ChatStore
+import app.whittle.storage.chats.RoomChatStore
 import app.whittle.storage.runs.RoomRunCheckpointStore
 import app.whittle.storage.secrets.EncryptedSecretStore
 import app.whittle.storage.secrets.SecretStore
@@ -41,6 +43,9 @@ import app.whittle.storage.secrets.TinkContentCipher
 import app.whittle.tools.api.ToolRegistry
 import app.whittle.tools.presentation.ToolPresentationConfig
 import app.whittle.tools.presentation.ToolPresenter
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.KSerializer
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
@@ -77,6 +82,10 @@ class AppGraph(context: Context) {
     val secrets: SecretStore = EncryptedSecretStore(context, harness.secrets, cipher)
     val connections = ConnectionStore(context, appDefaults.storage.connectionStoreName)
     val checkpoints = RoomRunCheckpointStore.open(context, appDefaults.storage.runsDatabaseName, cipher, clock)
+    val chats: ChatStore = RoomChatStore.open(context, appDefaults.storage.chatsDatabaseName, cipher, clock)
+
+    /** Lives as long as the process: for writes that must finish even when a screen goes away. */
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     val modelLister = OpenAiCompatibleModelLister(httpClient, modelTrust, modelDefaults.fallbackCapabilities)
     val keyVerifier = ApiKeyVerifier(httpClient)

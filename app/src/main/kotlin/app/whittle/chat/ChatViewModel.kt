@@ -1,3 +1,5 @@
+@file:OptIn(FlowPreview::class)
+
 package app.whittle.chat
 
 import androidx.lifecycle.ViewModel
@@ -9,6 +11,7 @@ import app.whittle.agent.PauseReason
 import app.whittle.agent.RunEvent
 import app.whittle.agent.RunInput
 import app.whittle.agent.RunRequest
+import app.whittle.agent.RunStatus
 import app.whittle.agent.SystemPromptVariables
 import app.whittle.core.common.HarnessError
 import app.whittle.core.common.getOrNull
@@ -16,14 +19,14 @@ import app.whittle.core.model.Message
 import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.design.components.AgentState
-import app.whittle.design.components.DecisionUi
-import app.whittle.design.components.QuestionUi
 import app.whittle.design.tokens.WhittleHaptic
 import app.whittle.llm.api.ModelDescriptor
 import app.whittle.policy.PolicyDecision
 import app.whittle.policy.RunMode
+import app.whittle.storage.chats.ChatId
 import app.whittle.tools.presentation.StepText
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -32,9 +35,15 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -47,6 +56,8 @@ data class ChatState(
     val items: List<ThreadItem> = emptyList(),
     val input: String = "",
     val status: StatusUi? = null,
+    /** True until the last chat has been loaded, so the empty state doesn't flash at launch. */
+    val restoring: Boolean = true,
 ) {
     val running: Boolean get() = status != null
 }
@@ -57,6 +68,9 @@ data class StatusUi(val state: AgentState, val verb: String?, val startedAtMilli
 /**
  * Turns the harness's run events into the thread the user reads: narration, grouped step rows and
  * inline decision cards. Decisions never hold a run; answering one later continues that run.
+ *
+ * The chat is saved on this phone as it changes and restored at launch. A run that was still working
+ * when the app closed shows as interrupted; continuing it is the user's call.
  */
 class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private val _state = MutableStateFlow(ChatState())
@@ -74,9 +88,17 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private val parkedCalls = mutableSetOf<String>()
     private val needsAccess = mutableSetOf<String>()
     private var nextKey = 0L
+    private var chatId: ChatId? = null
+    private val saveLock = Mutex()
 
     init {
         viewModelScope.launch { graph.connections.model.collect { model -> _state.update { it.copy(model = model) } } }
+        restore()
+    }
+
+    override fun onCleared() {
+        // The screen is going away, possibly mid-run: keep the run id so the next launch can offer to continue.
+        save()
     }
 
     fun updateInput(text: String) = _state.update { it.copy(input = text) }
@@ -114,7 +136,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     /** The user's choice on a card. Applied at the run's next step, or continues a finished run. */
     fun answer(item: ThreadItem.Decision, approve: Boolean) {
         replace(item.key) {
-            ThreadItem.Resolved(item.key, if (approve) item.approvedOutcome else item.declinedOutcome, declined = !approve)
+            ThreadItem.Resolved(item.key, if (approve) item.text.approvedOutcome else item.text.declinedOutcome, declined = !approve)
         }
         val answer = if (approve) DecisionAnswer.APPROVED else DecisionAnswer.DECLINED
         submit(item.runId, RunInput.Decision(item.toolCallId, answer))
@@ -127,7 +149,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
 
     /** Called with the system permission result. A refusal only reaches a run that is still working. */
     fun answer(item: ThreadItem.Capability, granted: Boolean) {
-        replace(item.key) { ThreadItem.Resolved(item.key, if (granted) item.grantedOutcome else item.deniedOutcome, declined = !granted) }
+        val presentation = item.presentation
+        replace(item.key) { ThreadItem.Resolved(item.key, if (granted) presentation.grantedOutcome else presentation.deniedOutcome, declined = !granted) }
         val input = RunInput.CapabilityChanged(item.capability, granted)
         if (granted || (activeJob?.isActive == true && activeRunId == item.runId)) submit(item.runId, input)
     }
@@ -140,9 +163,16 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         }
     }
 
+    /** Picks up a run the app closed in the middle of. Nothing re-runs: an interrupted tool is reported. */
+    fun continueRun(item: ThreadItem.Interrupted) {
+        _state.update { state -> state.copy(items = state.items.filterNot { it.key == item.key }) }
+        collect(item.runId, graph.runner.resume(item.runId))
+    }
+
     fun stop() {
         activeJob?.cancel()
         activeJob = null
+        activeRunId = null
         finishNarration()
         _state.update { state ->
             state.copy(
@@ -156,12 +186,15 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
 
     fun toggleSummary(key: String) = replace(key) { (it as ThreadItem.Summary).let { summary -> summary.copy(expanded = !summary.expanded) } }
 
+    /** Starts a fresh chat; the current one stays saved on the phone. */
     fun newTask() {
         activeJob?.cancel()
         activeJob = null
         activeRunId = null
+        save()
         waitingToContinue.clear()
         history = emptyList()
+        chatId = null
         _state.update { it.copy(items = emptyList(), status = null, input = "") }
     }
 
@@ -182,6 +215,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
                 if (event is RunEvent.Completed) graph.checkpoints.load(runId).getOrNull()?.let { history = it.conversation.messages }
             }
             activeJob = null
+            activeRunId = null
+            save()
             waitingToContinue.removeFirstOrNull()?.let { next -> collect(next, graph.runner.resume(next)) }
         }
     }
@@ -245,19 +280,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
                 key = "decision-${call.id.value}",
                 runId = runId,
                 toolCallId = call.id,
-                ui = DecisionUi(
-                    id = call.id.value,
-                    icon = text.icon,
-                    title = text.title,
-                    body = text.body,
-                    payloadLabel = text.payloadLabel,
-                    payload = text.payload,
-                    approveLabel = text.approve,
-                    approveIcon = text.approveIcon,
-                    declineLabel = text.decline,
-                ),
-                approvedOutcome = text.approvedOutcome,
-                declinedOutcome = text.declinedOutcome,
+                text = text,
             ),
         )
         _haptics.tryEmit(WhittleHaptic.DecisionShown)
@@ -267,7 +290,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val call = event.decision.toolCall
         val text = graph.presenter.question(call.toolName, event.arguments) ?: return
         val runId = activeRunId ?: return
-        append(ThreadItem.Question("question-${call.id.value}", runId, call.id, QuestionUi(call.id.value, text.icon, text.question, text.options)))
+        append(ThreadItem.Question("question-${call.id.value}", runId, call.id, text))
         _haptics.tryEmit(WhittleHaptic.DecisionShown)
     }
 
@@ -283,19 +306,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
                 key = "capability-${capability.value}-${key()}",
                 runId = runId,
                 capability = capability,
-                ui = DecisionUi(
-                    id = capability.value,
-                    icon = presentation.icon,
-                    title = presentation.title,
-                    body = presentation.body,
-                    payloadLabel = null,
-                    payload = null,
-                    approveLabel = presentation.approve,
-                    approveIcon = CAPABILITY_APPROVE_ICON,
-                    declineLabel = presentation.decline,
-                ),
-                grantedOutcome = presentation.grantedOutcome,
-                deniedOutcome = presentation.deniedOutcome,
+                presentation = presentation,
             ),
         )
         _haptics.tryEmit(WhittleHaptic.DecisionShown)
@@ -386,6 +397,58 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         else -> NoticeKind.FailedGeneric
     }
 
+    private fun restore() = viewModelScope.launch {
+        val stored = graph.chats.latest().getOrNull()
+        val document = stored?.let { decode(it.document) }
+        if (stored != null && document != null) {
+            chatId = stored.id
+            history = document.history
+            nextKey = document.nextKey
+            val interrupted = document.activeRunId
+                ?.takeIf { graph.checkpoints.load(it).getOrNull()?.status == RunStatus.RUNNING }
+                ?.let { ThreadItem.Interrupted(key(), it) }
+            _state.update { it.copy(items = document.items.map(::settle) + listOfNotNull(interrupted)) }
+        }
+        _state.update { it.copy(restoring = false) }
+        // From here on, save as the thread changes; a short wait keeps streaming from writing every token.
+        _state.map { it.items }.distinctUntilChanged().drop(1).debounce(SAVE_DEBOUNCE_MILLIS).collect { save() }
+    }
+
+    /** Nothing streams or runs after a restart; whatever was in flight is shown as stopped. */
+    private fun settle(item: ThreadItem): ThreadItem = when (item) {
+        is ThreadItem.Narration -> item.copy(streaming = false)
+        is ThreadItem.Steps -> item.copy(steps = item.steps.map { if (it.status == StepState.Running) it.copy(status = StepState.Stopped) else it })
+        is ThreadItem.Summary -> item.copy(folded = item.folded.map(::settle))
+        else -> item
+    }
+
+    /** Writes the chat on the app's own scope, so closing the screen never cuts a save short. */
+    private fun save() {
+        val items = _state.value.items
+        if (items.isEmpty()) return
+        val id = chatId ?: ChatId(graph.idGenerator.newId()).also { chatId = it }
+        val document = ChatDocument(
+            schemaVersion = ChatDocument.SCHEMA_VERSION,
+            title = items.filterIsInstance<ThreadItem.User>().firstOrNull()?.text.orEmpty().take(TITLE_MAX_CHARS),
+            items = items,
+            history = history,
+            activeRunId = activeRunId,
+            nextKey = nextKey,
+        )
+        graph.appScope.launch {
+            saveLock.withLock { graph.chats.save(id, CHAT_JSON.encodeToString(ChatDocument.serializer(), document)) }
+        }
+    }
+
+    /** A chat from an incompatible version is skipped rather than shown half-read. */
+    private fun decode(document: String): ChatDocument? = try {
+        CHAT_JSON.decodeFromString(ChatDocument.serializer(), document).takeIf { it.schemaVersion == ChatDocument.SCHEMA_VERSION }
+    } catch (exception: SerializationException) {
+        null
+    } catch (exception: IllegalArgumentException) {
+        null
+    }
+
     private fun key(): String = "item-${nextKey++}"
 
     private data class Segment(val start: Int, val startedAtMillis: Long)
@@ -395,7 +458,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         const val MILLIS_PER_SECOND = 1000L
         val KEY_REJECTED_CODES = setOf(401, 403)
         val EMPTY_ARGUMENTS = JsonObject(emptyMap())
-        /** Permission cards always confirm with a check; the words come from config. */
-        const val CAPABILITY_APPROVE_ICON = "check"
+        const val SAVE_DEBOUNCE_MILLIS = 400L
+        const val TITLE_MAX_CHARS = 80
+        val CHAT_JSON = Json { ignoreUnknownKeys = true }
     }
 }

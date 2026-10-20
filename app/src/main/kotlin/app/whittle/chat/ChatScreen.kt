@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +25,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,8 +46,10 @@ import app.whittle.R
 import app.whittle.design.components.Composer
 import app.whittle.design.components.LatestPill
 import app.whittle.design.components.DecisionCard
+import app.whittle.design.components.DecisionUi
 import app.whittle.design.components.Narration
 import app.whittle.design.components.QuestionCard
+import app.whittle.design.components.QuestionUi
 import app.whittle.design.components.ResolvedChip
 import app.whittle.design.components.RunSummaryChip
 import app.whittle.design.components.StatusLine
@@ -57,6 +61,8 @@ import app.whittle.design.components.WhittleIcon
 import app.whittle.design.theme.WhittleTheme
 import app.whittle.design.tokens.WhittleSpace
 import app.whittle.tools.android.AndroidCapabilities
+import app.whittle.tools.presentation.CapabilityPresentation
+import app.whittle.tools.presentation.DecisionText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -78,7 +84,11 @@ fun ChatScreen(state: ChatState, viewModel: ChatViewModel) {
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                if (state.items.isEmpty()) EmptyThread(state) else Thread(state.items, viewModel, requestCapability)
+                when {
+                    state.restoring -> Unit
+                    state.items.isEmpty() -> EmptyThread(state)
+                    else -> Thread(state.items, viewModel, requestCapability)
+                }
             }
             Dock(state, viewModel)
         }
@@ -136,9 +146,36 @@ private fun ThreadRow(
         is ThreadItem.User -> UserMessage(item.text, modifier, steerLabel = if (item.steer) stringResource(R.string.steer_label) else null)
         is ThreadItem.Narration -> Narration(item.text, item.streaming, modifier)
         is ThreadItem.Steps -> StepGroup(item.steps.map { it.toUi() }, modifier)
-        is ThreadItem.Decision -> DecisionCard(item.ui, onApprove = { viewModel.answer(item, approve = true) }, onDecline = { viewModel.answer(item, approve = false) }, modifier = modifier)
-        is ThreadItem.Question -> QuestionCard(item.ui, onPick = { viewModel.answer(item, it) }, modifier = modifier)
-        is ThreadItem.Capability -> DecisionCard(item.ui, onApprove = { requestCapability(item) }, onDecline = { viewModel.answer(item, granted = false) }, modifier = modifier)
+        is ThreadItem.Decision -> DecisionCard(
+            item.text.toUi(item.key),
+            onApprove = { viewModel.answer(item, approve = true) },
+            onDecline = { viewModel.answer(item, approve = false) },
+            modifier = modifier,
+        )
+        is ThreadItem.Question -> QuestionCard(
+            QuestionUi(item.key, item.text.icon, item.text.question, item.text.options),
+            onPick = { viewModel.answer(item, it) },
+            modifier = modifier,
+        )
+        is ThreadItem.Capability -> DecisionCard(
+            item.presentation.toUi(item.key),
+            onApprove = { requestCapability(item) },
+            onDecline = { viewModel.answer(item, granted = false) },
+            modifier = modifier,
+        )
+        is ThreadItem.Interrupted -> Row(
+            modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s),
+        ) {
+            Text(
+                stringResource(R.string.notice_interrupted),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = { viewModel.continueRun(item) }) { Text(stringResource(R.string.notice_continue)) }
+        }
         is ThreadItem.Resolved -> ResolvedChip(item.outcome, item.declined, modifier)
         is ThreadItem.Summary -> Column(modifier, verticalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
             RunSummaryChip(
@@ -249,6 +286,30 @@ private fun elapsed(startedAtMillis: Long): String {
     return stringResource(R.string.elapsed_time, seconds / SECONDS_PER_MINUTE, seconds % SECONDS_PER_MINUTE)
 }
 
+private fun DecisionText.toUi(id: String) = DecisionUi(
+    id = id,
+    icon = icon,
+    title = title,
+    body = body,
+    payloadLabel = payloadLabel,
+    payload = payload,
+    approveLabel = approve,
+    approveIcon = approveIcon,
+    declineLabel = decline,
+)
+
+private fun CapabilityPresentation.toUi(id: String) = DecisionUi(
+    id = id,
+    icon = icon,
+    title = title,
+    body = body,
+    payloadLabel = null,
+    payload = null,
+    approveLabel = approve,
+    approveIcon = CAPABILITY_APPROVE_ICON,
+    declineLabel = decline,
+)
+
 @Composable
 private fun StepModel.toUi(): StepUi = StepUi(
     id = id,
@@ -284,6 +345,8 @@ private fun noticeText(notice: ThreadItem.Notice): String = when (notice.kind) {
 private val NoticeKind.isFailure: Boolean
     get() = this == NoticeKind.FailedKey || this == NoticeKind.FailedNetwork || this == NoticeKind.FailedProvider || this == NoticeKind.FailedGeneric
 
+/** Permission cards always confirm with a check; their words come from config. */
+private const val CAPABILITY_APPROVE_ICON = "check"
 private const val TICK_MILLIS = 250L
 private const val MILLIS_PER_SECOND = 1000L
 private const val SECONDS_PER_MINUTE = 60L

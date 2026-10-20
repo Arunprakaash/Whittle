@@ -3,6 +3,7 @@ package app.whittle.tools.presentation
 import app.whittle.core.config.ConfigName
 import app.whittle.core.config.PromptTemplate
 import app.whittle.core.common.getOrElse
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -11,8 +12,10 @@ import java.net.URI
 import java.net.URISyntaxException
 
 /** Labels for one tool call, ready to show. */
+@Serializable
 data class StepText(val icon: String, val running: String, val done: String)
 
+@Serializable
 data class DecisionText(
     val icon: String,
     val title: String,
@@ -26,6 +29,7 @@ data class DecisionText(
     val declinedOutcome: String,
 )
 
+@Serializable
 data class QuestionText(val icon: String, val question: String, val options: List<String>)
 
 /**

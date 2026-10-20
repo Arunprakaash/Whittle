@@ -34,6 +34,7 @@ dependencies {
     implementation(project(":tools:android"))
     implementation(project(":storage:secrets"))
     implementation(project(":storage:runs"))
+    implementation(project(":storage:chats"))
     implementation(project(":observability:api"))
     implementation(project(":observability:posthog"))
 

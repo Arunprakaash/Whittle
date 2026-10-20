@@ -1,0 +1,43 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "7ca1eb85988984d25de9ccb818ecbd84",
+    "entities": [
+      {
+        "tableName": "chats",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`chatId` TEXT NOT NULL, `updatedAtMillis` INTEGER NOT NULL, `encryptedDocument` TEXT NOT NULL, PRIMARY KEY(`chatId`))",
+        "fields": [
+          {
+            "fieldPath": "chatId",
+            "columnName": "chatId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMillis",
+            "columnName": "updatedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "encryptedDocument",
+            "columnName": "encryptedDocument",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "chatId"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7ca1eb85988984d25de9ccb818ecbd84')"
+    ]
+  }
+}

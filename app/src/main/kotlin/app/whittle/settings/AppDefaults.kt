@@ -21,4 +21,4 @@ data class AppDefaults(
 data class AppearanceDefaults(val wallpaperColors: Boolean, val haptics: Boolean)
 
 @Serializable
-data class AppStorageNames(val connectionStoreName: String, val runsDatabaseName: String)
+data class AppStorageNames(val connectionStoreName: String, val runsDatabaseName: String, val chatsDatabaseName: String)

@@ -45,6 +45,8 @@
         <item quantity="other">%1$d steps · %2$ds</item>
     </plurals>
     <string name="notice_stopped">Stopped. Nothing else will run.</string>
+    <string name="notice_interrupted">This task stopped when the app closed.</string>
+    <string name="notice_continue">Continue</string>
     <string name="notice_paused_budget">Paused: this task used its token budget.</string>
     <string name="notice_paused_steps">Paused: this task reached its step limit.</string>
     <string name="notice_failed_key">The provider didn\'t accept your key. Change model to reconnect.</string>
