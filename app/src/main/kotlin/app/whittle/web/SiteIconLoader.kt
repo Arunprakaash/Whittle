@@ -22,7 +22,8 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Fetches site icons straight from each site (never through a third-party icon service, which would learn
  * what the user reads), scales them to [SiteIconDefaults.sizePx] and keeps them on disk. A host that has no
- * usable icon isn't asked again until the app restarts.
+ * usable icon isn't asked again until the app restarts; one that couldn't be reached (offline, rate limited) is
+ * tried again the next time it's shown.
  */
 class SiteIconLoader(
     private val http: OkHttpClient,
@@ -52,29 +53,55 @@ class SiteIconLoader(
         file(key).takeIf { it.isFile }?.let { BitmapFactory.decodeFile(it.path) }?.asImageBitmap()?.also { memory.put(key, it) }
 
     private fun fetch(home: HttpUrl, key: String): ImageBitmap? {
-        val page = download(home, config.maxPageBytes)
-        val candidates = page?.let { (url, bytes) -> SiteIconLinks.candidates(bytes.decodeToString(), url, config.sizePx) }
+        var unreachable = false
+        val page = when (val result = download(home, config.maxPageBytes)) {
+            is Download.Body -> result
+            Download.Absent -> null
+            Download.Unreachable -> return null
+        }
+        val candidates = page?.let { SiteIconLinks.candidates(it.bytes.decodeToString(), it.url, config.sizePx) }
             ?: listOf(SiteIconLinks.fallback(home))
-        val bitmap = candidates.firstNotNullOfOrNull { url -> download(url, config.maxIconBytes)?.let { decode(it.second) } }
+        val bitmap = candidates.firstNotNullOfOrNull { url ->
+            when (val icon = download(url, config.maxIconBytes)) {
+                is Download.Body -> decode(icon.bytes)
+                Download.Absent -> null
+                Download.Unreachable -> null.also { unreachable = true }
+            }
+        }
         if (bitmap == null) {
-            missing += key
+            if (!unreachable) missing += key
             return null
         }
         save(bitmap, key)
         return bitmap.asImageBitmap().also { memory.put(key, it) }
     }
 
-    /** The final url (after redirects) and up to [limit] bytes of the body, or null when the request fails. */
-    private fun download(url: HttpUrl, limit: Int): Pair<HttpUrl, ByteArray>? = try {
+    /** What a request gave: a body, a definite "not here", or no answer worth remembering. */
+    private sealed interface Download {
+        /** The final url (after redirects) and up to the limit's bytes of the body. */
+        class Body(val url: HttpUrl, val bytes: ByteArray) : Download
+
+        data object Absent : Download
+
+        data object Unreachable : Download
+    }
+
+    private fun download(url: HttpUrl, limit: Int): Download = try {
         http.newCall(Request.Builder().url(url).get().build()).execute().use { response ->
             val body = response.body
-            if (!response.isSuccessful || body == null) return null
-            val source = body.source()
-            source.request(limit.toLong())
-            response.request.url to source.buffer.readByteArray(minOf(source.buffer.size, limit.toLong()))
+            when {
+                response.isSuccessful && body != null -> {
+                    val source = body.source()
+                    source.request(limit.toLong())
+                    Download.Body(response.request.url, source.buffer.readByteArray(minOf(source.buffer.size, limit.toLong())))
+                }
+                // Busy or down for now: worth asking again later.
+                response.code == HTTP_TOO_MANY_REQUESTS || response.code >= HTTP_SERVER_ERROR -> Download.Unreachable
+                else -> Download.Absent
+            }
         }
     } catch (exception: IOException) {
-        null
+        Download.Unreachable
     }
 
     private fun decode(bytes: ByteArray): Bitmap? {
@@ -103,5 +130,7 @@ class SiteIconLoader(
         const val FILE_SUFFIX = ".png"
         const val PARTIAL_SUFFIX = ".part"
         const val PNG_QUALITY = 100
+        const val HTTP_TOO_MANY_REQUESTS = 429
+        const val HTTP_SERVER_ERROR = 500
     }
 }
