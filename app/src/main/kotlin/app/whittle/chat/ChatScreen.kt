@@ -1,5 +1,6 @@
 package app.whittle.chat
 
+import app.whittle.design.components.WelcomeMascot
 import app.whittle.design.components.AgentState
 import app.whittle.design.components.StatusPlanUi
 import app.whittle.agent.PlanItem
@@ -415,6 +416,7 @@ private fun EmptyThread(state: ChatState) {
         Modifier.fillMaxSize().padding(horizontal = WhittleSpace.xxl),
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.s, Alignment.CenterVertically),
     ) {
+        WelcomeMascot(Modifier.padding(bottom = WhittleSpace.m))
         Text(stringResource(R.string.chat_empty_headline), style = MaterialTheme.typography.headlineMedium)
         state.model?.let {
             Text(stringResource(R.string.chat_empty_body, it.displayName), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

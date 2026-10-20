@@ -695,6 +695,11 @@
       "$type": "dimension",
       "$value": "48px"
     },
+    "welcomeMascot": {
+      "$type": "dimension",
+      "$value": "88px",
+      "$description": "The idle beaver above the start screen's headline."
+    },
     "icon": {
       "s": {
         "$type": "dimension",
