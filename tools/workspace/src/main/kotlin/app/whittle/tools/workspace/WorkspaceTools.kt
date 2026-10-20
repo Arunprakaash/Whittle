@@ -61,8 +61,10 @@ class RunCommandTool(workspaces: Workspaces, private val runner: CommandRunner, 
 
         val DEFINITION = ToolDefinition(
             id = ToolId("run_command"),
-            description = "Runs a shell command (Android's built-in toybox shell: ls, cat, grep, sed, find, sort, tar, base64, date...) " +
-                "in this chat's workspace folder. No network tools like curl, no package manager, no python. " +
+            description = "Runs a shell command in this chat's workspace folder: Android's toybox shell (ls, cat, grep, sed, find, " +
+                "tar...) plus Node.js with npm and npx, Python 3 with pip, and git. Installed package commands can't start " +
+                "directly on Android; run them through their interpreter (node node_modules/vite/bin/vite.js, python3 -m flask). " +
+                "The command ends when it finishes or times out, so servers don't keep running. " +
                 "Prefer the file tools for reading and editing files.",
             inputSchema = schema(
                 """{"type":"object","properties":{""" +

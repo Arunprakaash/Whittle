@@ -1,0 +1,202 @@
+{
+    "arm64-v8a": [
+        {
+            "name": "nodejs-lts",
+            "version": "24.18.0-1",
+            "filename": "pool/main/n/nodejs-lts/nodejs-lts_24.18.0-1_aarch64.deb",
+            "sha256": "490f4d08c45b25a7ea7db6ee466ebb3ee61f07083260b85332704ed018f59a87"
+        },
+        {
+            "name": "libc++",
+            "version": "30",
+            "filename": "pool/main/libc/libc++/libc++_30_aarch64.deb",
+            "sha256": "53d0b84a7ba7459024257cb94d5b136fe13ef858567f65a8064b35950799f2ca"
+        },
+        {
+            "name": "openssl",
+            "version": "1:3.6.5",
+            "filename": "pool/main/o/openssl/openssl_1:3.6.5_aarch64.deb",
+            "sha256": "a2fb7856875e63ef6b90442752e05974813372c3ca86d2513a78ea43c67a0f8b"
+        },
+        {
+            "name": "ca-certificates",
+            "version": "1:2026.09.25",
+            "filename": "pool/main/c/ca-certificates/ca-certificates_1:2026.09.25_all.deb",
+            "sha256": "57fab24bf4561bfdd35afe71bc1929914e51c35458cfd1fca2b15e54bc8df7af"
+        },
+        {
+            "name": "zlib",
+            "version": "1.3.2",
+            "filename": "pool/main/z/zlib/zlib_1.3.2_aarch64.deb",
+            "sha256": "75e7d0af17fcc3b40004309fdc00a1ddb9ae08346dce5e269902c34ac3966ac9"
+        },
+        {
+            "name": "c-ares",
+            "version": "1.34.8",
+            "filename": "pool/main/c/c-ares/c-ares_1.34.8_aarch64.deb",
+            "sha256": "7681fc23e822d7988ba8b2adf3468f93ae68f724dda365cff1385096a9fa87e6"
+        },
+        {
+            "name": "resolv-conf",
+            "version": "1.3",
+            "filename": "pool/main/r/resolv-conf/resolv-conf_1.3_aarch64.deb",
+            "sha256": "ab541abac8e0c81709cd7ca4a02bcfa0d60ba1f4bfe7fd6dce4a694a4a9dfffa"
+        },
+        {
+            "name": "libicu",
+            "version": "78.3",
+            "filename": "pool/main/libi/libicu/libicu_78.3_aarch64.deb",
+            "sha256": "f536403f65a08fe0df6e7304184e902d54def77d5c3bd5edfd9109d57601d276"
+        },
+        {
+            "name": "libsqlite",
+            "version": "3.54.1",
+            "filename": "pool/main/libs/libsqlite/libsqlite_3.54.1_aarch64.deb",
+            "sha256": "0856cac8cc87f6e112f2eef4fcac6ad5cb08209ecb7cc260f997874fc186a3c0"
+        },
+        {
+            "name": "npm",
+            "version": "11.21.1",
+            "filename": "pool/main/n/npm/npm_11.21.1_all.deb",
+            "sha256": "f2b5a5d88ec39bbaf2572b4febd032fbec1b78aa7b4382ffaf6b4afa7b1a4ddd"
+        },
+        {
+            "name": "python",
+            "version": "3.14.8",
+            "filename": "pool/main/p/python/python_3.14.8_aarch64.deb",
+            "sha256": "55fcd7c23a603ba0caeca3ef9e670ec88ff71c1a480101de4983629792563b5e"
+        },
+        {
+            "name": "gdbm",
+            "version": "1.26-1",
+            "filename": "pool/main/g/gdbm/gdbm_1.26-1_aarch64.deb",
+            "sha256": "c378de833aae3cf41f3028491ea11836479d9833ab653edc27d0c0e0e691d5c5"
+        },
+        {
+            "name": "readline",
+            "version": "8.3.6",
+            "filename": "pool/main/r/readline/readline_8.3.6_aarch64.deb",
+            "sha256": "616cc73009bc0223f61caed8dd09455714455aa5ea5e180126e2f69c4c775136"
+        },
+        {
+            "name": "libandroid-support",
+            "version": "29-1",
+            "filename": "pool/main/liba/libandroid-support/libandroid-support_29-1_aarch64.deb",
+            "sha256": "f2f145d6135ad4843ac9670153be3e3944dc1e6f1736d46d2306c28f2b86f517"
+        },
+        {
+            "name": "ncurses",
+            "version": "6.6.20260307+really6.5.20250830",
+            "filename": "pool/main/n/ncurses/ncurses_6.6.20260307+really6.5.20250830_aarch64.deb",
+            "sha256": "f44bbfdc3d42ec0217bffa978309390e59cea5a48a9a83226d4a496c42ad0b99"
+        },
+        {
+            "name": "libandroid-posix-semaphore",
+            "version": "0.1-4",
+            "filename": "pool/main/liba/libandroid-posix-semaphore/libandroid-posix-semaphore_0.1-4_aarch64.deb",
+            "sha256": "0efa8677a0166315ba4e685863712eba0ca0a1732827492f38226e2723730c7a"
+        },
+        {
+            "name": "libbz2",
+            "version": "1.0.8-8",
+            "filename": "pool/main/libb/libbz2/libbz2_1.0.8-8_aarch64.deb",
+            "sha256": "4335d7f060650b0aabef545d1334c2f9f280223d5962e13c24a00ec934b794ba"
+        },
+        {
+            "name": "libcrypt",
+            "version": "0.2-6",
+            "filename": "pool/main/libc/libcrypt/libcrypt_0.2-6_aarch64.deb",
+            "sha256": "6c283eed576b98cc3568f99638156f8588f77d979579d03bef8683d6eb8601e1"
+        },
+        {
+            "name": "libexpat",
+            "version": "2.9.0",
+            "filename": "pool/main/libe/libexpat/libexpat_2.9.0_aarch64.deb",
+            "sha256": "f8a104e8227c9c181f6818658a3ee2fa4c107fac94219b068144fc6591086cdb"
+        },
+        {
+            "name": "libffi",
+            "version": "3.8.0",
+            "filename": "pool/main/libf/libffi/libffi_3.8.0_aarch64.deb",
+            "sha256": "4f255badf74cd31f6a2801c17fa1444199c84c834b517b7c843e2fe9ebe91d77"
+        },
+        {
+            "name": "liblzma",
+            "version": "5.8.4",
+            "filename": "pool/main/libl/liblzma/liblzma_5.8.4_aarch64.deb",
+            "sha256": "44e95e6e60dddb3705e60a344a4f009a1085a210797342b721eaff41b44033c0"
+        },
+        {
+            "name": "ncurses-ui-libs",
+            "version": "6.6.20260307+really6.5.20250830",
+            "filename": "pool/main/n/ncurses-ui-libs/ncurses-ui-libs_6.6.20260307+really6.5.20250830_aarch64.deb",
+            "sha256": "7393f369009be189b3d4ec1f9b16ebd57621d6a1b22949ae07685573950d1f37"
+        },
+        {
+            "name": "zstd",
+            "version": "1.5.7-1",
+            "filename": "pool/main/z/zstd/zstd_1.5.7-1_aarch64.deb",
+            "sha256": "e1b4a5113648da8de189620ba1fce74c48b2d0833d9043391b9a1c91fb606fd3"
+        },
+        {
+            "name": "python-pip",
+            "version": "26.2.1",
+            "filename": "pool/main/p/python-pip/python-pip_26.2.1_all.deb",
+            "sha256": "92a9cb4b3c99dd20086f90fedc95c604eefc5bd0f88d1862690884474f82de44"
+        },
+        {
+            "name": "git",
+            "version": "2.56.0",
+            "filename": "pool/main/g/git/git_2.56.0_aarch64.deb",
+            "sha256": "dcdd22c5fdf7bdb5b825a03a17441d43858ed8515fea57fbb37eb42e733ca82f"
+        },
+        {
+            "name": "libcurl",
+            "version": "8.23.0",
+            "filename": "pool/main/libc/libcurl/libcurl_8.23.0_aarch64.deb",
+            "sha256": "2011bb9709261bb3d5ecaa6672faa333be14cf48ad4af37031e3e365309557ac"
+        },
+        {
+            "name": "libnghttp2",
+            "version": "1.70.0",
+            "filename": "pool/main/libn/libnghttp2/libnghttp2_1.70.0_aarch64.deb",
+            "sha256": "ab2e0a3408fe4934ffdf774bd5049a265db2e6db62dcb651baecbecfb81e3f0b"
+        },
+        {
+            "name": "libnghttp3",
+            "version": "1.18.0",
+            "filename": "pool/main/libn/libnghttp3/libnghttp3_1.18.0_aarch64.deb",
+            "sha256": "0be2ee96def3608afaf24eb0b4b55f3484a37c95ea21bb1d6d85c7d543467603"
+        },
+        {
+            "name": "libngtcp2",
+            "version": "1.25.0",
+            "filename": "pool/main/libn/libngtcp2/libngtcp2_1.25.0_aarch64.deb",
+            "sha256": "f471bad7f4329b6b0b4aedf124e0a23a35f6ac99bfbae73304136f8bfd570fc3"
+        },
+        {
+            "name": "libssh2",
+            "version": "1.11.1-2",
+            "filename": "pool/main/libs/libssh2/libssh2_1.11.1-2_aarch64.deb",
+            "sha256": "1add4e0a926b848814e7e2f1817ea28b123c54cabd5bbc4e5cfd65291cbad84e"
+        },
+        {
+            "name": "libiconv",
+            "version": "1.19",
+            "filename": "pool/main/libi/libiconv/libiconv_1.19_aarch64.deb",
+            "sha256": "fe9481b1dc101c6c3552943f25435109fd522aecc615ae49594f9fbee863bb37"
+        },
+        {
+            "name": "less",
+            "version": "710",
+            "filename": "pool/main/l/less/less_710_aarch64.deb",
+            "sha256": "bff261b48553bcde3a93e0d7c2a51dbb1b7e5025767a1ee9a1cb4459a3789499"
+        },
+        {
+            "name": "pcre2",
+            "version": "10.49",
+            "filename": "pool/main/p/pcre2/pcre2_10.49_aarch64.deb",
+            "sha256": "c27995e5f52b8ecc9b8b3e662eb08e49f82a18bfd3f34343936acc7b23964724"
+        }
+    ]
+}

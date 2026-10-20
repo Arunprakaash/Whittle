@@ -37,4 +37,30 @@ data class ShellEnvironment(
     val processGroupLauncher: String?,
     /** Sends SIGKILL to a whole process group; null falls back to killing the shell alone. */
     val killProcessGroup: ((processGroupId: Int) -> Unit)?,
+    /** Extra command-line tools this platform ships (Node, Python, git...), set up before the first command. */
+    val tools: ShellTools = ShellTools.NONE,
 )
+
+/** Command-line tools beyond the platform's own shell, installed on first use. */
+fun interface ShellTools {
+    /**
+     * What every command gets; [ShellSetup.NONE] when there are no extra tools, or they couldn't be set up.
+     * Commands still run with the platform's own shell then.
+     */
+    suspend fun setup(): ShellSetup
+
+    companion object {
+        val NONE = ShellTools { ShellSetup.NONE }
+    }
+}
+
+data class ShellSetup(
+    /** Added on top of PATH, HOME and TMPDIR (and may replace PATH). */
+    val environment: Map<String, String>,
+    /** Shell function definitions run before each command, e.g. tools started through their interpreter. */
+    val functions: List<String>,
+) {
+    companion object {
+        val NONE = ShellSetup(emptyMap(), emptyList())
+    }
+}

@@ -10,6 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "app.whittle"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         versionCode = 1
         versionName = "0.1.0"
         // PostHog's public project key comes from your Gradle properties, never from the repo.
@@ -76,9 +77,35 @@ val esbuildWasmAssets = tasks.register<NpmPackageAssetsTask>("esbuildWasmAssets"
     outputDirectory.set(layout.buildDirectory.dir("generated/assets/esbuildWasm"))
 }
 
+// The command-line tools run_command offers (Node, npm, Python, git...) are Termux's Android builds, pinned
+// in termux-runtimes.lock.json (update with ./gradlew :app:updateTermuxLock). Programs and libraries ship as
+// native libraries, the only place Android lets an app run native code from, so the APK must extract them.
+val termuxSpec = layout.projectDirectory.file("termux-runtimes.json")
+val termuxLock = layout.projectDirectory.file("termux-runtimes.lock.json")
+val runtimeAssetDirectory = "runtimes"
+val updateTermuxLock = tasks.register<UpdateTermuxLockTask>("updateTermuxLock") {
+    specFile.set(termuxSpec)
+    lockFile.set(termuxLock)
+}
+android.packaging.jniLibs.useLegacyPackaging = true
+android.defaultConfig.buildConfigField("String", "RUNTIME_ASSETS", "\"$runtimeAssetDirectory\"")
+
 androidComponents {
     onVariants { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(esbuildWasmAssets, NpmPackageAssetsTask::outputDirectory)
+        val runtime = tasks.register<TermuxRuntimeTask>("${variant.name}TermuxRuntime") {
+            specFile.set(termuxSpec)
+            lockFile.set(termuxLock)
+            applicationId.set(variant.applicationId)
+            assetDirectory.set(runtimeAssetDirectory)
+            downloadDirectory.set(File(gradle.gradleUserHomeDir, "caches/whittle-termux"))
+            jniLibsDirectory.set(layout.buildDirectory.dir("generated/termux/${variant.name}/jniLibs"))
+            assetsDirectory.set(layout.buildDirectory.dir("generated/termux/${variant.name}/assets"))
+            // Builds read the lock file; when it's updated in the same run, read the new one.
+            mustRunAfter(updateTermuxLock)
+        }
+        variant.sources.jniLibs?.addGeneratedSourceDirectory(runtime, TermuxRuntimeTask::jniLibsDirectory)
+        variant.sources.assets?.addGeneratedSourceDirectory(runtime, TermuxRuntimeTask::assetsDirectory)
     }
 }
 
@@ -109,4 +136,7 @@ dependencies {
     implementation(libs.okhttp)
 
     testImplementation(libs.okhttp.mockwebserver)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.kotlin.test.junit)
 }

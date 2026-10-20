@@ -59,6 +59,7 @@ import app.whittle.tools.workspace.Workspaces
 import kotlinx.serialization.KSerializer
 import java.io.File
 import app.whittle.artifacts.Artifacts
+import app.whittle.runtimes.ToolRuntime
 import app.whittle.web.SiteIconLoader
 import app.whittle.webbuild.BuildRoutes
 import app.whittle.webbuild.RemoteModules
@@ -146,6 +147,7 @@ class AppGraph(context: Context) {
                     // Already gone; nothing left to stop.
                 }
             },
+            tools = ToolRuntime(context, appDefaults.toolRuntime, terminal.path, BuildConfig.RUNTIME_ASSETS),
         )
         return WorkspaceToolSet.create(
             workspaces = workspaces,

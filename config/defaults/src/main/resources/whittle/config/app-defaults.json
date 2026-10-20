@@ -15,6 +15,29 @@
     "path": "/system/bin",
     "processGroupLauncher": "setsid"
   },
+  "toolRuntime": {
+    "enabled": true,
+    "cacheDirectoryName": "tool-caches",
+    "environment": {
+      "PATH": "{{prefix}}/bin:{{systemPath}}",
+      "SSL_CERT_FILE": "{{prefix}}/etc/tls/cert.pem",
+      "npm_config_cache": "{{cacheDir}}/npm",
+      "npm_config_update_notifier": "false",
+      "npm_config_fund": "false",
+      "npm_config_audit": "false",
+      "PIP_CACHE_DIR": "{{cacheDir}}/pip",
+      "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+      "GIT_PAGER": "cat",
+      "PAGER": "cat",
+      "LANG": "en_US.UTF-8"
+    },
+    "shellFunctions": [
+      "npm() { node \"{{prefix}}/lib/node_modules/npm/bin/npm-cli.js\" \"$@\"; }",
+      "npx() { node \"{{prefix}}/lib/node_modules/npm/bin/npx-cli.js\" \"$@\"; }",
+      "pip() { python3 -m pip \"$@\"; }",
+      "pip3() { python3 -m pip \"$@\"; }"
+    ]
+  },
   "chatList": {
     "sidebarMaxChats": 25
   },

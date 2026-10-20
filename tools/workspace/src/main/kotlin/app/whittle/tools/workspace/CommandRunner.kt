@@ -28,6 +28,8 @@ data class CommandResult(
 class CommandRunner(private val environment: ShellEnvironment, private val maxOutputChars: Int) {
     suspend fun run(command: String, directory: File, timeoutSeconds: Int): CommandResult = withContext(Dispatchers.IO) {
         val tmp = File(directory, TMP_DIRECTORY).apply { mkdirs() }
+        val tools = environment.tools.setup()
+        val script = (tools.functions + command).joinToString("\n")
         // The outer shell prints its pid, then becomes the command (in a new process group when available).
         val launcher = environment.processGroupLauncher?.let { "$it " }.orEmpty()
         val process = ProcessBuilder(environment.shell, "-c", "echo $$; exec $launcher${environment.shell} -c \"\$$COMMAND_VARIABLE\"")
@@ -37,7 +39,8 @@ class CommandRunner(private val environment: ShellEnvironment, private val maxOu
                 environment()[PATH] = this@CommandRunner.environment.path
                 environment()[HOME] = directory.path
                 environment()[TMPDIR] = tmp.path
-                environment()[COMMAND_VARIABLE] = command
+                environment().putAll(tools.environment)
+                environment()[COMMAND_VARIABLE] = script
             }
             .start()
         process.outputStream.close()

@@ -134,6 +134,14 @@ class WorkspaceToolsTest {
         assertTrue(output.isError)
     }
 
+    @Test
+    fun `extra tools add their environment and shell functions to every command`() = runBlocking<Unit> {
+        val tools = ShellTools { ShellSetup(mapOf("GREETING" to "hello"), listOf("greet() { echo \"${'$'}GREETING ${'$'}1\"; }")) }
+        val runner = CommandRunner(environment.copy(tools = tools), config.maxOutputChars)
+        val output = RunCommandTool(workspaces, runner, config).execute(args("""{"command":"greet phone"}"""), context)
+        assertEquals("hello phone", output.field("stdout").trim())
+    }
+
     private suspend fun command(line: String, timeout: Int? = null): app.whittle.tools.api.ToolOutput {
         val tool = RunCommandTool(workspaces, CommandRunner(environment, config.maxOutputChars), config)
         val timeoutField = timeout?.let { ""","timeoutSeconds":$it""" }.orEmpty()
