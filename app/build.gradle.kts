@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.whittle.android.application)
     alias(libs.plugins.kotlin.serialization)
@@ -14,6 +16,35 @@ android {
         // Without it, telemetry stays on the device.
         val postHogProjectKey = providers.gradleProperty("whittle.posthogProjectKey").orElse("").get()
         buildConfigField("String", "POSTHOG_PROJECT_KEY", "\"$postHogProjectKey\"")
+    }
+
+    // Release signing comes from a properties file outside the repo (storeFile, storePassword, keyAlias,
+    // keyPassword). Without it the release APK is built unsigned.
+    val releaseSigning = providers.gradleProperty("whittle.releaseSigningFile")
+        .map { file(it) }
+        .orElse(provider { File(System.getProperty("user.home"), ".whittle/release-signing.properties") })
+        .get()
+    if (releaseSigning.isFile) {
+        val properties = Properties().apply { releaseSigning.inputStream().use(::load) }
+        signingConfigs.create("release") {
+            storeFile = file(properties.getProperty("storeFile"))
+            storePassword = properties.getProperty("storePassword")
+            keyAlias = properties.getProperty("keyAlias")
+            keyPassword = properties.getProperty("keyPassword")
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.findByName("release")
+        }
+        getByName("debug") {
+            // Dev builds install next to the release app instead of replacing it.
+            applicationIdSuffix = ".debug"
+        }
     }
 
     buildFeatures {

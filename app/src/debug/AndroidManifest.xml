@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Debug builds only. Shell-only (DUMP permission): adb shell am broadcast -a app.whittle.debug.SEED_SAMPLE_CHATS -n app.whittle/.debug.SampleChatsReceiver -->
+<!-- Debug builds only. Shell-only (DUMP permission): adb shell am broadcast -a app.whittle.debug.SEED_SAMPLE_CHATS -n app.whittle.debug/app.whittle.debug.SampleChatsReceiver -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
         <receiver

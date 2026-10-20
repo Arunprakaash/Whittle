@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dev builds sit next to the release app on the same phone; the name tells them apart. -->
+    <string name="app_name">Whittle Dev</string>
+</resources>
