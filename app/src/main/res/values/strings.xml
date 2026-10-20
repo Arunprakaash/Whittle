@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Whittle</string>
+
+    <!-- Connect a model -->
+    <string name="connect_title">Connect a model</string>
+    <string name="connect_body">Whittle talks to the AI provider you choose. Your key stays on this phone, encrypted, and is only sent to that provider.</string>
+    <string name="connect_provider">Provider</string>
+    <string name="connect_key_label">API key</string>
+    <string name="connect_key_show">Show key</string>
+    <string name="connect_key_hide">Hide key</string>
+    <string name="connect_action">Connect</string>
+    <string name="connect_checking">Checking your key…</string>
+    <string name="connect_choose_model">Choose a model</string>
+    <string name="connect_search_models">Search models</string>
+    <string name="connect_no_models">No models match.</string>
+    <string name="connect_back">Back</string>
+    <string name="error_key_rejected">%1$s didn\'t accept that key. Check it and try again.</string>
+    <string name="error_unreachable">Couldn\'t reach %1$s. Check your connection and try again.</string>
+    <string name="error_provider">%1$s returned an error (%2$d). Try again in a moment.</string>
+    <string name="error_storage">Couldn\'t save the key on this phone.</string>
+    <string name="error_generic">Something went wrong. Try again.</string>
+
+    <!-- Chat -->
+    <string name="chat_title">New task</string>
+    <string name="chat_more">More options</string>
+    <string name="chat_change_model">Change model</string>
+    <string name="chat_new_task">New task</string>
+    <string name="chat_empty_headline">What should we get done?</string>
+    <string name="chat_empty_body">Using %1$s.</string>
+    <string name="composer_placeholder">Get something done…</string>
+    <string name="composer_placeholder_running">Add to this task…</string>
+    <string name="composer_send">Send</string>
+    <string name="status_thinking">Thinking…</string>
+    <string name="status_stop">Stop</string>
+    <string name="steer_label">Added while working</string>
+    <string name="elapsed_time">%1$d:%2$02d</string>
+    <string name="step_blocked">Not allowed by your settings</string>
+    <string name="step_failed">Didn\'t work</string>
+    <string name="step_stopped">Stopped</string>
+    <plurals name="run_summary">
+        <item quantity="one">%1$d step · %2$ds</item>
+        <item quantity="other">%1$d steps · %2$ds</item>
+    </plurals>
+    <string name="notice_stopped">Stopped. Nothing else will run.</string>
+    <string name="notice_paused_budget">Paused: this task used its token budget.</string>
+    <string name="notice_paused_steps">Paused: this task reached its step limit.</string>
+    <string name="notice_failed_key">The provider didn\'t accept your key. Change model to reconnect.</string>
+    <string name="notice_failed_network">Couldn\'t reach the provider. Check your connection.</string>
+    <string name="notice_failed_provider">The provider returned an error (%1$d).</string>
+    <string name="notice_failed_generic">Something went wrong and the task stopped.</string>
+</resources>

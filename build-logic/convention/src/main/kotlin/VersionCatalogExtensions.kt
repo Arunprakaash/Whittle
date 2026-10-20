@@ -11,3 +11,6 @@ internal fun VersionCatalog.requiredVersion(alias: String): String =
 
 internal fun VersionCatalog.requiredLibrary(alias: String) =
     findLibrary(alias).orElseThrow { IllegalStateException("Library '$alias' is missing from libs.versions.toml") }
+
+internal fun VersionCatalog.plugins(alias: String): String =
+    findPlugin(alias).orElseThrow { IllegalStateException("Plugin '$alias' is missing from libs.versions.toml") }.get().pluginId

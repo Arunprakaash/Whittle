@@ -99,6 +99,60 @@
       "inverseOnSurface": {
         "$type": "color",
         "$value": "#ECF2EE"
+      },
+      "background": {
+        "$type": "color",
+        "$value": "#F6FAF7",
+        "$description": "Same as surface."
+      },
+      "onBackground": {
+        "$type": "color",
+        "$value": "#171D1A",
+        "$description": "Same as onSurface."
+      },
+      "surfaceVariant": {
+        "$type": "color",
+        "$value": "#DFE4E0",
+        "$description": "Same as surfaceContainerHighest."
+      },
+      "surfaceTint": {
+        "$type": "color",
+        "$value": "#2B6A55",
+        "$description": "Same as primary."
+      },
+      "surfaceDim": {
+        "$type": "color",
+        "$value": "#D6DBD7"
+      },
+      "surfaceBright": {
+        "$type": "color",
+        "$value": "#F6FAF7"
+      },
+      "secondary": {
+        "$type": "color",
+        "$value": "#4C6358"
+      },
+      "onSecondary": {
+        "$type": "color",
+        "$value": "#FFFFFF"
+      },
+      "onTertiary": {
+        "$type": "color",
+        "$value": "#261900",
+        "$description": "Marigold is light, so text on it is dark."
+      },
+      "onError": {
+        "$type": "color",
+        "$value": "#FFFFFF"
+      },
+      "inversePrimary": {
+        "$type": "color",
+        "$value": "#97D4BA"
+      },
+      "scrim": {
+        "$type": "color",
+        "$value": "#000000",
+        "$description": "Behind sheets and dialogs."
       }
     },
     "dark": {
@@ -199,6 +253,60 @@
       "inverseOnSurface": {
         "$type": "color",
         "$value": "#2C322E"
+      },
+      "background": {
+        "$type": "color",
+        "$value": "#0F1512",
+        "$description": "Same as surface."
+      },
+      "onBackground": {
+        "$type": "color",
+        "$value": "#DEE4DF",
+        "$description": "Same as onSurface."
+      },
+      "surfaceVariant": {
+        "$type": "color",
+        "$value": "#303633",
+        "$description": "Same as surfaceContainerHighest."
+      },
+      "surfaceTint": {
+        "$type": "color",
+        "$value": "#97D4BA",
+        "$description": "Same as primary."
+      },
+      "surfaceDim": {
+        "$type": "color",
+        "$value": "#0F1512"
+      },
+      "surfaceBright": {
+        "$type": "color",
+        "$value": "#353B38"
+      },
+      "secondary": {
+        "$type": "color",
+        "$value": "#B3CCC0"
+      },
+      "onSecondary": {
+        "$type": "color",
+        "$value": "#1E352B"
+      },
+      "onTertiary": {
+        "$type": "color",
+        "$value": "#412D00",
+        "$description": "Marigold is light, so text on it is dark."
+      },
+      "onError": {
+        "$type": "color",
+        "$value": "#690005"
+      },
+      "inversePrimary": {
+        "$type": "color",
+        "$value": "#2B6A55"
+      },
+      "scrim": {
+        "$type": "color",
+        "$value": "#000000",
+        "$description": "Behind sheets and dialogs."
       }
     }
   },
@@ -841,7 +949,7 @@
     "tap": {
       "$type": "haptic",
       "$value": {
-        "android": "HapticFeedbackType.ContextClick",
+        "feedback": "ContextClick",
         "pattern": [
           8
         ]
@@ -851,7 +959,7 @@
     "send": {
       "$type": "haptic",
       "$value": {
-        "android": "HapticFeedbackType.KeyboardTap",
+        "feedback": "KeyboardTap",
         "pattern": [
           12
         ]
@@ -861,7 +969,7 @@
     "select": {
       "$type": "haptic",
       "$value": {
-        "android": "HapticFeedbackType.SegmentTick",
+        "feedback": "SegmentTick",
         "pattern": [
           6
         ]
@@ -871,7 +979,7 @@
     "stepDone": {
       "$type": "haptic",
       "$value": {
-        "android": "HapticFeedbackType.SegmentFrequentTick",
+        "feedback": "SegmentFrequentTick",
         "pattern": [
           4
         ]
@@ -881,7 +989,7 @@
     "decisionShown": {
       "$type": "haptic",
       "$value": {
-        "android": "HapticFeedbackType.SegmentTick",
+        "feedback": "SegmentTick",
         "pattern": [
           6
         ]
@@ -891,7 +999,7 @@
     "approve": {
       "$type": "haptic",
       "$value": {
-        "android": "HapticFeedbackType.Confirm",
+        "feedback": "Confirm",
         "pattern": [
           10,
           40,
@@ -903,7 +1011,7 @@
     "reject": {
       "$type": "haptic",
       "$value": {
-        "android": "HapticFeedbackType.Reject",
+        "feedback": "Reject",
         "pattern": [
           26,
           40,
@@ -915,7 +1023,7 @@
     "toggleOn": {
       "$type": "haptic",
       "$value": {
-        "android": "HapticFeedbackType.ToggleOn",
+        "feedback": "ToggleOn",
         "pattern": [
           14
         ]
@@ -925,7 +1033,7 @@
     "toggleOff": {
       "$type": "haptic",
       "$value": {
-        "android": "HapticFeedbackType.ToggleOff",
+        "feedback": "ToggleOff",
         "pattern": [
           6
         ]
@@ -935,7 +1043,8 @@
     "runDone": {
       "$type": "haptic",
       "$value": {
-        "android": "VibrationEffect.BasicEnvelopeBuilder swell (Android 16+), fallback Confirm",
+        "feedback": "Confirm",
+        "envelope": "swell",
         "pattern": [
           6,
           30,
@@ -944,12 +1053,12 @@
           24
         ]
       },
-      "$description": "Signature: only when a run finishes."
+      "$description": "Signature: only when a run finishes. On Android 16+ a rising envelope (BasicEnvelopeBuilder); Confirm before that."
     },
     "adjust": {
       "$type": "haptic",
       "$value": {
-        "android": "HapticFeedbackType.SegmentFrequentTick",
+        "feedback": "SegmentFrequentTick",
         "pattern": [
           4
         ]

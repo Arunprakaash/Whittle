@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Only the window before Compose draws; every visible color comes from the generated theme. -->
+    <style name="Theme.Whittle" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

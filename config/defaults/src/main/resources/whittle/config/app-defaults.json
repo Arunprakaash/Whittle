@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "appearance": {
+    "wallpaperColors": false,
+    "haptics": true
+  },
+  "storage": {
+    "connectionStoreName": "whittle_connection",
+    "runsDatabaseName": "whittle_runs.db"
+  }
+}

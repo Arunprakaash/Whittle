@@ -670,7 +670,7 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
 
   /* ---------- haptics ---------- */
   const wave = (pattern) => pattern.map((ms_, i) => i % 2 === 0 ? `<i style="height:${Math.min(26, 6 + ms_)}px"></i>` : `<i class="gap" style="width:${Math.max(4, ms_ / 6)}px"></i>`).join("");
-  $("#hapticBody").innerHTML = Object.entries(strip(T.haptics)).map(([name, t]) => `<tr><td><b>${name}</b></td><td><code>${t.$value.android}</code></td><td><span class="wave">${wave(t.$value.pattern)}</span></td><td><button class="feel" type="button" data-p="${t.$value.pattern.join(",")}">${ms("vibration")}Feel it</button></td><td>${t.$description}</td></tr>`).join("");
+  $("#hapticBody").innerHTML = Object.entries(strip(T.haptics)).map(([name, t]) => `<tr><td><b>${name}</b></td><td><code>HapticFeedbackType.${t.$value.feedback}</code>${t.$value.envelope ? ` + ${t.$value.envelope} envelope` : ""}</td><td><span class="wave">${wave(t.$value.pattern)}</span></td><td><button class="feel" type="button" data-p="${t.$value.pattern.join(",")}">${ms("vibration")}Feel it</button></td><td>${t.$description}</td></tr>`).join("");
   document.querySelectorAll(".feel").forEach((b) => b.addEventListener("click", () => {
     try { if (navigator.vibrate) navigator.vibrate(b.dataset.p.split(",").map(Number)); } catch (e) { /* vibration unavailable */ }
     b.classList.add("on"); setTimeout(() => b.classList.remove("on"), 400);

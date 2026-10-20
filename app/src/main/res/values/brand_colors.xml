@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launcher icon only (it can't read the Compose theme): Pine and Paper from the design tokens. -->
+    <color name="brand_pine">#2B6A55</color>
+    <color name="brand_paper">#F6FAF7</color>
+</resources>

@@ -43,5 +43,7 @@ include(
     ":observability:posthog",
     ":storage:secrets",
     ":storage:runs",
+    ":design:system",
+    ":app",
     ":dev:cli",
 )
