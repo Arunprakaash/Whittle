@@ -3,6 +3,7 @@ package app.whittle.llm.responses
 import app.whittle.core.model.ContentBlock
 import app.whittle.core.model.TokenUsage
 import app.whittle.core.model.ToolCallId
+import app.whittle.llm.api.HostedTool
 import app.whittle.llm.api.ModelEvent
 import app.whittle.llm.api.StopReason
 import kotlinx.serialization.json.jsonObject
@@ -62,6 +63,25 @@ class ResponsesStreamParserTest {
     fun `failed response and error events become failures`() {
         assertIs<ModelEvent.Failed>(parser.onData("""{"type":"response.failed","response":{"error":{"message":"overloaded"}}}""").single())
         assertIs<ModelEvent.Failed>(parser.onData("""{"type":"error","message":"bad request"}""").single())
+    }
+
+    @Test
+    fun `hosted web search is reported as it starts and with what it did`() {
+        val events = listOf(
+            """{"type":"response.output_item.added","item":{"id":"ws_1","type":"web_search_call","status":"in_progress"}}""",
+            """{"type":"response.output_item.done","item":{"id":"ws_1","type":"web_search_call","status":"completed","action":{"type":"search","queries":["Chennai weather today"],"query":"Chennai weather today"}}}""",
+            """{"type":"response.output_item.done","item":{"id":"ws_2","type":"web_search_call","status":"completed","action":{"type":"open_page","url":"https://example.com/forecast"}}}""",
+            """{"type":"response.output_item.done","item":{"id":"ws_3","type":"web_search_call","status":"completed","action":{"type":"search","queries":["only in queries"]}}}""",
+        ).flatMap(parser::onData)
+
+        assertEquals(ModelEvent.HostedToolStarted("ws_1", HostedTool.WEB_SEARCH), events[0])
+        val search = assertIs<ModelEvent.HostedToolFinished>(events[1])
+        assertEquals("search", search.action)
+        assertEquals("Chennai weather today", search.arguments.getValue("query").jsonPrimitive.content)
+        val open = assertIs<ModelEvent.HostedToolFinished>(events[2])
+        assertEquals("open_page", open.action)
+        assertEquals("https://example.com/forecast", open.arguments.getValue("url").jsonPrimitive.content)
+        assertEquals("only in queries", assertIs<ModelEvent.HostedToolFinished>(events[3]).arguments.getValue("query").jsonPrimitive.content)
     }
 
     @Test

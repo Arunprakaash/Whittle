@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.em
 import app.whittle.design.tokens.WhittleAgentIndicator
@@ -66,7 +67,8 @@ fun Narration(text: String, streaming: Boolean, modifier: Modifier = Modifier) {
         fontSize = CODE_FONT_SCALE.em,
         background = MaterialTheme.colorScheme.surfaceContainerHigh,
     )
-    val formatted = remember(text, codeStyle) { lightMarkdown(text, codeStyle) }
+    val linkStyle = SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline)
+    val formatted = remember(text, codeStyle, linkStyle) { lightMarkdown(text, codeStyle, linkStyle) }
     val annotated = buildAnnotatedString {
         append(formatted)
         if (streaming) appendInlineContent(STREAMING_DOT_ID, STREAMING_DOT_ALTERNATE_TEXT)

@@ -21,6 +21,26 @@
       "running": "Checking the time",
       "done": "Checked the time"
     },
+    "web_search": {
+      "icon": "search",
+      "running": "Searching the web",
+      "done": "Searched the web"
+    },
+    "web_search.search": {
+      "icon": "search",
+      "running": "Searching for {{query}}",
+      "done": "Searched for {{query}}"
+    },
+    "web_search.open_page": {
+      "icon": "language",
+      "running": "Reading {{url_host}}",
+      "done": "Read {{url_host}}"
+    },
+    "web_search.find_in_page": {
+      "icon": "language",
+      "running": "Looking through {{url_host}}",
+      "done": "Looked through {{url_host}}"
+    },
     "web_fetch": {
       "icon": "language",
       "running": "Reading {{url_host}}",

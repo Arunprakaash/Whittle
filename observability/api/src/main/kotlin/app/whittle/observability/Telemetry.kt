@@ -24,6 +24,7 @@ enum class TelemetryEvent(val wireName: String) {
     DECISION_ANSWERED("decision_answered"),
     RUN_STEERED("run_steered"),
     TOOL_FAILED("tool_failed"),
+    HOSTED_TOOL_USED("hosted_tool_used"),
 }
 
 enum class SpanName(val wireName: String) {

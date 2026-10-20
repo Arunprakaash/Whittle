@@ -17,4 +17,6 @@ data class ModelRequest(
     val tools: List<ToolSpec>,
     val maxOutputTokens: Int,
     val reasoningEffort: ReasoningEffort,
+    /** Provider-run tools to offer; adapters whose format has none ignore this. */
+    val hostedTools: Set<HostedTool> = emptySet(),
 )

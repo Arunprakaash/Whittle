@@ -146,6 +146,8 @@ private fun render(event: RunEvent) {
             "\n[tool] ${event.toolCall.toolName} ${event.toolCall.argumentsJson} → ${event.decision::class.simpleName} " +
                 "(${event.decision.reason::class.simpleName})",
         )
+        is RunEvent.HostedToolStarted -> println("\n[hosted] ${event.tool.toolName} started")
+        is RunEvent.HostedToolFinished -> println("[hosted] ${event.tool.toolName} ${event.action} ${event.arguments}")
         is RunEvent.ToolCallFinished -> println("[tool] result${if (event.result.isError) " (error)" else ""}: ${preview(event.result.content)}")
         is RunEvent.DecisionRequested -> Unit
         is RunEvent.QuestionAnswered -> println("[question] answered: ${event.choice}")

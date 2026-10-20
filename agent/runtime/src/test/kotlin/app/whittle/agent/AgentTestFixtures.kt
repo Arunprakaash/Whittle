@@ -9,6 +9,8 @@ import app.whittle.core.model.ProviderId
 import app.whittle.core.model.TokenUsage
 import app.whittle.core.model.ToolCallId
 import app.whittle.llm.api.ApiFormat
+import app.whittle.llm.api.HostedTool
+import app.whittle.llm.api.HostedToolSupport
 import app.whittle.llm.api.ModelAdapter
 import app.whittle.llm.api.ModelCapabilities
 import app.whittle.llm.api.ModelDescriptor
@@ -43,6 +45,7 @@ internal val testProvider = ProviderDescriptor(
     generationPath = "chat",
     auth = ProviderAuth("Authorization", "Bearer "),
     maxOutputTokensParameter = "max_tokens",
+    hostedTools = listOf(HostedToolSupport(HostedTool.WEB_SEARCH, listOf("*"))),
 )
 
 internal val testCatalog = ProviderCatalog(ProviderCatalog.SCHEMA_VERSION, listOf(testProvider))
@@ -83,6 +86,7 @@ internal val testRules = PolicyRuleSet(
     riskTierDefaults = mapOf(
         RiskTier.READ to DefaultDecision.ALLOW,
         RiskTier.WORKSPACE to DefaultDecision.ALLOW,
+        RiskTier.WEB_READ to DefaultDecision.ALLOW,
         RiskTier.WRITE_LOCAL to DefaultDecision.ALLOW,
         RiskTier.NETWORK_OUT to DefaultDecision.ASK_ONCE,
         RiskTier.SEND_OR_SHARE to DefaultDecision.ASK_EVERY_TIME,
@@ -119,6 +123,7 @@ internal class FakeTool(
     id: String,
     risk: RiskTier,
     private val provenance: Provenance = Provenance.Trusted,
+    personalData: Boolean = false,
     private val behaviour: () -> String = { "ok from $id" },
 ) : Tool {
     var executions = 0
@@ -133,6 +138,7 @@ internal class FakeTool(
         requiredCapabilities = emptySet(),
         consentTextKey = "consent_$id",
         outputProvenance = provenance,
+        exposesPersonalData = personalData,
     )
 
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {

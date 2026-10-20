@@ -19,6 +19,7 @@ import app.whittle.core.model.RunId
 import app.whittle.core.model.TokenUsage
 import app.whittle.llm.api.AssistantTurnAssembler
 import app.whittle.llm.api.CredentialsProvider
+import app.whittle.llm.api.HostedTool
 import app.whittle.llm.api.ModelAdapter
 import app.whittle.llm.api.ModelAdapterRegistry
 import app.whittle.llm.api.ModelDescriptor
@@ -87,7 +88,9 @@ class AgentRunner(
             reasoningEffort = request.reasoningEffort,
             step = 0,
             conversation = Conversation(prompt, request.priorMessages + request.userMessage),
-            tainted = false,
+            // Earlier turns of the chat are still in front of the model, and so is what they brought in.
+            tainted = request.priorMessages.any(Message::carriesUntrustedContent),
+            personalDataRead = request.priorMessages.any(Message::carriesPersonalData),
             preApprovedTools = request.preApprovedTools,
             approvedOnceTools = emptySet(),
             usage = TokenUsage.Zero,
@@ -158,7 +161,11 @@ class AgentRunner(
             }
             val assistant = turn.toMessage()
             checkpoint = persist(
-                checkpoint.copy(conversation = checkpoint.conversation.append(assistant), usage = checkpoint.usage + turn.usage),
+                checkpoint.copy(
+                    conversation = checkpoint.conversation.append(assistant),
+                    usage = checkpoint.usage + turn.usage,
+                    tainted = checkpoint.tainted || assistant.carriesUntrustedContent(),
+                ),
             ).getOrElse {
                 stepSpan.end(SpanStatus.ERROR)
                 return fail(checkpoint, it)
@@ -203,12 +210,21 @@ class AgentRunner(
             tools = tools.definitions.map { ToolSpec(it.id.value, it.description, it.inputSchema) },
             maxOutputTokens = limits.maxOutputTokensPerStep,
             reasoningEffort = checkpoint.reasoningEffort,
+            hostedTools = allowedHostedTools(checkpoint, connection.provider),
         )
         val assembler = AssistantTurnAssembler()
         val startedAt = clock.nowMillis()
         connection.adapter.stream(request, connection.provider, connection.apiKey).collect { event ->
             assembler.accept(event)
-            if (event is ModelEvent.TextDelta) emit(RunEvent.AssistantTextDelta(event.text))
+            when (event) {
+                is ModelEvent.TextDelta -> emit(RunEvent.AssistantTextDelta(event.text))
+                is ModelEvent.HostedToolStarted -> emit(RunEvent.HostedToolStarted(event.callId, event.tool))
+                is ModelEvent.HostedToolFinished -> {
+                    telemetry.event(TelemetryEvent.HOSTED_TOOL_USED, hostedToolAttributes(checkpoint, event))
+                    emit(RunEvent.HostedToolFinished(event.callId, event.tool, event.action, event.arguments))
+                }
+                else -> Unit
+            }
         }
         telemetry.generation(
             GenerationRecord(
@@ -223,6 +239,12 @@ class AgentRunner(
         )
         return assembler
     }
+
+    /** Provider-run tools can't wait for a decision, so they are offered only on steps where policy allows them. */
+    private fun allowedHostedTools(checkpoint: RunCheckpoint, provider: ProviderDescriptor): Set<HostedTool> =
+        provider.hostedToolsFor(checkpoint.model.id).filterTo(mutableSetOf()) { tool ->
+            policy.evaluate(HostedToolDefinitions.of(tool), checkpoint.runContext()) is PolicyDecision.Allow
+        }
 
     /** On resume: report an in-flight tool call as interrupted, then finish the step's remaining calls. */
     private suspend fun FlowCollector<RunEvent>.finishInterruptedStep(
@@ -379,6 +401,7 @@ class AgentRunner(
                 inFlightDecision = null,
                 conversation = journaled.conversation.withUserContent(ContentBlock.Text(note)),
                 tainted = journaled.tainted || (missing == null && provenance is Provenance.Untrusted),
+                personalDataRead = journaled.personalDataRead || (missing == null && !output.isError && tool.definition.exposesPersonalData),
                 requestedCapabilities = journaled.requestedCapabilities + listOfNotNull(missing),
             ),
         )
@@ -456,7 +479,13 @@ class AgentRunner(
             val result = errorResult(call, messages.capabilityMissing(call.toolName, missing.value))
             return recordResult(journaled.copy(inFlightToolCall = null, requestedCapabilities = journaled.requestedCapabilities + missing), result)
         }
-        val result = ContentBlock.ToolResult(call.id, truncate(output.content), output.isError, output.provenance)
+        val result = ContentBlock.ToolResult(
+            toolCallId = call.id,
+            content = truncate(output.content),
+            isError = output.isError,
+            provenance = output.provenance,
+            personalData = !output.isError && tool.definition.exposesPersonalData,
+        )
         return recordResult(journaled.copy(inFlightToolCall = null), result)
     }
 
@@ -483,6 +512,7 @@ class AgentRunner(
             checkpoint.copy(
                 stepResults = checkpoint.stepResults + result,
                 tainted = checkpoint.tainted || result.provenance is Provenance.Untrusted,
+                personalDataRead = checkpoint.personalDataRead || result.personalData,
             ),
         )
     }
@@ -556,6 +586,12 @@ class AgentRunner(
         metadata(AttributeKeys.TOOL_ID, tool.definition.id.value)
         metadata(AttributeKeys.RISK_TIER, tool.definition.riskTier.name)
         metadata(AttributeKeys.EXECUTION_SITE, tool.definition.executionSite.name)
+    }
+
+    private fun hostedToolAttributes(checkpoint: RunCheckpoint, event: ModelEvent.HostedToolFinished) = Attributes.of {
+        metadata(AttributeKeys.RUN_ID, checkpoint.runId.value)
+        metadata(AttributeKeys.TOOL_ID, event.tool.toolName)
+        metadata(AttributeKeys.EXECUTION_SITE, HostedToolDefinitions.of(event.tool).executionSite.name)
     }
 
     private fun decisionAttributes(checkpoint: RunCheckpoint, tool: Tool, decision: PolicyDecision) =

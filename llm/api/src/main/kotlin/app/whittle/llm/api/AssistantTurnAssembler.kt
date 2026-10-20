@@ -13,6 +13,7 @@ class AssistantTurnAssembler {
     private val reasoning = StringBuilder()
     private val reasoningStates = mutableListOf<JsonElement>()
     private val toolCalls = mutableListOf<ContentBlock.ToolCall>()
+    private val hostedToolUses = mutableListOf<ContentBlock.HostedToolUse>()
 
     var usage: TokenUsage = TokenUsage.Zero
         private set
@@ -27,6 +28,12 @@ class AssistantTurnAssembler {
             is ModelEvent.ReasoningDelta -> reasoning.append(event.text)
             is ModelEvent.ReasoningState -> reasoningStates += event.providerState
             is ModelEvent.ToolCallCompleted -> toolCalls += event.toolCall
+            is ModelEvent.HostedToolStarted -> Unit
+            is ModelEvent.HostedToolFinished -> hostedToolUses += ContentBlock.HostedToolUse(
+                toolName = event.tool.toolName,
+                action = event.action,
+                argumentsJson = event.arguments.toString(),
+            )
             is ModelEvent.Usage -> usage += event.usage
             is ModelEvent.Completed -> stopReason = event.stopReason
             is ModelEvent.Failed -> failure = event.error
@@ -36,6 +43,7 @@ class AssistantTurnAssembler {
     fun toMessage(): Message {
         val content = buildList {
             addAll(reasoningBlocks())
+            addAll(hostedToolUses)
             if (text.isNotEmpty()) add(ContentBlock.Text(text.toString()))
             addAll(toolCalls)
         }

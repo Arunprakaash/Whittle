@@ -57,7 +57,13 @@ data class ProviderDescriptor(
     val reasoning: ReasoningWireConfig? = null,
     /** Capabilities for models whose provider doesn't report them; first matching pattern wins. */
     val capabilityOverrides: List<ModelCapabilityOverride> = emptyList(),
+    /** Tools this provider runs itself, such as web search, and the models that support them. */
+    val hostedTools: List<HostedToolSupport> = emptyList(),
 ) {
+    fun hostedToolsFor(modelId: ModelId): Set<HostedTool> =
+        hostedTools.filter { support -> support.modelIdPatterns.any { GlobPattern(it).matches(modelId.value) } }
+            .mapTo(mutableSetOf()) { it.tool }
+
     fun capabilitiesFor(modelId: ModelId): ModelCapabilities? =
         capabilityOverrides.firstOrNull { GlobPattern(it.modelIdPattern).matches(modelId.value) }?.capabilities
 

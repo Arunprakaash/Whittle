@@ -19,6 +19,7 @@ class RuleBasedPolicyEngineTest {
         riskTierDefaults = mapOf(
             RiskTier.READ to DefaultDecision.ALLOW,
             RiskTier.WORKSPACE to DefaultDecision.ALLOW,
+            RiskTier.WEB_READ to DefaultDecision.ALLOW,
             RiskTier.WRITE_LOCAL to DefaultDecision.ALLOW,
             RiskTier.NETWORK_OUT to DefaultDecision.ASK_ONCE,
             RiskTier.SEND_OR_SHARE to DefaultDecision.ASK_EVERY_TIME,
@@ -73,6 +74,21 @@ class RuleBasedPolicyEngineTest {
     }
 
     @Test
+    fun `web reads run without asking, even for a tier C model on a tainted run`() {
+        assertIs<PolicyDecision.Allow>(engine.evaluate(tool("web_search", RiskTier.WEB_READ), context(tier = TrustTier.C)))
+        assertIs<PolicyDecision.Allow>(engine.evaluate(tool("web_search", RiskTier.WEB_READ), context(tier = TrustTier.C, tainted = true)))
+        assertIs<PolicyDecision.Allow>(engine.evaluate(tool("web_search", RiskTier.WEB_READ), context(tier = TrustTier.C, personalData = true)))
+    }
+
+    @Test
+    fun `web reads ask once untrusted content and personal data are both in the run`() {
+        val decision = engine.evaluate(tool("web_search", RiskTier.WEB_READ), context(tainted = true, personalData = true))
+        val ask = assertIs<PolicyDecision.Ask>(decision)
+        assertEquals(DecisionReason.TaintedWebReadWithPersonalData, ask.reason)
+        assertEquals(ApprovalScope.EVERY_CALL, ask.scope)
+    }
+
+    @Test
     fun `tier C model is denied send tools`() {
         val decision = engine.evaluate(tool("share.text", RiskTier.SEND_OR_SHARE), context(tier = TrustTier.C))
         assertIs<DecisionReason.TrustTierDenied>(assertIs<PolicyDecision.Deny>(decision).reason)
@@ -115,5 +131,6 @@ class RuleBasedPolicyEngineTest {
         tier: TrustTier = TrustTier.A,
         preApproved: Set<ToolId> = emptySet(),
         approvedOnce: Set<ToolId> = emptySet(),
-    ) = RunContext(mode, tainted, tier, preApproved, approvedOnce)
+        personalData: Boolean = false,
+    ) = RunContext(mode, tainted, tier, preApproved, approvedOnce, personalData)
 }

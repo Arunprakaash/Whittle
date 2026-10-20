@@ -133,6 +133,7 @@ class CalendarEventsTool(private val context: Context, private val clock: EpochC
             requiredCapabilities = setOf(AndroidCapabilities.CALENDAR),
             consentTextKey = "consent_calendar_events",
             outputProvenance = PROVENANCE,
+            exposesPersonalData = true,
         )
     }
 }

@@ -31,6 +31,20 @@ sealed interface ContentBlock {
         val content: String,
         val isError: Boolean,
         val provenance: Provenance,
+        /** The output holds the user's personal data, such as contacts or calendar events. */
+        val personalData: Boolean = false,
+    ) : ContentBlock
+
+    /**
+     * A tool the provider ran on its own servers during the turn, such as a web search. Kept as a record
+     * only: it is never sent back to a model, but it tells later turns that web content entered the chat.
+     */
+    @Serializable
+    @SerialName("hosted_tool_use")
+    data class HostedToolUse(
+        val toolName: String,
+        val action: String,
+        val argumentsJson: String,
     ) : ContentBlock
 
     /** Reasoning output plus any opaque state a provider requires to be sent back unchanged. */

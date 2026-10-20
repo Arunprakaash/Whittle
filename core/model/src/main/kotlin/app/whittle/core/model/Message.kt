@@ -16,6 +16,13 @@ data class Message(
     val text: String
         get() = content.filterIsInstance<ContentBlock.Text>().joinToString(separator = "") { it.text }
 
+    /** Web pages, search results or other outside content came in with this message. */
+    fun carriesUntrustedContent(): Boolean = content.any {
+        (it is ContentBlock.ToolResult && it.provenance is Provenance.Untrusted) || it is ContentBlock.HostedToolUse
+    }
+
+    fun carriesPersonalData(): Boolean = content.any { it is ContentBlock.ToolResult && it.personalData }
+
     companion object {
         fun userText(text: String): Message = Message(Role.USER, listOf(ContentBlock.Text(text)))
     }

@@ -24,6 +24,12 @@ enum class RiskTier {
 
     /** Changes only the chat's own workspace inside Whittle; nothing else on the phone is touched. */
     WORKSPACE,
+
+    /**
+     * Reads public web content: a search, or an https page. Only a query or an address leaves the phone,
+     * so it runs without asking, except where that address could carry personal data (see the policy engine).
+     */
+    WEB_READ,
     WRITE_LOCAL,
     NETWORK_OUT,
     SEND_OR_SHARE,
@@ -49,4 +55,6 @@ data class ToolDefinition(
     val consentTextKey: String,
     /** Whether this tool's output comes from outside the phone and must be treated as untrusted. */
     val outputProvenance: Provenance,
+    /** Whether the output holds the user's personal data (contacts, calendar, ...). */
+    val exposesPersonalData: Boolean = false,
 )

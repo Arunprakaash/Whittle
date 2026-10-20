@@ -4,6 +4,7 @@ import app.whittle.core.common.HarnessError
 import app.whittle.core.model.ContentBlock
 import app.whittle.core.model.Message
 import app.whittle.core.model.TokenUsage
+import app.whittle.llm.api.HostedTool
 import app.whittle.policy.PolicyDecision
 import app.whittle.core.model.ToolCallId
 import app.whittle.tools.api.CapabilityId
@@ -20,6 +21,17 @@ sealed interface RunEvent {
     data class ToolCallDecided(val toolCall: ContentBlock.ToolCall, val decision: PolicyDecision) : RunEvent
 
     data class ToolCallFinished(val result: ContentBlock.ToolResult) : RunEvent
+
+    /** The provider started one of its own tools, such as a web search. Policy already allowed it. */
+    data class HostedToolStarted(val callId: String, val tool: HostedTool) : RunEvent
+
+    /** The provider finished a hosted tool call; [action] and [arguments] say what it did. */
+    data class HostedToolFinished(
+        val callId: String,
+        val tool: HostedTool,
+        val action: String,
+        val arguments: JsonObject,
+    ) : RunEvent
 
     /** A call was parked for the user's choice. The run keeps going; show it as an inline card. */
     data class DecisionRequested(

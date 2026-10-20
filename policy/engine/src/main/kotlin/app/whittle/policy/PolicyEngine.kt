@@ -15,6 +15,8 @@ data class RunContext(
     val preApprovedTools: Set<ToolId>,
     /** Tools the user already allowed once in this run ("ask once" tier). */
     val approvedOnceTools: Set<ToolId>,
+    /** True once a tool returned the user's personal data (contacts, calendar, ...) in this conversation. */
+    val personalDataRead: Boolean = false,
 )
 
 @Serializable
@@ -45,6 +47,9 @@ sealed interface DecisionReason {
     data object UnattendedNotPreApproved : DecisionReason
 
     data object TaintedOutbound : DecisionReason
+
+    /** Untrusted content could steer a web address that carries personal data off the phone. */
+    data object TaintedWebReadWithPersonalData : DecisionReason
 
     data class TrustTierDenied(val tier: TrustTier) : DecisionReason
 

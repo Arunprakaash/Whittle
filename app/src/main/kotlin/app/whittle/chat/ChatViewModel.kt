@@ -327,6 +327,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             is RunEvent.AssistantTextDelta -> appendNarration(event.text)
             is RunEvent.ToolCallDecided -> onToolCallDecided(event)
             is RunEvent.ToolCallFinished -> onToolCallFinished(event)
+            is RunEvent.HostedToolStarted -> onHostedToolStarted(event)
+            is RunEvent.HostedToolFinished -> onHostedToolFinished(event)
             is RunEvent.DecisionRequested -> onDecisionRequested(event)
             is RunEvent.DecisionResolved, is RunEvent.QuestionAnswered -> Unit // The card already shows the user's choice.
             is RunEvent.CapabilityRequested -> onCapabilityRequested(event)
@@ -369,6 +371,22 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             }
         }
         if (!event.result.isError) _haptics.tryEmit(WhittleHaptic.StepDone)
+    }
+
+    /** Provider-run tools, like web search, show as steps like any other. Policy allowed them before the model call. */
+    private fun onHostedToolStarted(event: RunEvent.HostedToolStarted) {
+        val text = graph.presenter.step(event.tool.toolName, EMPTY_ARGUMENTS)
+        addStep(StepModel(event.callId, text.icon, text.running, StepState.Running))
+        setStatus(AgentState.Acting, text.running)
+    }
+
+    private fun onHostedToolFinished(event: RunEvent.HostedToolFinished) {
+        // Each action (search, open a page, ...) has its own wording, keyed "<tool>.<action>".
+        val text = graph.presenter.step("${event.tool.toolName}$HOSTED_ACTION_SEPARATOR${event.action}", event.arguments)
+        val done = StepModel(event.callId, text.icon, text.done, StepState.Done, inspection(event.arguments, result = ""))
+        val shown = _state.value.items.any { item -> item is ThreadItem.Steps && item.steps.any { it.id == event.callId } }
+        if (shown) updateStep(event.callId) { done } else addStep(done)
+        _haptics.tryEmit(WhittleHaptic.StepDone)
     }
 
     private fun onDecisionRequested(event: RunEvent.DecisionRequested) {
@@ -576,6 +594,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         const val MILLIS_PER_SECOND = 1000L
         val KEY_REJECTED_CODES = setOf(401, 403)
         val EMPTY_ARGUMENTS = JsonObject(emptyMap())
+        const val HOSTED_ACTION_SEPARATOR = "."
         const val SAVE_DEBOUNCE_MILLIS = 400L
         const val INSPECTION_MAX_CHARS = 4_000
         const val TITLE_MAX_CHARS = 80

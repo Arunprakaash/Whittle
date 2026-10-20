@@ -54,6 +54,8 @@ data class RunCheckpoint(
     /** Capabilities a tool needed that the user hasn't granted yet; each shows a card in the thread. */
     val requestedCapabilities: Set<CapabilityId> = emptySet(),
     val workspace: WorkspaceId? = null,
+    /** True once a tool returned the user's personal data; with [tainted] it gates web reads. */
+    val personalDataRead: Boolean = false,
 ) {
     fun runContext(): RunContext = RunContext(
         mode = mode,
@@ -61,6 +63,7 @@ data class RunCheckpoint(
         modelTrustTier = model.trustTier,
         preApprovedTools = preApprovedTools,
         approvedOnceTools = approvedOnceTools,
+        personalDataRead = personalDataRead,
     )
 }
 

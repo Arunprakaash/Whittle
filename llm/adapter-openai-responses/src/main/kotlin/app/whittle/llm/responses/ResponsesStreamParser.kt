@@ -4,16 +4,20 @@ import app.whittle.core.common.HarnessError
 import app.whittle.core.model.ContentBlock
 import app.whittle.core.model.TokenUsage
 import app.whittle.core.model.ToolCallId
+import app.whittle.llm.api.HostedTool
 import app.whittle.llm.api.ModelEvent
 import app.whittle.llm.api.StopReason
 import app.whittle.llm.http.StreamEventParser
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /** Turns Responses API stream events into canonical [ModelEvent]s. */
 internal class ResponsesStreamParser : StreamEventParser {
@@ -33,6 +37,7 @@ internal class ResponsesStreamParser : StreamEventParser {
         return when (event.string(Field.TYPE)) {
             EventType.OUTPUT_TEXT_DELTA -> listOfNotNull(event.string(Field.DELTA)?.let(ModelEvent::TextDelta))
             EventType.REASONING_SUMMARY_DELTA -> listOfNotNull(event.string(Field.DELTA)?.let(ModelEvent::ReasoningDelta))
+            EventType.OUTPUT_ITEM_ADDED -> onItemAdded(event.obj(Field.ITEM))
             EventType.OUTPUT_ITEM_DONE -> onItemDone(event.obj(Field.ITEM))
             EventType.COMPLETED -> onFinished(event.obj(Field.RESPONSE), incomplete = false)
             EventType.INCOMPLETE -> onFinished(event.obj(Field.RESPONSE), incomplete = true)
@@ -49,6 +54,29 @@ internal class ResponsesStreamParser : StreamEventParser {
             ModelEvent.Completed(stopReason ?: if (sawToolCall) StopReason.TOOL_USE else StopReason.OTHER)
     }
 
+    private fun onItemAdded(item: JsonObject?): List<ModelEvent> {
+        val tool = HostedToolWire.fromItemType(item?.string(Field.TYPE)) ?: return emptyList()
+        return listOf(ModelEvent.HostedToolStarted(item?.string(Field.ID).orEmpty(), tool))
+    }
+
+    /** What a hosted call did, as plain arguments: the query it searched, or the page it opened. */
+    private fun hostedToolFinished(item: JsonObject, tool: HostedTool): ModelEvent.HostedToolFinished {
+        val action = item.obj(Field.ACTION)
+        val query = action?.string(Field.QUERY)
+            ?: (action?.get(Field.QUERIES) as? JsonArray)?.firstNotNullOfOrNull { (it as? JsonPrimitive)?.contentOrNull }
+        val arguments = buildJsonObject {
+            query?.let { put(Field.QUERY, it) }
+            action?.string(Field.URL)?.let { put(Field.URL, it) }
+            action?.string(Field.PATTERN)?.let { put(Field.PATTERN, it) }
+        }
+        return ModelEvent.HostedToolFinished(
+            callId = item.string(Field.ID).orEmpty(),
+            tool = tool,
+            action = action?.string(Field.TYPE) ?: UNKNOWN_ACTION,
+            arguments = arguments,
+        )
+    }
+
     private fun onItemDone(item: JsonObject?): List<ModelEvent> = when (item?.string(Field.TYPE)) {
         ItemType.FUNCTION_CALL -> {
             sawToolCall = true
@@ -63,7 +91,7 @@ internal class ResponsesStreamParser : StreamEventParser {
             )
         }
         ItemType.REASONING -> listOf(ModelEvent.ReasoningState(ReasoningStateCodec.wrap(item)))
-        else -> emptyList()
+        else -> item?.let { done -> HostedToolWire.fromItemType(done.string(Field.TYPE))?.let { listOf(hostedToolFinished(done, it)) } }.orEmpty()
     }
 
     private fun onFinished(response: JsonObject?, incomplete: Boolean): List<ModelEvent> {
@@ -108,6 +136,7 @@ internal class ResponsesStreamParser : StreamEventParser {
 
     private companion object {
         const val EMPTY_ARGUMENTS = "{}"
+        const val UNKNOWN_ACTION = "unknown"
         const val UNKNOWN_ERROR = "Unknown provider error"
 
         /** Errors reported inside an HTTP 200 stream have no status code of their own. */

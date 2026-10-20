@@ -1,5 +1,6 @@
 package app.whittle.llm.responses
 
+import app.whittle.llm.api.HostedTool
 import kotlinx.serialization.json.Json
 
 // Wire vocabulary of the OpenAI Responses API (POST /v1/responses with stream=true).
@@ -10,6 +11,21 @@ internal object ItemType {
     const val FUNCTION_CALL_OUTPUT = "function_call_output"
     const val REASONING = "reasoning"
     const val FUNCTION = "function"
+}
+
+/** Responses names for the tools OpenAI runs itself: the request tool type and the output item type. */
+internal object HostedToolWire {
+    private const val WEB_SEARCH = "web_search"
+    private const val WEB_SEARCH_CALL = "web_search_call"
+
+    fun requestType(tool: HostedTool): String = when (tool) {
+        HostedTool.WEB_SEARCH -> WEB_SEARCH
+    }
+
+    fun fromItemType(itemType: String?): HostedTool? = when (itemType) {
+        WEB_SEARCH_CALL -> HostedTool.WEB_SEARCH
+        else -> null
+    }
 }
 
 internal object ContentType {
@@ -26,6 +42,7 @@ internal object WireRole {
 internal object EventType {
     const val OUTPUT_TEXT_DELTA = "response.output_text.delta"
     const val REASONING_SUMMARY_DELTA = "response.reasoning_summary_text.delta"
+    const val OUTPUT_ITEM_ADDED = "response.output_item.added"
     const val OUTPUT_ITEM_DONE = "response.output_item.done"
     const val COMPLETED = "response.completed"
     const val INCOMPLETE = "response.incomplete"
@@ -69,6 +86,11 @@ internal object Field {
     const val ID = "id"
     const val ENCRYPTED_CONTENT = "encrypted_content"
     const val SUMMARY = "summary"
+    const val ACTION = "action"
+    const val QUERY = "query"
+    const val QUERIES = "queries"
+    const val URL = "url"
+    const val PATTERN = "pattern"
 }
 
 /** Ask for encrypted reasoning so it can be sent back on the next request without server-side storage. */

@@ -42,6 +42,15 @@
         "valuePrefix": "Bearer "
       },
       "maxOutputTokensParameter": "max_output_tokens",
+      "hostedTools": [
+        {
+          "tool": "WEB_SEARCH",
+          "modelIdPatterns": [
+            "gpt-5*",
+            "gpt-6*"
+          ]
+        }
+      ],
       "reasoning": {
         "effortFieldPath": [
           "reasoning",

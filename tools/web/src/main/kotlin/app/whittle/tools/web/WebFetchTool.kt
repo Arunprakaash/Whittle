@@ -20,8 +20,8 @@ import okhttp3.Request
 import java.io.IOException
 
 /**
- * Outbound tool: fetches a web page over https. Its output is untrusted, so it taints the run and
- * later outbound calls need the user's choice again.
+ * Reads a public web page over https without asking. Its output is untrusted, so it taints the run:
+ * later outbound calls need the user's choice, and so do web reads once personal data is in the run.
  */
 class WebFetchTool(private val httpClient: OkHttpClient) : Tool {
     override val definition = DEFINITION
@@ -50,7 +50,7 @@ class WebFetchTool(private val httpClient: OkHttpClient) : Tool {
             inputSchema = Json.parseToJsonElement(
                 """{"type":"object","properties":{"url":{"type":"string","description":"https URL"}},"required":["url"]}""",
             ).jsonObject,
-            riskTier = RiskTier.NETWORK_OUT,
+            riskTier = RiskTier.WEB_READ,
             executionSite = ExecutionSite.DEVICE,
             requiredCapabilities = emptySet(),
             consentTextKey = "consent_web_fetch",

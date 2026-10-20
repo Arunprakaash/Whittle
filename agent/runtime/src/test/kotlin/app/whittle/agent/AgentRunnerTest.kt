@@ -14,6 +14,7 @@ import app.whittle.core.model.Role
 import app.whittle.core.model.RunId
 import app.whittle.core.model.TokenUsage
 import app.whittle.core.model.ToolCallId
+import app.whittle.llm.api.HostedTool
 import app.whittle.llm.api.ModelAdapterRegistry
 import app.whittle.llm.api.ModelEvent
 import app.whittle.llm.api.ReasoningEffort
@@ -27,6 +28,8 @@ import app.whittle.tools.api.ToolRegistry
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -69,6 +72,63 @@ class AgentRunnerTest {
         assertIs<RunEvent.Completed>(events.last())
         val toolResult = adapter.requests[1].messages.last().content.single() as ContentBlock.ToolResult
         assertEquals("ok from time.now", toolResult.content)
+    }
+
+    @Test
+    fun `hosted web search is offered, shown as it runs, and marks the run as having read the web`() = runTest {
+        val searchTurn = listOf(
+            ModelEvent.HostedToolStarted("ws_1", HostedTool.WEB_SEARCH),
+            ModelEvent.HostedToolFinished("ws_1", HostedTool.WEB_SEARCH, "search", buildJsonObject { put("query", "weather") }),
+        ) + textTurn("Sunny.")
+        val adapter = ScriptedAdapter(listOf(searchTurn))
+
+        val events = runner(adapter).start(request()).toList()
+
+        assertEquals(setOf(HostedTool.WEB_SEARCH), adapter.requests.single().hostedTools)
+        assertEquals("ws_1", events.filterIsInstance<RunEvent.HostedToolStarted>().single().callId)
+        assertEquals("search", events.filterIsInstance<RunEvent.HostedToolFinished>().single().action)
+        val saved = savedCheckpoint()
+        assertTrue(saved.tainted)
+        val use = saved.conversation.messages.last().content.filterIsInstance<ContentBlock.HostedToolUse>().single()
+        assertEquals("web_search", use.toolName)
+    }
+
+    @Test
+    fun `web reads run without asking until untrusted content and personal data are both in the run`() = runTest {
+        val contacts = FakeTool("contacts", RiskTier.READ, personalData = true)
+        val page = FakeTool("page", RiskTier.WEB_READ, Provenance.Untrusted("web page"))
+        val adapter = ScriptedAdapter(
+            listOf(toolTurn(call("c1", "page")), toolTurn(call("c2", "contacts")), toolTurn(call("c3", "page")), textTurn("Done.")),
+        )
+
+        val events = runner(adapter, setOf(contacts, page)).start(request()).toList()
+
+        assertEquals(1, page.executions)
+        assertEquals("c3", events.filterIsInstance<RunEvent.DecisionRequested>().single().decision.toolCall.id.value)
+        assertEquals(listOf(true, true, false, false), adapter.requests.map { HostedTool.WEB_SEARCH in it.hostedTools })
+        assertTrue(savedCheckpoint().personalDataRead)
+    }
+
+    @Test
+    fun `a follow-up keeps what earlier turns of the chat brought in`() = runTest {
+        val adapter = ScriptedAdapter(listOf(textTurn("Sure.")))
+        val earlier = listOf(
+            Message.userText("Find Asha and read this page"),
+            Message(Role.ASSISTANT, listOf(call("c1", "contacts"), call("c2", "page"))),
+            Message(
+                Role.USER,
+                listOf(
+                    ContentBlock.ToolResult(ToolCallId("c1"), "Asha 98400", isError = false, provenance = Provenance.Trusted, personalData = true),
+                    ContentBlock.ToolResult(ToolCallId("c2"), "<html>", isError = false, provenance = Provenance.Untrusted("web page")),
+                ),
+            ),
+        )
+
+        runner(adapter).start(request().copy(priorMessages = earlier)).toList()
+
+        assertEquals(emptySet(), adapter.requests.single().hostedTools)
+        val saved = savedCheckpoint()
+        assertTrue(saved.tainted && saved.personalDataRead)
     }
 
     @Test

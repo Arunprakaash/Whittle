@@ -93,6 +93,7 @@ class ContactsSearchTool(private val context: Context) : Tool {
             requiredCapabilities = setOf(AndroidCapabilities.CONTACTS),
             consentTextKey = "consent_contacts_search",
             outputProvenance = PROVENANCE,
+            exposesPersonalData = true,
         )
     }
 }

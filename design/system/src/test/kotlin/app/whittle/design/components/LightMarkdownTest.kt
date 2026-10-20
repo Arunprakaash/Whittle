@@ -1,5 +1,6 @@
 package app.whittle.design.components
 
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -40,5 +41,14 @@ class LightMarkdownTest {
         val result = lightMarkdown("2 * 3 * 4 and device_clock_now", code)
         assertEquals("2 * 3 * 4 and device_clock_now", result.text)
         assertTrue(result.spanStyles.isEmpty())
+    }
+
+    @Test
+    fun `web links become tappable text and other schemes stay literal`() {
+        val result = lightMarkdown("Sunny ([accuweather.com](https://www.accuweather.com/en/in/chennai)) and [x](javascript:alert)", code)
+        assertEquals("Sunny (accuweather.com) and [x](javascript:alert)", result.text)
+        val link = result.getLinkAnnotations(0, result.length).single()
+        assertEquals("https://www.accuweather.com/en/in/chennai", (link.item as LinkAnnotation.Url).url)
+        assertEquals("accuweather.com", result.text.substring(link.start, link.end))
     }
 }

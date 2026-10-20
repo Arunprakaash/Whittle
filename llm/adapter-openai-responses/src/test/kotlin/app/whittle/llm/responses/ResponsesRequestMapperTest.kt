@@ -5,6 +5,8 @@ import app.whittle.core.model.Message
 import app.whittle.core.model.Provenance
 import app.whittle.core.model.Role
 import app.whittle.core.model.ToolCallId
+import app.whittle.llm.api.HostedTool
+import app.whittle.llm.api.HostedToolSupport
 import app.whittle.llm.api.ModelRequest
 import app.whittle.llm.api.ReasoningEffort
 import app.whittle.llm.api.ToolSpec
@@ -47,6 +49,27 @@ class ResponsesRequestMapperTest {
         assertEquals(512, body.getValue("max_output_tokens").jsonPrimitive.int)
         assertEquals("System", body.getValue("instructions").jsonPrimitive.content)
         assertEquals("function", body.getValue("tools").jsonArray.single().jsonObject.type())
+    }
+
+    @Test
+    fun `hosted web search is offered only when asked for and the model supports it`() {
+        val searching = request(ReasoningEffort.LOW).copy(hostedTools = setOf(HostedTool.WEB_SEARCH))
+        val supported = responsesProvider().copy(hostedTools = listOf(HostedToolSupport(HostedTool.WEB_SEARCH, listOf("*"))))
+        val unsupported = responsesProvider().copy(hostedTools = listOf(HostedToolSupport(HostedTool.WEB_SEARCH, listOf("other-*"))))
+
+        assertEquals(listOf("function", "web_search"), mapper.map(searching, supported).getValue("tools").jsonArray.map { it.jsonObject.type() })
+        assertEquals(listOf("function"), mapper.map(searching, unsupported).getValue("tools").jsonArray.map { it.jsonObject.type() })
+        assertEquals(listOf("function"), mapper.map(request(ReasoningEffort.LOW), supported).getValue("tools").jsonArray.map { it.jsonObject.type() })
+    }
+
+    @Test
+    fun `a recorded hosted search is not sent back`() {
+        val searched = Message(
+            Role.ASSISTANT,
+            listOf(ContentBlock.HostedToolUse("web_search", "search", """{"query":"weather"}"""), ContentBlock.Text("Sunny.")),
+        )
+        val body = mapper.map(request(ReasoningEffort.LOW).copy(messages = listOf(Message.userText("Weather?"), searched)), responsesProvider())
+        assertEquals(listOf("message", "message"), body.getValue("input").jsonArray.map { it.jsonObject.type() })
     }
 
     @Test

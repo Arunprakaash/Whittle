@@ -1,18 +1,23 @@
 package app.whittle.design.components
 
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 
 /**
- * The light formatting models use in prose: **bold**, *italic*, `code`, bullet and numbered lists,
+ * The light formatting models use in prose: **bold**, *italic*, `code`, [links](https://…) (tappable,
+ * in [link] style; web search answers cite their sources this way), bullet and numbered lists,
  * headings (shown as bold lines) and code fences (shown in [code] style without the fences).
  * Anything else, including an unclosed marker mid-stream, stays literal text.
  */
-fun lightMarkdown(text: String, code: SpanStyle): AnnotatedString = buildAnnotatedString {
+fun lightMarkdown(text: String, code: SpanStyle, link: SpanStyle = SpanStyle()): AnnotatedString = buildAnnotatedString {
+    val inline = InlineStyles(code, link)
     var inFence = false
     var firstLine = true
     for (line in text.split('\n')) {
@@ -23,7 +28,7 @@ fun lightMarkdown(text: String, code: SpanStyle): AnnotatedString = buildAnnotat
         if (!firstLine) append('\n')
         firstLine = false
         if (inFence) {
-            withStyle(code) { append(line) }
+            withStyle(inline.code) { append(line) }
             continue
         }
         val bullet = BULLET.matchEntire(line)
@@ -33,32 +38,41 @@ fun lightMarkdown(text: String, code: SpanStyle): AnnotatedString = buildAnnotat
             bullet != null -> {
                 append(bullet.groupValues[1])
                 append(BULLET_MARK)
-                appendInline(bullet.groupValues[2], code)
+                appendInline(bullet.groupValues[2], inline)
             }
             numbered != null -> {
                 append(numbered.groupValues[1])
                 append(numbered.groupValues[2])
                 append(NUMBER_SEPARATOR)
-                appendInline(numbered.groupValues[3], code)
+                appendInline(numbered.groupValues[3], inline)
             }
-            heading != null -> withStyle(EMPHASIS) { appendInline(heading.groupValues[1], code) }
-            else -> appendInline(line, code)
+            heading != null -> withStyle(EMPHASIS) { appendInline(heading.groupValues[1], inline) }
+            else -> appendInline(line, inline)
         }
     }
 }
 
-private fun AnnotatedString.Builder.appendInline(text: String, code: SpanStyle) {
+private class InlineStyles(val code: SpanStyle, val link: SpanStyle)
+
+private fun AnnotatedString.Builder.appendInline(text: String, styles: InlineStyles) {
     var index = 0
     while (index < text.length) {
+        val link = LINK.matchAt(text, index)
+        if (link != null) {
+            val (label, url) = link.destructured
+            withLink(LinkAnnotation.Url(url, TextLinkStyles(styles.link))) { appendInline(label, styles) }
+            index = link.range.last + 1
+            continue
+        }
         val span = InlineSpan.entries.firstOrNull { text.startsWith(it.marker, index) }
         val contentStart = index + (span?.marker?.length ?: 0)
         val end = span?.let { text.indexOf(it.marker, contentStart) } ?: -1
         val content = if (span != null && end > contentStart) text.substring(contentStart, end) else null
         if (span != null && content != null && span.accepts(content)) {
             when (span) {
-                InlineSpan.Code -> withStyle(code) { append(content) }
-                InlineSpan.Bold, InlineSpan.BoldUnderscore -> withStyle(EMPHASIS) { appendInline(content, code) }
-                InlineSpan.Italic -> withStyle(ITALIC) { appendInline(content, code) }
+                InlineSpan.Code -> withStyle(styles.code) { append(content) }
+                InlineSpan.Bold, InlineSpan.BoldUnderscore -> withStyle(EMPHASIS) { appendInline(content, styles) }
+                InlineSpan.Italic -> withStyle(ITALIC) { appendInline(content, styles) }
             }
             index = end + span.marker.length
         } else {
@@ -88,3 +102,6 @@ private val FENCE = Regex("""^\s*```.*$""")
 private val BULLET = Regex("""^(\s*)[-*+]\s+(.*)$""")
 private val NUMBERED = Regex("""^(\s*)(\d+)[.)]\s+(.*)$""")
 private val HEADING = Regex("""^#{1,6}\s+(.*)$""")
+
+/** Only web links open; any other scheme stays literal text. */
+private val LINK = Regex("""\[([^\]\n]+)\]\((https?://[^)\s]+)\)""")

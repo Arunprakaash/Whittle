@@ -1,12 +1,13 @@
 package app.whittle.policy
 
+import app.whittle.tools.api.RiskTier
 import app.whittle.tools.api.ToolDefinition
 
 /**
  * Deterministic policy, independent of the model. Fixed order:
- * 1. hard denylist  2. deny rules  3. model trust tier denials  4. tainted run + outbound tool
- * 5. unattended runs (pre-approved tools only)  6. trust tier approval threshold  7. ask rules
- * 8. allow rules  9. risk-tier default.
+ * 1. hard denylist  2. deny rules  3. model trust tier denials  4. tainted run + outbound tool, or
+ * tainted run + personal data + web read  5. unattended runs (pre-approved tools only)
+ * 6. trust tier approval threshold  7. ask rules  8. allow rules  9. risk-tier default.
  * Deny always wins; nothing later in the order can turn a deny into an allow.
  */
 class RuleBasedPolicyEngine(private val ruleSet: PolicyRuleSet) : PolicyEngine {
@@ -25,6 +26,11 @@ class RuleBasedPolicyEngine(private val ruleSet: PolicyRuleSet) : PolicyEngine {
 
         if (context.tainted && tool.riskTier.isOutbound) {
             return PolicyDecision.Ask(DecisionReason.TaintedOutbound, ApprovalScope.EVERY_CALL)
+        }
+        // A web read sends only an address or a query, but a page that has steered the model could
+        // make that address carry the user's contacts or events. With both present, the user decides.
+        if (context.tainted && context.personalDataRead && tool.riskTier == RiskTier.WEB_READ) {
+            return PolicyDecision.Ask(DecisionReason.TaintedWebReadWithPersonalData, ApprovalScope.EVERY_CALL)
         }
         if (context.mode == RunMode.UNATTENDED) {
             return if (tool.id in context.preApprovedTools) {

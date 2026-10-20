@@ -25,7 +25,8 @@ internal class ResponsesRequestMapper {
             put(Field.MODEL, request.model.id.value)
             put(Field.INSTRUCTIONS, request.systemPrompt)
             put(Field.INPUT, JsonArray(request.messages.flatMap(::items)))
-            if (request.tools.isNotEmpty() && request.model.capabilities.toolCalling) {
+            val hosted = request.hostedTools.intersect(provider.hostedToolsFor(request.model.id))
+            if ((request.tools.isNotEmpty() || hosted.isNotEmpty()) && request.model.capabilities.toolCalling) {
                 putJsonArray(Field.TOOLS) {
                     request.tools.forEach { tool ->
                         addJsonObject {
@@ -36,6 +37,7 @@ internal class ResponsesRequestMapper {
                             put(Field.STRICT, false)
                         }
                     }
+                    hosted.forEach { tool -> addJsonObject { put(Field.TYPE, HostedToolWire.requestType(tool)) } }
                 }
             }
             put(Field.STREAM, true)
@@ -81,10 +83,13 @@ internal class ResponsesRequestMapper {
             put(Field.TYPE, ContentType.INPUT_IMAGE)
             put(Field.IMAGE_URL, "data:${block.mediaType};base64,${block.base64Data}")
         }
-        is ContentBlock.ToolCall, is ContentBlock.ToolResult, is ContentBlock.Reasoning -> null
+        is ContentBlock.ToolCall, is ContentBlock.ToolResult, is ContentBlock.Reasoning, is ContentBlock.HostedToolUse -> null
     }
 
-    /** Keeps the provider's order: reasoning, then text, then function calls. */
+    /**
+     * Keeps the provider's order: reasoning, then text, then function calls. Hosted tool calls are left out:
+     * with `store` false the provider accepts the conversation without them, and their findings are in the text.
+     */
     private fun assistantItems(message: Message): List<JsonObject> = message.content.mapNotNull { block ->
         when (block) {
             is ContentBlock.Reasoning -> ReasoningStateCodec.unwrap(block.providerState)
@@ -104,7 +109,7 @@ internal class ResponsesRequestMapper {
                 put(Field.NAME, block.toolName)
                 put(Field.ARGUMENTS, block.argumentsJson)
             }
-            is ContentBlock.Image, is ContentBlock.ToolResult -> null
+            is ContentBlock.Image, is ContentBlock.ToolResult, is ContentBlock.HostedToolUse -> null
         }
     }
 }
