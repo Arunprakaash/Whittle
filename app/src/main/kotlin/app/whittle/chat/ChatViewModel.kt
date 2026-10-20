@@ -603,8 +603,10 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         )
     }
 
+    /** With no step running, the line shows the plan's current step, when there is a plan. */
     private fun setStatus(agentState: AgentState, verb: String?) = _state.update { state ->
-        state.copy(status = state.status?.copy(state = agentState, verb = verb))
+        val planStep = state.status?.plan?.firstOrNull { it.status == PlanStatus.IN_PROGRESS }?.content
+        state.copy(status = state.status?.copy(state = agentState, verb = verb ?: planStep))
     }
 
     private fun append(item: ThreadItem) = _state.update { it.copy(items = it.items + item) }
