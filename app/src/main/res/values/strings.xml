@@ -123,6 +123,16 @@
     <string name="connector_disconnect_body">Whittle forgets its sign-in on this phone. Your %1$s projects and data stay as they are.</string>
     <string name="connector_disconnect">Disconnect</string>
     <string name="connector_cancel">Cancel</string>
+    <string name="connector_needs_token">Needs a token</string>
+    <string name="connector_add">Add a connection</string>
+    <string name="connector_add_name">Name</string>
+    <string name="connector_add_url">Server address (https)</string>
+    <string name="connector_add_action">Add</string>
+    <string name="connector_manage_title">%1$s</string>
+    <string name="connector_manage_body">Remove %1$s? Whittle forgets this server and its sign-in on this phone.</string>
+    <string name="connector_remove">Remove</string>
+    <string name="connector_token_title">Access token for %1$s</string>
+    <string name="connector_token_label">Token</string>
     <string name="connector_failed">Couldn\'t connect: %1$s</string>
     <string name="export_preparing">Making the app… If Play Protect warns about it, choose Install anyway.</string>
     <string name="export_allow">Allow Whittle to install apps, then tap Install again.</string>

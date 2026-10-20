@@ -8,6 +8,13 @@
       "matcher": {
         "toolIdPattern": "compose_message"
       }
+    },
+    {
+      "id": "connections-always-confirm",
+      "effect": "ASK",
+      "matcher": {
+        "toolIdPattern": "add_connection"
+      }
     }
   ],
   "riskTierDefaults": {

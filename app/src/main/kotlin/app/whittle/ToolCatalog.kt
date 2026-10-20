@@ -1,5 +1,7 @@
 package app.whittle
 
+import app.whittle.connectors.Connectors
+import app.whittle.connectors.AddConnectionTool
 import app.whittle.agent.PlanTool
 import android.content.Context
 import app.whittle.agent.AskUserTool
@@ -24,9 +26,17 @@ object ToolCatalog {
         ContactsSearchTool.DEFINITION,
         CalendarEventsTool.DEFINITION,
         ComposeMessageTool.DEFINITION,
+        AddConnectionTool.DEFINITION,
     ) + WorkspaceToolSet.DEFINITIONS
 
-    fun create(context: Context, clock: EpochClock, httpClient: OkHttpClient, workspaceTools: List<Tool>, maxPlanItems: Int): Set<Tool> = (
+    fun create(
+        context: Context,
+        clock: EpochClock,
+        httpClient: OkHttpClient,
+        workspaceTools: List<Tool>,
+        maxPlanItems: Int,
+        connectors: Connectors,
+    ): Set<Tool> = (
         setOf(
             AskUserTool(),
             PlanTool(maxPlanItems),
@@ -35,6 +45,7 @@ object ToolCatalog {
             ContactsSearchTool(context),
             CalendarEventsTool(context, clock),
             ComposeMessageTool(context),
+            AddConnectionTool(context.applicationContext, connectors),
         ) + workspaceTools
         ).also { tools ->
         check(tools.map { it.definition }.toSet() == definitions.toSet()) { "ToolCatalog.definitions is out of step with create()" }

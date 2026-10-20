@@ -65,7 +65,8 @@ class McpConnection(
 
     /** At start-up: the cached tools if the user is signed in, then a fresh list from the server. */
     suspend fun restore() {
-        if (credentials.load()?.tokens == null) return
+        val stored = credentials.load() ?: return
+        if (stored.tokens == null && !stored.open) return
         signedIn = true
         publish(readCache().orEmpty())
         refreshTools()
@@ -74,6 +75,7 @@ class McpConnection(
     /** Returns the page where the user signs in; [complete] finishes once the browser sends them back. */
     suspend fun beginSignIn(): Outcome<String> {
         _state.value = ConnectorState.Connecting
+        if (server.auth != McpAuthMode.OAUTH) return Outcome.Failure(HarnessError.Configuration("${server.name} doesn't sign in with a browser"))
         return when (val started = authorizer.begin(credentials.load()?.client)) {
             is Outcome.Success -> {
                 pending = started.value
@@ -105,6 +107,24 @@ class McpConnection(
         }
     }
 
+    /** Connects a server that takes an access token: kept encrypted on the phone, sent only to this server. */
+    suspend fun connectWithToken(token: String): Outcome<Unit> {
+        credentials.save(McpCredentials(tokens = OAuthTokens(token.trim())))
+        return connected()
+    }
+
+    /** Connects a server without sign-in. */
+    suspend fun connectOpen(): Outcome<Unit> {
+        credentials.save(McpCredentials(open = true))
+        return connected()
+    }
+
+    private suspend fun connected(): Outcome<Unit> {
+        signedIn = true
+        client.reset()
+        return refreshTools().also { if (it is Outcome.Failure) disconnect() }
+    }
+
     /** The user cancelled in the browser or left it; nothing changes. */
     fun cancelSignIn() {
         pending = null
@@ -113,7 +133,7 @@ class McpConnection(
 
     /** Forgets the tokens and tools on this phone; the registration stays so connecting again is quick. */
     suspend fun disconnect() {
-        credentials.load()?.let { credentials.save(it.copy(tokens = null)) }
+        credentials.load()?.let { credentials.save(it.copy(tokens = null, open = false)) }
         signedIn = false
         client.reset()
         withContext(Dispatchers.IO) { toolCache.delete() }
@@ -131,12 +151,15 @@ class McpConnection(
 
     internal suspend fun call(tool: String, arguments: JsonObject): Outcome<RemoteResult> = client.callTool(tool, arguments)
 
-    private suspend fun accessToken(refresh: Boolean): Outcome<String> = tokenLock.withLock {
+    private suspend fun accessToken(refresh: Boolean): Outcome<String?> = tokenLock.withLock {
         val stored = credentials.load() ?: return@withLock signedOut()
+        if (stored.open) return@withLock Outcome.Success(null)
         val tokens = stored.tokens ?: return@withLock signedOut()
+        // A pasted token can't be renewed; a refused one means the user must paste a new one.
+        val client = stored.client ?: return@withLock if (refresh) signedOut() else Outcome.Success(tokens.accessToken)
         val expiring = tokens.expiresAtMillis?.let { it - config.refreshBeforeExpiryMillis <= clock.nowMillis() } == true
         if (!refresh && !expiring) return@withLock Outcome.Success(tokens.accessToken)
-        when (val renewed = authorizer.refresh(stored.client, tokens)) {
+        when (val renewed = authorizer.refresh(client, tokens)) {
             is Outcome.Success -> {
                 credentials.save(stored.copy(tokens = renewed.value))
                 Outcome.Success(renewed.value.accessToken)
@@ -150,7 +173,10 @@ class McpConnection(
     }
 
     private fun publish(remote: List<RemoteTool>) {
-        tools = remote.map { McpTool(it, server, this) }
+        // Model APIs take tool names of letters, digits, _ and - only, up to a length.
+        tools = remote
+            .filter { TOOL_NAME.matches(it.name) && (server.toolPrefix + it.name).length <= config.custom.maxToolIdChars }
+            .map { McpTool(it, server, this) }
         settle()
     }
 
@@ -185,6 +211,7 @@ class McpConnection(
 
     private companion object {
         val TOOL_LIST = ListSerializer(RemoteTool.serializer())
+        val TOOL_NAME = Regex("[A-Za-z0-9_-]+")
         val json = Json { ignoreUnknownKeys = true }
     }
 }

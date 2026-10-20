@@ -28,16 +28,20 @@ import okhttp3.Response
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicLong
 
+/** What a server says about a tool. Only ever used to ask more often, never less. */
+@Serializable
+data class ToolAnnotations(val readOnlyHint: Boolean? = null, val destructiveHint: Boolean? = null)
+
 /** A tool as the server describes it. */
 @Serializable
-data class RemoteTool(val name: String, val description: String = "", val inputSchema: JsonObject)
+data class RemoteTool(val name: String, val description: String = "", val inputSchema: JsonObject, val annotations: ToolAnnotations? = null)
 
 /** What a tool call returned: its text, and whether the server reports it as an error. */
 data class RemoteResult(val text: String, val isError: Boolean)
 
-/** Hands out the user's access token; [refresh] asks for a new one after the server refused the last. */
+/** Hands out the user's access token (null for a server without sign-in); [refresh] asks for a new one after a refusal. */
 fun interface AccessTokens {
-    suspend fun get(refresh: Boolean): Outcome<String>
+    suspend fun get(refresh: Boolean): Outcome<String?>
 }
 
 /**
@@ -129,7 +133,7 @@ class McpClient(
         }
     }
 
-    private suspend fun openSession(token: String): Outcome<Session> = sessionLock.withLock {
+    private suspend fun openSession(token: String?): Outcome<Session> = sessionLock.withLock {
         session?.let { return@withLock Outcome.Success(it) }
         val initialize = rpc(
             METHOD_INITIALIZE,
@@ -152,9 +156,9 @@ class McpClient(
         Outcome.Success(opened)
     }
 
-    private suspend fun post(body: JsonObject, token: String, sessionId: String?): Reply = withContext(Dispatchers.IO) {
+    private suspend fun post(body: JsonObject, token: String?, sessionId: String?): Reply = withContext(Dispatchers.IO) {
         val request = Request.Builder().url(endpoint)
-            .header(AUTHORIZATION, "$BEARER $token")
+            .apply { token?.let { header(AUTHORIZATION, "$BEARER $it") } }
             .header(ACCEPT, ACCEPT_TYPES)
             .header(PROTOCOL_HEADER, config.protocolVersion)
             .apply { sessionId?.let { header(SESSION_HEADER, it) } }

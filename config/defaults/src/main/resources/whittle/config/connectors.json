@@ -12,11 +12,22 @@
       "name": "Supabase",
       "icon": "database",
       "url": "https://mcp.supabase.com/mcp",
-      "query": { "features": "account,database,development,docs,debugging,functions" },
+      "query": {
+        "features": "account,database,development,docs,debugging,functions"
+      },
       "redirectUri": "app.whittle://oauth/supabase",
       "scopes": [
-        "organizations:read", "projects:read", "projects:write", "database:read", "database:write", "analytics:read",
-        "secrets:read", "edge_functions:read", "edge_functions:write", "environment:read", "environment:write"
+        "organizations:read",
+        "projects:read",
+        "projects:write",
+        "database:read",
+        "database:write",
+        "analytics:read",
+        "secrets:read",
+        "edge_functions:read",
+        "edge_functions:write",
+        "environment:read",
+        "environment:write"
       ],
       "toolPrefix": "supabase_",
       "sourceLabel": "Supabase",
@@ -52,5 +63,13 @@
         "delete_branch": "DELETE_OR_PAY"
       }
     }
-  ]
+  ],
+  "custom": {
+    "toolPrefix": "mcp_",
+    "maxNameChars": 16,
+    "icon": "extension",
+    "redirectBase": "app.whittle://oauth/",
+    "defaultRiskTier": "NETWORK_OUT",
+    "maxToolIdChars": 64
+  }
 }

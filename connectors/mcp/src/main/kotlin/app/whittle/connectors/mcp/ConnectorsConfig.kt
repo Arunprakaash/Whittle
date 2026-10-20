@@ -20,6 +20,8 @@ data class ConnectorsConfig(
     /** Longer tool results are cut, so one call can't fill the model's context. */
     val maxResultChars: Int,
     val servers: List<McpServerConfig>,
+    /** How servers the user adds themselves are set up. */
+    val custom: CustomConnectorDefaults,
 ) : VersionedConfig {
     init {
         require(verifierEntropyBytes in PKCE_MIN_ENTROPY_BYTES..PKCE_MAX_ENTROPY_BYTES) { "verifierEntropyBytes must give a 43–128 character verifier" }
@@ -37,6 +39,33 @@ data class ConnectorsConfig(
         private const val PKCE_MAX_ENTROPY_BYTES = 96
     }
 }
+
+/** How a server signs Whittle in. */
+@Serializable
+enum class McpAuthMode {
+    /** OAuth in the browser, Whittle registering itself (MCP authorization). */
+    OAUTH,
+
+    /** An access token the user pastes once; kept encrypted, sent as a bearer token. */
+    TOKEN,
+
+    /** No sign-in. */
+    NONE,
+}
+
+@Serializable
+data class CustomConnectorDefaults(
+    /** Tool ids are this, a short form of the server's name and "_", then the tool name. */
+    val toolPrefix: String,
+    val maxNameChars: Int,
+    val icon: String,
+    /** Each server signs in back to this plus its id. */
+    val redirectBase: String,
+    /** Every tool of a server the user added; one the server calls destructive asks every time. */
+    val defaultRiskTier: RiskTier,
+    /** Model APIs cap tool names; longer ones are left out. */
+    val maxToolIdChars: Int,
+)
 
 @Serializable
 data class McpServerConfig(
@@ -58,4 +87,5 @@ data class McpServerConfig(
     /** For tools not listed in [riskTiers], including ones the server adds later. */
     val defaultRiskTier: RiskTier,
     val riskTiers: Map<String, RiskTier> = emptyMap(),
+    val auth: McpAuthMode = McpAuthMode.OAUTH,
 )

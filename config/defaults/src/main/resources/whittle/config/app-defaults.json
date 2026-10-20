@@ -10,7 +10,8 @@
     "runsDatabaseName": "whittle_runs.db",
     "chatsDatabaseName": "whittle_chats.db",
     "workspacesDirectoryName": "workspaces",
-    "connectorsDirectoryName": "connectors"
+    "connectorsDirectoryName": "connectors",
+    "customConnectorsStoreName": "whittle_connectors"
   },
   "terminal": {
     "shell": "/system/bin/sh",

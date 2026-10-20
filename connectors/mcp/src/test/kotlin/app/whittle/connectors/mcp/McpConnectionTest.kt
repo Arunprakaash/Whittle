@@ -69,7 +69,7 @@ class McpConnectionTest {
 
         val state = signInPage.queryParameter("state")
         assertIs<Outcome.Success<Unit>>(connection.complete("${REDIRECT}?code=code-1&state=$state"))
-        assertEquals(ConnectorState.Connected(2), connection.state.value)
+        assertEquals(ConnectorState.Connected(3), connection.state.value)
 
         val tool = connection.tools.single { it.definition.id.value == "db_list_tables" }
         assertEquals(RiskTier.WEB_READ, tool.definition.riskTier)
@@ -102,9 +102,47 @@ class McpConnectionTest {
         assertEquals(2, requests.count { it.path == "/token" })
     }
 
-    private fun connection() = McpConnection(
-        server = server(),
-        config = ConnectorsConfig(
+    @Test
+    fun `a pasted token is sent as a bearer token and kept`() = runTest {
+        val connection = connection(server().copy(auth = McpAuthMode.TOKEN))
+        assertIs<Outcome.Success<Unit>>(connection.connectWithToken(" token-1 "))
+        assertEquals(ConnectorState.Connected(3), connection.state.value)
+        assertTrue(requests.filter { it.path!!.startsWith("/mcp") }.all { it.getHeader("Authorization") == "Bearer token-1" })
+        assertEquals("token-1", store.saved?.tokens?.accessToken)
+    }
+
+    @Test
+    fun `a server without sign-in gets no authorization header`() = runTest {
+        val connection = connection(server().copy(auth = McpAuthMode.NONE))
+        assertIs<Outcome.Success<Unit>>(connection.connectOpen())
+        assertTrue(requests.filter { it.path!!.startsWith("/mcp") }.all { it.getHeader("Authorization") == null })
+    }
+
+    @Test
+    fun `a tool the server calls destructive always asks`() = runTest {
+        val connection = connection(server().copy(auth = McpAuthMode.NONE))
+        connection.connectOpen()
+        assertEquals(RiskTier.DELETE_OR_PAY, connection.tools.single { it.definition.id.value == "db_drop_table" }.definition.riskTier)
+    }
+
+    @Test
+    fun `the probe tells sign-in kinds apart`() = runTest {
+        val probe = McpProbe(config(), OkHttpClient())
+        assertEquals(McpAuthMode.NONE, assertIs<Outcome.Success<McpAuthMode>>(probe.detect(web.url("/mcp").toString())).value)
+        assertIs<Outcome.Failure>(probe.detect("http://example.com/mcp"))
+    }
+
+    private fun connection(server: McpServerConfig = server()) = McpConnection(
+        server = server,
+        config = config(),
+        http = OkHttpClient(),
+        clock = EpochClock { now },
+        credentials = store,
+        toolCache = Files.createTempDirectory("mcp").resolve("tools.json").toFile(),
+        clientVersion = "test",
+    )
+
+    private fun config() = ConnectorsConfig(
             schemaVersion = ConnectorsConfig.SCHEMA_VERSION,
             protocolVersion = "2025-06-18",
             clientName = "Whittle",
@@ -113,12 +151,7 @@ class McpConnectionTest {
             refreshBeforeExpiryMillis = 60_000,
             maxResultChars = 1_000,
             servers = listOf(server()),
-        ),
-        http = OkHttpClient(),
-        clock = EpochClock { now },
-        credentials = store,
-        toolCache = Files.createTempDirectory("mcp").resolve("tools.json").toFile(),
-        clientVersion = "test",
+            custom = CustomConnectorDefaults("mcp_", 16, "extension", "app.whittle://oauth/", RiskTier.NETWORK_OUT, 64),
     )
 
     private fun server() = McpServerConfig(
@@ -145,7 +178,9 @@ class McpConnectionTest {
                 "event: message\ndata: " + rpc(
                     id,
                     """{"tools":[{"name":"list_tables","description":"Lists tables","inputSchema":{"type":"object","properties":{"schema":{"type":"string"}}}},""" +
-                        """{"name":"apply_migration","inputSchema":{"properties":{"query":{"type":"string"}}}}]}""",
+                        """{"name":"apply_migration","inputSchema":{"properties":{"query":{"type":"string"}}}},""" +
+                        """{"name":"drop_table","inputSchema":{"type":"object"},"annotations":{"destructiveHint":true}},""" +
+                        """{"name":"bad name!","inputSchema":{"type":"object"}}]}""",
                 ) + "\n\n",
             )
             "tools/call" -> json(rpc(id, """{"content":[{"type":"text","text":"tables: habits"}],"isError":false}"""))

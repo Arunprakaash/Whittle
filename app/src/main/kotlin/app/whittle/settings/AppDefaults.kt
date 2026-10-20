@@ -36,6 +36,8 @@ data class AppStorageNames(
     val workspacesDirectoryName: String,
     /** Connector tool lists, kept so connected tools are there at start-up. Tokens live in the secret store. */
     val connectorsDirectoryName: String,
+    /** The MCP servers the user added (names and addresses; their sign-ins are in the secret store). */
+    val customConnectorsStoreName: String,
 )
 
 /** How many chats the sidebar shows before pointing to the Chats page. */

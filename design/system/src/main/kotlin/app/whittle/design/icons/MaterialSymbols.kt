@@ -32,6 +32,7 @@ object MaterialSymbols {
         "error" to R.drawable.ms_error,
         "expand_less" to R.drawable.ms_expand_less,
         "expand_more" to R.drawable.ms_expand_more,
+        "extension" to R.drawable.ms_extension,
         "folder" to R.drawable.ms_folder,
         "fullscreen" to R.drawable.ms_fullscreen,
         "help" to R.drawable.ms_help,

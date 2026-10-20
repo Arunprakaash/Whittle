@@ -313,6 +313,22 @@
         "approvedOutcome": "Function deployed",
         "declinedOutcome": "Function not deployed"
       }
+    },
+    "add_connection": {
+      "icon": "extension",
+      "running": "Adding {{name}}",
+      "done": "Added {{name}}",
+      "decision": {
+        "icon": "extension",
+        "title": "Connect {{name}}?",
+        "body": "Whittle will connect to this server, and its tools become available to tasks. Only add servers you trust.",
+        "payloadArgument": "url",
+        "approve": "Connect",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Connecting {{name}}",
+        "declinedOutcome": "Not connected"
+      }
     }
   },
   "capabilities": {
@@ -344,6 +360,21 @@
         "icon": "database",
         "title": "Allow this Supabase step?",
         "body": "Whittle needs your OK before it does this in your Supabase account.",
+        "approve": "Allow",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Allowed",
+        "declinedOutcome": "Not allowed"
+      }
+    },
+    "mcp_": {
+      "icon": "extension",
+      "running": "Using a connection",
+      "done": "Used a connection",
+      "decision": {
+        "icon": "extension",
+        "title": "Allow this step in a connection?",
+        "body": "Whittle needs your OK before it uses a service you connected.",
         "approve": "Allow",
         "approveIcon": "check",
         "decline": "Not now",

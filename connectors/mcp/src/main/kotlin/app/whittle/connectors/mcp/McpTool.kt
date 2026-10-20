@@ -3,6 +3,7 @@ package app.whittle.connectors.mcp
 import app.whittle.core.common.Outcome
 import app.whittle.core.model.Provenance
 import app.whittle.tools.api.ExecutionSite
+import app.whittle.tools.api.RiskTier
 import app.whittle.tools.api.Tool
 import app.whittle.tools.api.ToolDefinition
 import app.whittle.tools.api.ToolExecutionContext
@@ -24,7 +25,7 @@ internal class McpTool(
         id = ToolId(server.toolPrefix + remote.name),
         description = "${server.name}: ${remote.description}".trim(),
         inputSchema = objectSchema(remote.inputSchema),
-        riskTier = server.riskTiers[remote.name] ?: server.defaultRiskTier,
+        riskTier = riskTier(remote, server),
         executionSite = ExecutionSite.USER_CLOUD,
         requiredCapabilities = emptySet(),
         consentTextKey = CONSENT_KEY,
@@ -41,6 +42,12 @@ internal class McpTool(
         const val CONSENT_KEY = "consent_connector"
         const val TYPE = "type"
         const val OBJECT = "object"
+
+        /** Whittle's tier for the tool; a server calling it destructive can only make it ask every time. */
+        fun riskTier(remote: RemoteTool, server: McpServerConfig): RiskTier {
+            val configured = server.riskTiers[remote.name] ?: server.defaultRiskTier
+            return if (remote.annotations?.destructiveHint == true) maxOf(configured, RiskTier.DELETE_OR_PAY) else configured
+        }
 
         /** Model APIs need a top-level object schema; some servers leave the type out for tools without arguments. */
         fun objectSchema(schema: JsonObject): JsonObject = if (TYPE in schema) schema else JsonObject(schema + (TYPE to JsonPrimitive(OBJECT)))
