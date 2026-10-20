@@ -104,6 +104,7 @@ fun ChatScreen(
     artifactSheetHeight: Float,
     onViewAllChats: () -> Unit,
     onOpenArtifactFullScreen: (ArtifactRef) -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     var sheetArtifact by remember { mutableStateOf<ArtifactRef?>(null) }
     sheetArtifact?.let { ref ->
@@ -117,7 +118,7 @@ fun ChatScreen(
         )
     }
     CompositionLocalProvider(LocalOpenArtifact provides { ref -> sheetArtifact = ref }) {
-        ChatLayout(state, viewModel, sidebarMaxChats, onViewAllChats)
+        ChatLayout(state, viewModel, sidebarMaxChats, onViewAllChats, onOpenSettings)
     }
 }
 
@@ -125,7 +126,7 @@ fun ChatScreen(
 private val LocalOpenArtifact = staticCompositionLocalOf<(ArtifactRef) -> Unit> { {} }
 
 @Composable
-private fun ChatLayout(state: ChatState, viewModel: ChatViewModel, sidebarMaxChats: Int, onViewAllChats: () -> Unit) {
+private fun ChatLayout(state: ChatState, viewModel: ChatViewModel, sidebarMaxChats: Int, onViewAllChats: () -> Unit, onOpenSettings: () -> Unit) {
     val haptics = WhittleTheme.haptics
     LaunchedEffect(viewModel) { viewModel.haptics.collect { haptics.perform(it) } }
     val requestCapability = rememberCapabilityRequest(state.items, viewModel)
@@ -177,7 +178,7 @@ private fun ChatLayout(state: ChatState, viewModel: ChatViewModel, sidebarMaxCha
                             shape = connectedShape(0, TOP_BAR_ACTIONS),
                             modifier = TopBarGroupAction,
                         )
-                        ChatMenu(onChangeModel = viewModel::changeModel, shape = connectedShape(1, TOP_BAR_ACTIONS))
+                        ChatMenu(onOpenSettings = onOpenSettings, onChangeModel = viewModel::changeModel, shape = connectedShape(1, TOP_BAR_ACTIONS))
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -404,12 +405,13 @@ private fun Answer(item: ThreadItem.Narration, footer: TurnFooter, viewModel: Ch
 }
 
 @Composable
-private fun ChatMenu(onChangeModel: () -> Unit, shape: Shape) {
+private fun ChatMenu(onOpenSettings: () -> Unit, onChangeModel: () -> Unit, shape: Shape) {
     var open by remember { mutableStateOf(false) }
     // The menu anchors to this box, so it opens under the ⋮ button.
     Box {
         TopBarAction("more_vert", stringResource(R.string.chat_more), onClick = { open = true }, shape = shape, modifier = TopBarGroupAction)
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(text = { Text(stringResource(R.string.settings_title)) }, onClick = { open = false; onOpenSettings() })
             DropdownMenuItem(text = { Text(stringResource(R.string.chat_change_model)) }, onClick = { open = false; onChangeModel() })
         }
     }

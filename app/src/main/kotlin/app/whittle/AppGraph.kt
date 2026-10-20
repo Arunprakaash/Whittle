@@ -1,5 +1,16 @@
 package app.whittle
 
+import app.whittle.design.theme.WhittleAppearance
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import app.whittle.core.config.ConsentLevel
+import app.whittle.settings.UserSettings
+import app.whittle.settings.SettingsStore
 import android.content.Context
 import android.system.ErrnoException
 import android.system.Os
@@ -18,7 +29,6 @@ import app.whittle.core.config.ConfigName
 import app.whittle.core.config.HarnessConfig
 import app.whittle.core.config.PromptTemplate
 import app.whittle.core.config.VersionedConfig
-import app.whittle.design.theme.WhittleAppearance
 import app.whittle.llm.api.ModelAdapterRegistry
 import app.whittle.llm.api.ModelDefaults
 import app.whittle.llm.api.ModelTrustConfig
@@ -86,9 +96,27 @@ class AppGraph(context: Context) {
     val modelDefaults = load(ConfigFiles.modelDefaults, ModelDefaults.serializer(), ModelDefaults.SCHEMA_VERSION)
     private val modelTrust = load(ConfigFiles.modelTrust, ModelTrustConfig.serializer(), ModelTrustConfig.SCHEMA_VERSION)
 
-    val appearance = WhittleAppearance(
+    /** Appearance before the user's saved settings have loaded. */
+    val defaultAppearance = WhittleAppearance(
         wallpaperColors = appDefaults.appearance.wallpaperColors,
         haptics = appDefaults.appearance.haptics,
+    )
+
+    /** Whether this build can send analytics at all; without a project key everything stays on the phone. */
+    val analyticsAvailable: Boolean = BuildConfig.POSTHOG_PROJECT_KEY.isNotBlank()
+
+    /** This build records screens unmasked, for its developer's own testing. Settings says so. */
+    val recordingsShowContent: Boolean = BuildConfig.REPLAY_SHOW_CONTENT
+
+    val settings = SettingsStore(
+        context,
+        appDefaults.storage.settingsStoreName,
+        UserSettings(
+            wallpaperColors = appDefaults.appearance.wallpaperColors,
+            haptics = appDefaults.appearance.haptics,
+            shareUsageData = harness.telemetry.defaultConsent != ConsentLevel.OFF,
+            screenRecordings = harness.telemetry.sessionReplay.enabled,
+        ),
     )
 
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
@@ -108,6 +136,9 @@ class AppGraph(context: Context) {
 
     /** Lives as long as the process: for writes that must finish even when a screen goes away. */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** The user's settings, kept current; null until the saved choices have loaded. */
+    val currentSettings: StateFlow<UserSettings?> = settings.settings.stateIn(appScope, SharingStarted.Eagerly, null)
 
     val modelLister = OpenAiCompatibleModelLister(httpClient, modelTrust, modelDefaults.fallbackCapabilities)
     val keyVerifier = ApiKeyVerifier(httpClient)
@@ -180,14 +211,23 @@ class AppGraph(context: Context) {
         )
     }
 
-    /** PostHog only when the build carries a project key; the user's consent level filters everything. */
+    /**
+     * PostHog only when the build carries a project key. The user's Settings decide what leaves the phone:
+     * nothing until their choices load, then usage data at the configured level, recordings only if allowed.
+     */
     private fun telemetry(context: Context): Telemetry {
         val local = LocalTelemetry(idGenerator)
-        if (BuildConfig.POSTHOG_PROJECT_KEY.isBlank()) return local
-        PostHogAndroidClient.install(context, BuildConfig.POSTHOG_PROJECT_KEY, harness.telemetry, showContent = BuildConfig.REPLAY_SHOW_CONTENT, debugLogs = BuildConfig.POSTHOG_DEBUG)
+        if (!analyticsAvailable) return local
+        PostHogAndroidClient.install(context, BuildConfig.POSTHOG_PROJECT_KEY, harness.telemetry, showContent = recordingsShowContent, debugLogs = BuildConfig.POSTHOG_DEBUG)
+        appScope.launch {
+            currentSettings.filterNotNull().map { it.shareUsageData to it.screenRecordings }.distinctUntilChanged().collect { (share, record) ->
+                PostHogAndroidClient.applyChoices(shareUsageData = share, screenRecordings = record)
+            }
+        }
+        val sharingLevel = harness.telemetry.defaultConsent.takeUnless { it == ConsentLevel.OFF } ?: ConsentLevel.METADATA
         return ConsentFilteringTelemetry(
             delegate = PostHogTelemetry(PostHogAndroidClient(), idGenerator, clock),
-            consent = { harness.telemetry.defaultConsent },
+            consent = { if (currentSettings.value?.shareUsageData == true) sharingLevel else ConsentLevel.OFF },
             maxAttributeChars = harness.telemetry.maxAttributeChars,
             fallback = local,
         )

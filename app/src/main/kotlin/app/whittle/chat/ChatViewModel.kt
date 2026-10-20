@@ -240,14 +240,27 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         }
         _state.update { state -> state.copy(chats = state.chats.filterNot { it.id == id }) }
         graph.appScope.launch {
-            saveLock.withLock {
-                val document = graph.chats.load(id).getOrNull()?.let { decode(it.document) }
-                graph.chats.delete(id)
-                document?.let { graph.checkpoints.delete(it.runIds + listOfNotNull(it.activeRunId)) }
-                graph.workspaces.delete(WorkspaceId(id.value))
-            }
+            saveLock.withLock { purge(id) }
             refreshChats()
         }
+    }
+
+    /** Settings > Delete all chats: every chat, its saved tasks and its workspace files and apps. */
+    fun deleteAllChats() {
+        stopWithoutSaving()
+        viewModelScope.launch { show(id = null, document = null) }
+        _state.update { it.copy(chats = emptyList()) }
+        graph.appScope.launch {
+            saveLock.withLock { graph.chats.list().getOrNull().orEmpty().forEach { purge(it.id) } }
+            refreshChats()
+        }
+    }
+
+    private suspend fun purge(id: ChatId) {
+        val document = graph.chats.load(id).getOrNull()?.let { decode(it.document) }
+        graph.chats.delete(id)
+        document?.let { graph.checkpoints.delete(it.runIds + listOfNotNull(it.activeRunId)) }
+        graph.workspaces.delete(WorkspaceId(id.value))
     }
 
     fun setPinned(id: ChatId, pinned: Boolean) {

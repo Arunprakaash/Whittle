@@ -1,5 +1,7 @@
 package app.whittle
 
+import app.whittle.settings.SettingsScreen
+import app.whittle.design.theme.WhittleAppearance
 import app.whittle.artifacts.ArtifactScreen
 import app.whittle.artifacts.ArtifactRef
 import app.whittle.design.components.LocalSiteIcons
@@ -34,7 +36,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val graph = (application as WhittleApplication).graph
         setContent {
-            WhittleTheme(graph.appearance) {
+            // Until saved settings load, the bundled defaults apply; a changed setting restyles at once.
+            val settings by graph.currentSettings.collectAsStateWithLifecycle()
+            val appearance = settings?.let { WhittleAppearance(wallpaperColors = it.wallpaperColors, haptics = it.haptics) } ?: graph.defaultAppearance
+            WhittleTheme(appearance) {
                 val gate by remember { graph.connections.model.map { if (it == null) Gate.Connect else Gate.Chat } }
                     .collectAsStateWithLifecycle(Gate.Loading)
                 // Surface sets the content color, so text on every screen follows the theme in light and dark.
@@ -51,8 +56,18 @@ class MainActivity : ComponentActivity() {
                             val state = chat.state.collectAsStateWithLifecycle().value
                             var showingAllChats by rememberSaveable { mutableStateOf(false) }
                             var fullScreenArtifact by remember { mutableStateOf<ArtifactRef?>(null) }
+                            var showingSettings by rememberSaveable { mutableStateOf(false) }
                             val artifact = fullScreenArtifact
-                            if (artifact != null) {
+                            if (showingSettings) {
+                                SettingsScreen(
+                                    graph = graph,
+                                    settings = settings,
+                                    model = state.model,
+                                    onBack = { showingSettings = false },
+                                    onChangeModel = { showingSettings = false; chat.changeModel() },
+                                    onDeleteAllChats = chat::deleteAllChats,
+                                )
+                            } else if (artifact != null) {
                                 ArtifactScreen(artifact, graph.artifacts, state.workspaceRevision, onBack = { fullScreenArtifact = null })
                             } else if (showingAllChats) {
                                 BackHandler { showingAllChats = false }
@@ -71,6 +86,7 @@ class MainActivity : ComponentActivity() {
                                     artifactSheetHeight = graph.artifactSheetHeight,
                                     onViewAllChats = { showingAllChats = true },
                                     onOpenArtifactFullScreen = { fullScreenArtifact = it },
+                                    onOpenSettings = { showingSettings = true },
                                 )
                             }
                         }

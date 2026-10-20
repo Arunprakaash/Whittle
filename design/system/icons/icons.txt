@@ -24,6 +24,7 @@ folder
 fullscreen
 help
 info
+insights
 key
 language
 lock
@@ -35,13 +36,17 @@ person_search
 push_pin:fill
 refresh
 schedule
+screen_record
 search:fill
 settings
 share
 short_text
+smart_toy
 sms
 stop:fill
 terminal
+vibration
 visibility
 visibility_off
+wallpaper
 web_asset
