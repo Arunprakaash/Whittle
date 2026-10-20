@@ -88,6 +88,8 @@ import app.whittle.design.components.Composer
 import app.whittle.design.components.LatestPill
 import app.whittle.design.components.DecisionCard
 import app.whittle.design.components.DecisionUi
+import app.whittle.design.components.WhittleTransitions
+import app.whittle.design.tokens.WhittleMotion
 import app.whittle.design.components.Narration
 import app.whittle.design.components.QuestionCard
 import app.whittle.design.components.QuestionUi
@@ -295,6 +297,9 @@ private fun Thread(items: List<ThreadItem>, working: Boolean, viewModel: ChatVie
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = WhittleSpace.s),
         ) {
             LatestPill(stringResource(R.string.thread_latest), working = working) {
+            // A small surface: the fast spatial spring gives it Expressive's slight overshoot as it lands.
+            enter = WhittleTransitions.riseIn(WhittleMotion.spatialFast),
+            exit = WhittleTransitions.sinkOut(),
                 following = true
                 scope.launch { listState.animateScrollToItem(items.lastIndex, scrollOffset = Int.MAX_VALUE) }
             }
@@ -406,7 +411,7 @@ private fun Dock(state: ChatState, viewModel: ChatViewModel, voiceDefaults: Voic
         Modifier.padding(start = WhittleSpace.m, end = WhittleSpace.m, bottom = WhittleSpace.s),
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.s),
     ) {
-        AnimatedVisibility(state.status != null) {
+        AnimatedVisibility(state.status != null, enter = WhittleTransitions.riseInPlace(), exit = WhittleTransitions.sinkOutPlace()) {
             state.status?.let { status ->
                 StatusLine(
                     state = status.state,
