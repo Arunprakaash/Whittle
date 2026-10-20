@@ -31,6 +31,6 @@ object SystemPromptVariables {
     /** An IANA zone id such as Asia/Kolkata. Without it models guess a zone from the locale. */
     const val USER_TIME_ZONE = "userTimeZone"
 
-    /** What Whittle remembers about the user from earlier chats, as [AgentMessages.memories] renders it. */
+    /** What the agent remembers about the user; the runner fills it from its [MemoryStore], so hosts don't pass it. */
     const val MEMORIES = "memories"
 }

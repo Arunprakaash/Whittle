@@ -1,6 +1,7 @@
 package app.whittle
 
-import app.whittle.memory.MemoryStore
+import app.whittle.agent.MemoryStore
+import app.whittle.memory.EncryptedFileMemory
 import app.whittle.tools.workspace.WorkspaceOutputs
 import app.whittle.settings.VoiceDefaults
 import app.whittle.connectors.CustomConnectorStore
@@ -151,7 +152,6 @@ class AppGraph(context: Context) {
 
     /** Lives as long as the process: for writes that must finish even when a screen goes away. */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    val memory = MemoryStore(File(context.filesDir, appDefaults.memory.fileName), cipher, clock, idGenerator, appDefaults.memory, appScope)
 
     /** The user's settings, kept current; null until the saved choices have loaded. */
     val currentSettings: StateFlow<UserSettings?> = settings.settings.stateIn(appScope, SharingStarted.Eagerly, null)
@@ -169,6 +169,7 @@ class AppGraph(context: Context) {
         directory = File(context.filesDir, appDefaults.storage.connectorsDirectoryName),
         clientVersion = BuildConfig.VERSION_NAME,
         custom = CustomConnectorStore(context, appDefaults.storage.customConnectorsStoreName),
+        loopbackPage = PromptTemplate.load(configSource, ConfigFiles.loopbackSignInPage).orThrow(ConfigFiles.loopbackSignInPage),
     )
     val appExporter = AppExporter(context, workspaces, appDefaults.export, context.applicationInfo.minSdkVersion)
     val artifactSheetHeight: Float get() = appDefaults.artifacts.sheetHeightFraction
@@ -179,11 +180,21 @@ class AppGraph(context: Context) {
 
     val agentMessages = load(ConfigFiles.agentMessages, AgentMessages.serializer(), AgentMessages.SCHEMA_VERSION)
 
+    /** What Whittle remembers about the user: the harness's memory, kept encrypted on the phone. */
+    val memory = MemoryStore(
+        EncryptedFileMemory(File(context.filesDir, appDefaults.memory.fileName), cipher),
+        harness.agent.memory,
+        agentMessages,
+        clock,
+        idGenerator,
+        appScope,
+    )
+
     val runner = AgentRunner(
         adapters = ModelAdapterRegistry(setOf(OpenAiCompatibleAdapter(httpClient, idGenerator), OpenAiResponsesAdapter(httpClient))),
         providers = providers,
         credentials = SecretStoreCredentialsProvider(secrets),
-        tools = ToolRegistry(ToolCatalog.create(context, clock, httpClient, workspaceTools(context), harness.agent.maxPlanItems, connectors, memory), connectors::tools),
+        tools = ToolRegistry(ToolCatalog.create(context, clock, httpClient, workspaceTools(context), harness.agent.maxPlanItems, connectors, memory, agentMessages), connectors::tools),
         policy = RuleBasedPolicyEngine(load(ConfigFiles.policyRules, PolicyRuleSet.serializer(), PolicyRuleSet.SCHEMA_VERSION)),
         inbox = inbox,
         checkpoints = checkpoints,
@@ -192,8 +203,8 @@ class AppGraph(context: Context) {
         systemPrompt = PromptTemplate.load(configSource, ConfigFiles.agentSystemPrompt).orThrow(ConfigFiles.agentSystemPrompt),
         messages = agentMessages,
         clock = clock,
-        compactionPrompt = configSource.read(ConfigFiles.compactionPrompt).orThrow(ConfigFiles.compactionPrompt),
         outputs = WorkspaceOutputs(workspaces, harness.agent.toolOutput.directory)::save,
+        memory = memory,
     )
 
     /** The terminal and file tools: one folder per chat, in the app's private storage. */

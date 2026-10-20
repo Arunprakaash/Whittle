@@ -45,6 +45,7 @@ fun ChatSidebar(
     onOpenSettings: () -> Unit,
     artifactCount: Int,
     onOpenArtifacts: () -> Unit,
+    onOpenFiles: () -> Unit,
 ) {
     val haptics = WhittleTheme.haptics
     val groups = remember(chats, maxChats) {
@@ -72,6 +73,12 @@ fun ChatSidebar(
                 selected = false,
                 onClick = { haptics.perform(WhittleHaptic.Tap); onOpenArtifacts() },
                 modifier = Modifier.padding(top = WhittleSpace.s),
+            )
+            NavigationDrawerItem(
+                label = { Text(stringResource(R.string.files_title), style = MaterialTheme.typography.titleSmall) },
+                icon = { WhittleIcon("folder", size = WhittleSize.Icon.xl) },
+                selected = false,
+                onClick = { haptics.perform(WhittleHaptic.Tap); onOpenFiles() },
             )
             if (chats.isEmpty()) {
                 Text(

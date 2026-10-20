@@ -38,16 +38,17 @@ data class AgentMessages(
     val planUnfinished: String,
     /** A long tool output's start and end, with where the whole of it was saved in the workspace. */
     val outputSaved: String,
-    /** Opens the summary that replaces a conversation's older steps. */
-    val compactedSummary: String,
-    /** Names a summary made from outside content, where approvals mention a source. */
-    val summarySource: String,
-    /** Follows a summary with the user's own words for the task, which the summary may have shortened. */
-    val compactedInstructions: String,
     /** One remembered fact in the system prompt, with the id forget takes. */
     val memoryLine: String,
     /** The system prompt's memory section when nothing is remembered yet. */
     val noMemories: String,
+    /** remember succeeded; [ID] is what forget takes. */
+    val memorySaved: String,
+    val memoryEmpty: String,
+    val memoryTooLong: String,
+    val memoryFull: String,
+    val memoryForgotten: String,
+    val memoryNotFound: String,
 ) : VersionedConfig {
     init {
         requirePlaceholders(unknownTool, TOOL)
@@ -68,11 +69,14 @@ data class AgentMessages(
         requirePlaceholders(outputTruncated, LIMIT)
         requirePlaceholders(planUnfinished, STEPS)
         requirePlaceholders(outputSaved, HEAD, TAIL, CHARS, PATH)
-        requirePlaceholders(compactedSummary, SUMMARY)
-        requirePlaceholders(summarySource)
-        requirePlaceholders(compactedInstructions, INSTRUCTIONS)
         requirePlaceholders(memoryLine, ID, TEXT)
         requirePlaceholders(noMemories)
+        requirePlaceholders(memorySaved, ID)
+        requirePlaceholders(memoryEmpty)
+        requirePlaceholders(memoryTooLong, LIMIT)
+        requirePlaceholders(memoryFull, LIMIT)
+        requirePlaceholders(memoryForgotten)
+        requirePlaceholders(memoryNotFound, ID)
     }
 
     fun unknownTool(tool: String): String = render(unknownTool, TOOL to tool)
@@ -122,16 +126,21 @@ data class AgentMessages(
     fun outputSaved(head: String, tail: String, chars: Int, path: String): String =
         render(outputSaved, HEAD to head, TAIL to tail, CHARS to chars.toString(), PATH to path)
 
-    fun compactedSummary(summary: String): String = render(compactedSummary, SUMMARY to summary)
 
-    fun compactedInstructions(instructions: String): String = render(compactedInstructions, INSTRUCTIONS to instructions)
+    fun memorySaved(id: String): String = render(memorySaved, ID to id)
+
+    fun memoryTooLong(limit: Int): String = render(memoryTooLong, LIMIT to limit.toString())
+
+    fun memoryFull(limit: Int): String = render(memoryFull, LIMIT to limit.toString())
+
+    fun memoryNotFound(id: String): String = render(memoryNotFound, ID to id)
 
     /** The memory section of the system prompt: one line per remembered fact, as (id, text) pairs. */
     fun memories(items: List<Pair<String, String>>): String =
         if (items.isEmpty()) noMemories else items.joinToString("\n") { (id, text) -> render(memoryLine, ID to id, TEXT to text) }
 
     companion object {
-        const val SCHEMA_VERSION = 7
+        const val SCHEMA_VERSION = 9
         private const val TOOL = "tool"
         private const val DETAIL = "detail"
         private const val LIMIT = "limit"
@@ -145,9 +154,7 @@ data class AgentMessages(
         private const val TAIL = "tail"
         private const val CHARS = "chars"
         private const val PATH = "path"
-        private const val SUMMARY = "summary"
         private const val ID = "id"
         private const val TEXT = "text"
-        private const val INSTRUCTIONS = "instructions"
     }
 }

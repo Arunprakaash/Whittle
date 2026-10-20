@@ -24,8 +24,8 @@ data class AgentLimits(
     /** Longest plan (update_plan) the agent may write. */
     val maxPlanItems: Int = DEFAULT_MAX_PLAN_ITEMS,
     val retry: ModelRetryPolicy,
-    val context: ContextPolicy,
     val toolOutput: ToolOutputPolicy,
+    val memory: MemoryPolicy,
 ) {
     init {
         require(maxStepsPerRun > 0) { "maxStepsPerRun must be positive" }
@@ -61,32 +61,17 @@ data class ModelRetryPolicy(
     }
 }
 
-/**
- * Keeping long tasks inside the model's context window: once the conversation passes [compactAtFraction] of
- * the window, older steps are summarized and the most recent ones kept word for word.
- */
+/** What the agent may remember about the user across chats (the remember and forget tools). */
 @Serializable
-data class ContextPolicy(
-    val compactAtFraction: Double,
-    /** Window assumed for models whose catalog entry doesn't give one. */
-    val fallbackContextTokens: Long,
-    /** Share of the window the recent steps, kept as they are, may take after compaction. */
-    val keepRecentFraction: Double,
-    /** For estimating size before the provider counts it; low on purpose, so estimates err large. */
-    val charsPerToken: Double,
-    /** An image counted as this many tokens, whatever its size in characters. */
-    val imageTokens: Long,
-    val summaryMaxOutputTokens: Int,
-    /** Each message, tool call or result is cut to this many characters in what the summarizer reads. */
-    val transcriptBlockChars: Int,
-    /** Lowercase phrases in a provider's error that mean the conversation no longer fits its window. */
-    val overflowMarkers: List<String>,
+data class MemoryPolicy(
+    /** Facts kept at most; when full, the agent is told to forget one first. */
+    val maxItems: Int,
+    val maxItemChars: Int,
+    /** Length of a fact's id, which the agent passes to forget; short ids are cheap in the prompt. */
+    val idChars: Int,
 ) {
     init {
-        require(compactAtFraction > 0.0 && compactAtFraction < 1.0) { "context.compactAtFraction must be between 0 and 1" }
-        require(keepRecentFraction > 0.0 && keepRecentFraction < compactAtFraction) { "context.keepRecentFraction must be below compactAtFraction" }
-        require(fallbackContextTokens > 0 && charsPerToken > 0.0 && imageTokens >= 0) { "context sizes must be positive" }
-        require(summaryMaxOutputTokens > 0 && transcriptBlockChars > 0) { "context summary limits must be positive" }
+        require(maxItems > 0 && maxItemChars > 0 && idChars > 0) { "memory limits must be positive" }
     }
 }
 

@@ -477,65 +477,28 @@ class AgentRunnerTest {
     }
 
     @Test
-    fun `a conversation past the window is summarized first, keeping recent steps and the outside-content mark`() = runTest {
-        val adapter = ScriptedAdapter(listOf(textTurn("SUMMARY"), textTurn("Done.")))
-        val small = testContext.copy(fallbackContextTokens = 2_000)
+    fun `what the agent remembers is in the system prompt of every task`() = runTest {
+        val backend = object : MemoryBackend {
+            override suspend fun load() = listOf(Memory("m1", "Is vegetarian", 0L))
 
-        val events = runner(adapter, limits = testLimits(context = small)).start(request().copy(priorMessages = longHistory())).toList()
+            override suspend fun save(memories: List<Memory>) = Outcome.Success(Unit)
+        }
+        val memory = MemoryStore(backend, testMemory, testMessages, EpochClock { 0L }, IdGenerator.Random, this)
+        val adapter = ScriptedAdapter(listOf(textTurn("Noted.")))
 
-        val summarize = adapter.requests.first()
-        assertEquals("Summarize.", summarize.systemPrompt)
-        assertTrue(summarize.tools.isEmpty())
-        assertTrue("[result from web, outside content]" in summarize.messages.single().text)
-        val sent = adapter.requests.last().messages
-        val summary = sent.first().content.single() as ContentBlock.Text
-        assertEquals("summary: SUMMARY", summary.text)
-        assertIs<Provenance.Untrusted>(summary.provenance)
-        assertEquals(Role.ASSISTANT, sent[1].role)
-        assertEquals("Earlier answer", sent[1].text)
-        assertTrue(events.any { it is RunEvent.CompactionStarted })
-        assertEquals(3, events.filterIsInstance<RunEvent.CompactionFinished>().single().summarizedMessages)
-        assertIs<RunEvent.Completed>(events.last())
-        assertTrue(savedCheckpoint().conversation.messages.first().carriesUntrustedContent())
+        runner(adapter, memory = memory, prompt = PromptTemplate(ConfigName("system.md"), "Remembered:\n{{memories}}")).start(request()).toList()
+
+        assertEquals("Remembered:\n- Is vegetarian (m1)", adapter.requests.single().systemPrompt)
     }
 
     @Test
-    fun `when the provider says the conversation is too long, it is summarized and the call tried again`() = runTest {
-        val adapter = ScriptedAdapter(
-            listOf(
-                listOf(ModelEvent.Failed(HarnessError.Provider(400, "This model's maximum is exceeded (context_length_exceeded)"))),
-                textTurn("SUMMARY"),
-                textTurn("Done."),
-            ),
-        )
+    fun `without a memory the section says nothing is remembered`() = runTest {
+        val adapter = ScriptedAdapter(listOf(textTurn("Hi.")))
 
-        val events = runner(adapter).start(request().copy(priorMessages = longHistory())).toList()
+        runner(adapter, prompt = PromptTemplate(ConfigName("system.md"), "Remembered: {{memories}}")).start(request()).toList()
 
-        assertIs<RunEvent.Completed>(events.last())
-        assertEquals(3, adapter.requests.size)
-        assertEquals("summary: SUMMARY", adapter.requests.last().messages.first().text)
+        assertEquals("Remembered: none", adapter.requests.single().systemPrompt)
     }
-
-    @Test
-    fun `when the request itself is summarized, the user's words are put back word for word`() = runTest {
-        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "big")), textTurn("SUMMARY"), textTurn("Done.")))
-        val tool = FakeTool("big", RiskTier.READ) { "row ".repeat(1_250) }
-        val limits = testLimits(maxToolOutputChars = 10_000, context = testContext.copy(fallbackContextTokens = 2_000))
-
-        runner(adapter, setOf(tool), limits = limits).start(request()).toList()
-
-        val summary = adapter.requests.last().messages.first().content.single() as ContentBlock.Text
-        assertEquals("summary: SUMMARY\n\nasked: Hi", summary.text)
-        assertEquals(Role.ASSISTANT, adapter.requests.last().messages[1].role)
-    }
-
-    /** An earlier exchange: a question, a web read with a long result, then an answer. */
-    private fun longHistory() = listOf(
-        Message.userText("Find the opening hours"),
-        Message(Role.ASSISTANT, listOf(call("w1", "fetch"))),
-        Message(Role.USER, listOf(ContentBlock.ToolResult(ToolCallId("w1"), "page ".repeat(1_500), isError = false, provenance = Provenance.Untrusted("web")))),
-        Message(Role.ASSISTANT, listOf(ContentBlock.Text("Earlier answer"))),
-    )
 
     private fun runner(
         adapter: ScriptedAdapter? = null,
@@ -543,6 +506,8 @@ class AgentRunnerTest {
         adapterRegistry: ModelAdapterRegistry = ModelAdapterRegistry(setOfNotNull(adapter)),
         limits: AgentLimits = testLimits(),
         outputs: ToolOutputStore? = null,
+        memory: MemoryStore? = null,
+        prompt: PromptTemplate = PromptTemplate(ConfigName("system.md"), "System for {{user}}"),
     ) = AgentRunner(
         adapters = adapterRegistry,
         providers = testCatalog,
@@ -553,11 +518,11 @@ class AgentRunnerTest {
         checkpoints = store,
         telemetry = LocalTelemetry(IdGenerator.Random),
         limits = limits,
-        systemPrompt = PromptTemplate(ConfigName("system.md"), "System for {{user}}"),
+        systemPrompt = prompt,
         messages = testMessages,
         clock = EpochClock { 0L },
-        compactionPrompt = "Summarize.",
         outputs = outputs,
+        memory = memory,
     )
 
     private fun request() = RunRequest(

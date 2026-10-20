@@ -119,13 +119,37 @@ data class CustomConnectorDefaults(
     val toolPrefix: String,
     val maxNameChars: Int,
     val icon: String,
-    /** Each server signs in back to this plus its id. */
+    /**
+     * Each server signs in back to this plus its id. A loopback http address (RFC 8252) works with servers that
+     * refuse app links; Whittle then listens there on the phone while a sign-in is open (see [LoopbackSignIn]).
+     */
     val redirectBase: String,
+    /** How Whittle catches a sign-in that returns to a loopback address. */
+    val loopback: LoopbackSignIn,
     /** Every tool of a server the user added; one the server calls destructive asks every time. */
     val defaultRiskTier: RiskTier,
     /** Model APIs cap tool names; longer ones are left out. */
     val maxToolIdChars: Int,
 )
+
+/** The page and limits for a sign-in that returns to a loopback address on the phone. */
+@Serializable
+data class LoopbackSignIn(
+    /** Stops listening if the browser hasn't come back by then. */
+    val timeoutMillis: Long,
+    /** The page's button opens this, which brings the user back to Whittle. */
+    val returnUri: String,
+    val pageTitle: String,
+    val pageMessage: String,
+    val pageButton: String,
+    /** Shown instead when the address isn't one a sign-in is waiting for (an old or repeated link). */
+    val expiredTitle: String,
+    val expiredMessage: String,
+) {
+    init {
+        require(timeoutMillis > 0) { "loopback.timeoutMillis must be positive" }
+    }
+}
 
 @Serializable
 data class McpServerConfig(

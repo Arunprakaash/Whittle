@@ -40,6 +40,10 @@
     <string name="sidebar_view_all">View all chats</string>
     <string name="chats_title">Chats</string>
     <string name="artifacts_title">Artifacts</string>
+    <string name="files_title">Files</string>
+    <string name="files_unavailable">This phone has no app for browsing files.</string>
+    <string name="documents_summary">Your chats\' files</string>
+    <string name="documents_untitled">Untitled chat</string>
     <string name="artifacts_empty">Apps the agent makes for you show up here.</string>
     <string name="chats_search">Search chats</string>
     <string name="search_clear">Clear search</string>
@@ -74,7 +78,6 @@
     <string name="status_thinking">Thinking…</string>
     <string name="status_writing">Writing…</string>
     <string name="status_retrying">Couldn\'t reach the model, trying again…</string>
-    <string name="status_summarizing">Summarizing earlier steps…</string>
     <string name="status_done">Done</string>
     <string name="status_stop">Stop</string>
     <string name="steer_label">Added while working</string>

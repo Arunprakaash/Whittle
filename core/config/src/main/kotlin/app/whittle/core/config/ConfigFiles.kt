@@ -12,6 +12,6 @@ object ConfigFiles {
     val toolPresentation = ConfigName("tool-presentation.json")
     val agentSystemPrompt = ConfigName("prompts/agent-system.md")
 
-    /** What the model is told when it summarizes a conversation's older steps to make room. */
-    val compactionPrompt = ConfigName("prompts/compaction.md")
+    /** The page the browser shows when a connection's sign-in comes back to Whittle on the phone. */
+    val loopbackSignInPage = ConfigName("connectors/loopback-page.html")
 }

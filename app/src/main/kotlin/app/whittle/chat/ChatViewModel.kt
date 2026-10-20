@@ -112,9 +112,6 @@ data class StatusUi(
 enum class StatusPhase {
     /** The provider failed for a passing reason and the call is being tried again. */
     Retrying,
-
-    /** The conversation outgrew the model's window and older steps are being summarized. */
-    Summarizing,
 }
 
 /**
@@ -199,7 +196,6 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
                 SystemPromptVariables.CURRENT_DATE to LocalDate.now().toString(),
                 SystemPromptVariables.USER_LOCALE to Locale.getDefault().toLanguageTag(),
                 SystemPromptVariables.USER_TIME_ZONE to ZoneId.systemDefault().id,
-                SystemPromptVariables.MEMORIES to graph.agentMessages.memories(graph.memory.all.value.map { it.id to it.text }),
             ),
         )
         collect(runId, graph.runner.start(request))
@@ -429,8 +425,6 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             is RunEvent.Paused -> end(if (event.reason == PauseReason.TOKEN_BUDGET) NoticeKind.PausedBudget else NoticeKind.PausedSteps)
             is RunEvent.Failed -> end(event.error.toNotice(), statusCode = (event.error as? HarnessError.Provider)?.statusCode)
             is RunEvent.ModelRetrying -> setStatus(AgentState.Thinking, verb = null, phase = StatusPhase.Retrying)
-            RunEvent.CompactionStarted -> setStatus(AgentState.Thinking, verb = null, phase = StatusPhase.Summarizing)
-            is RunEvent.CompactionFinished -> setStatus(AgentState.Thinking, verb = null)
         }
     }
 

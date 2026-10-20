@@ -26,7 +26,6 @@ enum class TelemetryEvent(val wireName: String) {
     TOOL_FAILED("tool_failed"),
     HOSTED_TOOL_USED("hosted_tool_used"),
     MODEL_RETRIED("model_retried"),
-    CONTEXT_COMPACTED("context_compacted"),
     TOOL_OUTPUT_SAVED("tool_output_saved"),
 }
 

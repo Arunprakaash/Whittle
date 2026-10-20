@@ -2,7 +2,7 @@ package app.whittle.agent
 
 import app.whittle.core.common.Outcome
 import app.whittle.core.config.AgentLimits
-import app.whittle.core.config.ContextPolicy
+import app.whittle.core.config.MemoryPolicy
 import app.whittle.core.config.ModelRetryPolicy
 import app.whittle.core.config.ToolOutputPolicy
 import app.whittle.core.common.Secret
@@ -83,11 +83,14 @@ internal val testMessages = AgentMessages(
     outputTruncated = "[truncated at {{limit}}]",
     planUnfinished = "unfinished: {{steps}}",
     outputSaved = "{{head}}…{{tail}} [{{chars}} saved at {{path}}]",
-    compactedSummary = "summary: {{summary}}",
-    summarySource = "earlier steps",
-    compactedInstructions = "asked: {{instructions}}",
     memoryLine = "- {{text}} ({{id}})",
     noMemories = "none",
+    memorySaved = "saved {{id}}",
+    memoryEmpty = "empty",
+    memoryTooLong = "too long, limit {{limit}}",
+    memoryFull = "full at {{limit}}",
+    memoryForgotten = "forgotten",
+    memoryNotFound = "no {{id}}",
 )
 
 internal val testRetry = ModelRetryPolicy(
@@ -99,25 +102,16 @@ internal val testRetry = ModelRetryPolicy(
     retryableStatusCodes = setOf(429, 500, 503),
 )
 
-internal val testContext = ContextPolicy(
-    compactAtFraction = 0.75,
-    fallbackContextTokens = 128_000,
-    keepRecentFraction = 0.25,
-    charsPerToken = 4.0,
-    imageTokens = 1_000,
-    summaryMaxOutputTokens = 256,
-    transcriptBlockChars = 200,
-    overflowMarkers = listOf("context_length_exceeded"),
-)
+internal val testMemory = MemoryPolicy(maxItems = 2, maxItemChars = 40, idChars = 8)
 
 internal val testToolOutput = ToolOutputPolicy(saveAboveChars = 500, previewHeadChars = 20, previewTailChars = 10, directory = ".whittle/outputs")
 
-internal fun testLimits(maxToolOutputChars: Int = 1_000, context: ContextPolicy = testContext) = AgentLimits(
+internal fun testLimits(maxToolOutputChars: Int = 1_000) = AgentLimits(
     maxStepsPerRun = 10,
     maxOutputTokensPerStep = 512,
     maxToolOutputChars = maxToolOutputChars,
     retry = testRetry,
-    context = context,
+    memory = testMemory,
     toolOutput = testToolOutput,
 )
 

@@ -94,8 +94,6 @@
     "silenceMillis": 2000
   },
   "memory": {
-    "fileName": "memory.bin",
-    "maxItems": 50,
-    "maxItemChars": 300
+    "fileName": "memory.bin"
   }
 }

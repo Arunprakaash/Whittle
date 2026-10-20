@@ -65,10 +65,4 @@ sealed interface RunEvent {
 
     /** The provider failed for a passing reason; the same call is tried again after [delayMillis]. */
     data class ModelRetrying(val attempt: Int, val delayMillis: Long) : RunEvent
-
-    /** The conversation outgrew the model's window; older steps are being summarized. */
-    data object CompactionStarted : RunEvent
-
-    /** Older steps were summarized ([summarizedMessages] of them), or nothing changed when it's 0. */
-    data class CompactionFinished(val summarizedMessages: Int) : RunEvent
 }

@@ -62,11 +62,6 @@ data class RunCheckpoint(
     val planReminded: Boolean = false,
     /** True once a tool returned the user's personal data; with [tainted] it gates web reads. */
     val personalDataRead: Boolean = false,
-    /**
-     * What the user wrote for this run, word for word: the request, then anything added while it ran. A
-     * summary can lose detail, so compaction puts these back beside it.
-     */
-    val userInstructions: List<String> = emptyList(),
 ) {
     fun runContext(): RunContext = RunContext(
         mode = mode,

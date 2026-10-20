@@ -23,29 +23,16 @@
         529
       ]
     },
-    "context": {
-      "compactAtFraction": 0.75,
-      "fallbackContextTokens": 128000,
-      "keepRecentFraction": 0.25,
-      "charsPerToken": 3.5,
-      "imageTokens": 1500,
-      "summaryMaxOutputTokens": 2000,
-      "transcriptBlockChars": 3000,
-      "overflowMarkers": [
-        "context_length_exceeded",
-        "context length",
-        "maximum context",
-        "context window",
-        "too many tokens",
-        "prompt is too long",
-        "input is too long"
-      ]
-    },
     "toolOutput": {
       "saveAboveChars": 12000,
       "previewHeadChars": 3000,
       "previewTailChars": 1000,
       "directory": ".whittle/outputs"
+    },
+    "memory": {
+      "maxItems": 50,
+      "maxItemChars": 300,
+      "idChars": 8
     }
   },
   "network": {

@@ -169,15 +169,10 @@ data class VoiceDefaults(
     val silenceMillis: Long,
 )
 
-/** What Whittle remembers about the user across chats: kept encrypted on the phone, shown in Settings. */
+/** Where the phone keeps what Whittle remembers (encrypted); the limits are the harness's (MemoryPolicy). */
 @Serializable
-data class MemoryDefaults(
-    val fileName: String,
-    /** Facts kept at most; the agent is told to forget something first when it's full. */
-    val maxItems: Int,
-    val maxItemChars: Int,
-) {
+data class MemoryDefaults(val fileName: String) {
     init {
-        require(fileName.isNotBlank() && maxItems > 0 && maxItemChars > 0) { "memory limits must be positive" }
+        require(fileName.isNotBlank()) { "memory.fileName must be set" }
     }
 }

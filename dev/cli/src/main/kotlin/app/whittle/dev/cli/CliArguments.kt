@@ -17,6 +17,8 @@ data class CliArguments(
     val keyFile: Path,
     /** Null means "use the default from model-defaults.json". */
     val reasoningEffort: ReasoningEffort?,
+    /** Where remembered facts are kept between sessions. */
+    val memoryFile: Path,
 ) {
     companion object {
         val USAGE = """
@@ -28,10 +30,12 @@ data class CliArguments(
             |  --approve <mode>     ask | always | never  (default: ask)
             |  --reasoning <effort> none | low | medium | high  (default: model-defaults.json)
             |  --key-file <path>    properties file with "<provider-id>=<key>" (default: ~/$DEFAULT_KEY_FILE)
+            |  --memory-file <path> what the agent remembers between sessions (default: ~/$DEFAULT_MEMORY_FILE)
         """.trimMargin()
 
         private const val DEFAULT_PROVIDER = "openai"
         private const val DEFAULT_KEY_FILE = ".whittle/dev-keys.properties"
+        private const val DEFAULT_MEMORY_FILE = ".whittle/cli-memory.json"
 
         fun parse(args: Array<String>): Result<CliArguments> = runCatching {
             val options = mutableMapOf<String, String>()
@@ -56,6 +60,8 @@ data class CliArguments(
                 keyFile = options["key-file"]?.let(Paths::get)
                     ?: Paths.get(System.getProperty("user.home"), DEFAULT_KEY_FILE),
                 reasoningEffort = options["reasoning"]?.let { ReasoningEffort.valueOf(it.uppercase()) },
+                memoryFile = options["memory-file"]?.let(Paths::get)
+                    ?: Paths.get(System.getProperty("user.home"), DEFAULT_MEMORY_FILE),
             )
         }
     }

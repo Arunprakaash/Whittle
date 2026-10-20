@@ -1,5 +1,7 @@
 package app.whittle
 
+import android.widget.Toast
+import app.whittle.files.WorkspaceDocumentsProvider
 import app.whittle.settings.MemoryScreen
 import android.content.res.Configuration
 import androidx.core.view.WindowInsetsControllerCompat
@@ -155,6 +157,11 @@ class MainActivity : ComponentActivity() {
                                     onOpenArtifactFullScreen = { fullScreenArtifact = it },
                                     onOpenSettings = { showingSettings = true },
                                     onOpenArtifacts = { showingArtifacts = true },
+                                    onOpenFiles = {
+                                        if (!WorkspaceDocumentsProvider.open(this@MainActivity)) {
+                                            Toast.makeText(this@MainActivity, R.string.files_unavailable, Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
                                 )
                             }
                         }

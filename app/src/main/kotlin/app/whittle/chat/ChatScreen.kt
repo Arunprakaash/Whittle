@@ -130,6 +130,7 @@ fun ChatScreen(
     onOpenArtifactFullScreen: (ArtifactRef) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenArtifacts: () -> Unit,
+    onOpenFiles: () -> Unit,
 ) {
     var sheetArtifact by remember { mutableStateOf<ArtifactRef?>(null) }
     sheetArtifact?.let { ref ->
@@ -143,7 +144,7 @@ fun ChatScreen(
         )
     }
     CompositionLocalProvider(LocalOpenArtifact provides { ref -> sheetArtifact = ref }) {
-        ChatLayout(state, viewModel, sidebarMaxChats, voiceDefaults, onViewAllChats, onOpenSettings, onOpenArtifacts)
+        ChatLayout(state, viewModel, sidebarMaxChats, voiceDefaults, onViewAllChats, onOpenSettings, onOpenArtifacts, onOpenFiles)
     }
 }
 
@@ -159,6 +160,7 @@ private fun ChatLayout(
     onViewAllChats: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenArtifacts: () -> Unit,
+    onOpenFiles: () -> Unit,
 ) {
     val haptics = WhittleTheme.haptics
     LaunchedEffect(viewModel) { viewModel.haptics.collect { haptics.perform(it) } }
@@ -193,6 +195,7 @@ private fun ChatLayout(
                 onOpenSettings = { closeThen(onOpenSettings) },
                 artifactCount = state.artifacts.size,
                 onOpenArtifacts = { closeThen(onOpenArtifacts) },
+                onOpenFiles = { closeThen(onOpenFiles) },
             )
         },
     ) {
@@ -410,7 +413,6 @@ private fun Dock(state: ChatState, viewModel: ChatViewModel, voiceDefaults: Voic
                     verb = status.verb ?: stringResource(
                         when {
                             status.phase == StatusPhase.Retrying -> R.string.status_retrying
-                            status.phase == StatusPhase.Summarizing -> R.string.status_summarizing
                             status.state == AgentState.Thinking -> R.string.status_thinking
                             status.state == AgentState.Acting -> R.string.status_writing
                             else -> R.string.status_done

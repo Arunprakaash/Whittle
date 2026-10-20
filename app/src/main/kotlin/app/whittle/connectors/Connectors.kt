@@ -1,5 +1,7 @@
 package app.whittle.connectors
 
+import app.whittle.core.config.PromptTemplate
+import app.whittle.connectors.mcp.LoopbackRedirects
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import app.whittle.connectors.mcp.McpTransportKind
 import app.whittle.connectors.mcp.McpRegistry
@@ -54,8 +56,14 @@ class Connectors(
     private val directory: File,
     private val clientVersion: String,
     private val custom: CustomConnectorStore,
+    /** The page the browser shows when a sign-in comes back to the phone's loopback address. */
+    loopbackPage: PromptTemplate,
 ) {
     private val bundledIds = config.servers.map { it.id }.toSet()
+    /** Catches sign-ins that return to a loopback address (servers that refuse app links); null when none do. */
+    private val loopback = config.custom.redirectBase.toHttpUrlOrNull()?.takeIf { !it.isHttps }?.let { base ->
+        LoopbackRedirects(base, config.custom.loopback, loopbackPage, scope, clock::nowMillis, ::complete)
+    }
     private val _all = MutableStateFlow(config.servers.map(::connection))
     private val changes = Mutex()
     private val probe = McpProbe(config, http)
@@ -175,9 +183,17 @@ class Connectors(
     fun connect(context: Context, connection: McpConnection) {
         scope.launch {
             when (connection.server.auth) {
-                McpAuthMode.OAUTH -> when (val page = connection.beginSignIn()) {
-                    is Outcome.Success -> openSignIn(context, page.value)
-                    is Outcome.Failure -> _failures.tryEmit(page.error.message)
+                McpAuthMode.OAUTH -> {
+                    // Listen before the browser opens, so the return can't arrive first.
+                    val ready = loopback?.takeIf { it.serves(connection.server.redirectUri) }?.listen()
+                    if (ready is Outcome.Failure) {
+                        _failures.tryEmit(ready.error.message)
+                        return@launch
+                    }
+                    when (val page = connection.beginSignIn()) {
+                        is Outcome.Success -> openSignIn(context, page.value)
+                        is Outcome.Failure -> _failures.tryEmit(page.error.message)
+                    }
                 }
                 McpAuthMode.NONE -> (connection.connectOpen() as? Outcome.Failure)?.let { _failures.tryEmit(it.error.message) }
                 // The token comes from the user in Settings; nothing to open here.

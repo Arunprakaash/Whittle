@@ -15,6 +15,10 @@ class Workspaces(private val root: File) {
         return Outcome.Success(directory)
     }
 
+    /** Every workspace on the phone, whether or not its chat still exists. */
+    fun ids(): List<WorkspaceId> =
+        root.listFiles().orEmpty().filter { it.isDirectory && SAFE_ID.matches(it.name) }.map { WorkspaceId(it.name) }
+
     /** Removes a workspace and everything in it, e.g. when its chat is deleted. */
     fun delete(id: WorkspaceId): Outcome<Unit> {
         if (!SAFE_ID.matches(id.value)) return invalid("Workspace id '${id.value}' is not a plain name")

@@ -69,9 +69,18 @@
     "toolPrefix": "mcp_",
     "maxNameChars": 16,
     "icon": "extension",
-    "redirectBase": "app.whittle://oauth/",
+    "redirectBase": "http://127.0.0.1:47219/oauth/",
     "defaultRiskTier": "NETWORK_OUT",
-    "maxToolIdChars": 64
+    "maxToolIdChars": 64,
+    "loopback": {
+      "timeoutMillis": 600000,
+      "returnUri": "app.whittle://oauth/return",
+      "pageTitle": "Almost done",
+      "pageMessage": "Go back to Whittle to finish connecting.",
+      "pageButton": "Back to Whittle",
+      "expiredTitle": "Nothing to finish here",
+      "expiredMessage": "This sign-in has already finished or expired. Go back to Whittle and connect again if you need to."
+    }
   },
   "library": {
     "registryUrl": "https://registry.modelcontextprotocol.io/v0/servers",
@@ -239,18 +248,6 @@
         ]
       },
       {
-        "title": "Dropbox",
-        "description": "Find, read and organize files in your Dropbox.",
-        "url": "https://mcp.dropbox.com/mcp",
-        "websiteUrl": "https://www.dropbox.com",
-        "category": "files",
-        "keywords": [
-          "files",
-          "storage",
-          "documents"
-        ]
-      },
-      {
         "title": "Canva",
         "description": "Search, create and export your Canva designs.",
         "url": "https://mcp.canva.com/mcp",
@@ -261,18 +258,6 @@
           "posters",
           "presentations",
           "social"
-        ]
-      },
-      {
-        "title": "Figma",
-        "description": "Designs, screens and components from your Figma files.",
-        "url": "https://mcp.figma.com/mcp",
-        "websiteUrl": "https://www.figma.com",
-        "category": "files",
-        "keywords": [
-          "design",
-          "ui",
-          "mockups"
         ]
       },
       {

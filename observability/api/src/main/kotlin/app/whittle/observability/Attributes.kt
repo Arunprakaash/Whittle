@@ -75,7 +75,5 @@ object AttributeKeys {
     const val TAINTED = "tainted"
     const val TOTAL_TOKENS = "total_tokens"
     const val ATTEMPT = "attempt"
-    const val SUCCEEDED = "succeeded"
-    const val SUMMARIZED_MESSAGES = "summarized_messages"
     const val OUTPUT_CHARS = "output_chars"
 }

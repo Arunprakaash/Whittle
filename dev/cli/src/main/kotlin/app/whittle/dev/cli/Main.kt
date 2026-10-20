@@ -1,5 +1,8 @@
 package app.whittle.dev.cli
 
+import app.whittle.agent.ForgetTool
+import app.whittle.agent.RememberTool
+import app.whittle.agent.MemoryStore
 import app.whittle.core.common.getOrNull
 import app.whittle.tools.workspace.WorkspaceOutputs
 import app.whittle.agent.AgentMessages
@@ -91,13 +94,17 @@ fun main(args: Array<String>) = runBlocking {
     val inbox = RunInbox()
     val decisions = ConsoleDecisions(arguments.approvalMode, inbox)
     val workspaces = Workspaces(Files.createTempDirectory(WORKSPACE_PREFIX).toFile())
+    val memory = MemoryStore(JsonFileMemory(arguments.memoryFile), harness.agent.memory, messages, clock, IdGenerator.Random, this)
     val runner = AgentRunner(
         adapters = ModelAdapterRegistry(
             setOf(OpenAiCompatibleAdapter(httpClient, IdGenerator.Random), OpenAiResponsesAdapter(httpClient)),
         ),
         providers = providers,
         credentials = credentials,
-        tools = ToolRegistry(setOf(AskUserTool(), DeviceClockTool(clock), WebFetchTool(httpClient)) + workspaceTools(loader, workspaces)),
+        tools = ToolRegistry(
+            setOf(AskUserTool(), DeviceClockTool(clock), WebFetchTool(httpClient), RememberTool(memory, messages), ForgetTool(memory, messages)) +
+                workspaceTools(loader, workspaces),
+        ),
         policy = RuleBasedPolicyEngine(rules),
         inbox = inbox,
         checkpoints = InMemoryRunCheckpointStore(),
@@ -106,8 +113,8 @@ fun main(args: Array<String>) = runBlocking {
         systemPrompt = systemPrompt,
         messages = messages,
         clock = clock,
-        compactionPrompt = source.read(ConfigFiles.compactionPrompt).orExit(),
         outputs = WorkspaceOutputs(workspaces, harness.agent.toolOutput.directory)::save,
+        memory = memory,
     )
     val reasoningEffort = arguments.reasoningEffort ?: modelDefaults.defaultReasoningEffort
     println(
@@ -128,8 +135,6 @@ fun main(args: Array<String>) = runBlocking {
                 SystemPromptVariables.CURRENT_DATE to LocalDate.now().toString(),
                 SystemPromptVariables.USER_LOCALE to Locale.getDefault().toLanguageTag(),
                 SystemPromptVariables.USER_TIME_ZONE to ZoneId.systemDefault().id,
-                // The command line keeps no memory between sessions.
-                SystemPromptVariables.MEMORIES to messages.memories(emptyList()),
             ),
         ),
     )
@@ -167,8 +172,6 @@ private fun render(event: RunEvent) {
         is RunEvent.Paused -> println("\n[paused] ${event.reason}, tokens: ${event.usage}")
         is RunEvent.Failed -> println("\n[failed] ${event.error}")
         is RunEvent.ModelRetrying -> println("\n[retry] attempt ${event.attempt} failed; trying again in ${event.delayMillis} ms")
-        RunEvent.CompactionStarted -> println("\n[context] summarizing earlier steps")
-        is RunEvent.CompactionFinished -> println("[context] summarized ${event.summarizedMessages} messages")
     }
 }
 
