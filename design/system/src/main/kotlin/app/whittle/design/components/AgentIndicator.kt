@@ -1,72 +1,23 @@
 package app.whittle.design.components
 
-import androidx.compose.ui.graphics.Color
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.unit.dp
+import app.whittle.design.sprites.SpriteImage
+import app.whittle.design.tokens.BeaverPose
+import app.whittle.design.tokens.BeaverSprite
 import app.whittle.design.tokens.WhittleAgentIndicator
-import app.whittle.design.tokens.WhittleMotion
-import app.whittle.design.tokens.WhittleSize
 
 enum class AgentState { Thinking, Acting, Done }
 
-/** The agent's state mark: one dot that breathes while thinking, an orbiting arc while acting, a check when done. */
+/** The agent's state mark: the beaver looks up while thinking, gnaws a stick while acting and smiles when done. */
 @Composable
-fun AgentIndicator(state: AgentState, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.primary) {
-    Box(modifier.size(WhittleAgentIndicator.boxSize), contentAlignment = Alignment.Center) {
-        when (state) {
-            AgentState.Thinking -> {
-                val breath by rememberInfiniteTransition(label = "agentBreathe").animateFloat(
-                    initialValue = 1f,
-                    targetValue = BREATHE_MIN_SCALE,
-                    animationSpec = infiniteRepeatable(tween(WhittleMotion.AGENT_BREATHE_MILLIS / 2), RepeatMode.Reverse),
-                    label = "agentBreatheScale",
-                )
-                Dot(color, Modifier.graphicsLayer { scaleX = breath; scaleY = breath; alpha = breath })
-            }
-            AgentState.Acting -> {
-                val angle by rememberInfiniteTransition(label = "agentOrbit").animateFloat(
-                    initialValue = 0f,
-                    targetValue = FULL_TURN,
-                    animationSpec = infiniteRepeatable(tween(WhittleMotion.AGENT_ORBIT_MILLIS, easing = LinearEasing)),
-                    label = "agentOrbitAngle",
-                )
-                Dot(color)
-                Canvas(Modifier.size(WhittleAgentIndicator.boxSize - ORBIT_INSET * 2)) {
-                    rotate(angle) {
-                        drawArc(color, startAngle = 0f, sweepAngle = ORBIT_SWEEP, useCenter = false, style = Stroke(ORBIT_STROKE.toPx()))
-                    }
-                }
-            }
-            AgentState.Done -> WhittleIcon("check", size = WhittleSize.Icon.m, tint = color)
-        }
+fun AgentIndicator(state: AgentState, modifier: Modifier = Modifier) {
+    val pose = when (state) {
+        AgentState.Thinking -> BeaverPose.Thinking
+        AgentState.Acting -> BeaverPose.Working
+        AgentState.Done -> BeaverPose.Done
     }
+    // Decorative: the status text beside it says what the agent is doing.
+    SpriteImage(BeaverSprite, pose.key, contentDescription = null, modifier = modifier.size(WhittleAgentIndicator.boxSize))
 }
-
-@Composable
-private fun Dot(color: Color, modifier: Modifier = Modifier) {
-    Box(modifier.size(WhittleAgentIndicator.dotSize).background(color, CircleShape))
-}
-
-private const val BREATHE_MIN_SCALE = 0.6f
-private const val FULL_TURN = 360f
-private const val ORBIT_SWEEP = 90f
-private val ORBIT_INSET = 5.dp
-private val ORBIT_STROKE = 2.dp

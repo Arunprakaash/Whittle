@@ -1,0 +1,179 @@
+{
+  "$description": "Whittle's beaver. Pixel art on a 16×14 grid: each row is one string, each character a palette key, '.' is empty. The app draws its poses as the agent indicator; the launcher, themed and notification icons are generated from it. Edit here, never in generated files.",
+  "name": "Beaver",
+  "width": 16,
+  "height": 14,
+  "palette": {
+    "D": "#4E3220",
+    "B": "#9A6440",
+    "H": "#B5804F",
+    "C": "#C77D5E",
+    "T": "#E7C39A",
+    "N": "#2A1B12",
+    "K": "#171D1A",
+    "W": "#FFFFFF",
+    "O": "#F2BD5C",
+    "S": "#E9C58F",
+    "G": "#B98A55",
+    "P": "#F2D7A6"
+  },
+  "frames": {
+    "idle": [
+      "..DD........DD..",
+      ".DHBDDDDDDDDBHD.",
+      ".DBHHHHHHHHHHBD.",
+      ".DBBBBBBBBBBBBD.",
+      ".DBBWKBBBBWKBBD.",
+      ".DBBKKBBBBKKBBD.",
+      ".DBCBTTTTTTBCBD.",
+      ".DBBTTTNNTTTBBD.",
+      ".DBBTTTTTTTTBBD.",
+      ".DBBBTTOOTTBBBD.",
+      "..DBBBBOOBBBBD..",
+      "..DBBBBBBBBBBD..",
+      "..DBBDDDDDDBBD..",
+      "..DDD......DDD.."
+    ],
+    "blink": [
+      "..DD........DD..",
+      ".DHBDDDDDDDDBHD.",
+      ".DBHHHHHHHHHHBD.",
+      ".DBBBBBBBBBBBBD.",
+      ".DBBBBBBBBBBBBD.",
+      ".DBBKKBBBBKKBBD.",
+      ".DBCBTTTTTTBCBD.",
+      ".DBBTTTNNTTTBBD.",
+      ".DBBTTTTTTTTBBD.",
+      ".DBBBTTOOTTBBBD.",
+      "..DBBBBOOBBBBD..",
+      "..DBBBBBBBBBBD..",
+      "..DBBDDDDDDBBD..",
+      "..DDD......DDD.."
+    ],
+    "lookUp": [
+      "..DD........DD..",
+      ".DHBDDDDDDDDBHD.",
+      ".DBHHHHHHHHHHBD.",
+      ".DBBBWKBBBBWKBD.",
+      ".DBBBKKBBBBKKBD.",
+      ".DBBBBBBBBBBBBD.",
+      ".DBCBTTTTTTBCBD.",
+      ".DBBTTTNNTTTBBD.",
+      ".DBBTTTTTTTTBBD.",
+      ".DBBBTTOOTTBBBD.",
+      "..DBBBBOOBBBBD..",
+      "..DBBBBBBBBBBD..",
+      "..DBBDDDDDDBBD..",
+      "..DDD......DDD.."
+    ],
+    "lookUpBlink": [
+      "..DD........DD..",
+      ".DHBDDDDDDDDBHD.",
+      ".DBHHHHHHHHHHBD.",
+      ".DBBBBBBBBBBBBD.",
+      ".DBBBKKBBBBKKBD.",
+      ".DBBBBBBBBBBBBD.",
+      ".DBCBTTTTTTBCBD.",
+      ".DBBTTTNNTTTBBD.",
+      ".DBBTTTTTTTTBBD.",
+      ".DBBBTTOOTTBBBD.",
+      "..DBBBBOOBBBBD..",
+      "..DBBBBBBBBBBD..",
+      "..DBBDDDDDDBBD..",
+      "..DDD......DDD.."
+    ],
+    "gnawUp": [
+      "..DD........DD..",
+      ".DHBDDDDDDDDBHD.",
+      ".DBHHHHHHHHHHBD.",
+      ".DBBBBBBBBBBBBD.",
+      ".DBBWKBBBBWKBBD.",
+      ".DBBKKBBBBKKBBD.",
+      ".DBCBTTTTTTBCBD.",
+      ".DBBTTTNNTTTBBD.",
+      ".DBBTTTTTTTTBBD.",
+      ".DBBBTTOOTTBBBD.",
+      "..DBBBBOOBBBBD..",
+      "GSSDSSSSSSSSDSSG",
+      "..DBBDDDDDDBBD..",
+      "..DDD......DDD.."
+    ],
+    "gnawBite": [
+      "..DD........DD..",
+      ".DHBDDDDDDDDBHD.",
+      ".DBHHHHHHHHHHBD.",
+      ".DBBBBBBBBBBBBD.",
+      ".DBBBBBBBBBBBBD.",
+      ".DBBKKBBBBKKBBD.",
+      ".DBCBTTTTTTBCBD.",
+      ".DBBTTTNNTTTBBD.",
+      ".DBBTTTTTTTTBBD.",
+      ".DBBBTTTTTTBBBD.",
+      "..DBBBBOOBBBBD..",
+      "GSSDSSSOOSSSDSSG",
+      "..DBBDDDDDDBBD..",
+      "..DDD......DDD.."
+    ],
+    "gnawChips": [
+      "..DD........DD..",
+      ".DHBDDDDDDDDBHD.",
+      ".DBHHHHHHHHHHBD.",
+      ".DBBBBBBBBBBBBD.",
+      ".DBBWKBBBBWKBBD.",
+      ".DBBKKBBBBKKBBD.",
+      ".DBCBTTTTTTBCBD.",
+      ".DBBTTTNNTTTBBDP",
+      ".DBBTTTTTTTTBBD.",
+      "PDBBBTTOOTTBBBD.",
+      "..DBBBBOOBBBBD..",
+      "GSSDSSSGGSSSDSSG",
+      "..DBBDDDDDDBBD..",
+      "..DDD......DDD.."
+    ],
+    "happy": [
+      "..DD........DD..",
+      ".DHBDDDDDDDDBHD.",
+      ".DBHHHHHHHHHHBD.",
+      ".DBBBBBBBBBBBBD.",
+      ".DBBKKBBBBKKBBD.",
+      ".DBKBBKBBKBBKBD.",
+      ".DBCBTTTTTTBCBD.",
+      ".DBBTTTNNTTTBBD.",
+      ".DBBTTTTTTTTBBD.",
+      ".DBBBTTOOTTBBBD.",
+      "..DBBBBOOBBBBD..",
+      "..DBBBBBBBBBBD..",
+      "..DBBDDDDDDBBD..",
+      "..DDD......DDD.."
+    ]
+  },
+  "poses": {
+    "idle": [
+      { "frame": "idle", "millis": 2600 },
+      { "frame": "blink", "millis": 140 },
+      { "frame": "idle", "millis": 1800 },
+      { "frame": "blink", "millis": 140 }
+    ],
+    "thinking": [
+      { "frame": "lookUp", "millis": 1500 },
+      { "frame": "lookUpBlink", "millis": 140 },
+      { "frame": "lookUp", "millis": 900 },
+      { "frame": "idle", "millis": 700 }
+    ],
+    "working": [
+      { "frame": "gnawUp", "millis": 150 },
+      { "frame": "gnawBite", "millis": 150 },
+      { "frame": "gnawChips", "millis": 150 },
+      { "frame": "gnawBite", "millis": 150 }
+    ],
+    "done": [
+      { "frame": "happy", "millis": 1000 }
+    ]
+  },
+  "icons": {
+    "$description": "Drawables generated from the sprite. Launcher layers are 108×108 with the art inside the 66-unit safe zone; monochrome icons are one shape Android tints, and their holes are palette keys left out so the face stays readable.",
+    "launcherForeground": { "frame": "idle", "viewport": 108, "pixel": 3.125 },
+    "launcherMonochrome": { "frame": "idle", "viewport": 108, "pixel": 3.125, "monochrome": true, "holes": ["K", "W", "N", "O"] },
+    "notification": { "frame": "idle", "viewport": 24, "pixel": 1.375, "monochrome": true, "holes": ["K", "W", "N", "O"] }
+  }
+}

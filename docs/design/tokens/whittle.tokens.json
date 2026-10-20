@@ -897,16 +897,11 @@
     "agentBreathe": {
       "$type": "duration",
       "$value": "1200ms",
-      "$description": "One breath of the agent dot while thinking."
-    },
-    "agentOrbit": {
-      "$type": "duration",
-      "$value": "900ms",
-      "$description": "One turn of the arc around the agent dot while acting."
+      "$description": "One breath of the dot that marks new content below."
     }
   },
   "agentIndicator": {
-    "$description": "The agent's state mark while a run is working: one primary dot, 8dp, in a 28dp box. No morphing shapes, and no waiting state: open decisions never hold a run.",
+    "$description": "The agent's state mark while a run is working: the beaver (sprites/beaver.sprite.json) in a 28dp box. dotSize is the new-content dot. No waiting state: open decisions never hold a run.",
     "dotSize": {
       "$type": "dimension",
       "$value": "8px"
@@ -917,18 +912,18 @@
     },
     "thinking": {
       "$type": "string",
-      "$value": "breathe",
-      "$description": "Dot scales 1 to 0.6 and back."
+      "$value": "thinking",
+      "$description": "Beaver pose: looks up, blinks."
     },
     "acting": {
       "$type": "string",
-      "$value": "orbit",
-      "$description": "A 2dp arc circles the dot."
+      "$value": "working",
+      "$description": "Beaver pose: gnaws a stick, chips fly."
     },
     "done": {
       "$type": "string",
-      "$value": "check",
-      "$description": "Dot cross-fades to a check, then leaves with the status line."
+      "$value": "done",
+      "$description": "Beaver pose: happy closed eyes, then leaves with the status line."
     }
   },
   "creationTile": {

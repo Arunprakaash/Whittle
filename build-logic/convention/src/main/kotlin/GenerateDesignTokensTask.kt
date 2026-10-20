@@ -150,7 +150,7 @@ internal class DesignTokenKotlin(
         dimensionObject("WhittleRadius", "Corner radii.", group("radius"))
         dimensionObject("WhittleSize", "Component and icon sizes.", group("size"))
         val indicator = group("agentIndicator")
-        appendLine("/** The agent's state mark: one dot. */")
+        appendLine("/** The agent's state mark (the beaver) and the new-content dot. */")
         appendLine("object WhittleAgentIndicator {")
         appendLine("    val dotSize = ${number(indicator.group("dotSize").value(), "px")}.dp")
         appendLine("    val boxSize = ${number(indicator.group("boxSize").value(), "px")}.dp")

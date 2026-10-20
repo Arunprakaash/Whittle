@@ -129,8 +129,15 @@ android.defaultConfig.buildConfigField(
 )
 android.defaultConfig.buildConfigField("String", "RUNTIME_ASSETS", "\"$runtimeAssetDirectory\"")
 
+// The launcher, themed and notification icons are drawn from the beaver's sprite file.
+val spriteDrawables = tasks.register<GenerateSpriteDrawablesTask>("generateSpriteDrawables") {
+    spriteFile.set(rootProject.layout.projectDirectory.file("docs/design/sprites/beaver.sprite.json"))
+    outputDirectory.set(layout.buildDirectory.dir("generated/sprites/res"))
+}
+
 androidComponents {
     onVariants { variant ->
+        variant.sources.res?.addGeneratedSourceDirectory(spriteDrawables, GenerateSpriteDrawablesTask::outputDirectory)
         variant.sources.assets?.addGeneratedSourceDirectory(esbuildWasmAssets, NpmPackageAssetsTask::outputDirectory)
         val runtime = tasks.register<TermuxRuntimeTask>("${variant.name}TermuxRuntime") {
             specFile.set(termuxSpec)

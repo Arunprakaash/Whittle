@@ -147,18 +147,8 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
 .agent-state .tile-demo { display: grid; place-items: center; height: 72px; }
 .agent-state .agent-ind { transform: scale(2.2); margin: 22px 0; }
 .agent-state .agent-ind { color: var(--accent); }
-.mark { display: grid; place-items: center; border-radius: 30%; background: #2b6a55; flex: 0 0 auto; }
-.mark::after { content: ""; width: 30%; height: 30%; border-radius: 50%; background: #f6faf7; }
-.agent-ind { position: relative; width: 28px; height: 28px; display: grid; place-items: center; flex: 0 0 auto; color: var(--ind, var(--accent)); }
-.agent-ind::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; transition: background-color .3s, opacity .2s, transform .2s; }
-.agent-ind::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; border: 2px solid transparent; }
-.agent-ind[data-state="thinking"]::before { animation: ind-breathe var(--breathe, 1200ms) ease-in-out infinite; }
-.agent-ind[data-state="acting"]::after { border-top-color: currentColor; animation: ind-orbit var(--orbit, 900ms) linear infinite; }
-.agent-ind[data-state="done"]::before { opacity: 0; transform: scale(.4); }
-.agent-ind .ms { position: absolute; font-size: 18px; }
-@keyframes ind-breathe { 50% { transform: scale(.6); opacity: .55; } }
-@keyframes ind-orbit { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .agent-ind::before, .agent-ind::after { animation: none !important; } }
+.mark { display: block; border-radius: 50%; background: #2b6a55; flex: 0 0 auto; image-rendering: pixelated; }
+.agent-ind { display: block; width: 28px; height: 28px; flex: 0 0 auto; image-rendering: pixelated; }
 .agent-state b { font-size: 14px; }
 .agent-state span { font-size: 12.5px; color: var(--ink-3); }
 
@@ -313,7 +303,7 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
 
 <div class="shell">
   <nav class="toc" aria-label="Sections">
-    <div class="brand"><span class="mark" aria-hidden="true"></span>Whittle</div>
+    <div class="brand"><canvas class="mark" data-frame="idle" data-zoom="0.62" aria-hidden="true"></canvas>Whittle</div>
     <ol>
       <li><a href="#overview">Overview</a></li>
       <li><a href="#color">Color</a></li>
@@ -409,7 +399,7 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
         <tr><td>Run finishes</td><td>Steps collapse into the summary chip · <code>spatial.default</code>; answer fades in · <code>effects.default</code></td></tr>
         <tr><td>Preview opens</td><td>Sheet from the bottom · <code>spatial.slow</code></td></tr>
         <tr><td>Press</td><td>Scale to 0.97 + 12% state layer · <code>spatial.fast</code></td></tr>
-        <tr><td>Reduced motion</td><td>No breathing, orbit, shimmer or scale; short cross-fades; status always in text</td></tr>
+        <tr><td>Reduced motion</td><td>The beaver holds still; no breathing, shimmer or scale; short cross-fades; status always in text</td></tr>
       </tbody></table></div>
     </section>
 
@@ -490,9 +480,11 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
 </div>
 
 <script id="tokens-data" type="application/json">__WHITTLE_TOKENS__</script>
+<script id="sprite-data" type="application/json">__WHITTLE_SPRITE__</script>
 <script>
 (() => {
   const T = JSON.parse(document.getElementById("tokens-data").textContent);
+  const S = JSON.parse(document.getElementById("sprite-data").textContent);
   const $ = (s, r = document) => r.querySelector(s);
   const ms = (n, c = "") => `<span class="ms ${c}" aria-hidden="true">${n}</span>`;
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -507,10 +499,32 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
   const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + .05) / (y + .05); };
   const role = (mode, name) => T.color[mode][name].$value;
 
-  /* ---------- tiles and the agent dot ---------- */
-  const agentInd = (state) => `<span class="agent-ind" data-state="${state}" aria-hidden="true">${state === "done" ? ms("check") : ""}</span>`;
-  document.documentElement.style.setProperty("--breathe", T.motion.agentBreathe.$value);
-  document.documentElement.style.setProperty("--orbit", T.motion.agentOrbit.$value);
+  /* ---------- the beaver (sprite file) ---------- */
+  // Each canvas holds the sprite pixel for pixel, with room around it at data-zoom; CSS scales it pixelated.
+  const drawFrame = (canvas, frame) => {
+    const zoom = Number(canvas.dataset.zoom || 1);
+    const w = Math.round(S.width / zoom), h = Math.round(S.width / zoom);
+    canvas.width = w; canvas.height = h;
+    const g = canvas.getContext("2d");
+    const left = Math.floor((w - S.width) / 2), top = Math.floor((h - S.height) / 2);
+    S.frames[frame].forEach((row, y) => [...row].forEach((key, x) => {
+      if (key === ".") return;
+      g.fillStyle = S.palette[key];
+      g.fillRect(left + x, top + y, 1, 1);
+    }));
+  };
+  const playSprites = () => document.querySelectorAll("canvas[data-frame], canvas[data-pose]").forEach((canvas) => {
+    if (canvas.dataset.frame) { drawFrame(canvas, canvas.dataset.frame); return; }
+    const steps = S.poses[canvas.dataset.pose];
+    let i = 0;
+    const next = () => {
+      drawFrame(canvas, steps[i % steps.length].frame);
+      if (reduce || steps.length < 2) return;
+      setTimeout(() => { i += 1; next(); }, steps[i % steps.length].millis);
+    };
+    next();
+  });
+  const agentInd = (state) => `<canvas class="agent-ind" data-pose="${T.agentIndicator[state].$value}" data-zoom="0.95" aria-hidden="true"></canvas>`;
   const tileSpan = (tone, mode, icon, size) => {
     const t = T.creation[tone][mode];
     return `<span class="c-creation" style="width:${size}px;height:${size}px;border-radius:${T.creationTile.cornerPercent.$value}%;background:${t.fill.$value};color:${t.icon.$value}">${ms(icon)}</span>`;
@@ -690,7 +704,7 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
         <div class="c-step failed"><span class="gl">${ms("error")}</span><span style="display:grid;min-width:0"><span class="lbl t-titleSmall">Couldn't read the forecast</span><span class="res t-bodySmall">The weather service didn't answer</span></span><span class="trail" style="color:var(--error)">${ms("refresh")}</span></div>
         <div class="c-step blocked"><span class="gl">${ms("lock")}</span><span style="display:grid;min-width:0"><span class="lbl t-titleSmall">Send SMS</span><span class="res t-bodySmall">Not allowed by your settings</span></span><span class="trail"></span></div>
       </div>`),
-    comp("Status line", `<div class="c-status"><span class="agent-ind" data-state="acting" style="--ind:var(--primary)" aria-hidden="true"></span><span class="verb t-labelLarge">Estimating travel time</span><span class="time t-monoTimer">0:07</span><button class="stop t-labelLarge">${ms("stop", "fill")}Stop</button></div>`),
+    comp("Status line", `<div class="c-status">${agentInd("acting")}<span class="verb t-labelLarge">Estimating travel time</span><span class="time t-monoTimer">0:07</span><button class="stop t-labelLarge">${ms("stop", "fill")}Stop</button></div>`),
     comp("Run summary", `<div class="c-summary t-labelLarge">${ms("check_circle", "fill ok")}4 steps · 15s${ms("chevron_right")}</div>`),
     comp("Decision card · inline, pending (the run keeps going)", `<div class="c-decision"><div class="dh"><span class="gl">${ms("sms")}</span><div><div class="t-titleMedium">Send this to Priya?</div><div class="why t-bodySmall">Opens Messages with the text ready. Nothing is sent until you tap send there.</div></div></div><div class="payload t-bodyLarge"><div class="to t-labelMedium">${ms("person")}Priya Sharma · mobile</div>Running about 15 minutes late, I'll be there by 8:15.</div><div class="acts"><button class="c-btn sm filled t-labelLarge">${ms("open_in_new")}Open in Messages</button><button class="c-btn sm tonal t-labelLarge">${ms("edit")}Edit</button><button class="c-btn sm text t-labelLarge">Not now</button></div></div>`),
     comp("Decision card · capability, with scope", `<div class="c-decision"><div class="dh"><span class="gl">${ms("notifications")}</span><div><div class="t-titleMedium">Let Plant reminder notify you?</div><div class="why t-bodySmall">Only this automation, only for the reminder.</div></div></div><div class="acts"><button class="c-btn sm filled t-labelLarge">${ms("check")}Allow</button><button class="c-btn sm text t-labelLarge">Not now</button><span class="scope-note t-bodySmall">${ms("info")}Asks again if it wants more</span></div></div>`),
@@ -725,5 +739,7 @@ code { font: .88em var(--docmono); background: var(--code); padding: 1px 6px; bo
       navigator.clipboard.writeText(raw).then(() => done("Copied"), () => { getSelection().selectAllChildren($("#tokenJson")); done("Selected; press copy"); });
     } catch (e) { getSelection().selectAllChildren($("#tokenJson")); done("Selected; press copy"); }
   });
+
+  playSprites();
 })();
 </script>

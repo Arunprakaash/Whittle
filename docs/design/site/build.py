@@ -8,19 +8,21 @@ from pathlib import Path
 
 SITE_DIR = Path(__file__).resolve().parent
 TOKENS_FILE = SITE_DIR.parent / "tokens" / "whittle.tokens.json"
+SPRITE_FILE = SITE_DIR.parent / "sprites" / "beaver.sprite.json"
 TEMPLATE_FILE = SITE_DIR / "template.html"
 OUTPUT_FILE = SITE_DIR / "whittle-design-system.html"
-PLACEHOLDER = "__WHITTLE_TOKENS__"
+PLACEHOLDERS = {"__WHITTLE_TOKENS__": TOKENS_FILE, "__WHITTLE_SPRITE__": SPRITE_FILE}
 
 
 def main() -> None:
-    tokens = json.loads(TOKENS_FILE.read_text(encoding="utf-8"))
-    # Escape "</" so token text can never close the surrounding <script> element.
-    payload = json.dumps(tokens, ensure_ascii=False).replace("</", "<\\/")
-    template = TEMPLATE_FILE.read_text(encoding="utf-8")
-    if template.count(PLACEHOLDER) != 1:
-        raise SystemExit(f"{TEMPLATE_FILE.name} must contain {PLACEHOLDER} exactly once")
-    OUTPUT_FILE.write_text(template.replace(PLACEHOLDER, payload), encoding="utf-8")
+    page = TEMPLATE_FILE.read_text(encoding="utf-8")
+    for placeholder, source in PLACEHOLDERS.items():
+        if page.count(placeholder) != 1:
+            raise SystemExit(f"{TEMPLATE_FILE.name} must contain {placeholder} exactly once")
+        data = json.loads(source.read_text(encoding="utf-8"))
+        # Escape "</" so the data can never close the surrounding <script> element.
+        page = page.replace(placeholder, json.dumps(data, ensure_ascii=False).replace("</", "<\\/"))
+    OUTPUT_FILE.write_text(page, encoding="utf-8")
     print(f"Wrote {OUTPUT_FILE.relative_to(SITE_DIR.parents[2])}")
 
 
