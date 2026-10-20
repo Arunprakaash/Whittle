@@ -202,6 +202,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     fun answer(item: ThreadItem.Question, choice: String) {
         if (item.answer != null) return
         replace(item.key) { (it as ThreadItem.Question).copy(answer = choice) }
+        // The pick is the user's reply: it reads as their message, and what the agent does next follows it.
+        append(ThreadItem.User(key(), choice, steer = activeJob?.isActive == true))
         submit(item.runId, RunInput.Answer(item.toolCallId, choice))
     }
 
