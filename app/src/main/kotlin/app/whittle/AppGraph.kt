@@ -148,7 +148,7 @@ class AppGraph(context: Context) {
     private fun telemetry(context: Context): Telemetry {
         val local = LocalTelemetry(idGenerator)
         if (BuildConfig.POSTHOG_PROJECT_KEY.isBlank()) return local
-        PostHogAndroidClient.install(context, BuildConfig.POSTHOG_PROJECT_KEY, harness.telemetry, showContent = BuildConfig.REPLAY_SHOW_CONTENT)
+        PostHogAndroidClient.install(context, BuildConfig.POSTHOG_PROJECT_KEY, harness.telemetry, showContent = BuildConfig.REPLAY_SHOW_CONTENT, debugLogs = BuildConfig.POSTHOG_DEBUG)
         return ConsentFilteringTelemetry(
             delegate = PostHogTelemetry(PostHogAndroidClient(), idGenerator, clock),
             consent = { harness.telemetry.defaultConsent },

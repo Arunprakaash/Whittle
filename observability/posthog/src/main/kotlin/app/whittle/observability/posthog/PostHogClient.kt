@@ -25,9 +25,10 @@ class PostHogAndroidClient : PostHogClient {
          * [showContent] records text and images as they are, for a developer's own test builds; elements
          * marked [hiddenFromReplay] and password fields stay masked regardless.
          */
-        fun install(context: Context, projectKey: String, config: TelemetryConfig, showContent: Boolean) {
+        fun install(context: Context, projectKey: String, config: TelemetryConfig, showContent: Boolean, debugLogs: Boolean) {
             val replay = config.sessionReplay
             val posthog = PostHogAndroidConfig(apiKey = projectKey, host = config.posthogHost).apply {
+                debug = debugLogs
                 sessionReplay = replay.enabled && config.defaultConsent != ConsentLevel.OFF
                 sessionReplayConfig.screenshot = replay.screenshotMode
                 sessionReplayConfig.maskAllTextInputs = replay.maskAllText && !showContent

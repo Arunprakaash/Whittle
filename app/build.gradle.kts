@@ -20,6 +20,9 @@ android {
         // testing. Set whittle.replayShowContent=true in your Gradle properties; never in shipped builds.
         val replayShowContent = providers.gradleProperty("whittle.replayShowContent").orElse("false").get().toBoolean()
         buildConfigField("boolean", "REPLAY_SHOW_CONTENT", replayShowContent.toString())
+        // PostHog's own logs (what it sends, why replay is or isn't recording), for diagnosing a build.
+        val postHogDebug = providers.gradleProperty("whittle.posthogDebug").orElse("false").get().toBoolean()
+        buildConfigField("boolean", "POSTHOG_DEBUG", postHogDebug.toString())
     }
 
     // Release signing comes from a properties file outside the repo (storeFile, storePassword, keyAlias,
