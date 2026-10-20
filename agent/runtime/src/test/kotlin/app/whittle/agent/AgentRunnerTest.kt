@@ -516,6 +516,19 @@ class AgentRunnerTest {
         assertEquals("summary: SUMMARY", adapter.requests.last().messages.first().text)
     }
 
+    @Test
+    fun `when the request itself is summarized, the user's words are put back word for word`() = runTest {
+        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "big")), textTurn("SUMMARY"), textTurn("Done.")))
+        val tool = FakeTool("big", RiskTier.READ) { "row ".repeat(1_250) }
+        val limits = testLimits(maxToolOutputChars = 10_000, context = testContext.copy(fallbackContextTokens = 2_000))
+
+        runner(adapter, setOf(tool), limits = limits).start(request()).toList()
+
+        val summary = adapter.requests.last().messages.first().content.single() as ContentBlock.Text
+        assertEquals("summary: SUMMARY\n\nasked: Hi", summary.text)
+        assertEquals(Role.ASSISTANT, adapter.requests.last().messages[1].role)
+    }
+
     /** An earlier exchange: a question, a web read with a long result, then an answer. */
     private fun longHistory() = listOf(
         Message.userText("Find the opening hours"),

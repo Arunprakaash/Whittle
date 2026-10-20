@@ -72,11 +72,18 @@ class ContextCompaction(private val policy: ContextPolicy, private val maxOutput
         return (listOf(first, OMITTED) + latest).joinToString(SEPARATOR)
     }
 
-    /** The summary as the conversation's first message, followed by the steps kept as they were. */
-    fun compacted(summary: String, older: List<Message>, kept: List<Message>, messages: AgentMessages): List<Message> {
+    /**
+     * The summary as the conversation's first message, followed by the steps kept as they were. The user's own
+     * words for this task ([instructions]) that only the summarized part held are added back verbatim.
+     */
+    fun compacted(summary: String, older: List<Message>, kept: List<Message>, instructions: List<String>, messages: AgentMessages): List<Message> {
         val outside = older.any(Message::carriesUntrustedContent)
+        val keptText = kept.filter { it.role == Role.USER }.joinToString("\n") { it.text }
+        val summarizedAway = instructions.filter { it !in keptText }
+        val body = messages.compactedSummary(summary) +
+            if (summarizedAway.isEmpty()) "" else "\n\n" + messages.compactedInstructions(summarizedAway.joinToString("\n\n"))
         val text = ContentBlock.Text(
-            text = messages.compactedSummary(summary),
+            text = body,
             provenance = if (outside) Provenance.Untrusted(messages.summarySource) else Provenance.Trusted,
             personalData = older.any(Message::carriesPersonalData),
         )

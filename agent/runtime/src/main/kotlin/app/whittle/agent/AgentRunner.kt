@@ -101,6 +101,7 @@ class AgentRunner(
             // Earlier turns of the chat are still in front of the model, and so is what they brought in.
             tainted = request.priorMessages.any(Message::carriesUntrustedContent),
             personalDataRead = request.priorMessages.any(Message::carriesPersonalData),
+            userInstructions = listOf(request.userMessage.text).filter { it.isNotBlank() },
             preApprovedTools = request.preApprovedTools,
             approvedOnceTools = emptySet(),
             usage = TokenUsage.Zero,
@@ -373,7 +374,7 @@ class AgentRunner(
             emit(RunEvent.CompactionFinished(summarizedMessages = 0))
             return Outcome.Success(checkpoint)
         }
-        val messages = compaction.compacted(summary, older, conversation.messages.drop(cut), this@AgentRunner.messages)
+        val messages = compaction.compacted(summary, older, conversation.messages.drop(cut), checkpoint.userInstructions, this@AgentRunner.messages)
         val compacted = persist(
             checkpoint.copy(conversation = conversation.copy(messages = messages), usage = checkpoint.usage + turn.assembler.usage),
         ).getOrElse { return Outcome.Failure(it) }
@@ -488,7 +489,12 @@ class AgentRunner(
 
     private suspend fun steer(checkpoint: RunCheckpoint, text: String): Outcome<RunCheckpoint> {
         telemetry.event(TelemetryEvent.RUN_STEERED, runAttributes(checkpoint))
-        return persist(checkpoint.copy(conversation = checkpoint.conversation.withUserContent(ContentBlock.Text(text))))
+        return persist(
+            checkpoint.copy(
+                conversation = checkpoint.conversation.withUserContent(ContentBlock.Text(text)),
+                userInstructions = checkpoint.userInstructions + text,
+            ),
+        )
     }
 
     /**

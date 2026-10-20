@@ -85,6 +85,7 @@ internal val testMessages = AgentMessages(
     outputSaved = "{{head}}…{{tail}} [{{chars}} saved at {{path}}]",
     compactedSummary = "summary: {{summary}}",
     summarySource = "earlier steps",
+    compactedInstructions = "asked: {{instructions}}",
     memoryLine = "- {{text}} ({{id}})",
     noMemories = "none",
 )

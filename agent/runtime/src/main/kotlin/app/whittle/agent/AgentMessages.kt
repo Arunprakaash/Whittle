@@ -42,6 +42,8 @@ data class AgentMessages(
     val compactedSummary: String,
     /** Names a summary made from outside content, where approvals mention a source. */
     val summarySource: String,
+    /** Follows a summary with the user's own words for the task, which the summary may have shortened. */
+    val compactedInstructions: String,
     /** One remembered fact in the system prompt, with the id forget takes. */
     val memoryLine: String,
     /** The system prompt's memory section when nothing is remembered yet. */
@@ -68,6 +70,7 @@ data class AgentMessages(
         requirePlaceholders(outputSaved, HEAD, TAIL, CHARS, PATH)
         requirePlaceholders(compactedSummary, SUMMARY)
         requirePlaceholders(summarySource)
+        requirePlaceholders(compactedInstructions, INSTRUCTIONS)
         requirePlaceholders(memoryLine, ID, TEXT)
         requirePlaceholders(noMemories)
     }
@@ -121,12 +124,14 @@ data class AgentMessages(
 
     fun compactedSummary(summary: String): String = render(compactedSummary, SUMMARY to summary)
 
+    fun compactedInstructions(instructions: String): String = render(compactedInstructions, INSTRUCTIONS to instructions)
+
     /** The memory section of the system prompt: one line per remembered fact, as (id, text) pairs. */
     fun memories(items: List<Pair<String, String>>): String =
         if (items.isEmpty()) noMemories else items.joinToString("\n") { (id, text) -> render(memoryLine, ID to id, TEXT to text) }
 
     companion object {
-        const val SCHEMA_VERSION = 6
+        const val SCHEMA_VERSION = 7
         private const val TOOL = "tool"
         private const val DETAIL = "detail"
         private const val LIMIT = "limit"
@@ -143,5 +148,6 @@ data class AgentMessages(
         private const val SUMMARY = "summary"
         private const val ID = "id"
         private const val TEXT = "text"
+        private const val INSTRUCTIONS = "instructions"
     }
 }
