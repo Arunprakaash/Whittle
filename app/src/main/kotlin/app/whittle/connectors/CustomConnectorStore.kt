@@ -26,6 +26,10 @@ data class CustomServer(
     /** Headers the server asks for (named by the library); their values are secrets. */
     val headers: List<HeaderSpec> = emptyList(),
     val websiteUrl: String? = null,
+    /** Where its sign-in returns, when not the default (see LibraryServer.redirectBase). */
+    val redirectBase: String? = null,
+    /** Scopes the user asked for; none means the server's own. */
+    val scopes: List<String> = emptyList(),
 )
 
 /** The MCP servers the user added themselves, in the order they added them, and the tools they switched off. */

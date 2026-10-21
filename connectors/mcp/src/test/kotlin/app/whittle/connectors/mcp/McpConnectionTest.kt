@@ -28,6 +28,9 @@ class McpConnectionTest {
     private val web = MockWebServer()
     private val requests = mutableListOf<RecordedRequest>()
     private var now = 1_000L
+
+    /** Sign-in details only at the spec's fallback addresses: the root and OpenID discovery. */
+    private var fallbackLayout = false
     private val store = object : McpCredentialStore {
         var saved: McpCredentials? = null
         override suspend fun load() = saved
@@ -42,6 +45,16 @@ class McpConnectionTest {
                 synchronized(requests) { requests += request }
                 val body = request.body.readUtf8()
                 val base = web.url("/").toString().trimEnd('/')
+                if (fallbackLayout) {
+                    return when (request.path) {
+                        "/.well-known/oauth-protected-resource" -> json("""{"authorization_servers":["$base/auth"],"scopes_supported":["mcp","files"]}""")
+                        "/auth/.well-known/openid-configuration" -> json(
+                            """{"authorization_endpoint":"$base/authorize","token_endpoint":"$base/token","registration_endpoint":"$base/register"}""",
+                        )
+                        "/register" -> json("""{"client_id":"client-1"}""")
+                        else -> if (request.path!!.startsWith("/.well-known") || request.path!!.startsWith("/auth")) MockResponse().setResponseCode(404) else mcp(body)
+                    }
+                }
                 return when (request.path) {
                     "/.well-known/oauth-protected-resource/mcp" -> json("""{"authorization_servers":["$base"]}""")
                     "/.well-known/oauth-authorization-server" -> json(
@@ -82,6 +95,30 @@ class McpConnectionTest {
         assertTrue(mcpCalls.all { it.getHeader("Authorization") == "Bearer access-1" })
         assertTrue(mcpCalls.drop(1).all { it.getHeader("Mcp-Session-Id") == SESSION }, "every call after initialize uses the session")
         assertTrue(mcpCalls.all { it.requestUrl!!.queryParameter("features") == "database" })
+    }
+
+    @Test
+    fun `a client the user gave is used instead of registering`() = runTest {
+        val connection = connection()
+        connection.useClient(OAuthClientCredentials("my-client", "my-secret"))
+        val signInPage = assertIs<Outcome.Success<String>>(connection.beginSignIn()).value.toHttpUrl()
+        assertEquals("my-client", signInPage.queryParameter("client_id"))
+        assertTrue(requests.none { it.path == "/register" })
+
+        val state = signInPage.queryParameter("state")
+        assertIs<Outcome.Success<Unit>>(connection.complete("${REDIRECT}?code=code-1&state=$state"))
+        val token = requests.single { it.path == "/token" }
+        assertEquals(okhttp3.Credentials.basic("my-client", "my-secret"), token.getHeader("Authorization"))
+        assertEquals("my-client", store.saved?.preRegistered?.clientId, "kept for the next sign-in")
+    }
+
+    @Test
+    fun `sign-in details are found at the spec's fallback addresses`() = runTest {
+        fallbackLayout = true
+        val connection = connection(server().copy(scopes = emptyList()))
+        val signInPage = assertIs<Outcome.Success<String>>(connection.beginSignIn()).value.toHttpUrl()
+        assertEquals("client-1", signInPage.queryParameter("client_id"))
+        assertEquals("mcp files", signInPage.queryParameter("scope"), "the server's own scopes, when the connection names none")
     }
 
     @Test

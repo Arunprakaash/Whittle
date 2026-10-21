@@ -273,6 +273,20 @@
         ]
       },
       {
+        "title": "SlashDocs",
+        "description": "Publish documents Whittle writes to SlashDocs by Razorpay, and share them for comments.",
+        "url": "https://tryslashdocs.razorpay.com/mcp",
+        "websiteUrl": "https://tryslashdocs.razorpay.com",
+        "category": "files",
+        "redirectBase": "app.whittle://oauth/",
+        "keywords": [
+          "documents",
+          "publish",
+          "share",
+          "razorpay"
+        ]
+      },
+      {
         "title": "Stripe",
         "description": "Customers, payments and products in your Stripe account.",
         "url": "https://mcp.stripe.com",

@@ -74,6 +74,11 @@ data class LibraryServer(
     val category: String? = null,
     /** Other words people search for it by, e.g. the apps a hub like Zapier reaches. */
     val keywords: List<String> = emptyList(),
+    /**
+     * Where this server's sign-in returns, plus its id, when it refuses [CustomConnectorDefaults.redirectBase]:
+     * some sites' firewalls block sign-ins that return to a loopback address. Null: the default.
+     */
+    val redirectBase: String? = null,
 )
 
 /** A group in the library, in the order the user sees them. */

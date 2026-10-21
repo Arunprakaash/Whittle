@@ -91,10 +91,11 @@ class McpConnection(
     suspend fun beginSignIn(): Outcome<String> {
         _state.value = ConnectorState.Connecting
         if (server.auth != McpAuthMode.OAUTH) return Outcome.Failure(HarnessError.Configuration("${server.name} doesn't sign in with a browser"))
-        return when (val started = authorizer.begin(credentials.load()?.client)) {
+        val stored = credentials.load() ?: McpCredentials()
+        return when (val started = authorizer.begin(stored.client, stored.preRegistered)) {
             is Outcome.Success -> {
                 pending = started.value
-                credentials.save(McpCredentials(started.value.client, credentials.load()?.tokens))
+                credentials.save(stored.copy(client = started.value.client))
                 Outcome.Success(started.value.authorizationUrl)
             }
             is Outcome.Failure -> started.also { settle() }
@@ -113,13 +114,22 @@ class McpConnection(
         }
         return when (tokens) {
             is Outcome.Success -> {
-                credentials.save(McpCredentials(signIn.client, tokens.value))
+                credentials.save((credentials.load() ?: McpCredentials()).copy(client = signIn.client, tokens = tokens.value))
                 signedIn = true
                 client.reset()
                 refreshTools()
             }
             is Outcome.Failure -> tokens.also { settle() }
         }
+    }
+
+    /**
+     * Signs in with a client the user registered with the service themselves (for a service that doesn't let
+     * apps register): kept encrypted with the connection's sign-in, and used from the next sign-in on.
+     */
+    suspend fun useClient(client: OAuthClientCredentials) {
+        val stored = credentials.load() ?: McpCredentials()
+        credentials.save(stored.copy(preRegistered = client, client = stored.client?.takeIf { it.clientId == client.clientId }))
     }
 
     /** Connects a server that takes an access token as a bearer token: kept encrypted, sent only to this server. */

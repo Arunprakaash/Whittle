@@ -31,7 +31,16 @@ data class OAuthClient(
     val authorizationEndpoint: String,
     val tokenEndpoint: String,
     val redirectUri: String,
+    /** What the server says it supports, asked for when the connection names no scopes of its own. */
+    val scopes: List<String> = emptyList(),
 )
+
+/**
+ * A client the user registered with the service themselves, for a service that doesn't let apps register
+ * on their own. Used in place of registering (the MCP spec's pre-registration).
+ */
+@Serializable
+data class OAuthClientCredentials(val clientId: String, val clientSecret: String? = null)
 
 @Serializable
 data class OAuthTokens(
@@ -50,6 +59,8 @@ data class McpCredentials(
     val tokens: OAuthTokens? = null,
     val open: Boolean = false,
     val headers: Map<String, String> = emptyMap(),
+    /** The client the user gave, if any; [client] is then made from it instead of registering. */
+    val preRegistered: OAuthClientCredentials? = null,
 )
 
 /** One sign-in in progress: kept until the browser sends the user back. The verifier never leaves the phone. */
@@ -57,8 +68,9 @@ class PendingSignIn(val authorizationUrl: String, val client: OAuthClient, val v
 
 /**
  * OAuth 2.1 for remote MCP servers, as the MCP spec describes it: find the server's sign-in from its
- * metadata, register Whittle there (dynamic client registration), sign in with PKCE in the browser, and
- * keep the tokens fresh. No Whittle backend is involved; the user's tokens stay on the phone.
+ * metadata, use the client the user gave or else register Whittle there (dynamic client registration), sign
+ * in with PKCE in the browser, and keep the tokens fresh. No Whittle backend is involved; the user's tokens
+ * stay on the phone.
  */
 class McpAuthorizer(
     private val server: McpServerConfig,
@@ -67,12 +79,17 @@ class McpAuthorizer(
     private val clock: EpochClock,
     private val pkce: Pkce = Pkce(),
 ) {
-    /** Starts a sign-in, registering Whittle with the server first unless [registered] fits. */
-    suspend fun begin(registered: OAuthClient?): Outcome<PendingSignIn> {
-        val client = registered?.takeIf { it.redirectUri == server.redirectUri } ?: when (val created = register()) {
+    /**
+     * Starts a sign-in with [registered] if it still fits, else with the client the user gave
+     * ([preRegistered]), else by registering Whittle with the server.
+     */
+    suspend fun begin(registered: OAuthClient?, preRegistered: OAuthClientCredentials? = null): Outcome<PendingSignIn> {
+        val fits = registered?.takeIf { it.redirectUri == server.redirectUri && (preRegistered == null || it.clientId == preRegistered.clientId) }
+        val client = fits ?: when (val created = client(preRegistered)) {
             is Outcome.Success -> created.value
             is Outcome.Failure -> return created
         }
+        val scopes = server.scopes.ifEmpty { client.scopes }
         val verifier = pkce.randomToken(config.verifierEntropyBytes)
         val state = pkce.randomToken(config.stateEntropyBytes)
         val url = client.authorizationEndpoint.toHttpUrl().newBuilder()
@@ -83,7 +100,7 @@ class McpAuthorizer(
             .addQueryParameter(Param.CODE_CHALLENGE_METHOD, S256)
             .addQueryParameter(Param.STATE, state)
             .addQueryParameter(Param.RESOURCE, server.url)
-            .apply { if (server.scopes.isNotEmpty()) addQueryParameter(Param.SCOPE, server.scopes.joinToString(" ")) }
+            .apply { if (scopes.isNotEmpty()) addQueryParameter(Param.SCOPE, scopes.joinToString(" ")) }
             .build()
         return Outcome.Success(PendingSignIn(url.toString(), client, Secret(verifier), state))
     }
@@ -122,13 +139,20 @@ class McpAuthorizer(
         )
     }
 
-    private suspend fun register(): Outcome<OAuthClient> {
-        val metadata = when (val found = discover()) {
+    /** The spec's order: the user's own client first, then registering Whittle. */
+    private suspend fun client(preRegistered: OAuthClientCredentials?): Outcome<OAuthClient> {
+        val (metadata, scopes) = when (val found = discover()) {
             is Outcome.Success -> found.value
             is Outcome.Failure -> return found
         }
-        val registrationEndpoint = metadata.registrationEndpoint
-            ?: return authFailure("${server.name} doesn't let apps register for sign-in")
+        if (preRegistered != null) {
+            return Outcome.Success(
+                OAuthClient(preRegistered.clientId, preRegistered.clientSecret, metadata.authorizationEndpoint, metadata.tokenEndpoint, server.redirectUri, scopes),
+            )
+        }
+        val registrationEndpoint = metadata.registrationEndpoint ?: return authFailure(
+            "${server.name} doesn't let apps register for sign-in. Register an app with it, then add its client ID to this connection",
+        )
         val request = ClientRegistrationRequest(
             clientName = config.clientName,
             redirectUris = listOf(server.redirectUri),
@@ -138,21 +162,45 @@ class McpAuthorizer(
         )
         val body = json.encodeToString(ClientRegistrationRequest.serializer(), request).toRequestBody(JSON)
         return send(Request.Builder().url(registrationEndpoint).post(body).build(), ClientRegistration.serializer()).map {
-            OAuthClient(it.clientId, it.clientSecret, metadata.authorizationEndpoint, metadata.tokenEndpoint, server.redirectUri)
+            OAuthClient(it.clientId, it.clientSecret, metadata.authorizationEndpoint, metadata.tokenEndpoint, server.redirectUri, scopes)
         }
     }
 
-    /** Server metadata (RFC 9728) names the sign-in; its metadata (RFC 8414) names the endpoints. */
-    private suspend fun discover(): Outcome<AuthorizationServerMetadata> {
+    /**
+     * Server metadata (RFC 9728) names the sign-in and its scopes; that sign-in's metadata (RFC 8414, or
+     * OpenID discovery) names the endpoints. Each is looked for where the MCP spec says, in its order.
+     */
+    private suspend fun discover(): Outcome<Pair<AuthorizationServerMetadata, List<String>>> {
         val resource = server.url.toHttpUrl()
-        val resourceMetadataUrl = resource.newBuilder().encodedPath(PROTECTED_RESOURCE_PATH + resource.encodedPath.trimEnd('/')).query(null).build()
-        val issuer = when (val found = send(Request.Builder().url(resourceMetadataUrl).get().build(), ProtectedResourceMetadata.serializer())) {
-            is Outcome.Success -> found.value.authorizationServers.firstOrNull() ?: return authFailure("${server.name} names no sign-in server")
+        val resourcePath = resource.encodedPath.trimEnd('/')
+        val protectedCandidates = listOf(PROTECTED_RESOURCE_PATH + resourcePath, PROTECTED_RESOURCE_PATH)
+            .distinct()
+            .map { resource.newBuilder().encodedPath(it).query(null).build().toString() }
+        val protected = when (val found = firstOf(protectedCandidates, ProtectedResourceMetadata.serializer())) {
+            is Outcome.Success -> found.value
             is Outcome.Failure -> return found
         }
+        val issuer = protected.authorizationServers.firstOrNull() ?: return authFailure("${server.name} names no sign-in server")
         val issuerUrl = issuer.toHttpUrlOrNull() ?: return authFailure("${server.name} names an unreadable sign-in server")
-        val metadataUrl = issuerUrl.newBuilder().encodedPath(AUTHORIZATION_SERVER_PATH + issuerUrl.encodedPath.trimEnd('/')).build()
-        return send(Request.Builder().url(metadataUrl).get().build(), AuthorizationServerMetadata.serializer())
+        val issuerPath = issuerUrl.encodedPath.trimEnd('/')
+        val metadataCandidates = buildList {
+            add(issuerUrl.newBuilder().encodedPath(AUTHORIZATION_SERVER_PATH + issuerPath).build().toString())
+            add(issuerUrl.newBuilder().encodedPath(OPENID_CONFIGURATION_PATH + issuerPath).build().toString())
+            if (issuerPath.isNotEmpty()) add(issuerUrl.newBuilder().encodedPath(issuerPath + OPENID_CONFIGURATION_PATH).build().toString())
+        }
+        return firstOf(metadataCandidates, AuthorizationServerMetadata.serializer()).map { it to protected.scopesSupported }
+    }
+
+    /** The first of [urls] that answers with a readable [serializer] document; else the first failure. */
+    private suspend fun <T> firstOf(urls: List<String>, serializer: KSerializer<T>): Outcome<T> {
+        var failure: Outcome.Failure? = null
+        for (url in urls) {
+            when (val found = send(Request.Builder().url(url).get().build(), serializer)) {
+                is Outcome.Success -> return found
+                is Outcome.Failure -> if (failure == null) failure = found
+            }
+        }
+        return failure ?: authFailure("${server.name} has no sign-in details")
     }
 
     private suspend fun token(client: OAuthClient, form: FormBody.Builder, previousRefreshToken: String?): Outcome<OAuthTokens> {
@@ -193,7 +241,10 @@ class McpAuthorizer(
     private fun authFailure(message: String): Outcome.Failure = Outcome.Failure(HarnessError.Authentication(message))
 
     @Serializable
-    private data class ProtectedResourceMetadata(@SerialName("authorization_servers") val authorizationServers: List<String> = emptyList())
+    private data class ProtectedResourceMetadata(
+        @SerialName("authorization_servers") val authorizationServers: List<String> = emptyList(),
+        @SerialName("scopes_supported") val scopesSupported: List<String> = emptyList(),
+    )
 
     @Serializable
     private data class AuthorizationServerMetadata(
@@ -252,6 +303,7 @@ class McpAuthorizer(
         const val AUTHORIZATION = "Authorization"
         const val PROTECTED_RESOURCE_PATH = "/.well-known/oauth-protected-resource"
         const val AUTHORIZATION_SERVER_PATH = "/.well-known/oauth-authorization-server"
+        const val OPENID_CONFIGURATION_PATH = "/.well-known/openid-configuration"
         const val MILLIS_PER_SECOND = 1000L
 
         /** Redirects use the app's own scheme, which OkHttp can't parse; only their query matters. */
