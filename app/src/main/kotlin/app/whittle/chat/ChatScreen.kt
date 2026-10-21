@@ -134,7 +134,7 @@ fun ChatScreen(
     onOpenAppFullScreen: (AppRef) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenApps: () -> Unit,
-    onOpenFiles: () -> Unit,
+    onOpenProjects: () -> Unit,
 ) {
     var sheetApp by remember { mutableStateOf<AppRef?>(null) }
     sheetApp?.let { ref ->
@@ -148,7 +148,7 @@ fun ChatScreen(
         )
     }
     CompositionLocalProvider(LocalOpenApp provides { ref -> sheetApp = ref }) {
-        ChatLayout(state, viewModel, sidebarMaxChats, voiceDefaults, onViewAllChats, onOpenSettings, onOpenApps, onOpenFiles)
+        ChatLayout(state, viewModel, sidebarMaxChats, voiceDefaults, onViewAllChats, onOpenSettings, onOpenApps, onOpenProjects)
     }
 }
 
@@ -164,7 +164,7 @@ private fun ChatLayout(
     onViewAllChats: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenApps: () -> Unit,
-    onOpenFiles: () -> Unit,
+    onOpenProjects: () -> Unit,
 ) {
     val haptics = WhittleTheme.haptics
     LaunchedEffect(viewModel) { viewModel.haptics.collect { haptics.perform(it) } }
@@ -199,7 +199,7 @@ private fun ChatLayout(
                 onOpenSettings = { closeThen(onOpenSettings) },
                 appCount = state.apps.size,
                 onOpenApps = { closeThen(onOpenApps) },
-                onOpenFiles = { closeThen(onOpenFiles) },
+                onOpenProjects = { closeThen(onOpenProjects) },
             )
         },
     ) {

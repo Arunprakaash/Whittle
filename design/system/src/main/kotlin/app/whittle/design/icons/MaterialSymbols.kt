@@ -71,6 +71,7 @@ object MaterialSymbols {
         "short_text" to R.drawable.ms_short_text,
         "smart_toy" to R.drawable.ms_smart_toy,
         "sms" to R.drawable.ms_sms,
+        "stacks" to R.drawable.ms_stacks,
         "stop" to R.drawable.ms_stop,
         "table" to R.drawable.ms_table,
         "terminal" to R.drawable.ms_terminal,

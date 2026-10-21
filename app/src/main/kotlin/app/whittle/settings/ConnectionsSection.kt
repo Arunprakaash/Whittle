@@ -58,7 +58,7 @@ fun ConnectionsSection(graph: AppGraph, onBrowse: () -> Unit, onChooseTools: (Mc
     var askingKeys by remember { mutableStateOf<McpConnection?>(null) }
     var adding by remember { mutableStateOf(false) }
     ConnectorFailures(graph)
-    SettingsSection(stringResource(R.string.settings_section_connections), description = stringResource(R.string.connector_section_about)) {
+    SettingsSection(stringResource(R.string.settings_section_connections)) {
         val count = connections.size + 2
         connections.forEachIndexed { index, connection ->
             val state by connection.state.collectAsState()

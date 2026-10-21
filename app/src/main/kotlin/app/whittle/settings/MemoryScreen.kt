@@ -62,13 +62,15 @@ fun MemoryScreen(graph: AppGraph, onBack: () -> Unit) {
             contentPadding = PaddingValues(horizontal = WhittleSpace.l, vertical = WhittleSpace.l),
             verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline),
         ) {
-            item {
-                Text(
-                    stringResource(if (memories.isEmpty()) R.string.memory_empty else R.string.memory_about),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = WhittleSpace.m, end = WhittleSpace.m, bottom = WhittleSpace.m),
-                )
+            if (memories.isEmpty()) {
+                item {
+                    Text(
+                        stringResource(R.string.memory_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = WhittleSpace.m, end = WhittleSpace.m, bottom = WhittleSpace.m),
+                    )
+                }
             }
             itemsIndexed(memories, key = { _, memory -> memory.id }) { index, memory ->
                 SettingsRow(

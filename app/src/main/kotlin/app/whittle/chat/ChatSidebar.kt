@@ -1,6 +1,14 @@
 package app.whittle.chat
 
 import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
@@ -30,7 +38,10 @@ import app.whittle.design.tokens.WhittleSpace
 import app.whittle.storage.chats.ChatId
 import java.time.ZoneId
 
-/** New chat, then pinned chats and the last week (capped); everything else is one tap away on the Chats page. */
+/**
+ * Projects and Apps, then pinned chats and the last week (capped); everything else is one tap away on the
+ * Chats page. At the bottom: the user's own button, which opens Settings, and New chat.
+ */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ChatSidebar(
@@ -45,50 +56,41 @@ fun ChatSidebar(
     onOpenSettings: () -> Unit,
     appCount: Int,
     onOpenApps: () -> Unit,
-    onOpenFiles: () -> Unit,
+    onOpenProjects: () -> Unit,
 ) {
     val haptics = WhittleTheme.haptics
+    val colors = MaterialTheme.colorScheme
+    val settingsLabel = stringResource(R.string.settings_title)
     val groups = remember(chats, maxChats) {
         ChatSections.sidebar(ChatSections.group(chats, System.currentTimeMillis(), ZoneId.systemDefault()), maxChats)
     }
-    ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
+    ModalDrawerSheet(drawerContainerColor = colors.surfaceContainerLow) {
         Column(Modifier.fillMaxHeight().padding(horizontal = WhittleSpace.m, vertical = WhittleSpace.l)) {
             Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = WhittleSpace.s))
-            // Material 3 Expressive medium button: taller, fully rounded, morphs on press, filled icon.
-            val height = ButtonDefaults.MediumContainerHeight
-            Button(
-                onClick = { haptics.perform(WhittleHaptic.Tap); onNewChat() },
-                shapes = ButtonDefaults.shapes(),
-                contentPadding = ButtonDefaults.contentPaddingFor(height),
-                modifier = Modifier.fillMaxWidth().padding(top = WhittleSpace.m).height(height),
-            ) {
-                WhittleIcon("edit_square", size = ButtonDefaults.iconSizeFor(height))
-                Spacer(Modifier.width(ButtonDefaults.iconSpacingFor(height)))
-                Text(stringResource(R.string.sidebar_new_chat), style = ButtonDefaults.textStyleFor(height))
-            }
+            NavigationDrawerItem(
+                label = { Text(stringResource(R.string.projects_title), style = MaterialTheme.typography.titleSmall) },
+                icon = { WhittleIcon("stacks", size = WhittleSize.Icon.xl) },
+                selected = false,
+                onClick = { haptics.perform(WhittleHaptic.Tap); onOpenProjects() },
+                modifier = Modifier.padding(top = WhittleSpace.m),
+            )
             NavigationDrawerItem(
                 label = { Text(stringResource(R.string.apps_title), style = MaterialTheme.typography.titleSmall) },
                 icon = { WhittleIcon("deployed_code", size = WhittleSize.Icon.xl) },
                 badge = { if (appCount > 0) Text(appCount.toString(), style = MaterialTheme.typography.labelLarge) },
                 selected = false,
                 onClick = { haptics.perform(WhittleHaptic.Tap); onOpenApps() },
-                modifier = Modifier.padding(top = WhittleSpace.s),
             )
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.files_title), style = MaterialTheme.typography.titleSmall) },
-                icon = { WhittleIcon("folder", size = WhittleSize.Icon.xl) },
-                selected = false,
-                onClick = { haptics.perform(WhittleHaptic.Tap); onOpenFiles() },
-            )
+            HorizontalDivider(Modifier.padding(horizontal = WhittleSpace.s, vertical = WhittleSpace.s), color = colors.outlineVariant)
             if (chats.isEmpty()) {
                 Text(
                     stringResource(R.string.sidebar_empty),
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = WhittleSpace.s, top = WhittleSpace.l),
+                    color = colors.onSurfaceVariant,
+                    modifier = Modifier.padding(start = WhittleSpace.s, top = WhittleSpace.s),
                 )
             }
-            // The list takes the room between New chat and Settings, which stays at the bottom.
+            // The list takes the room between the top and the bottom row, which stays put.
             Box(Modifier.weight(1f)) {
                 ChatGroupList(
                     groups = groups,
@@ -111,13 +113,32 @@ fun ChatSidebar(
                     },
                 )
             }
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.titleSmall) },
-                icon = { WhittleIcon("settings", size = WhittleSize.Icon.xl) },
-                selected = false,
-                onClick = { haptics.perform(WhittleHaptic.Tap); onOpenSettings() },
-                modifier = Modifier.padding(top = WhittleSpace.s),
-            )
+            Row(
+                Modifier.fillMaxWidth().padding(top = WhittleSpace.s),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                // Whittle has no accounts; the user's button is where their settings live.
+                FilledTonalIconButton(
+                    onClick = { haptics.perform(WhittleHaptic.Tap); onOpenSettings() },
+                    shapes = IconButtonDefaults.shapes(),
+                    modifier = Modifier.size(ButtonDefaults.MediumContainerHeight).semantics { contentDescription = settingsLabel },
+                ) {
+                    WhittleIcon("person", fill = true, size = WhittleSize.Icon.xl)
+                }
+                // Material 3 Expressive medium button: taller, fully rounded, morphs on press.
+                val height = ButtonDefaults.MediumContainerHeight
+                Button(
+                    onClick = { haptics.perform(WhittleHaptic.Tap); onNewChat() },
+                    shapes = ButtonDefaults.shapes(),
+                    contentPadding = ButtonDefaults.contentPaddingFor(height),
+                    modifier = Modifier.height(height),
+                ) {
+                    WhittleIcon("add", size = ButtonDefaults.iconSizeFor(height))
+                    Spacer(Modifier.width(ButtonDefaults.iconSpacingFor(height)))
+                    Text(stringResource(R.string.sidebar_new_chat), style = ButtonDefaults.textStyleFor(height))
+                }
+            }
         }
     }
 }

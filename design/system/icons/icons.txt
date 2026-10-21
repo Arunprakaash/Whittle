@@ -64,6 +64,7 @@ share
 short_text
 smart_toy
 sms
+stacks
 stop:fill
 table
 terminal

@@ -40,7 +40,7 @@
     <string name="sidebar_view_all">View all chats</string>
     <string name="chats_title">Chats</string>
     <string name="apps_title">Apps</string>
-    <string name="files_title">Files</string>
+    <string name="projects_title">Projects</string>
     <string name="files_unavailable">This phone has no app for browsing files.</string>
     <string name="documents_summary">Your chats\' files</string>
     <string name="documents_untitled">Untitled chat</string>
@@ -134,7 +134,6 @@
         <item quantity="one">%1$d thing, used in every chat</item>
         <item quantity="other">%1$d things, used in every chat</item>
     </plurals>
-    <string name="memory_about">Whittle remembers these from your chats and uses them in new ones. They stay on your phone, encrypted, and are only sent to your AI provider with your tasks. Ask Whittle to remember or forget something, or remove it here.</string>
     <string name="memory_empty">Nothing yet. Tell Whittle about yourself or how you like things done, or say \"remember that…\", and it keeps it here for future chats.</string>
     <string name="memory_forget">Forget</string>
     <string name="memory_clear">Forget everything</string>
@@ -180,7 +179,6 @@
     <string name="connector_sign_in_oauth">With your account, in the browser</string>
     <string name="connector_sign_in_key">With a key you paste</string>
     <string name="connector_sign_in_none">None needed</string>
-    <string name="connector_section_about">Let Whittle use your other services, like Notion or Linear. Each one is an MCP server: pick one from the library or add any server by its address. Tap a connection to rename it, choose its tools or remove it.</string>
     <plurals name="connector_tools_on">
         <item quantity="one">Connected, %1$d of %2$d tools on</item>
         <item quantity="other">Connected, %1$d of %2$d tools on</item>
