@@ -2,14 +2,14 @@
 
 <h1 align="center">Whittle</h1>
 
-<p align="center">An AI agent that lives on your Android phone. Any model, your own keys, no backend.</p>
+<p align="center">An AI agent harness that runs entirely on an Android phone. Any model, your own keys, no backend.</p>
 
 <p align="center"><a href="https://github.com/Arunprakaash/Whittle/releases/latest">Download the latest APK</a></p>
 
-Whittle gets things done the way Claude Code does on a computer, for people who aren't developers. It searches the
-web, writes and runs code in a sandbox on the phone, builds apps you can open, share or install, and connects to
-services like Supabase or any MCP server you add. It talks to the AI provider you choose with your own key, and
-your keys never leave the phone.
+Whittle runs the whole agent loop on the phone: the model calls, the policy checks, the tools and the
+checkpoints. It searches the web, runs Node.js, Python and git in a sandbox, builds React apps with esbuild,
+packs them into installable APKs signed on the device, and talks to any MCP server. There is no Whittle server.
+The phone talks straight to the model provider you pick, using your own key.
 
 <table>
   <tr>
@@ -19,53 +19,156 @@ your keys never leave the phone.
   </tr>
 </table>
 
-## What it can do
+## Architecture
 
-- **Work in plain steps.** Whittle says what it's about to do, does it, and shows each step. Long tasks get a plan
-  you can follow, and keep running in the background with a live progress notification.
-- **Search and read the web**, citing the pages it used.
-- **Build apps.** Every app is a React + TypeScript project built on the phone. Open it in a sheet or full
-  screen, share it, open it in the browser, or **install it as its own Android app** with its own name and icon.
-- **Run code.** A sandboxed shell with Node.js, Python and git, offline unless a step needs the network.
-- **Use your accounts.** Connect **Supabase** to build apps with shared data and sign-in, or add **any MCP
-  server**. You can ask Whittle to add one; it asks on a card first.
-- **Use the phone.** Contacts, calendar and message drafts, each behind Android's own permission.
-- **Remember you.** Tell Whittle how you like things done, or ask it to remember something, and it uses that in
-  every new chat. Memories stay on the phone, encrypted, and you can see and delete them in Settings.
-- **Stay on long tasks.** Long tool output is saved on the phone for Whittle to read in parts, and a provider
-  hiccup is retried.
+```mermaid
+flowchart TB
+    UI["app<br/>Compose UI · chat session · foreground service"]
+    RUN["agent:runtime<br/>AgentRunner · checkpoints · RunInbox · memory"]
+    POL["policy:engine<br/>deterministic allow / ask / deny"]
+    LLM["llm:*<br/>one canonical message format"]
+    TOOLS["tools:* · connectors:mcp<br/>ToolRegistry"]
+    STORE["storage:*<br/>Tink vault · chats and checkpoints in Room"]
+    CFG["config:defaults<br/>versioned JSON + prompts"]
+    PROV(["Model provider<br/>OpenAI · OpenRouter · any OpenAI-compatible"])
+    SANDBOX["Sandboxed shell<br/>Node · Python · git under seccomp"]
+    BUNDLER["esbuild-wasm<br/>in a hidden WebView"]
+    MCP(["MCP servers<br/>Streamable HTTP · SSE · OAuth 2.1"])
 
-## Safety and privacy
+    UI --> RUN
+    RUN --> LLM --> PROV
+    RUN -- every tool call --> POL
+    RUN --> TOOLS
+    RUN --> STORE
+    TOOLS --> SANDBOX
+    TOOLS --> BUNDLER
+    TOOLS --> MCP
+    CFG -.-> RUN & POL & TOOLS & LLM
+```
 
-- **You approve what matters.** A deterministic policy engine, not the model, decides what runs by itself and
-  what needs your OK (`policy-rules.json`, `model-trust.json`). Anything that sends, deletes or spends asks
-  every time, and models without a trust rating can't use those tools at all.
-- **Outside content can't take over.** Web pages and tool output are marked untrusted; once a task has read
-  them, sending anything out needs your approval.
-- **Keys stay on the phone**, encrypted with the Android Keystore. Sign-ins to services use OAuth in the browser,
-  and tokens never pass through the chat.
-- **Analytics are yours to switch off.** Usage data is metadata only. Screen recordings show the app's
-  interface but mask your messages, answers, chat titles and apps.
+### The agent loop
 
-## Install
+`AgentRunner` calls the model, checks every proposed tool call against the policy engine, runs what's allowed
+and repeats. It is plain Kotlin with no Android dependency, so the same loop runs in the app and in the
+terminal (`dev:cli`).
 
-Download `Whittle-<version>.apk` from [Releases](https://github.com/Arunprakaash/Whittle/releases) on a 64-bit
-ARM phone with Android 8 or later. Updates install over earlier versions and keep your chats. Then connect a
-provider (OpenAI or OpenRouter) with your API key.
+- **Checkpoints.** A checkpoint is saved after every step and before every tool call. `resume` continues after
+  process death, or after the user answers, without repeating a side effect.
+- **Interrupts.** A call that needs approval, or access to something on the phone, pauses the run with
+  `AWAITING_USER` once the step's other calls are done. The answer replaces the placeholder result in place,
+  so the model sees what actually happened, the way Deep Agents resumes an interrupt. Questions (`ask_user`)
+  don't pause.
+- **Steering.** Messages the user sends mid-run, and their answers to cards, arrive through `RunInbox` and are
+  applied at the next step boundary.
+- **Long tasks.** Provider failures are retried with backoff, but only while nothing has been shown to the
+  user. Tool output past a size limit is saved to the workspace (`.whittle/outputs`) for the model to read
+  in sections, instead of filling the context.
+- **Memory.** `MemoryStore` owns the limits, ids and the `remember` / `forget` tools, and fills
+  `{{memories}}` in the system prompt. The host only supplies storage: an encrypted file on the phone, a
+  JSON file in the CLI.
 
-## How it's built
+### Policy is code, not the model
 
-The architecture is drawn in [docs/architecture](docs/architecture/README.md): the
-[agent run loop](docs/architecture/d04_agent_run_loop.png), the
-[policy engine](docs/architecture/d05_policy_engine.png), the
-[trust boundaries](docs/architecture/d09_trust_boundaries.png), the
-[APK export pipeline](docs/architecture/d12_native_apk_export.png) and more. The Excalidraw sources are next to
-the pictures.
+`RuleBasedPolicyEngine` decides every tool call in a fixed order where deny always wins:
 
-The design system lives in [docs/design](docs/design): tokens (`tokens/whittle.tokens.json`, W3C DTCG) that
-generate the app's colors, type, spacing and motion, the beaver (`sprites/beaver.sprite.json`) that generates
-its animation and every launcher and notification icon, and a design-system page built from both
-(`site/whittle-design-system.html`).
+1. hard denylist
+2. deny rules
+3. model trust tier denials
+4. tainted run plus an outbound tool, or tainted run plus personal data plus a web read
+5. unattended runs (pre-approved tools only)
+6. trust tier approval threshold
+7. ask rules
+8. allow rules
+9. the tool's risk-tier default
+
+Rules live in `policy-rules.json`, and model trust tiers in `model-trust.json`. Content carries provenance:
+anything from the web, a file or a tool result marks the run as tainted. From then on, sending data out needs
+the user's approval, so a web page can't instruct the agent to exfiltrate anything. Models without a trust
+rating can't use high-risk tools at all.
+
+### One message format, any model
+
+`core:model` defines provider-neutral messages, tool calls and token usage. Adapters translate at the edge:
+`llm:adapter-openai-compatible` streams Chat Completions (OpenRouter, Groq, Together, Ollama…), and
+`llm:adapter-openai-responses` speaks the OpenAI Responses API with reasoning, hosted web search and
+`store: false`. Providers and models come from `provider-catalog.json` and `model-defaults.json`, not code.
+
+### A real shell on a phone
+
+Android only lets an app execute native code from its APK's native-library folder. So at build time
+`TermuxRuntimeTask` takes pinned Termux packages (`nodejs-lts`, `npm`, `python`, `python-pip`, `git`) and:
+
+- ships every ELF as a native library, with the rest of the files in one archive asset;
+- rewrites the Termux prefix inside every file to the app's own prefix. That prefix is padded to the same
+  length, so the binaries stay byte-for-byte intact.
+
+On first use `ToolRuntime` lays out a prefix of links back to those libraries.
+
+Every command starts through `whittle_sandbox`, a small C program built with the NDK
+(`app/src/main/native/sandbox`). It puts the command in its own process group behind a seccomp filter, which
+the command and everything it starts keep for life:
+
+- No `ptrace`, `process_vm_readv` or `process_vm_writev`, so it can't read the app's memory, where keys are
+  decrypted while in use.
+- No `io_uring`.
+- No sockets of any kind unless the step was allowed the network. That includes DNS, which Android routes
+  through a local socket.
+
+If the filter can't be installed, the command doesn't run.
+
+### Apps built on the phone
+
+`build_web_app` bundles a React + TypeScript project with esbuild's WebAssembly build. It runs inside a
+WebView that is never shown, on a private https origin the app answers itself. The project's code is only
+parsed, never run. Imports resolve through `esm.sh` with a disk cache, so rebuilds work offline.
+
+### APK export without a build server
+
+Any app Whittle builds can be installed as its own Android app:
+
+1. `AppPackager` takes the prebuilt `export:shell` APK, a tiny WebView host.
+2. It rewrites the shell's binary manifest with the app's own package and name, replaces the icon and drops
+   the web app into `assets/www/`.
+3. `AppSigner` signs the result with `apksig`, using a key created in the Android Keystore that never leaves
+   the phone's secure hardware.
+4. The package name is stable per app, so a new export installs as an update.
+
+### Connectors
+
+`connectors:mcp` speaks MCP over Streamable HTTP and the older SSE transport. Sign-in uses OAuth 2.1:
+
+- server discovery, dynamic client registration, PKCE and state;
+- a loopback redirect (`http://127.0.0.1:<port>/oauth/<id>`, RFC 8252) that the phone listens on while a
+  sign-in is open. Many servers reject custom-scheme redirects, but they accept this one.
+
+Tokens are kept in the vault and never pass through the chat.
+
+### Storage, telemetry, design
+
+- **Storage.** Keys and tokens are in a Tink vault keyed by the Android Keystore. Chats and run checkpoints
+  are in Room, with their content encrypted through `ContentCipher`. Each chat's workspace is exposed to Android's Files app through a
+  `DocumentsProvider`.
+- **Telemetry.** `observability:api` is vendor-neutral with consent filtering, and `observability:posthog`
+  adapts it. Events carry metadata only. Session replays mask messages, answers, chat titles and apps.
+- **Design system.** W3C DTCG tokens in `docs/design/tokens` generate the Compose colors, type, spacing and
+  Material 3 Expressive motion springs. A sprite file generates the beaver's animation and every launcher
+  and notification icon.
+
+### Configuration
+
+Nothing that may change lives in code. The defaults are in
+`config/defaults/src/main/resources/whittle/config`:
+
+| File | What it holds |
+|---|---|
+| `harness-config.json` | Run limits, retries, tool output and memory limits |
+| `provider-catalog.json`, `model-defaults.json`, `model-trust.json` | Providers, models and their trust tiers |
+| `policy-rules.json` | Policy rules |
+| `tool-presentation.json` | How each tool's steps and cards are labelled |
+| `connectors.json`, `web-build.json`, `app-defaults.json` | Connectors, app builds and app settings |
+| `agent-messages.json`, `prompts/agent-system.md` | Everything the model is told |
+
+Every file has a `schemaVersion`, and unknown keys are rejected.
 
 ### Modules
 
@@ -74,62 +177,114 @@ its animation and every launcher and notification icon, and a design-system page
 | `core:common` | `Outcome`, typed `HarnessError`, `Secret`, PKCE, clock and id abstractions, `ContentCipher` |
 | `core:model` | Canonical, provider-neutral messages, tool calls, provenance, token usage |
 | `core:config` | `ConfigLoader` (versioned, strict JSON), `HarnessConfig`, prompt templates |
-| `config:defaults` | Reviewed default config shipped with the app (`src/main/resources/whittle/config`) |
+| `config:defaults` | The default config shipped with the app |
 | `llm:api` | `ModelAdapter`, provider and model catalogs, trust tiers, stream events |
 | `llm:http` | Shared streaming plumbing: Server-Sent Events, provider URLs and auth headers |
-| `llm:adapter-openai-compatible` | Streaming Chat Completions adapter (OpenRouter, Groq, Together, Ollama, …) and model lister |
-| `llm:adapter-openai-responses` | OpenAI Responses API adapter: tools with reasoning, hosted web search, `store: false` |
+| `llm:adapter-openai-compatible` | Streaming Chat Completions adapter and model lister |
+| `llm:adapter-openai-responses` | OpenAI Responses API adapter |
 | `llm:openrouter-auth` | One-tap OpenRouter sign-in with OAuth PKCE |
-| `tools:api` | `ToolDefinition`, `ToolRegistry` (built-in and connected tools), risk tiers, argument validation |
-| `tools:presentation` | Plain-language step labels and approval cards for each tool, from `tool-presentation.json` |
+| `tools:api` | `ToolDefinition`, `ToolRegistry`, risk tiers, argument validation |
+| `tools:presentation` | Step labels and approval cards for each tool |
 | `tools:device`, `tools:android` | Clock, contacts, calendar, message drafts |
 | `tools:web` | Web fetch over https; output is untrusted |
-| `tools:workspace` | Files, the sandboxed shell (`run_command`) and app builds (`build_web_app`, `show_artifact`) |
-| `connectors:mcp` | MCP over Streamable HTTP with OAuth 2.1 (discovery, dynamic registration, PKCE), tokens or no sign-in |
-| `policy:engine` | Deterministic allow / ask / deny engine driven by `policy-rules.json` |
-| `agent:runtime` | `AgentRunner`: the agent loop with checkpoints, plans, approvals and resume |
-| `observability:api`, `observability:posthog` | Vendor-neutral telemetry with consent filtering; PostHog adapter and replay privacy |
-| `storage:secrets`, `storage:runs`, `storage:chats` | Encrypted vault (Tink + Keystore), run checkpoints and chats (Room, encrypted) |
+| `tools:workspace` | Files, the sandboxed shell (`run_command`) and app builds |
+| `connectors:mcp` | MCP client with OAuth 2.1, tokens or no sign-in |
+| `policy:engine` | The deterministic policy engine |
+| `agent:runtime` | `AgentRunner`, checkpoints, plans, approvals, memory, saved outputs |
+| `observability:api`, `observability:posthog` | Telemetry with consent filtering, and its PostHog adapter |
+| `storage:secrets`, `storage:runs`, `storage:chats` | Encrypted vault, run checkpoints and chats |
 | `design:system` | Compose design system generated from the tokens and the beaver sprite |
-| `export:shell` | The tiny WebView app that installed apps are packed into |
+| `export:shell` | The WebView app that exported apps are packed into |
 | `app` | The Android app |
-| `dev:cli` | Developer command-line runner for the real loop with your own key |
+| `dev:cli` | Runs the real agent loop from a terminal with your own key |
 
-## Configuration
+The design-time diagrams are in [docs/architecture](docs/architecture/README.md), with their Excalidraw
+sources. They were drawn before the code, so where they differ, the code is right.
 
-Nothing that may change lives in code. Defaults are in `config/defaults/src/main/resources/whittle/config`:
-`harness-config.json`, `provider-catalog.json`, `model-trust.json`, `model-defaults.json`, `policy-rules.json`,
-`tool-presentation.json`, `connectors.json`, `app-defaults.json`, `agent-messages.json` and
-`prompts/agent-system.md`. Every file has a `schemaVersion`, and unknown keys are rejected.
+## Build
 
-## Build and test
+### Requirements
 
-Requires JDK 17+ (Android Studio's bundled JDK works) and the Android SDK with NDK 28.
+- JDK 17 or later. Android Studio's bundled JDK works.
+- Android SDK with platform 37 and NDK `28.2.13676358`, which builds the sandbox.
+- Network access on the first build, which downloads the pinned Termux packages (see
+  `app/termux-runtimes.lock.json`). They're cached in `~/.gradle/caches/whittle-termux` after that.
+- A 64-bit ARM device or emulator (`arm64-v8a`), Android 8 or later.
+
+### Compile, test and install
 
 ```bash
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
-./gradlew test :app:assembleRelease
 ```
 
-Optional Gradle properties, kept in `~/.gradle/gradle.properties` and never in the repo:
-`whittle.posthogProjectKey` (analytics), `whittle.replayShowContent=true` (your own test builds show content in
-recordings) and the release signing properties.
+Run the unit tests:
 
-## Try the agent from the terminal
+```bash
+./gradlew test
+```
 
-Store your key in a local file outside the repo (never commit it):
+Build a debug APK, which installs next to a release build as `app.whittle.debug`:
+
+```bash
+./gradlew :app:assembleDebug
+```
+
+Build the release APK (minified, and signed if signing is set up):
+
+```bash
+./gradlew :app:assembleRelease
+```
+
+Install it on a connected device:
+
+```bash
+adb install -r app/build/outputs/apk/release/app-release.apk
+```
+
+To update the pinned Termux packages, edit `app/termux-runtimes.json` and refresh the lock file:
+
+```bash
+./gradlew :app:updateTermuxLock
+```
+
+### Optional properties
+
+Keep these in `~/.gradle/gradle.properties`, never in the repo:
+
+| Property | Effect |
+|---|---|
+| `whittle.posthogProjectKey` | Turns analytics on. Without it, nothing is sent. |
+| `whittle.replayShowContent=true` | Your own test builds show content in session replays. Never set it for builds you ship. |
+| `whittle.posthogDebug=true` | Verbose PostHog logging. |
+| `whittle.releaseSigningFile` | Path to the signing properties (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`). Defaults to `~/.whittle/release-signing.properties`. Without it the release APK is unsigned. |
+
+## Run the agent from a terminal
+
+`dev:cli` runs the same `AgentRunner`, policy engine and tools against your own key. Store the key in a local
+file outside the repo:
 
 ```bash
 dev/cli/save-dev-key.sh openai
 ```
 
-Then:
+Build the CLI:
 
 ```bash
 ./gradlew :dev:cli:installDist
+```
+
+List the models your key can use:
+
+```bash
 dev/cli/build/install/cli/bin/cli --provider openai --list-models
+```
+
+Run a task:
+
+```bash
 dev/cli/build/install/cli/bin/cli --provider openai --model <model-id> --prompt "What time is it in Tokyo?"
 ```
 
 Pick the reasoning effort with `--reasoning none|low|medium|high`; the default comes from `model-defaults.json`.
-Use `--approve always|never` for non-interactive runs.
+Use `--approve ask|always|never` to choose how approvals are handled (the default `ask` prompts in the
+terminal), and `--memory-file` to choose where memories are kept (default `~/.whittle/cli-memory.json`).
