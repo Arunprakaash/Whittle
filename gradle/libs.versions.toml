@@ -8,6 +8,8 @@ jvmTarget = "17"
 androidCompileSdk = "37"
 androidMinSdk = "26"
 androidTargetSdk = "36"
+# The Linux workspace build: Android lets apps run programs from their own storage only up to this target.
+androidLinuxTargetSdk = "28"
 
 # Libraries
 kotlinxCoroutines = "1.11.0"

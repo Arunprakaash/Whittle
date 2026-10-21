@@ -26,7 +26,7 @@ private val FILE_CONTENT = Provenance.Untrusted("workspace files")
 private val COMMAND_OUTPUT = Provenance.Untrusted("command output")
 
 /**
- * Runs a shell command in the chat's workspace. It can reach the network (the built-in shell has nc),
+ * Runs a shell command in the chat's workspace, inside Linux on Android. Allowed the network it can reach anything,
  * so it is outbound: untrusted models and tainted runs show the exact command on a card first.
  */
 class RunCommandTool(workspaces: Workspaces, private val runner: CommandRunner, private val config: TerminalConfig) : WorkspaceTool(workspaces) {
@@ -40,7 +40,10 @@ class RunCommandTool(workspaces: Workspaces, private val runner: CommandRunner, 
             is Outcome.Success -> root.value
         }
         val network = arguments.flag(NETWORK)
-        val result = runner.run(command, directory, timeout, network)
+        val result = when (val ran = runner.run(command, directory, timeout, network)) {
+            is Outcome.Failure -> return error(ran.error.message)
+            is Outcome.Success -> ran.value
+        }
         val body = buildJsonObject {
             result.exitCode?.let { put(EXIT_CODE, it) }
             put(STDOUT, result.stdout)
@@ -63,14 +66,13 @@ class RunCommandTool(workspaces: Workspaces, private val runner: CommandRunner, 
 
         val DEFINITION = ToolDefinition(
             id = ToolId("run_command"),
-            description = "Runs a shell command in this chat's workspace folder: Android's toybox shell (ls, cat, grep, sed, find, " +
-                "tar...) plus Node.js with npm and npx, Python 3 with pip, and git. Installed package commands can't start " +
-                "directly on Android; run them through their interpreter (node node_modules/vite/bin/vite.js, python3 -m flask). " +
+            description = "Runs a bash command in Linux (Ubuntu on the phone), in /workspace, this chat's own folder. " +
+                "Install what you need with apt-get, npm or pip; installed tools stay for every chat. " +
                 "The command ends when it finishes or times out, so servers don't keep running. " +
                 "Commands are offline: they can't open network connections unless you set $NETWORK to true, which also " +
-                "covers local servers and name lookups. Set it only when the command needs it (npm install, pip install, " +
-                "git clone, downloads, a local server); a socket error saying permission denied means it was needed. " +
-                "Prefer the file tools for reading and editing files.",
+                "covers local servers and name lookups. Set it only when the command needs it (apt-get, npm install, " +
+                "pip install, git clone, downloads, a local server); a socket error saying permission denied means it was " +
+                "needed. Prefer the file tools for reading and editing files.",
             inputSchema = schema(
                 """{"type":"object","properties":{""" +
                     """"$COMMAND":{"type":"string","description":"One shell command line"},""" +
@@ -128,8 +130,8 @@ class ListFilesTool(workspaces: Workspaces, private val config: TerminalConfig) 
 
         val DEFINITION = ToolDefinition(
             id = ToolId("list_files"),
-            description = "Lists the files and folders in this chat's workspace, or in a folder inside it.",
-            inputSchema = schema("""{"type":"object","properties":{"$PATH":{"type":"string","description":"Folder relative to the workspace; default is the workspace itself"}}}"""),
+            description = "Lists the files and folders in a Linux folder. Paths are Linux paths: absolute, or relative to /workspace, this chat's own folder.",
+            inputSchema = schema("""{"type":"object","properties":{"$PATH":{"type":"string","description":"Folder: absolute, or relative to /workspace; default is /workspace"}}}"""),
             riskTier = RiskTier.READ,
             executionSite = ExecutionSite.DEVICE,
             requiredCapabilities = emptySet(),
@@ -173,8 +175,8 @@ class ReadFileTool(workspaces: Workspaces, private val config: TerminalConfig) :
 
         val DEFINITION = ToolDefinition(
             id = ToolId("read_file"),
-            description = "Reads a text file from this chat's workspace.",
-            inputSchema = schema("""{"type":"object","properties":{"$PATH":{"type":"string","description":"Path relative to the workspace"}},"required":["$PATH"]}"""),
+            description = "Reads a text file from Linux. Paths are absolute, or relative to /workspace, this chat's own folder.",
+            inputSchema = schema("""{"type":"object","properties":{"$PATH":{"type":"string","description":"Absolute, or relative to /workspace"}},"required":["$PATH"]}"""),
             riskTier = RiskTier.READ,
             executionSite = ExecutionSite.DEVICE,
             requiredCapabilities = emptySet(),
@@ -205,9 +207,9 @@ class WriteFileTool(workspaces: Workspaces, private val config: TerminalConfig) 
 
         val DEFINITION = ToolDefinition(
             id = ToolId("write_file"),
-            description = "Creates or replaces a text file in this chat's workspace. Folders are created as needed.",
+            description = "Creates or replaces a text file in Linux. Folders are created as needed. Paths are absolute, or relative to /workspace, this chat's own folder.",
             inputSchema = schema(
-                """{"type":"object","properties":{"$PATH":{"type":"string","description":"Path relative to the workspace"},""" +
+                """{"type":"object","properties":{"$PATH":{"type":"string","description":"Absolute, or relative to /workspace"},""" +
                     """"$CONTENT":{"type":"string","description":"The whole file"}},"required":["$PATH","$CONTENT"]}""",
             ),
             riskTier = RiskTier.WORKSPACE,
@@ -256,9 +258,9 @@ class EditFileTool(workspaces: Workspaces, private val config: TerminalConfig) :
 
         val DEFINITION = ToolDefinition(
             id = ToolId("edit_file"),
-            description = "Replaces one exact piece of text in a workspace file. oldText must appear exactly once.",
+            description = "Replaces one exact piece of text in a file in Linux. oldText must appear exactly once. Paths are absolute, or relative to /workspace.",
             inputSchema = schema(
-                """{"type":"object","properties":{"$PATH":{"type":"string","description":"Path relative to the workspace"},""" +
+                """{"type":"object","properties":{"$PATH":{"type":"string","description":"Absolute, or relative to /workspace"},""" +
                     """"$OLD_TEXT":{"type":"string","description":"Exact text to replace"},""" +
                     """"$NEW_TEXT":{"type":"string","description":"Replacement"}},"required":["$PATH","$OLD_TEXT","$NEW_TEXT"]}""",
             ),

@@ -10,6 +10,9 @@ android {
 
     defaultConfig {
         applicationId = "app.whittle"
+        // Commands run in Linux, whose programs live in the app's storage. Android lets an app run programs from
+        // there only while it targets this SDK or lower, so Whittle ships on GitHub, not Play (docs/linux-workspace.md).
+        targetSdk = libs.versions.androidLinuxTargetSdk.get().toInt()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         versionCode = 10
         versionName = "0.9.0"
@@ -58,6 +61,11 @@ android {
     buildFeatures {
         buildConfig = true
     }
+
+    lint {
+        // Whittle isn't on Play: its target SDK is chosen for Linux (see targetSdk above), not Play's minimum.
+        disable += "ExpiredTargetSdkVersion"
+    }
 }
 
 // esbuild's WebAssembly build, pinned and checked against its npm integrity, ships as an app asset next to
@@ -77,8 +85,8 @@ val esbuildWasmAssets = tasks.register<NpmPackageAssetsTask>("esbuildWasmAssets"
     outputDirectory.set(layout.buildDirectory.dir("generated/assets/esbuildWasm"))
 }
 
-// The command-line tools run_command offers (Node, npm, Python, git...) are Termux's Android builds, pinned
-// in termux-runtimes.lock.json (update with ./gradlew :app:updateTermuxLock). Programs and libraries ship as
+// The programs that start and unpack Linux (proot, tar) are Termux's Android builds, pinned in
+// termux-runtimes.lock.json (update with ./gradlew :app:updateTermuxLock). Programs and libraries ship as
 // native libraries, the only place Android lets an app run native code from, so the APK must extract them.
 val termuxSpec = layout.projectDirectory.file("termux-runtimes.json")
 val termuxLock = layout.projectDirectory.file("termux-runtimes.lock.json")
@@ -90,8 +98,9 @@ val updateTermuxLock = tasks.register<UpdateTermuxLockTask>("updateTermuxLock") 
 android.packaging.jniLibs.useLegacyPackaging = true
 android.ndkVersion = libs.versions.ndk.get()
 
-// The command sandbox (app/src/main/native/sandbox): every run_command starts through it. Built for the same
-// ABIs the runtimes ship for (termux-runtimes.json), as libwhittle_sandbox.so in the native-library folder.
+// The command sandbox (app/src/main/native/sandbox): every run_command starts through it, inside Linux. Linked
+// statically so it needs neither Android's libc nor Linux's, and shipped as libwhittle_sandbox.so for the same ABIs
+// as the runtimes (termux-runtimes.json); it's mounted into Linux read-only.
 val sandboxProgram = "whittle_sandbox"
 val sandboxExecutable = tasks.register<NativeExecutableTask>("sandboxExecutable") {
     source.set(layout.projectDirectory.file("src/main/native/sandbox/whittle_sandbox.c"))
@@ -99,6 +108,7 @@ val sandboxExecutable = tasks.register<NativeExecutableTask>("sandboxExecutable"
     targets.set(mapOf("arm64-v8a" to "aarch64-linux-android"))
     minSdk.set(android.defaultConfig.minSdk ?: error("minSdk must be set"))
     programName.set(sandboxProgram)
+    linkStatically.set(true)
     jniLibsDirectory.set(layout.buildDirectory.dir("generated/sandbox/jniLibs"))
 }
 android.defaultConfig.buildConfigField("String", "SANDBOX_PROGRAM", "\"lib$sandboxProgram.so\"")

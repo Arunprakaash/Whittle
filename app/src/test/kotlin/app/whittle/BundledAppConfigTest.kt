@@ -8,6 +8,7 @@ import app.whittle.core.config.ConfigFiles
 import app.whittle.core.config.ConfigLoader
 import app.whittle.core.config.PromptTemplate
 import app.whittle.design.icons.MaterialSymbols
+import app.whittle.linux.LinuxConfig
 import app.whittle.settings.AppDefaults
 import app.whittle.tools.presentation.ToolPresentationConfig
 import app.whittle.tools.workspace.WebBuildConfig
@@ -15,6 +16,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class BundledAppConfigTest {
@@ -25,6 +27,15 @@ class BundledAppConfigTest {
         val defaults = assertIs<Outcome.Success<AppDefaults>>(loader.load(AppDefaults.FILE, AppDefaults.serializer(), AppDefaults.SCHEMA_VERSION)).value
         assertFalse(defaults.appearance.wallpaperColors)
         assertTrue(defaults.appearance.haptics)
+    }
+
+    @Test
+    fun `the Linux config loads with a checked image for arm64`() {
+        val linux = assertIs<Outcome.Success<LinuxConfig>>(loader.load(LinuxConfig.FILE, LinuxConfig.serializer(), LinuxConfig.SCHEMA_VERSION)).value
+        val image = assertNotNull(linux.images["arm64-v8a"])
+        assertTrue(Regex("^[0-9a-f]{64}$").matches(image.sha256), "the image must be pinned by its SHA-256")
+        assertTrue(image.url.startsWith("https://"))
+        assertTrue(linux.workspaceMount !in linux.deviceMounts)
     }
 
     @Test

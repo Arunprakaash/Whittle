@@ -41,6 +41,13 @@ abstract class NativeExecutableTask : DefaultTask() {
     @get:Input
     abstract val programName: Property<String>
 
+    /**
+     * Linked statically, with no dependency on the system's libc or dynamic linker, so it also runs inside a Linux
+     * root filesystem, whose libc is glibc.
+     */
+    @get:Input
+    abstract val linkStatically: Property<Boolean>
+
     @get:OutputDirectory
     abstract val jniLibsDirectory: DirectoryProperty
 
@@ -53,6 +60,7 @@ abstract class NativeExecutableTask : DefaultTask() {
         val host = prebuilt.listFiles()?.firstOrNull { it.isDirectory }
             ?: throw GradleException("No NDK LLVM toolchain under $prebuilt")
         val clang = host.resolve("bin/clang")
+        val linking = if (linkStatically.get()) listOf("-static", "-s") else listOf("-fPIE", "-pie")
         targets.get().forEach { (abi, triple) ->
             val output = jniLibsDirectory.get().dir(abi).file("lib${programName.get()}.so").asFile
             output.parentFile.mkdirs()
@@ -61,7 +69,7 @@ abstract class NativeExecutableTask : DefaultTask() {
                     clang.path,
                     "--target=$triple${minSdk.get()}",
                     "-O2", "-Wall", "-Wextra", "-Werror",
-                    "-fPIE", "-pie", "-fstack-protector-strong", "-D_FORTIFY_SOURCE=2",
+                    *linking.toTypedArray(), "-fstack-protector-strong", "-D_FORTIFY_SOURCE=2",
                     "-o", output.path,
                     source.get().asFile.path,
                 )

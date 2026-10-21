@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Linux's DNS servers follow the phone's current network. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Only for the run-finished swell on Android 16+; every other haptic uses the view system. -->
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Background tasks: a foreground service with an ongoing notification (a Live Update on Android 16). -->
@@ -46,6 +48,15 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Finishes an AI agent task the user started in the app (model calls and tool steps), with a notification showing progress and a Stop button." />
+        </service>
+        <!-- Keeps Linux's setup (download, unpack, base packages) going while the user is in another app. -->
+        <service
+            android:name=".linux.LinuxSetupService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Downloads and sets up the Linux environment the user asked for, with a notification showing its progress." />
         </service>
         <!-- Connector sign-in pages send the user back here; the address matches redirectUri in connectors.json. -->
         <activity

@@ -2,40 +2,16 @@
   "repository": "https://packages.termux.dev/apt/termux-main/",
   "termuxPrefix": "/data/data/com.termux/files/usr",
   "installDirectory": "rt",
-  "packages": ["nodejs-lts", "npm", "python", "python-pip", "git"],
+  "packages": ["proot", "tar"],
   "abis": { "arm64-v8a": "aarch64" },
   "exclude": [
     "include/**",
     "share/man/**",
     "share/info/**",
-    "share/aclocal/**",
-    "share/bash-completion/**",
-    "share/zsh/**",
-    "share/fish/**",
+    "share/doc/**",
+    "share/locale/**",
     "lib/pkgconfig/**",
-    "lib/cmake/**",
-    "lib/*.a",
-    "lib/icu/**",
-    "bin/derb", "bin/genbrk", "bin/gencfu", "bin/gencnval", "bin/gendict", "bin/genrb", "bin/icu-config", "bin/icuexportdata",
-    "bin/icuinfo", "bin/makeconv", "bin/pkgdata", "bin/uconv", "bin/gensprep", "bin/gentest",
-    "lib/libicutest.*", "lib/libicutu.*", "lib/libicuio.*",
-    "bin/ahost", "bin/adig",
-    "lib/node_modules/npm/docs/**",
-    "lib/node_modules/npm/man/**",
-    "lib/python3.*/test/**",
-    "lib/python3.*/idlelib/**",
-    "lib/python3.*/tkinter/**",
-    "lib/python3.*/turtledemo/**",
-    "lib/python3.*/config-*/**",
-    "share/git-gui/**",
-    "share/gitk/**",
-    "share/gitweb/**",
-    "libexec/git-core/git-gui*",
-    "libexec/git-core/git-citool",
-    "bin/gitk"
+    "lib/*.a"
   ],
-  "symlinks": {
-    "bin/sh": "/system/bin/sh",
-    "bin/env": "/system/bin/env"
-  }
+  "symlinks": {}
 }

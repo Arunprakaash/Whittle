@@ -26,6 +26,8 @@ data class UserSettings(
     val themeMode: ThemeMode,
     /** Draws the user's avatar ([app.whittle.design.components.BeaverAvatar]); made once per phone. */
     val avatarSeed: Long? = null,
+    /** Onboarding offered Linux's setup once; it isn't offered there again, set up or not. */
+    val linuxOffered: Boolean = false,
 )
 
 /** Settings saved on the phone. Only choices the user made are stored, so changed defaults still reach them. */
@@ -41,6 +43,7 @@ class SettingsStore(context: Context, name: String, private val defaults: UserSe
             keepRunningInBackground = stored[KEEP_RUNNING] ?: defaults.keepRunningInBackground,
             themeMode = stored[THEME_MODE]?.let { saved -> ThemeMode.entries.firstOrNull { it.name == saved } } ?: defaults.themeMode,
             avatarSeed = stored[AVATAR_SEED],
+            linuxOffered = stored[LINUX_OFFERED] ?: false,
         )
     }
 
@@ -53,6 +56,8 @@ class SettingsStore(context: Context, name: String, private val defaults: UserSe
     suspend fun setScreenRecordings(on: Boolean) = set(SCREEN_RECORDINGS, on)
 
     suspend fun setKeepRunningInBackground(on: Boolean) = set(KEEP_RUNNING, on)
+
+    suspend fun setLinuxOffered() = set(LINUX_OFFERED, true)
 
     /** Gives this phone its avatar the first time; it stays the same after that. */
     suspend fun ensureAvatarSeed() {
@@ -75,5 +80,6 @@ class SettingsStore(context: Context, name: String, private val defaults: UserSe
         val KEEP_RUNNING = booleanPreferencesKey("keep_running_in_background")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val AVATAR_SEED = longPreferencesKey("avatar_seed")
+        val LINUX_OFFERED = booleanPreferencesKey("linux_offered")
     }
 }

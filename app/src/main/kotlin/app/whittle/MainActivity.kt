@@ -46,6 +46,9 @@ import app.whittle.chat.ChatScreen
 import app.whittle.connect.ConnectScreen
 import app.whittle.connect.ConnectViewModel
 import app.whittle.design.theme.WhittleTheme
+import app.whittle.linux.LinuxSetupScreen
+import app.whittle.linux.LinuxWorkspaceScreen
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 
 class MainActivity : ComponentActivity() {
@@ -65,8 +68,17 @@ class MainActivity : ComponentActivity() {
                 onDispose { }
             }
             WhittleTheme(appearance, darkTheme = dark) {
-                val gate by remember { graph.connections.model.map { if (it == null) Gate.Connect else Gate.Chat } }
-                    .collectAsStateWithLifecycle(Gate.Loading)
+                val gate by remember {
+                    combine(graph.connections.model, graph.settings.settings) { model, saved ->
+                        when {
+                            model == null -> Gate.Connect
+                            // Offered once, right after the model, and left with Continue or Not now; an existing
+                            // user sees it once after updating.
+                            !saved.linuxOffered -> Gate.Linux
+                            else -> Gate.Chat
+                        }
+                    }
+                }.collectAsStateWithLifecycle(Gate.Loading)
                 // Surface sets the content color, so text on every screen follows the theme in light and dark.
                 CompositionLocalProvider(LocalSiteIcons provides graph.siteIcons) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
@@ -76,6 +88,7 @@ class MainActivity : ComponentActivity() {
                             val connect = viewModel { ConnectViewModel(graph) }
                             ConnectScreen(connect.state.collectAsStateWithLifecycle().value, connect)
                         }
+                        Gate.Linux -> LinuxSetupScreen(graph)
                         Gate.Chat -> {
                             // The app owns the chat session, so a task outlives this screen.
                             val chat = (application as WhittleApplication).chat
@@ -98,12 +111,15 @@ class MainActivity : ComponentActivity() {
                             var showingModelPicker by rememberSaveable { mutableStateOf(false) }
                             var showingConnectionLibrary by rememberSaveable { mutableStateOf(false) }
                             var showingMemory by rememberSaveable { mutableStateOf(false) }
+                            var showingLinux by rememberSaveable { mutableStateOf(false) }
                             var toolsOf by rememberSaveable { mutableStateOf<String?>(null) }
                             val connections by graph.connectors.all.collectAsStateWithLifecycle()
                             val toolsConnection = toolsOf?.let { id -> connections.firstOrNull { it.server.id == id } }
                             val app = fullScreenApp
                             if (showingMemory) {
                                 MemoryScreen(graph, onBack = { showingMemory = false; showingSettings = true })
+                            } else if (showingLinux) {
+                                LinuxWorkspaceScreen(graph, onBack = { showingLinux = false; showingSettings = true })
                             } else if (showingConnectionLibrary) {
                                 ConnectionLibraryScreen(graph, onBack = { showingConnectionLibrary = false; showingSettings = true })
                             } else if (toolsConnection != null) {
@@ -128,6 +144,7 @@ class MainActivity : ComponentActivity() {
                                     onBrowseConnections = { showingSettings = false; showingConnectionLibrary = true },
                                     onConnectionTools = { connection -> showingSettings = false; toolsOf = connection.server.id },
                                     onMemory = { showingSettings = false; showingMemory = true },
+                                    onLinux = { showingSettings = false; showingLinux = true },
                                 )
                             } else if (app != null) {
                                 AppScreen(app, graph.apps, state.workspaceRevision, onBack = { fullScreenApp = null })
@@ -173,8 +190,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Whether a model is connected yet; Loading avoids flashing the connect screen at launch. */
-    private enum class Gate { Loading, Connect, Chat }
+    /** Whether a model is connected and Linux was offered yet; Loading avoids flashing a first-run screen at launch. */
+    private enum class Gate { Loading, Connect, Linux, Chat }
 }
 
 /**
@@ -190,9 +207,14 @@ private fun ComponentActivity.drawBehindSystemBars(dark: Boolean) {
         return
     }
     WindowCompat.setDecorFitsSystemWindows(window, false)
+    // Android makes the bars transparent by itself only for apps targeting 35+; Whittle targets 28 for Linux.
+    @Suppress("DEPRECATION")
+    window.statusBarColor = Color.TRANSPARENT
+    @Suppress("DEPRECATION")
+    window.navigationBarColor = Color.TRANSPARENT
     // As enableEdgeToEdge does for a transparent, theme-following bar: the system keeps 3-button navigation legible.
     window.isNavigationBarContrastEnforced = true
-    window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+    window.attributes = window.attributes.apply { layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS }
     WindowInsetsControllerCompat(window, window.decorView).run {
         isAppearanceLightStatusBars = !dark
         isAppearanceLightNavigationBars = !dark

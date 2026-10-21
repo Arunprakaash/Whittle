@@ -135,26 +135,18 @@ data class AppViewDefaults(
 }
 
 /**
- * The command-line tools that ship with the app (Node and npm, Python and pip, git), laid out on first use
- * from the APK. See app/termux-runtimes.json for what's included.
+ * The programs that start and unpack Linux (proot, tar), laid out on first use from the APK. See
+ * app/termux-runtimes.json for what's included.
  */
 @Serializable
 data class ToolRuntimeDefaults(
-    /** Off: commands get only Android's own shell tools. */
-    val enabled: Boolean,
-    /** Under the app's cache folder: package managers' download caches, shared by every chat. */
+    /** Under the app's cache folder: proot's scratch space. */
     val cacheDirectoryName: String,
     /**
-     * Added to every command's environment. {{prefix}} (where the tools live), {{dataDir}} (the app's data
-     * folder), {{cacheDir}} (the shared caches) and {{systemPath}} (terminal.path) are filled in.
+     * The environment those programs run with. {{prefix}} (where they live), {{dataDir}} (the app's data
+     * folder), {{cacheDir}} (the scratch space) and {{systemPath}} (terminal.path) are filled in.
      */
     val environment: Map<String, String>,
-    /**
-     * Shell functions defined before every command, with the same values filled in. Android only lets an app
-     * start programs from its native-library folder, so tools that are scripts (npm, npx) are started through
-     * their interpreter here instead of from PATH.
-     */
-    val shellFunctions: List<String>,
 )
 
 /** The Android shell commands run in, and how each command gets its own process group. */

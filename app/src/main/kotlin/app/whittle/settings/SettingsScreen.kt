@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import app.whittle.AppGraph
 import app.whittle.BuildConfig
+import app.whittle.linux.LinuxState
 import app.whittle.R
 import app.whittle.design.components.SettingsRow
 import app.whittle.design.components.SettingsSection
@@ -66,6 +67,7 @@ fun SettingsScreen(
     onBrowseConnections: () -> Unit,
     onConnectionTools: (McpConnection) -> Unit,
     onMemory: () -> Unit,
+    onLinux: () -> Unit,
 ) {
     BackHandler(onBack = onBack)
     var confirmingDelete by remember { mutableStateOf(false) }
@@ -103,6 +105,25 @@ fun SettingsScreen(
                 }
             }
             item { ConnectionsSection(graph, onBrowse = onBrowseConnections, onChooseTools = onConnectionTools) }
+            item {
+                val linux by graph.linux.state.collectAsState()
+                val imageName = graph.linux.image?.name.orEmpty()
+                SettingsSection(stringResource(R.string.linux_title)) {
+                    SettingsRow(
+                        icon = "terminal",
+                        title = stringResource(R.string.linux_settings_row),
+                        subtitle = when (linux) {
+                            LinuxState.NotSetUp -> stringResource(R.string.linux_status_not_set_up, imageName)
+                            is LinuxState.SettingUp -> stringResource(R.string.linux_status_setting_up, imageName)
+                            is LinuxState.Ready -> imageName
+                            is LinuxState.Failed -> stringResource(R.string.linux_status_failed, imageName)
+                        },
+                        shape = segmentedShape(0, 1),
+                        onClick = onLinux,
+                        trailing = { WhittleIcon("chevron_right", size = WhittleSize.Icon.m, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    )
+                }
+            }
             item {
                 val remembered by graph.memory.all.collectAsState()
                 SettingsSection(stringResource(R.string.settings_section_memory)) {

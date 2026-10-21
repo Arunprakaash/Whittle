@@ -40,10 +40,10 @@ internal data class RuntimeManifest(
 )
 
 /**
- * Lays out the command-line tools that ship in the APK (Node, npm, Python, git) the first time a command
- * runs, and again after an update changes them. Programs and libraries stay in the APK's native-library
- * folder, the only place Android lets an app run native code from; the prefix holds links to them, plus the
- * scripts and data from the archive. Commands then get the environment and shell functions from [config].
+ * Lays out the programs that ship in the APK to start and unpack Linux (proot, tar) the first time they're needed,
+ * and again after an update changes them. Programs and libraries stay in the APK's native-library folder, the only
+ * place Android lets an app run native code from; the prefix holds links to them, plus their data files. They then
+ * run with the environment from [config].
  */
 class ToolRuntime(
     private val context: Context,
@@ -58,14 +58,13 @@ class ToolRuntime(
     private var ready: ShellSetup? = null
 
     override suspend fun setup(): ShellSetup {
-        if (!config.enabled) return ShellSetup.NONE
         ready?.let { return it }
         return lock.withLock {
             ready ?: withContext(Dispatchers.IO) { install() }?.also { ready = it } ?: ShellSetup.NONE
         }
     }
 
-    /** Null when the tools can't be set up; commands then run with Android's shell alone, and the next one tries again. */
+    /** Null when the programs can't be set up; Linux can't start then, and the next use tries again. */
     private fun install(): ShellSetup? = try {
         val abi = Build.SUPPORTED_ABIS.firstOrNull { abi -> context.assets.list("$assetDirectory/$abi").orEmpty().isNotEmpty() }
         if (abi == null) {
@@ -74,7 +73,7 @@ class ToolRuntime(
             val manifestBytes = context.assets.open("$assetDirectory/$abi/$MANIFEST").use { it.readBytes() }
             val manifest = json.decodeFromString(RuntimeManifest.serializer(), manifestBytes.decodeToString())
             val prefix = File(manifest.prefix)
-            if (prefix.parentFile?.canonicalFile != context.dataDir.canonicalFile) {
+            if (!sameFolder(prefix.parentFile, context.dataDir)) {
                 // A work profile or second user has a different data folder; the tools only fit the main one.
                 Log.w(TAG, "Tools are built for ${manifest.prefix}, outside ${context.dataDir}")
                 null
@@ -125,7 +124,7 @@ class ToolRuntime(
         )
         return ShellSetup(
             environment = config.environment.mapValues { (name, value) -> render("toolRuntime.environment.$name", value, variables) },
-            functions = config.shellFunctions.map { render("toolRuntime.shellFunctions", it, variables) },
+            functions = emptyList(),
         )
     }
 
@@ -153,6 +152,18 @@ class ToolRuntime(
         val start = directory.toPath()
         if (!Files.exists(start, java.nio.file.LinkOption.NOFOLLOW_LINKS)) return
         Files.walk(start).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach(Files::delete) }
+    }
+
+    /**
+     * Whether two paths name the same folder. Compared by device and inode, since the data folder has more than one
+     * path (/data/data/<package> and /data/user/0/<package>) and which one the app is given depends on its target SDK.
+     */
+    private fun sameFolder(a: File?, b: File): Boolean = a != null && try {
+        val left = Os.stat(a.path)
+        val right = Os.stat(b.path)
+        left.st_dev == right.st_dev && left.st_ino == right.st_ino
+    } catch (exception: ErrnoException) {
+        false
     }
 
     private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance(SHA_256).digest(bytes).joinToString("") { "%02x".format(it) }

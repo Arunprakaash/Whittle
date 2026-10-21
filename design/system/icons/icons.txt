@@ -26,6 +26,7 @@ delete
 deployed_code
 description
 do_not_disturb_on:fill
+download
 edit
 edit_document
 edit_square
@@ -34,6 +35,7 @@ expand_less
 expand_more
 extension
 folder
+folder_zip
 fullscreen
 help
 info
@@ -44,11 +46,13 @@ key
 language
 light_mode:fill
 lock
+memory
 menu_book
 mic
 more_vert
 notifications
 open_in_new
+package_2
 payments
 person
 person_search
@@ -57,11 +61,13 @@ question_mark
 radio_button_checked
 radio_button_unchecked
 refresh
+restart_alt
 schedule
 screen_record
 search:fill
 settings
 share
+shield
 short_text
 smart_toy
 sms
@@ -74,3 +80,4 @@ vibration
 visibility
 visibility_off
 wallpaper
+wifi

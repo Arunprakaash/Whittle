@@ -1,5 +1,6 @@
 package app.whittle.tools.workspace
 
+import app.whittle.core.common.Outcome
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -27,13 +28,18 @@ data class CommandResult(
  * and a timeout or cancellation kills the command's whole process group.
  */
 class CommandRunner(private val environment: ShellEnvironment, private val maxOutputChars: Int) {
-    suspend fun run(command: String, directory: File, timeoutSeconds: Int, network: Boolean = false): CommandResult = withContext(Dispatchers.IO) {
+    /** A failure when the platform can't run commands yet; a command that fails still succeeds here, with its exit code. */
+    suspend fun run(command: String, directory: File, timeoutSeconds: Int, network: Boolean = false): Outcome<CommandResult> = withContext(Dispatchers.IO) {
+        val start = environment.launcher?.command(directory, network) ?: Outcome.Success(listOf(environment.shell, SHELL_COMMAND))
+        val commandLine = when (start) {
+            is Outcome.Failure -> return@withContext start
+            is Outcome.Success -> start.value.joinToString(separator = " ") { quoted(it) }
+        }
         val tmp = File(directory, TMP_DIRECTORY).apply { mkdirs() }
         val tools = environment.tools.setup()
         val script = (tools.functions + command).joinToString("\n")
         // The outer shell prints its pid, then becomes the launcher (same pid), which starts the command's shell.
-        val launcher = environment.launcher?.prefix(network)?.joinToString(separator = "") { quoted(it) + " " }.orEmpty()
-        val process = ProcessBuilder(environment.shell, "-c", "echo $$; exec $launcher${environment.shell} -c \"\$$COMMAND_VARIABLE\"")
+        val process = ProcessBuilder(environment.shell, SHELL_COMMAND, "echo $$; exec $commandLine \"\$$COMMAND_VARIABLE\"")
             .directory(directory)
             .apply {
                 environment().clear()
@@ -68,13 +74,15 @@ class CommandRunner(private val environment: ShellEnvironment, private val maxOu
                 val (out, outCut) = stdout.await()
                 val (err, errCut) = stderr.await()
                 finished = true
-                CommandResult(
-                    exitCode = if (timedOut) null else process.exitValue(),
-                    stdout = out,
-                    stderr = err,
-                    timedOut = timedOut,
-                    truncated = outCut || errCut,
-                    durationMillis = System.currentTimeMillis() - startedAt,
+                Outcome.Success(
+                    CommandResult(
+                        exitCode = if (timedOut) null else process.exitValue(),
+                        stdout = out,
+                        stderr = err,
+                        timedOut = timedOut,
+                        truncated = outCut || errCut,
+                        durationMillis = System.currentTimeMillis() - startedAt,
+                    ),
                 )
             }
         } finally {
@@ -127,6 +135,7 @@ class CommandRunner(private val environment: ShellEnvironment, private val maxOu
 
     private companion object {
         const val COMMAND_VARIABLE = "WHITTLE_COMMAND"
+        const val SHELL_COMMAND = "-c"
         const val PATH = "PATH"
         const val HOME = "HOME"
         const val TMPDIR = "TMPDIR"

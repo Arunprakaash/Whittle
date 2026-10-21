@@ -1,5 +1,7 @@
 package app.whittle.background
 
+import app.whittle.linux.LinuxState
+import app.whittle.linux.LinuxSteps
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -112,6 +114,21 @@ class RunNotifications(private val context: Context) {
         manager.notify(id, notification)
     }
 
+    /** Linux setup while it downloads, unpacks and installs: a quiet line with real progress where there is some. */
+    fun linuxSetup(state: LinuxState.SettingUp, imageName: String): Notification =
+        Notification.Builder(context, CHANNEL_RUNNING)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.notify_linux_title))
+            .setContentText(listOfNotNull(LinuxSteps.label(context, state.step, done = false, imageName), LinuxSteps.detail(context, state)).joinToString(" · "))
+            .setContentIntent(openApp())
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setCategory(Notification.CATEGORY_PROGRESS)
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicVersion(CHANNEL_RUNNING, R.string.notify_linux_public))
+            .setProgress(PERCENT, LinuxSteps.percent(state), state.totalBytes <= 0)
+            .build()
+
     private fun publicVersion(channel: String, text: Int): Notification =
         Notification.Builder(context, channel)
             .setSmallIcon(R.drawable.ic_notification)
@@ -134,6 +151,8 @@ class RunNotifications(private val context: Context) {
 
     companion object {
         const val ID_RUNNING = 1
+        const val ID_LINUX_SETUP = 4
+        private const val PERCENT = 100
         private const val ID_FINISHED = 2
         private const val ID_NEEDS_YOU = 3
         private const val CHANNEL_RUNNING = "running_task"

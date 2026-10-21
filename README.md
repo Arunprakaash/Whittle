@@ -7,7 +7,7 @@
 <p align="center"><a href="https://github.com/Arunprakaash/Whittle/releases/latest">Download the latest APK</a></p>
 
 Whittle runs the whole agent loop on the phone: the model calls, the policy checks, the tools and the
-checkpoints. It searches the web, runs Node.js, Python and git in a sandbox, builds React apps with esbuild,
+checkpoints. It searches the web, runs commands in a sandboxed Ubuntu on the phone, builds React apps with esbuild,
 packs them into installable APKs signed on the device, and talks to any MCP server. There is no Whittle server.
 The phone talks straight to the model provider you pick, using your own key.
 
@@ -31,7 +31,7 @@ flowchart TB
     STORE["storage:*<br/>Tink vault · chats and checkpoints in Room"]
     CFG["config:defaults<br/>versioned JSON + prompts"]
     PROV(["Model provider<br/>OpenAI · OpenRouter · any OpenAI-compatible"])
-    SANDBOX["Sandboxed shell<br/>Node · Python · git under seccomp"]
+    SANDBOX["Linux workspace<br/>Ubuntu under proot · seccomp sandbox"]
     BUNDLER["esbuild-wasm<br/>in a hidden WebView"]
     MCP(["MCP servers<br/>Streamable HTTP · SSE · OAuth 2.1"])
 
@@ -93,28 +93,36 @@ rating can't use high-risk tools at all.
 `llm:adapter-openai-responses` speaks the OpenAI Responses API with reasoning, hosted web search and
 `store: false`. Providers and models come from `provider-catalog.json` and `model-defaults.json`, not code.
 
-### A real shell on a phone
+### Linux on the phone
 
-Android only lets an app execute native code from its APK's native-library folder. So at build time
-`TermuxRuntimeTask` takes pinned Termux packages (`nodejs-lts`, `npm`, `python`, `python-pip`, `git`) and:
+Commands run in a real Ubuntu (24.04) that Whittle downloads during onboarding, so `apt`, compilers and
+prebuilt Linux programs work as on a computer. It's an ordinary folder in the app's storage, started with
+[proot](https://github.com/termux/proot), which gives programs their own root folder without root access.
+`docs/linux-workspace.md` has the design.
 
-- ships every ELF as a native library, with the rest of the files in one archive asset;
-- rewrites the Termux prefix inside every file to the app's own prefix. That prefix is padded to the same
-  length, so the binaries stay byte-for-byte intact.
-
-On first use `ToolRuntime` lays out a prefix of links back to those libraries.
+- **Setup.** `LinuxWorkspace` downloads the image (resumable, pinned by SHA-256 in `linux-workspace.json`),
+  unpacks it with `tar` under `proot --link2symlink`, writes the configured files and installs the base packages.
+  It runs under its own foreground notification, and Settings can repair, reset or remove it.
+- **Running programs.** Android only lets an app execute programs from its APK's native-library folder, unless
+  it targets SDK 28 or lower. Whittle targets 28, so programs inside Linux may run, and ships on GitHub rather
+  than Play. proot and tar themselves are pinned Termux packages that `TermuxRuntimeTask` packs as native
+  libraries, with the Termux prefix rewritten to the app's own (padded to the same length, so the binaries stay
+  intact).
+- **One view of files.** Each chat's folder lives outside Linux and is mounted at `/workspace`. The file tools
+  read and write Linux paths directly, following links the way Linux would without ever leaving its folder
+  (`LinuxFileSystem`).
 
 Every command starts through `whittle_sandbox`, a small C program built with the NDK
-(`app/src/main/native/sandbox`). It puts the command in its own process group behind a seccomp filter, which
-the command and everything it starts keep for life:
+(`app/src/main/native/sandbox`), linked statically and mounted into Linux. It puts the command behind a seccomp
+filter, which the command and everything it starts keep for life:
 
 - No `ptrace`, `process_vm_readv` or `process_vm_writev`, so it can't read the app's memory, where keys are
   decrypted while in use.
 - No `io_uring`.
-- No sockets of any kind unless the step was allowed the network. That includes DNS, which Android routes
-  through a local socket.
+- No sockets of any kind unless the step was allowed the network. That includes DNS and loopback.
 
-If the filter can't be installed, the command doesn't run.
+If the filter can't be installed, the command doesn't run. proot itself is a filesystem view, not a security
+boundary; the filter, Android's app sandbox and the policy engine are.
 
 ### Apps built on the phone
 
@@ -207,7 +215,7 @@ sources. They were drawn before the code, so where they differ, the code is righ
 
 - JDK 17 or later. Android Studio's bundled JDK works.
 - Android SDK with platform 37 and NDK `28.2.13676358`, which builds the sandbox.
-- Network access on the first build, which downloads the pinned Termux packages (see
+- Network access on the first build, which downloads the pinned Termux packages for proot and tar (see
   `app/termux-runtimes.lock.json`). They're cached in `~/.gradle/caches/whittle-termux` after that.
 - A 64-bit ARM device or emulator (`arm64-v8a`), Android 8 or later.
 

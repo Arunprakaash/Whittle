@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "directoryName": "linux",
+  "images": {
+    "arm64-v8a": {
+      "name": "Ubuntu 24.04 LTS",
+      "version": "24.04.5",
+      "url": "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.5-base-arm64.tar.gz",
+      "sha256": "a91d5a93010193712d346d761372b7c9db6dfcf093893161c64ca107f05914f2",
+      "sizeBytes": 29936675,
+      "setupSizeBytes": 420000000
+    }
+  },
+  "unpackExclude": ["dev/*"],
+  "prootOptions": ["--kill-on-exit", "--link2symlink", "-0"],
+  "deviceMounts": ["/dev", "/proc", "/sys"],
+  "workspaceMount": "/workspace",
+  "sandboxMount": "/usr/local/libexec/whittle/sandbox",
+  "shell": "/bin/bash",
+  "envProgram": "/usr/bin/env",
+  "environment": {
+    "PATH": "/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "HOME": "/root",
+    "TMPDIR": "/tmp",
+    "LANG": "C.UTF-8",
+    "TERM": "dumb",
+    "DEBIAN_FRONTEND": "noninteractive",
+    "PAGER": "cat",
+    "GIT_PAGER": "cat",
+    "npm_config_update_notifier": "false",
+    "npm_config_fund": "false",
+    "PIP_DISABLE_PIP_VERSION_CHECK": "1"
+  },
+  "files": {
+    "/etc/apt/apt.conf.d/99whittle": "APT::Sandbox::User \"root\";\nAcquire::Retries \"3\";\n"
+  },
+  "dns": {
+    "file": "/etc/resolv.conf",
+    "fallbackServers": ["1.1.1.1", "8.8.8.8"]
+  },
+  "baseSetup": {
+    "command": "dpkg --configure -a && apt-get update -q && apt-get install -y -q --no-install-recommends ca-certificates curl git && apt-get clean",
+    "timeoutSeconds": 900
+  },
+  "progressStepBytes": 262144
+}

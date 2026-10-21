@@ -1,53 +1,66 @@
-package app.whittle.runtimes
+package app.whittle.linux
 
 import android.os.Process
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import app.whittle.BuildConfig
-import app.whittle.config.defaults.BundledConfigSource
+import app.whittle.WhittleApplication
 import app.whittle.core.common.Outcome
-import app.whittle.core.config.ConfigLoader
-import app.whittle.settings.AppDefaults
+import app.whittle.tools.api.WorkspaceId
 import app.whittle.tools.workspace.CommandResult
 import app.whittle.tools.workspace.CommandRunner
-import app.whittle.tools.workspace.ShellEnvironment
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 /**
- * What the command sandbox actually stops, in the app's own process and SELinux domain. Commands are
- * offline unless allowed the network, and can't look into Whittle's memory either way.
+ * Linux as commands get it, in the app's own process and SELinux domain: set up from the real image, commands in
+ * /workspace behind the sandbox (offline unless allowed the network, unable to look into Whittle), and the file tools
+ * seeing the same files. The first run downloads and sets up Linux, so it needs the network and a few minutes.
  */
 @RunWith(AndroidJUnit4::class)
-class CommandSandboxTest {
-    private val context = InstrumentationRegistry.getInstrumentation().targetContext
-    private val defaults = assertIs<Outcome.Success<AppDefaults>>(
-        ConfigLoader(BundledConfigSource()).load(AppDefaults.FILE, AppDefaults.serializer(), AppDefaults.SCHEMA_VERSION),
-    ).value
-    private val workspace = File(context.filesDir, "command-sandbox-test").apply { mkdirs() }
-    private val runner = CommandRunner(
-        ShellEnvironment(
-            shell = defaults.terminal.shell,
-            path = defaults.terminal.path,
-            launcher = CommandSandbox.launcher(context),
-            killProcessGroup = null,
-            tools = ToolRuntime(context, defaults.toolRuntime, defaults.terminal.path, BuildConfig.RUNTIME_ASSETS),
-        ),
-        maxOutputChars = 20_000,
-    )
+class LinuxWorkspaceTest {
+    private val graph = (InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as WhittleApplication).graph
+    private val linux = graph.linux
+    private val id = WorkspaceId("linux-workspace-test")
+    private val workspace = assertIs<Outcome.Success<File>>(graph.workspaces.directory(id)).value
+    private val runner = CommandRunner(linux.environment, maxOutputChars = 20_000)
 
     /** Whittle's own process: what a command must not be able to read. */
     private val appPid = Process.myPid()
 
+    @Before
+    fun setUpLinux() = runBlocking<Unit> {
+        if (linux.state.value !is LinuxState.Ready) assertIs<Outcome.Success<Unit>>(linux.setUp(), "setup: ${linux.state.value}")
+        // The probes need Python with ctypes, which python3-minimal lacks.
+        val python = run("python3 -c 'import ctypes' 2>/dev/null || apt-get install -y -q --no-install-recommends python3", network = true, timeoutSeconds = SETUP_SECONDS)
+        assertEquals(0, python.exitCode, python.stderr)
+    }
+
     @After
     fun cleanUp() {
-        workspace.deleteRecursively()
+        graph.workspaces.delete(id)
+    }
+
+    @Test
+    fun commandsRunInUbuntuInTheWorkspace() = runBlocking<Unit> {
+        val lines = run("""pwd; . /etc/os-release; echo "${'$'}ID"; echo "${'$'}HOME"""").stdout.trim().lines()
+        assertEquals(listOf("/workspace", "ubuntu", "/root"), lines)
+    }
+
+    @Test
+    fun theAppsEnvironmentDoesntReachCommands() = runBlocking<Unit> {
+        val environment = run("env").stdout
+        listOf("PROOT_", "ANDROID_", "WHITTLE_COMMAND").forEach { name ->
+            assertFalse(environment.lines().any { it.startsWith(name) }, "$name must not reach commands")
+        }
     }
 
     @Test
@@ -65,7 +78,6 @@ class CommandSandboxTest {
 
     @Test
     fun offlineCommandsCantLookUpNames() = runBlocking<Unit> {
-        // Android resolves names through a local socket; that would otherwise carry data out.
         val script = """
             import socket
             try:
@@ -78,21 +90,22 @@ class CommandSandboxTest {
     }
 
     @Test
-    fun networkCommandsCanOpenSockets() = runBlocking<Unit> {
+    fun networkCommandsCanOpenSocketsAndResolveNames() = runBlocking<Unit> {
         val script = """
             import socket
             server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server.bind(("127.0.0.1", 0))
             server.listen(1)
-            print("listening")
+            socket.getaddrinfo("example.com", 443)
+            print("ok")
         """.trimIndent()
-        assertEquals("listening", python(script, network = true).stdout.trim())
+        assertEquals("ok", python(script, network = true).stdout.trim())
     }
 
     @Test
     fun commandsCantTraceOrReadWhittlesMemory() = runBlocking<Unit> {
         val script = """
-            import ctypes, os
+            import ctypes
             libc = ctypes.CDLL(None, use_errno=True)
             PTRACE_ATTACH = 16
             libc.ptrace.argtypes = [ctypes.c_long, ctypes.c_long, ctypes.c_void_p, ctypes.c_void_p]
@@ -118,15 +131,33 @@ class CommandSandboxTest {
         assertNotEquals("readable", result.stdout.trim(), "Whittle's /proc/<pid>/mem must not be readable from a command")
     }
 
+    @Test
+    fun fileToolsSeeWhatCommandsSee() = runBlocking<Unit> {
+        val note = assertIs<Outcome.Success<File>>(graph.workspaces.locate(id, "notes/hello.txt")).value
+        note.parentFile?.mkdirs()
+        note.writeText("from the file tools")
+        assertEquals("from the file tools", run("cat /workspace/notes/hello.txt").stdout.trim())
+
+        run("echo from a command > /etc/whittle-test")
+        val written = assertIs<Outcome.Success<File>>(graph.workspaces.locate(id, "/etc/whittle-test")).value
+        assertEquals("from a command", written.readText().trim())
+        run("rm /etc/whittle-test")
+
+        // /bin is a link to usr/bin in Ubuntu; the file tools follow it inside Linux.
+        assertTrue(assertIs<Outcome.Success<File>>(graph.workspaces.locate(id, "/bin/bash")).value.isFile)
+        assertIs<Outcome.Failure>(graph.workspaces.locate(id, "/proc/self/status"))
+    }
+
     private suspend fun python(script: String, network: Boolean = false): CommandResult {
         File(workspace, "probe.py").writeText(script)
         return run("python3 probe.py", network)
     }
 
-    private suspend fun run(command: String, network: Boolean = false): CommandResult =
-        runner.run(command, workspace, TIMEOUT_SECONDS, network)
+    private suspend fun run(command: String, network: Boolean = false, timeoutSeconds: Int = TIMEOUT_SECONDS): CommandResult =
+        assertIs<Outcome.Success<CommandResult>>(runner.run(command, workspace, timeoutSeconds, network)).value
 
     private companion object {
         const val TIMEOUT_SECONDS = 60
+        const val SETUP_SECONDS = 600
     }
 }

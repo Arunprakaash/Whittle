@@ -6,8 +6,11 @@ import app.whittle.tools.api.WorkspaceId
 import java.io.File
 import java.io.IOException
 
-/** One folder per workspace under [root]. Every path a tool touches must resolve inside its workspace. */
-class Workspaces(private val root: File) {
+/**
+ * One folder per workspace under [root]. Every path a tool touches must resolve inside its workspace, or, with
+ * [linux], inside the Linux that commands run in, where the workspace is mounted.
+ */
+class Workspaces(private val root: File, private val linux: LinuxFileSystem? = null) {
     fun directory(id: WorkspaceId): Outcome<File> {
         if (!SAFE_ID.matches(id.value)) return invalid("Workspace id '${id.value}' is not a plain name")
         val directory = File(root, id.value)
@@ -43,6 +46,15 @@ class Workspaces(private val root: File) {
             if (target == base || target.path.startsWith(base.path + File.separator)) Outcome.Success(target) else invalid("'$path' is outside the workspace")
         } catch (exception: IOException) {
             invalid("'$path' can't be resolved: ${exception.message}")
+        }
+    }
+
+    /** A path the model gave a file tool: a Linux path when there is a Linux, else one relative to the workspace. */
+    fun locate(id: WorkspaceId, path: String): Outcome<File> {
+        val linux = linux ?: return resolve(id, path)
+        return when (val directory = directory(id)) {
+            is Outcome.Failure -> directory
+            is Outcome.Success -> linux.resolve(directory.value, path)
         }
     }
 

@@ -8,7 +8,8 @@ import app.whittle.connectors.CustomConnectorStore
 import app.whittle.connectors.mcp.ConnectorsConfig
 import app.whittle.connectors.Connectors
 import app.whittle.export.AppExporter
-import app.whittle.runtimes.CommandSandbox
+import app.whittle.linux.LinuxConfig
+import app.whittle.linux.LinuxWorkspace
 import app.whittle.design.theme.WhittleAppearance
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -147,8 +148,27 @@ class AppGraph(context: Context) {
     val checkpoints = RoomRunCheckpointStore.open(context, appDefaults.storage.runsDatabaseName, cipher, clock)
     val chats: ChatStore = RoomChatStore.open(context, appDefaults.storage.chatsDatabaseName, cipher, clock)
 
-    /** One folder per chat for the terminal and file tools, in the app's private storage. */
-    val workspaces = Workspaces(File(context.filesDir, appDefaults.storage.workspacesDirectoryName))
+    private val terminalLimits = load(TerminalConfig.FILE, TerminalConfig.serializer(), TerminalConfig.SCHEMA_VERSION)
+
+    /** The Linux every command runs in (docs/linux-workspace.md). */
+    val linux = LinuxWorkspace(
+        context = context,
+        config = load(LinuxConfig.FILE, LinuxConfig.serializer(), LinuxConfig.SCHEMA_VERSION),
+        programs = ToolRuntime(context, appDefaults.toolRuntime, appDefaults.terminal.path, BuildConfig.RUNTIME_ASSETS),
+        http = httpClient,
+        terminal = appDefaults.terminal,
+        killProcessGroup = { group ->
+            try {
+                Os.kill(-group, OsConstants.SIGKILL)
+            } catch (exception: ErrnoException) {
+                // Already gone; nothing left to stop.
+            }
+        },
+        maxOutputChars = terminalLimits.maxOutputChars,
+    )
+
+    /** One folder per chat, in the app's private storage, mounted into Linux for its commands and file tools. */
+    val workspaces = Workspaces(File(context.filesDir, appDefaults.storage.workspacesDirectoryName), linux.fileSystem)
 
     /** Lives as long as the process: for writes that must finish even when a screen goes away. */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -214,29 +234,13 @@ class AppGraph(context: Context) {
         memory = memory,
     )
 
-    /** The terminal and file tools: one folder per chat, in the app's private storage. */
-    private fun workspaceTools(context: Context): List<Tool> {
-        val terminal = appDefaults.terminal
-        val environment = ShellEnvironment(
-            shell = terminal.shell,
-            path = terminal.path,
-            launcher = CommandSandbox.launcher(context),
-            killProcessGroup = { group ->
-                try {
-                    Os.kill(-group, OsConstants.SIGKILL)
-                } catch (exception: ErrnoException) {
-                    // Already gone; nothing left to stop.
-                }
-            },
-            tools = ToolRuntime(context, appDefaults.toolRuntime, terminal.path, BuildConfig.RUNTIME_ASSETS),
-        )
-        return WorkspaceToolSet.create(
-            workspaces = workspaces,
-            environment = environment,
-            config = load(TerminalConfig.FILE, TerminalConfig.serializer(), TerminalConfig.SCHEMA_VERSION),
-            webBuild = webBuild(context),
-        )
-    }
+    /** The terminal and file tools: one folder per chat, worked on inside Linux. */
+    private fun workspaceTools(context: Context): List<Tool> = WorkspaceToolSet.create(
+        workspaces = workspaces,
+        environment = linux.environment,
+        config = terminalLimits,
+        webBuild = webBuild(context),
+    )
 
     /** build_web_app: esbuild in a hidden WebView, with npm packages from the CDN cached on the phone. */
     private fun webBuild(context: Context): WorkspaceToolSet.WebBuild {
