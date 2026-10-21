@@ -2,6 +2,8 @@ package app.whittle.chat
 
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import app.whittle.design.components.BeaverAvatar
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
@@ -56,6 +58,8 @@ fun ChatSidebar(
     onOpenSettings: () -> Unit,
     appCount: Int,
     onOpenApps: () -> Unit,
+    /** Draws the user's avatar; until it's made, a plain person icon stands in. */
+    avatarSeed: Long?,
     onOpenProjects: () -> Unit,
 ) {
     val haptics = WhittleTheme.haptics
@@ -124,7 +128,11 @@ fun ChatSidebar(
                     shapes = IconButtonDefaults.shapes(),
                     modifier = Modifier.size(ButtonDefaults.MediumContainerHeight).semantics { contentDescription = settingsLabel },
                 ) {
-                    WhittleIcon("person", fill = true, size = WhittleSize.Icon.xl)
+                    if (avatarSeed != null) {
+                        BeaverAvatar(avatarSeed, Modifier.fillMaxSize())
+                    } else {
+                        WhittleIcon("person", fill = true, size = WhittleSize.Icon.xl)
+                    }
                 }
                 // Material 3 Expressive medium button: taller, fully rounded, morphs on press.
                 val height = ButtonDefaults.MediumContainerHeight

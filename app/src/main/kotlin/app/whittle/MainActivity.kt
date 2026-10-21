@@ -157,6 +157,7 @@ class MainActivity : ComponentActivity() {
                                     onOpenAppFullScreen = { fullScreenApp = it },
                                     onOpenSettings = { showingSettings = true },
                                     onOpenApps = { showingApps = true },
+                                    avatarSeed = settings?.avatarSeed,
                                     onOpenProjects = {
                                         if (!WorkspaceDocumentsProvider.open(this@MainActivity)) {
                                             Toast.makeText(this@MainActivity, R.string.files_unavailable, Toast.LENGTH_SHORT).show()

@@ -156,6 +156,10 @@ class AppGraph(context: Context) {
     /** The user's settings, kept current; null until the saved choices have loaded. */
     val currentSettings: StateFlow<UserSettings?> = settings.settings.stateIn(appScope, SharingStarted.Eagerly, null)
 
+    init {
+        appScope.launch { settings.ensureAvatarSeed() }
+    }
+
     val modelLister = OpenAiCompatibleModelLister(httpClient, modelTrust, modelDefaults.fallbackCapabilities)
     val keyVerifier = ApiKeyVerifier(httpClient)
     val apps = Apps(context, workspaces, appDefaults.apps)
