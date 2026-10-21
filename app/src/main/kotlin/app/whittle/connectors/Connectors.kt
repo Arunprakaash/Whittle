@@ -99,13 +99,14 @@ class Connectors(
 
     /**
      * Adds a server the user (or the agent, with the user's OK) names: finds how it signs in, unless [auth]
-     * says, saves it, and connects it at once when it needs no sign-in. [scopes] and [client] are for a
-     * browser sign-in: what to ask for, and a client the user registered with the service themselves.
+     * says, saves it, and connects it at once when it needs no sign-in. Without a [transport], the address
+     * decides, and a server that doesn't answer Streamable HTTP is tried over SSE. [scopes] and [client] are
+     * for a browser sign-in: what to ask for, and a client the user registered with the service themselves.
      */
     suspend fun add(
         name: String,
         url: String,
-        transport: McpTransportKind = probe.transportFor(url.trim()),
+        transport: McpTransportKind? = null,
         headers: List<HeaderSpec> = emptyList(),
         websiteUrl: String? = null,
         redirectBase: String? = null,
@@ -114,20 +115,27 @@ class Connectors(
         client: OAuthClientCredentials? = null,
     ): Outcome<McpConnection> {
         added(url)?.let { return Outcome.Success(it) }
+        var kind = transport ?: probe.transportFor(url.trim())
         val signIn = when {
             auth != null -> auth
             // A server that names a required header wants a key, whatever the probe saw.
             headers.any { it.isRequired } -> McpAuthMode.TOKEN
-            else -> when (val probed = probe.detect(url.trim(), transport)) {
+            else -> when (val probed = probe.detect(url.trim(), kind)) {
                 is Outcome.Success -> probed.value
-                is Outcome.Failure -> return probed
+                is Outcome.Failure -> {
+                    val older = probed.takeIf { transport == null && kind == McpTransportKind.STREAMABLE_HTTP }
+                        ?.let { probe.detect(url.trim(), McpTransportKind.SSE) as? Outcome.Success }
+                        ?: return probed
+                    kind = McpTransportKind.SSE
+                    older.value
+                }
             }
         }
         val connection = changes.withLock {
             val existing = _all.value.map { it.server.id }.toSet()
             // Added by address (the agent, or the user's own entry): a library server's sign-in rules still apply.
             val returnBase = redirectBase ?: library.firstOrNull { it.url.trimEnd('/') == url.trim().trimEnd('/') }?.redirectBase
-            val saved = CustomServer(uniqueId(name, existing), name.trim().ifEmpty { url }, url.trim(), signIn, transport, headers, websiteUrl, returnBase, scopes)
+            val saved = CustomServer(uniqueId(name, existing), name.trim().ifEmpty { url }, url.trim(), signIn, kind, headers, websiteUrl, returnBase, scopes)
             custom.save(custom.load() + saved)
             connection(serverFor(saved)).also { added -> _all.update { it + added } }
         }

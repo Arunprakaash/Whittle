@@ -118,7 +118,7 @@ fun ConnectionsSection(graph: AppGraph, onBrowse: () -> Unit, onChooseTools: (Mc
         }
     }
     if (adding) {
-        AddDialog(graph, onDismiss = { adding = false }) { added ->
+        AddConnectionSheet(graph, onDismiss = { adding = false }) { added ->
             adding = false
             connectAdded(graph, context, added) { askingKeys = it }
         }
@@ -283,60 +283,6 @@ private fun KeyField(label: String, value: String, secret: Boolean, help: String
         visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = KeyboardOptions(keyboardType = if (secret) KeyboardType.Password else KeyboardType.Text, imeAction = ImeAction.Next, autoCorrectEnabled = false),
         modifier = Modifier.fillMaxWidth().hiddenFromReplay(),
-    )
-}
-
-/** Name and address of an MCP server; Whittle works out how it signs in. */
-@Composable
-internal fun AddDialog(graph: AppGraph, onDismiss: () -> Unit, onAdded: (McpConnection) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var url by remember { mutableStateOf("") }
-    var checking by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-    AlertDialog(
-        onDismissRequest = { if (!checking) onDismiss() },
-        title = { Text(stringResource(R.string.connector_add)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text(stringResource(R.string.connector_add_name)) },
-                    singleLine = true,
-                    enabled = !checking,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it; error = null },
-                    label = { Text(stringResource(R.string.connector_add_url)) },
-                    singleLine = true,
-                    enabled = !checking,
-                    isError = error != null,
-                    supportingText = error?.let { message -> { Text(message) } },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done, autoCorrectEnabled = false),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                if (checking) CircularProgressIndicator(strokeWidth = WhittleSpace.hairline, modifier = Modifier.size(WhittleSize.Icon.xl))
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = url.isNotBlank() && !checking,
-                onClick = {
-                    checking = true
-                    scope.launch {
-                        when (val added = graph.connectors.add(name, url)) {
-                            is Outcome.Success -> onAdded(added.value)
-                            is Outcome.Failure -> error = added.error.message
-                        }
-                        checking = false
-                    }
-                },
-            ) { Text(stringResource(R.string.connector_add_action)) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !checking) { Text(stringResource(R.string.connector_cancel)) } },
     )
 }
 

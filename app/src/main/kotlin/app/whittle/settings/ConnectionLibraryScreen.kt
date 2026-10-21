@@ -137,7 +137,7 @@ fun ConnectionLibraryScreen(graph: AppGraph, onBack: () -> Unit) {
         }
     }
     if (addingByAddress) {
-        AddDialog(graph, onDismiss = { addingByAddress = false }) { added ->
+        AddConnectionSheet(graph, onDismiss = { addingByAddress = false }) { added ->
             addingByAddress = false
             connectAdded(graph, context, added) { askingKeys = it }
         }
