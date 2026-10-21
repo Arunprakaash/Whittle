@@ -1,4 +1,4 @@
-package app.whittle.artifacts
+package app.whittle.apps
 
 import app.whittle.observability.posthog.userContent
 import app.whittle.export.ExportResult
@@ -49,19 +49,19 @@ import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
 import kotlinx.coroutines.launch
 
-/** Tapping an artifact card: the app runs in a tall sheet over the chat, with ways to open it elsewhere. */
+/** Tapping an app card: the app runs in a tall sheet over the chat, with ways to open it elsewhere. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ArtifactSheet(
-    ref: ArtifactRef,
-    artifacts: Artifacts,
+fun AppSheet(
+    ref: AppRef,
+    apps: Apps,
     revision: Int,
     heightFraction: Float,
     onDismiss: () -> Unit,
     onFullScreen: () -> Unit,
 ) {
     var manualReloads by remember { mutableIntStateOf(0) }
-    val elsewhere = rememberOpenElsewhere(ref, artifacts)
+    val elsewhere = rememberOpenElsewhere(ref, apps)
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
             Modifier.fillMaxWidth().fillMaxHeight(heightFraction).padding(horizontal = WhittleSpace.l).navigationBarsPadding(),
@@ -71,19 +71,19 @@ fun ArtifactSheet(
                 Text(ref.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).userContent())
                 TopBarAction(
                     icon = "refresh",
-                    contentDescription = stringResource(R.string.artifact_reload),
+                    contentDescription = stringResource(R.string.app_reload),
                     onClick = { manualReloads += 1 },
                     shape = CircleShape,
                     modifier = Modifier.size(WhittleSize.Tile.l),
                 )
             }
-            ArtifactContent(ref, artifacts, revision + manualReloads, Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(WhittleRadius.l)))
+            AppContent(ref, apps, revision + manualReloads, Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(WhittleRadius.l)))
             OpenInRow(
                 listOf(
-                    OpenInAction("fullscreen", stringResource(R.string.artifact_full_screen), onFullScreen),
-                    OpenInAction("open_in_new", stringResource(R.string.artifact_browser), elsewhere.browser),
-                    OpenInAction("share", stringResource(R.string.artifact_share), elsewhere.share),
-                    OpenInAction("install_mobile", stringResource(R.string.artifact_install), elsewhere.install),
+                    OpenInAction("fullscreen", stringResource(R.string.app_full_screen), onFullScreen),
+                    OpenInAction("open_in_new", stringResource(R.string.app_browser), elsewhere.browser),
+                    OpenInAction("share", stringResource(R.string.app_share), elsewhere.share),
+                    OpenInAction("install_mobile", stringResource(R.string.app_install), elsewhere.install),
                 ),
                 modifier = Modifier.padding(bottom = WhittleSpace.m),
             )
@@ -93,10 +93,10 @@ fun ArtifactSheet(
 
 /** The app on its own screen, with the same top bar language as the chat. */
 @Composable
-fun ArtifactScreen(ref: ArtifactRef, artifacts: Artifacts, revision: Int, onBack: () -> Unit) {
+fun AppScreen(ref: AppRef, apps: Apps, revision: Int, onBack: () -> Unit) {
     BackHandler(onBack = onBack)
     var manualReloads by remember { mutableIntStateOf(0) }
-    val elsewhere = rememberOpenElsewhere(ref, artifacts)
+    val elsewhere = rememberOpenElsewhere(ref, apps)
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
@@ -105,14 +105,14 @@ fun ArtifactScreen(ref: ArtifactRef, artifacts: Artifacts, revision: Int, onBack
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m),
             ) {
-                TopBarButton("arrow_back", stringResource(R.string.artifact_back), onBack)
+                TopBarButton("arrow_back", stringResource(R.string.app_back), onBack)
                 Text(ref.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 TopBarActionGroup {
                     val actions = listOf<Triple<String, String, () -> Unit>>(
-                        Triple("refresh", stringResource(R.string.artifact_reload)) { manualReloads += 1 },
-                        Triple("open_in_new", stringResource(R.string.artifact_browser), elsewhere.browser),
-                        Triple("share", stringResource(R.string.artifact_share), elsewhere.share),
-                        Triple("install_mobile", stringResource(R.string.artifact_install), elsewhere.install),
+                        Triple("refresh", stringResource(R.string.app_reload)) { manualReloads += 1 },
+                        Triple("open_in_new", stringResource(R.string.app_browser), elsewhere.browser),
+                        Triple("share", stringResource(R.string.app_share), elsewhere.share),
+                        Triple("install_mobile", stringResource(R.string.app_install), elsewhere.install),
                     )
                     actions.forEachIndexed { index, (icon, label, onClick) ->
                         TopBarAction(icon, label, onClick, shape = connectedShape(index, actions.size), modifier = TopBarGroupAction)
@@ -121,17 +121,17 @@ fun ArtifactScreen(ref: ArtifactRef, artifacts: Artifacts, revision: Int, onBack
             }
         },
     ) { padding ->
-        ArtifactContent(ref, artifacts, revision + manualReloads, Modifier.padding(padding).fillMaxSize())
+        AppContent(ref, apps, revision + manualReloads, Modifier.padding(padding).fillMaxSize())
     }
 }
 
 @Composable
-private fun ArtifactContent(ref: ArtifactRef, artifacts: Artifacts, revision: Int, modifier: Modifier) {
-    if (artifacts.exists(ref)) {
-        ArtifactWebView(ref, artifacts, revision, modifier.userContent())
+private fun AppContent(ref: AppRef, apps: Apps, revision: Int, modifier: Modifier) {
+    if (apps.exists(ref)) {
+        AppWebView(ref, apps, revision, modifier.userContent())
     } else {
         Box(modifier, contentAlignment = Alignment.Center) {
-            Text(stringResource(R.string.artifact_missing), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.app_missing), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -140,18 +140,18 @@ private class OpenElsewhere(val browser: () -> Unit, val share: () -> Unit, val 
 
 /** Browser and share both hand over the app bundled into one file; a toast says when nothing can take it. */
 @Composable
-private fun rememberOpenElsewhere(ref: ArtifactRef, artifacts: Artifacts): OpenElsewhere {
+private fun rememberOpenElsewhere(ref: AppRef, apps: Apps): OpenElsewhere {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val noBrowser = stringResource(R.string.artifact_no_browser)
-    val noShare = stringResource(R.string.artifact_no_share)
+    val noBrowser = stringResource(R.string.app_no_browser)
+    val noShare = stringResource(R.string.app_no_share)
     val preparing = stringResource(R.string.export_preparing)
     val allow = stringResource(R.string.export_allow)
     val exporter = (context.applicationContext as WhittleApplication).graph.appExporter
     return remember(ref) {
         OpenElsewhere(
-            browser = { scope.launch { if (!artifacts.openInBrowser(ref)) Toast.makeText(context, noBrowser, Toast.LENGTH_SHORT).show() } },
-            share = { scope.launch { if (!artifacts.share(ref)) Toast.makeText(context, noShare, Toast.LENGTH_SHORT).show() } },
+            browser = { scope.launch { if (!apps.openInBrowser(ref)) Toast.makeText(context, noBrowser, Toast.LENGTH_SHORT).show() } },
+            share = { scope.launch { if (!apps.share(ref)) Toast.makeText(context, noShare, Toast.LENGTH_SHORT).show() } },
             install = {
                 Toast.makeText(context, preparing, Toast.LENGTH_SHORT).show()
                 scope.launch {

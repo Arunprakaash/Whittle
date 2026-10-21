@@ -30,10 +30,10 @@ import androidx.compose.material3.AlertDialog
 import app.whittle.design.components.StatusLine
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
-import app.whittle.design.components.ArtifactCard
-import app.whittle.artifacts.Artifacts
-import app.whittle.artifacts.ArtifactSheet
-import app.whittle.artifacts.ArtifactRef
+import app.whittle.design.components.AppCard
+import app.whittle.apps.Apps
+import app.whittle.apps.AppSheet
+import app.whittle.apps.AppRef
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.SpanStyle
 import android.content.ClipData
@@ -127,33 +127,33 @@ fun ChatScreen(
     state: ChatState,
     viewModel: ChatViewModel,
     sidebarMaxChats: Int,
-    artifacts: Artifacts,
-    artifactSheetHeight: Float,
+    apps: Apps,
+    appSheetHeight: Float,
     voiceDefaults: VoiceDefaults,
     onViewAllChats: () -> Unit,
-    onOpenArtifactFullScreen: (ArtifactRef) -> Unit,
+    onOpenAppFullScreen: (AppRef) -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenArtifacts: () -> Unit,
+    onOpenApps: () -> Unit,
     onOpenFiles: () -> Unit,
 ) {
-    var sheetArtifact by remember { mutableStateOf<ArtifactRef?>(null) }
-    sheetArtifact?.let { ref ->
-        ArtifactSheet(
+    var sheetApp by remember { mutableStateOf<AppRef?>(null) }
+    sheetApp?.let { ref ->
+        AppSheet(
             ref = ref,
-            artifacts = artifacts,
+            apps = apps,
             revision = state.workspaceRevision,
-            heightFraction = artifactSheetHeight,
-            onDismiss = { sheetArtifact = null },
-            onFullScreen = { sheetArtifact = null; onOpenArtifactFullScreen(ref) },
+            heightFraction = appSheetHeight,
+            onDismiss = { sheetApp = null },
+            onFullScreen = { sheetApp = null; onOpenAppFullScreen(ref) },
         )
     }
-    CompositionLocalProvider(LocalOpenArtifact provides { ref -> sheetArtifact = ref }) {
-        ChatLayout(state, viewModel, sidebarMaxChats, voiceDefaults, onViewAllChats, onOpenSettings, onOpenArtifacts, onOpenFiles)
+    CompositionLocalProvider(LocalOpenApp provides { ref -> sheetApp = ref }) {
+        ChatLayout(state, viewModel, sidebarMaxChats, voiceDefaults, onViewAllChats, onOpenSettings, onOpenApps, onOpenFiles)
     }
 }
 
-/** Opens an artifact card's app in the sheet; provided by [ChatScreen] so any thread row can use it. */
-private val LocalOpenArtifact = staticCompositionLocalOf<(ArtifactRef) -> Unit> { {} }
+/** Opens an app card's app in the sheet; provided by [ChatScreen] so any thread row can use it. */
+private val LocalOpenApp = staticCompositionLocalOf<(AppRef) -> Unit> { {} }
 
 @Composable
 private fun ChatLayout(
@@ -163,7 +163,7 @@ private fun ChatLayout(
     voiceDefaults: VoiceDefaults,
     onViewAllChats: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenArtifacts: () -> Unit,
+    onOpenApps: () -> Unit,
     onOpenFiles: () -> Unit,
 ) {
     val haptics = WhittleTheme.haptics
@@ -197,8 +197,8 @@ private fun ChatLayout(
                 onDelete = viewModel::deleteChat,
                 onViewAll = { closeThen(onViewAllChats) },
                 onOpenSettings = { closeThen(onOpenSettings) },
-                artifactCount = state.artifacts.size,
-                onOpenArtifacts = { closeThen(onOpenArtifacts) },
+                appCount = state.apps.size,
+                onOpenApps = { closeThen(onOpenApps) },
                 onOpenFiles = { closeThen(onOpenFiles) },
             )
         },
@@ -376,12 +376,12 @@ private fun ThreadRow(
             steps = item.steps.map { it.toUi() },
             modifier = content,
         )
-        is ThreadItem.Artifact -> {
-            val open = LocalOpenArtifact.current
-            ArtifactCard(
+        is ThreadItem.App -> {
+            val open = LocalOpenApp.current
+            AppCard(
                 title = item.ref.title,
-                kind = stringResource(R.string.artifact_kind),
-                openLabel = stringResource(R.string.artifact_open),
+                kind = stringResource(R.string.app_kind),
+                openLabel = stringResource(R.string.app_open),
                 onOpen = { open(item.ref) },
                 modifier = content,
             )

@@ -13,7 +13,6 @@ object WorkspaceToolSet {
         WriteFileTool.DEFINITION,
         EditFileTool.DEFINITION,
         BuildWebAppTool.DEFINITION,
-        ShowArtifactTool.DEFINITION,
     )
 
     fun create(workspaces: Workspaces, environment: ShellEnvironment, config: TerminalConfig, webBuild: WebBuild): List<Tool> = listOf(
@@ -23,7 +22,6 @@ object WorkspaceToolSet {
         WriteFileTool(workspaces, config),
         EditFileTool(workspaces, config),
         BuildWebAppTool(workspaces, webBuild.bundler, webBuild.config, webBuild.pageTemplate),
-        ShowArtifactTool(workspaces),
     )
 
     /** What build_web_app needs from the platform: a bundler, and its settings. */

@@ -58,21 +58,6 @@
         "declinedOutcome": "Not built"
       }
     },
-    "show_artifact": {
-      "icon": "web_asset",
-      "running": "Getting {{title}} ready",
-      "done": "{{title}} is ready",
-      "decision": {
-        "icon": "web_asset",
-        "title": "Show {{title}}?",
-        "body": "Shows an app made in this chat as a card you can open. Nothing leaves the phone.",
-        "approve": "Show it",
-        "approveIcon": "check",
-        "decline": "Not now",
-        "approvedOutcome": "Showed {{title}}",
-        "declinedOutcome": "Not shown"
-      }
-    },
     "update_plan": {
       "icon": "checklist",
       "running": "Planning",

@@ -59,10 +59,11 @@ class BuildWebAppToolTest {
         write("node_modules/react/index.js", "ignored")
         write("dist/old.js", "previous build")
 
-        val output = run("""{"entry":"index.html"}""")
+        val output = run("""{"name":"Tips","entry":"index.html"}""")
 
         assertFalse(output.isError, output.content)
         assertEquals("dist/index.html", output.json()["page"]!!.jsonPrimitive.content)
+        assertEquals("Tips", output.json()["name"]!!.jsonPrimitive.content, "the card is named after the app")
         val job = jobs.single()
         assertEquals(listOf(EntryPoint("src/main.tsx", "main")), job.entryPoints)
         assertEquals(setOf("index.html", "src/main.tsx", "src/App.tsx", "package.json"), job.files.toSet(), "skips node_modules and the output folder")
@@ -77,7 +78,7 @@ class BuildWebAppToolTest {
     fun `a script entry gets a page from the template`() = runBlocking<Unit> {
         write("src/main.tsx", "export {}")
 
-        val output = run("""{"entry":"src/main.tsx","outDir":"build","title":"Tips & <Tricks>"}""")
+        val output = run("""{"name":"Tips","entry":"src/main.tsx","outDir":"build","title":"Tips & <Tricks>"}""")
 
         assertFalse(output.isError, output.content)
         val page = File(workspace, "build/index.html").readText()
@@ -90,7 +91,7 @@ class BuildWebAppToolTest {
         write("src/main.tsx", "const = ;")
         answer = { Outcome.Success(BundleResult(false, emptyList(), listOf("src/main.tsx:1:6: Unexpected \"=\""), emptyList())) }
 
-        val output = run("""{"entry":"src/main.tsx"}""")
+        val output = run("""{"name":"Tips","entry":"src/main.tsx"}""")
 
         assertTrue(output.isError)
         assertEquals("src/main.tsx:1:6: Unexpected \"=\"", output.json()["errors"]!!.jsonArray.single().jsonPrimitive.content)
@@ -101,21 +102,24 @@ class BuildWebAppToolTest {
     fun `a bundler that can't run is an error`() = runBlocking<Unit> {
         write("src/main.tsx", "export {}")
         answer = { Outcome.Failure(HarnessError.Configuration("no WebView")) }
-        assertTrue(run("""{"entry":"src/main.tsx"}""").isError)
+        assertTrue(run("""{"name":"Tips","entry":"src/main.tsx"}""").isError)
     }
 
     @Test
     fun `bad entries and output folders are refused before building`() = runBlocking<Unit> {
         write("index.html", "<p>no scripts</p>")
         write("notes.txt", "hi")
+        write("src/main.tsx", "export {}")
         write("dist/index.html", """<script src="../src/main.tsx"></script>""")
         listOf(
-            """{"entry":"missing.tsx"}""",
-            """{"entry":"notes.txt"}""",
-            """{"entry":"index.html"}""",
-            """{"entry":"dist/index.html"}""",
-            """{"entry":"index.html","outDir":"."}""",
-            """{"entry":"index.html","outDir":"../elsewhere"}""",
+            """{"name":"Tips","entry":"missing.tsx"}""",
+            """{"name":"Tips","entry":"notes.txt"}""",
+            """{"name":"Tips","entry":"index.html"}""",
+            """{"name":"Tips","entry":"dist/index.html"}""",
+            """{"name":"Tips","entry":"index.html","outDir":"."}""",
+            """{"name":"Tips","entry":"index.html","outDir":"../elsewhere"}""",
+            // Without a name the app's card would have nothing to show.
+            """{"entry":"src/main.tsx"}""",
         ).forEach { arguments -> assertTrue(run(arguments).isError, arguments) }
         assertTrue(jobs.isEmpty())
     }

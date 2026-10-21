@@ -77,7 +77,7 @@ import app.whittle.tools.workspace.WorkspaceToolSet
 import app.whittle.tools.workspace.Workspaces
 import kotlinx.serialization.KSerializer
 import java.io.File
-import app.whittle.artifacts.Artifacts
+import app.whittle.apps.Apps
 import app.whittle.runtimes.ToolRuntime
 import app.whittle.web.SiteIconLoader
 import app.whittle.webbuild.BuildRoutes
@@ -158,7 +158,7 @@ class AppGraph(context: Context) {
 
     val modelLister = OpenAiCompatibleModelLister(httpClient, modelTrust, modelDefaults.fallbackCapabilities)
     val keyVerifier = ApiKeyVerifier(httpClient)
-    val artifacts = Artifacts(context, workspaces, appDefaults.artifacts)
+    val apps = Apps(context, workspaces, appDefaults.apps)
     /** Services the user connects with their own account; their tools join the agent's once signed in. */
     val connectors = Connectors(
         secrets = secrets,
@@ -172,7 +172,7 @@ class AppGraph(context: Context) {
         loopbackPage = PromptTemplate.load(configSource, ConfigFiles.loopbackSignInPage).orThrow(ConfigFiles.loopbackSignInPage),
     )
     val appExporter = AppExporter(context, workspaces, appDefaults.export, context.applicationInfo.minSdkVersion)
-    val artifactSheetHeight: Float get() = appDefaults.artifacts.sheetHeightFraction
+    val appSheetHeight: Float get() = appDefaults.apps.sheetHeightFraction
     val voiceDefaults: VoiceDefaults get() = appDefaults.voice
     val siteIcons = SiteIconLoader(httpClient, File(context.cacheDir, appDefaults.siteIcons.cacheDirectoryName), appDefaults.siteIcons)
     val presenter = ToolPresenter(load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION))

@@ -14,7 +14,7 @@ data class AppDefaults(
     val terminal: TerminalDefaults,
     val chatList: ChatListDefaults,
     val siteIcons: SiteIconDefaults,
-    val artifacts: ArtifactDefaults,
+    val apps: AppViewDefaults,
     val background: BackgroundDefaults,
     val export: ExportDefaults,
     val voice: VoiceDefaults,
@@ -114,10 +114,11 @@ data class BackgroundDefaults(val keepRunning: Boolean)
 
 /** How web apps the agent builds are shown, opened elsewhere and shared. */
 @Serializable
-data class ArtifactDefaults(
+data class AppViewDefaults(
     /**
      * Each chat's apps load from `https://<chat>.<domainSuffix>/`, served by Whittle itself, never the network.
-     * A per-chat origin keeps one chat's app from reading another's saved data.
+     * A per-chat origin keeps one chat's app from reading another's saved data. Changing it would leave every
+     * app's saved data behind, so it keeps its old "artifacts" name.
      */
     val domainSuffix: String,
     /** Under the app's cache folder; must match the cache-path in res/xml/file_paths.xml. */
@@ -128,8 +129,8 @@ data class ArtifactDefaults(
     val maxInlineBytes: Long,
 ) {
     init {
-        require(sheetHeightFraction in 0.3f..1f) { "artifacts.sheetHeightFraction must be between 0.3 and 1" }
-        require(maxInlineBytes > 0) { "artifacts.maxInlineBytes must be positive" }
+        require(sheetHeightFraction in 0.3f..1f) { "apps.sheetHeightFraction must be between 0.3 and 1" }
+        require(maxInlineBytes > 0) { "apps.maxInlineBytes must be positive" }
     }
 }
 

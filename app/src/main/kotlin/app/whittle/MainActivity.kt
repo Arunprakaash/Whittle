@@ -16,13 +16,13 @@ import android.graphics.Color
 import androidx.activity.SystemBarStyle
 import androidx.compose.runtime.mutableIntStateOf
 import app.whittle.connect.ModelPickerScreen
-import app.whittle.chat.ArtifactsScreen
+import app.whittle.chat.AppsScreen
 import androidx.compose.runtime.LaunchedEffect
 import app.whittle.background.rememberNotificationPermissionRequest
 import app.whittle.settings.SettingsScreen
 import app.whittle.design.theme.WhittleAppearance
-import app.whittle.artifacts.ArtifactScreen
-import app.whittle.artifacts.ArtifactRef
+import app.whittle.apps.AppScreen
+import app.whittle.apps.AppRef
 import app.whittle.design.components.LocalSiteIcons
 import androidx.compose.runtime.CompositionLocalProvider
 import android.os.Bundle
@@ -91,8 +91,8 @@ class MainActivity : ComponentActivity() {
                             }
                             val state = chat.state.collectAsStateWithLifecycle().value
                             var showingAllChats by rememberSaveable { mutableStateOf(false) }
-                            var showingArtifacts by rememberSaveable { mutableStateOf(false) }
-                            var fullScreenArtifact by remember { mutableStateOf<ArtifactRef?>(null) }
+                            var showingApps by rememberSaveable { mutableStateOf(false) }
+                            var fullScreenApp by remember { mutableStateOf<AppRef?>(null) }
                             var showingSettings by rememberSaveable { mutableStateOf(false) }
                             var pickerOpenings by rememberSaveable { mutableIntStateOf(0) }
                             var showingModelPicker by rememberSaveable { mutableStateOf(false) }
@@ -101,7 +101,7 @@ class MainActivity : ComponentActivity() {
                             var toolsOf by rememberSaveable { mutableStateOf<String?>(null) }
                             val connections by graph.connectors.all.collectAsStateWithLifecycle()
                             val toolsConnection = toolsOf?.let { id -> connections.firstOrNull { it.server.id == id } }
-                            val artifact = fullScreenArtifact
+                            val app = fullScreenApp
                             if (showingMemory) {
                                 MemoryScreen(graph, onBack = { showingMemory = false; showingSettings = true })
                             } else if (showingConnectionLibrary) {
@@ -129,13 +129,13 @@ class MainActivity : ComponentActivity() {
                                     onConnectionTools = { connection -> showingSettings = false; toolsOf = connection.server.id },
                                     onMemory = { showingSettings = false; showingMemory = true },
                                 )
-                            } else if (artifact != null) {
-                                ArtifactScreen(artifact, graph.artifacts, state.workspaceRevision, onBack = { fullScreenArtifact = null })
-                            } else if (showingArtifacts) {
-                                ArtifactsScreen(
-                                    artifacts = state.artifacts,
-                                    onBack = { showingArtifacts = false },
-                                    onOpen = { fullScreenArtifact = it },
+                            } else if (app != null) {
+                                AppScreen(app, graph.apps, state.workspaceRevision, onBack = { fullScreenApp = null })
+                            } else if (showingApps) {
+                                AppsScreen(
+                                    apps = state.apps,
+                                    onBack = { showingApps = false },
+                                    onOpen = { fullScreenApp = it },
                                 )
                             } else if (showingAllChats) {
                                 BackHandler { showingAllChats = false }
@@ -150,13 +150,13 @@ class MainActivity : ComponentActivity() {
                                     state = state,
                                     viewModel = chat,
                                     sidebarMaxChats = graph.sidebarMaxChats,
-                                    artifacts = graph.artifacts,
-                                    artifactSheetHeight = graph.artifactSheetHeight,
+                                    apps = graph.apps,
+                                    appSheetHeight = graph.appSheetHeight,
                                     voiceDefaults = graph.voiceDefaults,
                                     onViewAllChats = { showingAllChats = true },
-                                    onOpenArtifactFullScreen = { fullScreenArtifact = it },
+                                    onOpenAppFullScreen = { fullScreenApp = it },
                                     onOpenSettings = { showingSettings = true },
-                                    onOpenArtifacts = { showingArtifacts = true },
+                                    onOpenApps = { showingApps = true },
                                     onOpenFiles = {
                                         if (!WorkspaceDocumentsProvider.open(this@MainActivity)) {
                                             Toast.makeText(this@MainActivity, R.string.files_unavailable, Toast.LENGTH_SHORT).show()

@@ -25,8 +25,9 @@ import java.io.IOException
  * Bundles a TypeScript or React project the agent wrote in the workspace into a web app, the way a bundler
  * would on a computer: TypeScript and JSX are compiled, local imports and CSS are followed, and npm packages
  * download from the package CDN. The entry is either the app's page (whose local script tags are bundled) or
- * one script (which gets a page from [pageTemplate]). The page and bundles land in the output folder, ready
- * for show_artifact. Errors in the project come back to the agent so it can fix them and build again.
+ * one script (which gets a page from [pageTemplate]). The page and bundles land in the output folder, and the
+ * app appears in the chat as a card under [NAME]. Errors in the project come back to the agent so it can fix
+ * them and build again.
  */
 class BuildWebAppTool(
     workspaces: Workspaces,
@@ -40,7 +41,8 @@ class BuildWebAppTool(
     override suspend fun run(arguments: JsonObject, access: WorkspaceAccess): ToolOutput {
         val entry = arguments.text(ENTRY)?.trim()?.trimStart('/')?.takeIf { it.isNotEmpty() } ?: return error("entry is missing")
         val outDir = (arguments.text(OUT_DIR)?.trim()?.trim('/')?.takeIf { it.isNotEmpty() } ?: config.defaultOutDir.trim('/'))
-        val title = arguments.text(TITLE)?.trim()?.takeIf { it.isNotEmpty() }
+        val name = arguments.text(NAME)?.trim()?.takeIf { it.isNotEmpty() } ?: return error("name is missing")
+        val title = arguments.text(TITLE)?.trim()?.takeIf { it.isNotEmpty() } ?: name
         val root = access.root().orElse { return error(it) }.canonicalFile
         val entryFile = access.file(entry).orElse { return error(it) }
         if (!entryFile.isFile) return error("'$entry' doesn't exist yet; write it first")
@@ -71,6 +73,7 @@ class BuildWebAppTool(
         return ToolOutput(
             buildJsonObject {
                 put(PAGE, "$outPath/$pageName")
+                put(NAME, name)
                 putJsonArray(FILES) { written.forEach { add(JsonPrimitive(it)) } }
                 if (result.warnings.isNotEmpty()) putJsonArray(WARNINGS) { result.warnings.forEach { add(JsonPrimitive(it)) } }
             }.toString(),
@@ -130,7 +133,6 @@ class BuildWebAppTool(
                 target.writeBytes(bytes)
                 "$outPath/$path"
             }
-            access.file(outPath).orElse { return Outcome.Failure(HarnessError.Storage(it)) }.let { BuiltPages.record(it, listOf(pageName)) }
             Outcome.Success(written)
         } catch (exception: IOException) {
             Outcome.Failure(HarnessError.Storage("couldn't save the built app: ${exception.message}"))
@@ -156,9 +158,10 @@ class BuildWebAppTool(
 
     companion object {
         const val ENTRY = "entry"
+        const val NAME = "name"
+        const val PAGE = "page"
         const val OUT_DIR = "outDir"
         const val TITLE = "title"
-        private const val PAGE = "page"
         private const val FILES = "files"
         private const val WARNINGS = "warnings"
         private const val ERROR = "error"
@@ -178,14 +181,16 @@ class BuildWebAppTool(
             description = "Bundles a React/TypeScript web app in this chat's workspace, like a bundler on a computer: compiles " +
                 ".ts/.tsx/.jsx, follows relative imports and imported CSS, and downloads npm packages imported by name " +
                 "(versions from package.json when it lists them). entry is the app's index.html (its local script tags are " +
-                "bundled) or one script such as src/main.tsx. Writes the page and bundles to outDir and returns the page path " +
-                "to pass to show_artifact. On errors, fix the files and build again.",
+                "bundled) or one script such as src/main.tsx. Writes the page and bundles to outDir; once it builds, the user " +
+                "sees the app as a card named name that they can open, and an open app reloads. On errors, fix the files and " +
+                "build again.",
             inputSchema = Json.parseToJsonElement(
                 """{"type":"object","properties":{""" +
                     """"$ENTRY":{"type":"string","description":"index.html, or a script like src/main.tsx"},""" +
+                    """"$NAME":{"type":"string","description":"Short name the user sees on the app's card, e.g. Tip calculator"},""" +
                     """"$OUT_DIR":{"type":"string","description":"Folder for the built app, e.g. dist"},""" +
-                    """"$TITLE":{"type":"string","description":"Page title, used only when entry is a script"}""" +
-                    """},"required":["$ENTRY"]}""",
+                    """"$TITLE":{"type":"string","description":"Page title when entry is a script; defaults to name"}""" +
+                    """},"required":["$ENTRY","$NAME"]}""",
             ).jsonObject,
             // Only package names and CDN addresses leave the phone; the project's code never does.
             riskTier = RiskTier.WEB_READ,

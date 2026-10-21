@@ -2,7 +2,7 @@ package app.whittle.export
 
 import android.content.Context
 import app.whittle.BuildConfig
-import app.whittle.artifacts.ArtifactRef
+import app.whittle.apps.AppRef
 import app.whittle.core.common.getOrNull
 import app.whittle.settings.ExportDefaults
 import app.whittle.tools.api.WorkspaceId
@@ -37,7 +37,7 @@ class AppExporter(
     private val signer = AppSigner(config.signingKeyAlias, config.certificateSubject, config.certificateValidityYears, minSdk)
     val installer = AppInstaller(context)
 
-    suspend fun install(ref: ArtifactRef): ExportResult = withContext(Dispatchers.IO) {
+    suspend fun install(ref: AppRef): ExportResult = withContext(Dispatchers.IO) {
         if (!installer.allowed()) return@withContext ExportResult.NeedsPermission
         val page = workspaces.resolve(WorkspaceId(ref.workspace), ref.path).getOrNull()?.takeIf { it.isFile }
             ?: return@withContext ExportResult.Failed("the app's files are no longer on this phone")

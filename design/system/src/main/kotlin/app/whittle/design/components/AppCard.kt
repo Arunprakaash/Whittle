@@ -28,7 +28,7 @@ import app.whittle.design.tokens.WhittleSpace
 
 /** Something the agent built, in the thread: what it is, and a way in. */
 @Composable
-fun ArtifactCard(title: String, kind: String, openLabel: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+fun AppCard(title: String, kind: String, openLabel: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
     val haptics = WhittleTheme.haptics
     Row(
@@ -45,7 +45,7 @@ fun ArtifactCard(title: String, kind: String, openLabel: String, onOpen: () -> U
             Modifier.size(WhittleSize.Tile.l).background(colors.secondaryContainer, RoundedCornerShape(WhittleRadius.m)),
             contentAlignment = Alignment.Center,
         ) {
-            WhittleIcon("web_asset", size = WhittleSize.Icon.xl, tint = colors.onSecondaryContainer)
+            WhittleIcon("deployed_code", size = WhittleSize.Icon.xl, tint = colors.onSecondaryContainer)
         }
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)

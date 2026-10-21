@@ -30,6 +30,7 @@ object MaterialSymbols {
         "dark_mode" to R.drawable.ms_dark_mode,
         "database" to R.drawable.ms_database,
         "delete" to R.drawable.ms_delete,
+        "deployed_code" to R.drawable.ms_deployed_code,
         "description" to R.drawable.ms_description,
         "do_not_disturb_on" to R.drawable.ms_do_not_disturb_on,
         "edit" to R.drawable.ms_edit,
@@ -77,7 +78,6 @@ object MaterialSymbols {
         "visibility" to R.drawable.ms_visibility,
         "visibility_off" to R.drawable.ms_visibility_off,
         "wallpaper" to R.drawable.ms_wallpaper,
-        "web_asset" to R.drawable.ms_web_asset,
     )
 
     private val filled: Map<String, Int> = mapOf(

@@ -9,8 +9,8 @@ import app.whittle.agent.PlanTool
 import app.whittle.agent.PlanStatus
 import app.whittle.agent.PlanItem
 import kotlinx.serialization.json.contentOrNull
-import app.whittle.tools.workspace.ShowArtifactTool
-import app.whittle.artifacts.ArtifactRef
+import app.whittle.tools.workspace.BuildWebAppTool
+import app.whittle.apps.AppRef
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.whittle.AppGraph
@@ -75,8 +75,8 @@ data class ChatState(
     val chats: List<ChatListItem> = emptyList(),
     val currentChat: ChatId? = null,
     /** Apps the agent made, across every chat, newest chat first. */
-    val artifacts: List<ArtifactListItem> = emptyList(),
-    /** Goes up whenever a tool finishes in this chat, so an open artifact reloads after the agent edits it. */
+    val apps: List<AppListItem> = emptyList(),
+    /** Goes up whenever a tool finishes in this chat, so an open app reloads after the agent edits it. */
     val workspaceRevision: Int = 0,
 ) {
     val running: Boolean get() = status != null
@@ -373,9 +373,9 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
                 val title = summary.title ?: document?.title
                 ChatListItem(summary.id, title?.takeIf { it.isNotBlank() }, summary.updatedAtMillis, summary.pinned) to document
             }
-            val artifacts = ArtifactIndex.from(loaded.mapNotNull { (chat, document) -> document?.let { chat to it } })
-                .filter { graph.artifacts.exists(it.ref) }
-            _state.update { it.copy(chats = loaded.map { (chat, _) -> chat }, artifacts = artifacts) }
+            val apps = AppIndex.from(loaded.mapNotNull { (chat, document) -> document?.let { chat to it } })
+                .filter { graph.apps.exists(it.ref) }
+            _state.update { it.copy(chats = loaded.map { (chat, _) -> chat }, apps = apps) }
         }
     }
 
@@ -474,7 +474,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         if (!event.result.isError) {
             _haptics.tryEmit(WhittleHaptic.StepDone)
             _state.update { it.copy(workspaceRevision = it.workspaceRevision + 1) }
-            if (callTools[id] == ShowArtifactTool.DEFINITION.id.value) showArtifact(event.result.content)
+            if (callTools[id] == BuildWebAppTool.DEFINITION.id.value) showApp(event.result.content)
         }
     }
 
@@ -490,13 +490,25 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         state.copy(items = items, status = state.status?.copy(plan = steps, verb = active ?: state.status.verb))
     }
 
-    /** The tool checked the page exists; the card points at it in this chat's workspace. */
-    private fun showArtifact(result: String) {
+    /**
+     * A build succeeded: the app gets a card pointing at its page in this chat's workspace. Building it again
+     * keeps the one card (an open app reloads by itself), renamed if the agent renamed the app.
+     */
+    private fun showApp(result: String) {
         val chat = chatId ?: return
         val fields = arguments(result)
-        val path = (fields[ShowArtifactTool.PATH] as? JsonPrimitive)?.contentOrNull ?: return
-        val title = (fields[ShowArtifactTool.TITLE] as? JsonPrimitive)?.contentOrNull ?: return
-        append(ThreadItem.Artifact(key(), ArtifactRef(workspace = chat.value, path = path, title = title)))
+        val path = (fields[BuildWebAppTool.PAGE] as? JsonPrimitive)?.contentOrNull ?: return
+        val name = (fields[BuildWebAppTool.NAME] as? JsonPrimitive)?.contentOrNull ?: return
+        val ref = AppRef(workspace = chat.value, path = path, title = name)
+        _state.update { state ->
+            val shown = state.items.any { it is ThreadItem.App && it.ref.path == path }
+            val items = if (shown) {
+                state.items.map { if (it is ThreadItem.App && it.ref.path == path) it.copy(ref = ref) else it }
+            } else {
+                state.items + ThreadItem.App(key(), ref)
+            }
+            state.copy(items = items)
+        }
     }
 
     /** Provider-run tools, like web search, show as steps like any other. Policy allowed them before the model call. */
@@ -761,7 +773,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     /** update_plan calls in the current run; they never become step rows. */
     private val planCalls = mutableSetOf<String>()
 
-    /** Which tool each call in the current run used, to recognise artifact results. */
+    /** Which tool each call in the current run used, to recognise app results. */
     private val callTools = mutableMapOf<String, String>()
 
     /** Pages the provider cited in the current run, by cleaned address, with their titles when given. */

@@ -1,4 +1,4 @@
-package app.whittle.artifacts
+package app.whittle.apps
 
 import android.content.ActivityNotFoundException
 import android.content.ClipData
@@ -8,7 +8,7 @@ import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.webkit.WebViewAssetLoader
 import app.whittle.core.common.getOrNull
-import app.whittle.settings.ArtifactDefaults
+import app.whittle.settings.AppViewDefaults
 import app.whittle.tools.api.WorkspaceId
 import app.whittle.tools.workspace.Workspaces
 import kotlinx.coroutines.Dispatchers
@@ -19,28 +19,28 @@ import java.io.IOException
 
 /** A web app the agent built: which chat's workspace it lives in and its entry page there. */
 @Serializable
-data class ArtifactRef(val workspace: String, val path: String, val title: String)
+data class AppRef(val workspace: String, val path: String, val title: String)
 
 /**
- * Serves artifacts from their chat's workspace on a private https origin that only Whittle's WebView can
+ * Serves apps from their chat's workspace on a private https origin that only Whittle's WebView can
  * reach (no port is opened), and bundles them into one file for browsers and share targets.
  */
-class Artifacts(
+class Apps(
     private val context: Context,
     private val workspaces: Workspaces,
-    private val config: ArtifactDefaults,
+    private val config: AppViewDefaults,
 ) {
-    private val bundler = ArtifactBundler(config.maxInlineBytes)
+    private val bundler = AppBundler(config.maxInlineBytes)
 
     /** One origin per chat, so an app's saved data stays with its chat. */
-    fun host(ref: ArtifactRef): String =
+    fun host(ref: AppRef): String =
         ref.workspace.lowercase().replace(NOT_HOST_SAFE, HOST_SEPARATOR).trim('-').take(MAX_LABEL) + "." + config.domainSuffix
 
-    fun entryUrl(ref: ArtifactRef): String =
+    fun entryUrl(ref: AppRef): String =
         "https://${host(ref)}/" + ref.path.split('/').filter { it.isNotEmpty() }.joinToString("/") { Uri.encode(it) }
 
     /** Null when the chat's workspace is gone, e.g. the chat was deleted. */
-    fun loader(ref: ArtifactRef): WebViewAssetLoader? {
+    fun loader(ref: AppRef): WebViewAssetLoader? {
         val root = directory(ref) ?: return null
         return WebViewAssetLoader.Builder()
             .setDomain(host(ref))
@@ -48,17 +48,17 @@ class Artifacts(
             .build()
     }
 
-    fun exists(ref: ArtifactRef): Boolean = entry(ref)?.isFile == true
+    fun exists(ref: AppRef): Boolean = entry(ref)?.isFile == true
 
     /** Opens the app, bundled into one file, in a browser. False when nothing on the phone can open it. */
-    suspend fun openInBrowser(ref: ArtifactRef): Boolean {
+    suspend fun openInBrowser(ref: AppRef): Boolean {
         val uri = bundled(ref) ?: return false
         val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, HTML_TYPE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         return launch(Intent.createChooser(view, ref.title))
     }
 
     /** Shares the app as one self-contained HTML file. */
-    suspend fun share(ref: ArtifactRef): Boolean {
+    suspend fun share(ref: AppRef): Boolean {
         val uri = bundled(ref) ?: return false
         val send = Intent(Intent.ACTION_SEND)
             .setType(HTML_TYPE)
@@ -69,7 +69,7 @@ class Artifacts(
         return launch(Intent.createChooser(send, ref.title))
     }
 
-    private suspend fun bundled(ref: ArtifactRef): Uri? = withContext(Dispatchers.IO) {
+    private suspend fun bundled(ref: AppRef): Uri? = withContext(Dispatchers.IO) {
         val root = directory(ref) ?: return@withContext null
         val entry = entry(ref)?.takeIf { it.isFile } ?: return@withContext null
         try {
@@ -89,9 +89,9 @@ class Artifacts(
         false
     }
 
-    private fun directory(ref: ArtifactRef): File? = workspaces.directory(WorkspaceId(ref.workspace)).getOrNull()
+    private fun directory(ref: AppRef): File? = workspaces.directory(WorkspaceId(ref.workspace)).getOrNull()
 
-    private fun entry(ref: ArtifactRef): File? = workspaces.resolve(WorkspaceId(ref.workspace), ref.path).getOrNull()
+    private fun entry(ref: AppRef): File? = workspaces.resolve(WorkspaceId(ref.workspace), ref.path).getOrNull()
 
     private fun fileName(title: String): String =
         title.lowercase().replace(NOT_FILE_SAFE, HOST_SEPARATOR).trim('-').ifEmpty { FALLBACK_NAME }.take(MAX_LABEL) + HTML_EXTENSION

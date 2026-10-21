@@ -1,4 +1,4 @@
-package app.whittle.artifacts
+package app.whittle.apps
 
 import java.io.File
 import java.nio.file.Files
@@ -7,7 +7,7 @@ import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
-class ArtifactBundlerTest {
+class AppBundlerTest {
     private val root: File = Files.createTempDirectory("workspace").toFile()
 
     @Test
@@ -26,7 +26,7 @@ class ArtifactBundlerTest {
             """.trimIndent(),
         )
 
-        val html = ArtifactBundler(maxInlineBytes = 1_000).bundle(root, File(root, "index.html"))
+        val html = AppBundler(maxInlineBytes = 1_000).bundle(root, File(root, "index.html"))
 
         assertContains(html, "<style>\nbody { color: red; }\n</style>")
         assertContains(html, """<link rel="stylesheet" href="https://cdn.example.com/x.css">""")
@@ -44,7 +44,7 @@ class ArtifactBundlerTest {
             """<link rel="stylesheet" href="../${outside.name}/secret.css"><link rel="stylesheet" href="big.css">""",
         )
 
-        val html = ArtifactBundler(maxInlineBytes = 10).bundle(root, File(root, "index.html"))
+        val html = AppBundler(maxInlineBytes = 10).bundle(root, File(root, "index.html"))
 
         assertFalse("<style>" in html)
         assertEquals(2, Regex("<link").findAll(html).count())

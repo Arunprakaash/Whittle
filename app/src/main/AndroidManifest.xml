@@ -64,7 +64,7 @@
         <receiver
             android:name=".export.InstallResultReceiver"
             android:exported="false" />
-        <!-- Hands a bundled web app to a browser or share target; only the shared-artifacts cache folder. -->
+        <!-- Hands a bundled web app to a browser or share target; only the shared-apps cache folder. -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files"

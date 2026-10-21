@@ -1,7 +1,7 @@
 package app.whittle.chat
 
 import app.whittle.agent.PlanItem
-import app.whittle.artifacts.ArtifactRef
+import app.whittle.apps.AppRef
 import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.tools.api.CapabilityId
@@ -86,8 +86,9 @@ sealed interface ThreadItem {
 
     /** A web app the agent built, shown as a card that opens it. */
     @Serializable
+    // Saved chats name it "artifact", from before apps were called apps; the name stays so they still load.
     @SerialName("artifact")
-    data class Artifact(override val key: String, val ref: ArtifactRef) : ThreadItem
+    data class App(override val key: String, val ref: AppRef) : ThreadItem
 
     /** The pages the answer above cites, shown as a pill that opens into a list. */
     @Serializable

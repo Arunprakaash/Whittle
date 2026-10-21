@@ -19,7 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import app.whittle.R
-import app.whittle.artifacts.ArtifactRef
+import app.whittle.apps.AppRef
 import app.whittle.design.components.SettingsRow
 import app.whittle.design.components.TopBarButton
 import app.whittle.design.components.segmentedShape
@@ -27,10 +27,10 @@ import app.whittle.design.tokens.WhittleSpace
 
 /** Every app the agent made, across all chats. Tapping one opens it. */
 @Composable
-fun ArtifactsScreen(
-    artifacts: List<ArtifactListItem>,
+fun AppsScreen(
+    apps: List<AppListItem>,
     onBack: () -> Unit,
-    onOpen: (ArtifactRef) -> Unit,
+    onOpen: (AppRef) -> Unit,
 ) {
     BackHandler(onBack = onBack)
     Scaffold(
@@ -42,13 +42,13 @@ fun ArtifactsScreen(
                 horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m),
             ) {
                 TopBarButton("arrow_back", stringResource(R.string.settings_back), onBack)
-                Text(stringResource(R.string.artifacts_title), style = MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.apps_title), style = MaterialTheme.typography.titleLarge)
             }
         },
     ) { padding ->
-        if (artifacts.isEmpty()) {
+        if (apps.isEmpty()) {
             Text(
-                stringResource(R.string.artifacts_empty),
+                stringResource(R.string.apps_empty),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(padding).padding(WhittleSpace.xl),
@@ -60,12 +60,12 @@ fun ArtifactsScreen(
             contentPadding = PaddingValues(horizontal = WhittleSpace.l, vertical = WhittleSpace.l),
             verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline),
         ) {
-            itemsIndexed(artifacts, key = { _, item -> item.ref.workspace + "/" + item.ref.path }) { index, item ->
+            itemsIndexed(apps, key = { _, item -> item.ref.workspace + "/" + item.ref.path }) { index, item ->
                 SettingsRow(
-                    icon = "web_asset",
+                    icon = "deployed_code",
                     title = item.ref.title,
                     subtitle = null,
-                    shape = segmentedShape(index, artifacts.size),
+                    shape = segmentedShape(index, apps.size),
                     onClick = { onOpen(item.ref) },
                     modifier = Modifier.userContent(),
                 )

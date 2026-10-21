@@ -1,4 +1,4 @@
-package app.whittle.artifacts
+package app.whittle.apps
 
 import java.io.File
 import java.io.IOException
@@ -9,7 +9,7 @@ import java.util.Base64
  * without access to Whittle's files: local stylesheets, scripts and images are inlined; web links stay.
  * Local ES module imports inside scripts aren't followed, so apps split into modules keep only their entry.
  */
-class ArtifactBundler(private val maxInlineBytes: Long) {
+class AppBundler(private val maxInlineBytes: Long) {
     fun bundle(root: File, entry: File): String {
         val base = entry.parentFile ?: root
         var html = entry.readText()

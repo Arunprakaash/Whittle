@@ -1,4 +1,4 @@
-package app.whittle.artifacts
+package app.whittle.apps
 
 import android.annotation.SuppressLint
 import android.content.Intent
@@ -18,15 +18,15 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.webkit.WebViewClientCompat
 
 /**
- * Runs an artifact. It's untrusted code: JavaScript and its own storage, but no file or content access and no
+ * Runs an app. It's untrusted code: JavaScript and its own storage, but no file or content access and no
  * bridge into the app. Links that leave the app's origin open in the browser. [reload] changing reloads it,
  * so edits the agent makes show up while it's open.
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun ArtifactWebView(ref: ArtifactRef, artifacts: Artifacts, reload: Int, modifier: Modifier = Modifier) {
-    val loader = remember(ref) { artifacts.loader(ref) }
-    val host = remember(ref) { artifacts.host(ref) }
+fun AppWebView(ref: AppRef, apps: Apps, reload: Int, modifier: Modifier = Modifier) {
+    val loader = remember(ref) { apps.loader(ref) }
+    val host = remember(ref) { apps.host(ref) }
     var webView by remember { mutableStateOf<WebView?>(null) }
     var loadedRevision by remember { mutableIntStateOf(reload) }
     AndroidView(
@@ -48,7 +48,7 @@ fun ArtifactWebView(ref: ArtifactRef, artifacts: Artifacts, reload: Int, modifie
                         return true
                     }
                 }
-                loadUrl(artifacts.entryUrl(ref))
+                loadUrl(apps.entryUrl(ref))
                 webView = this
             }
         },

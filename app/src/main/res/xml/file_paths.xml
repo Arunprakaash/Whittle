@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Only bundled web apps are shared. The folder name matches artifacts.sharedDirectoryName in app-defaults.json. -->
+<!-- Only bundled web apps are shared. The folder name matches apps.sharedDirectoryName in app-defaults.json. -->
 <paths>
-    <cache-path name="shared_artifacts" path="shared-artifacts/" />
+    <cache-path name="shared_apps" path="shared-apps/" />
 </paths>

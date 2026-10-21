@@ -23,6 +23,7 @@ contrast
 dark_mode:fill
 database
 delete
+deployed_code
 description
 do_not_disturb_on:fill
 edit
@@ -70,4 +71,3 @@ vibration
 visibility
 visibility_off
 wallpaper
-web_asset
