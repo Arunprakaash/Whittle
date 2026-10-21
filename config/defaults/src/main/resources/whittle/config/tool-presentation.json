@@ -7,7 +7,7 @@
     "decision": {
       "icon": "help",
       "title": "Allow this step?",
-      "body": "Whittle needs your OK before it does this.",
+      "body": "",
       "approve": "Allow",
       "approveIcon": "check",
       "decline": "Not now",
@@ -91,11 +91,11 @@
       }
     },
     "ask_user": {
-      "icon": "help",
+      "icon": "question_mark",
       "running": "Asking you",
       "done": "Asked you",
       "question": {
-        "icon": "help",
+        "icon": "question_mark",
         "questionArgument": "question",
         "optionsArgument": "options"
       }
@@ -316,11 +316,11 @@
       }
     },
     "find_connection": {
-      "icon": "travel_explore",
+      "icon": "extension",
       "running": "Looking for a connection for {{query}}",
       "done": "Looked for a connection for {{query}}",
       "decision": {
-        "icon": "travel_explore",
+        "icon": "extension",
         "title": "Look for {{query}} connections?",
         "body": "Searches Whittle's featured list and the public MCP Registry. Only what you're looking for is sent.",
         "payloadArgument": "query",
@@ -392,7 +392,7 @@
       "decision": {
         "icon": "database",
         "title": "Allow this Supabase step?",
-        "body": "Whittle needs your OK before it does this in your Supabase account.",
+        "body": "",
         "approve": "Allow",
         "approveIcon": "check",
         "decline": "Not now",
@@ -402,16 +402,16 @@
     },
     "mcp_": {
       "icon": "extension",
-      "running": "Using a connection",
-      "done": "Used a connection",
+      "running": "{{toolTitle}}",
+      "done": "{{toolTitle}}",
       "decision": {
         "icon": "extension",
-        "title": "Allow this step in a connection?",
-        "body": "Whittle needs your OK before it uses a service you connected.",
+        "title": "{{toolTitle}}?",
+        "body": "",
         "approve": "Allow",
         "approveIcon": "check",
         "decline": "Not now",
-        "approvedOutcome": "Allowed",
+        "approvedOutcome": "{{toolTitle}}",
         "declinedOutcome": "Not allowed"
       }
     }

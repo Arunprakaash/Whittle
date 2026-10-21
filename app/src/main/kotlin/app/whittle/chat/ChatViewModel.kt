@@ -9,6 +9,8 @@ import app.whittle.agent.PlanTool
 import app.whittle.agent.PlanStatus
 import app.whittle.agent.PlanItem
 import kotlinx.serialization.json.contentOrNull
+import app.whittle.tools.api.ToolId
+import app.whittle.tools.api.ToolOrigin
 import app.whittle.tools.workspace.BuildWebAppTool
 import app.whittle.apps.AppRef
 import androidx.lifecycle.ViewModel
@@ -442,7 +444,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             if (event.decision is PolicyDecision.Allow) PlanTool.parse(arguments)?.let(::showPlan)
             return
         }
-        val text = graph.presenter.step(call.toolName, arguments)
+        val text = graph.presenter.step(call.toolName, arguments, origin(call.toolName))
         stepTexts[call.id.value] = text
         callTools[call.id.value] = call.toolName
         stepArguments[call.id.value] = arguments
@@ -530,7 +532,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private fun onDecisionRequested(event: RunEvent.DecisionRequested) {
         if (event.decision.kind == DecisionKind.QUESTION) return onQuestionRequested(event)
         val call = event.decision.toolCall
-        val text = graph.presenter.decision(call.toolName, event.arguments)
+        val text = graph.presenter.decision(call.toolName, event.arguments, origin(call.toolName))
         val runId = activeRunId ?: return
         append(
             ThreadItem.Decision(
@@ -679,6 +681,9 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     private fun append(item: ThreadItem) = _state.update { it.copy(items = it.items + item) }
+
+    /** How a connected server presents [toolName]: its own title, the service and its logo. */
+    private fun origin(toolName: String): ToolOrigin? = graph.tools.find(ToolId(toolName))?.definition?.origin
 
     private fun replace(key: String, change: (ThreadItem) -> ThreadItem) = _state.update { state ->
         state.copy(items = state.items.map { if (it.key == key) change(it) else it })

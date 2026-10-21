@@ -48,6 +48,8 @@ data class DecisionUi(
     val approveLabel: String,
     val approveIcon: String,
     val declineLabel: String,
+    /** The service the action belongs to; its icon stands in for [icon] once loaded. */
+    val site: String? = null,
 )
 
 /**
@@ -68,15 +70,19 @@ fun DecisionCard(decision: DecisionUi, onApprove: () -> Unit, onDecline: () -> U
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
-            Box(
-                Modifier.size(WhittleSize.Tile.s).background(colors.decisionContainer, RoundedCornerShape(WhittleRadius.m)),
-                contentAlignment = Alignment.Center,
-            ) {
-                WhittleIcon(decision.icon, size = WhittleSize.Icon.m, tint = colors.onDecisionContainer)
+            val iconTile: @Composable () -> Unit = {
+                Box(
+                    Modifier.size(WhittleSize.Tile.s).background(colors.decisionContainer, RoundedCornerShape(WhittleRadius.m)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    WhittleIcon(decision.icon, size = WhittleSize.Icon.m, tint = colors.onDecisionContainer)
+                }
             }
+            if (decision.site != null) SiteIcon(decision.site, containerSize = WhittleSize.Tile.s, iconSize = WhittleSize.Icon.l, fallback = iconTile) else iconTile()
             Column(Modifier.weight(1f)) {
                 Text(decision.title, style = MaterialTheme.typography.titleMedium)
-                Text(decision.body, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                // Some cards need no explanation beyond their title.
+                if (decision.body.isNotBlank()) Text(decision.body, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
             }
         }
         if (decision.payload != null) {

@@ -269,7 +269,8 @@ class Connectors(
             auth = saved.auth,
             transport = saved.transport,
             headers = saved.headers,
-            websiteUrl = saved.websiteUrl,
+            // Servers added before websites were kept still get their logo from the library's entry.
+            websiteUrl = saved.websiteUrl ?: library.firstOrNull { it.url.trimEnd('/') == saved.url.trimEnd('/') }?.websiteUrl,
         )
     }
 

@@ -5,5 +5,6 @@ plugins {
 
 dependencies {
     api(project(":core:config"))
+    api(project(":tools:api"))
     api(libs.kotlinx.serialization.json)
 }

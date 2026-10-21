@@ -8,7 +8,9 @@ import app.whittle.tools.api.Tool
 import app.whittle.tools.api.ToolDefinition
 import app.whittle.tools.api.ToolExecutionContext
 import app.whittle.tools.api.ToolId
+import app.whittle.tools.api.ToolOrigin
 import app.whittle.tools.api.ToolOutput
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -30,6 +32,7 @@ internal class McpTool(
         requiredCapabilities = emptySet(),
         consentTextKey = CONSENT_KEY,
         outputProvenance = Provenance.Untrusted(server.sourceLabel),
+        origin = ToolOrigin(remote.displayName, server.name, (server.websiteUrl ?: server.url).toHttpUrlOrNull()?.host),
     )
 
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput =

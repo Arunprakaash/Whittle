@@ -57,4 +57,12 @@ data class ToolDefinition(
     val outputProvenance: Provenance,
     /** Whether the output holds the user's personal data (contacts, calendar, ...). */
     val exposesPersonalData: Boolean = false,
+    /** For a tool that comes from somewhere else (a connected server): how that source presents it. */
+    val origin: ToolOrigin? = null,
 )
+
+/**
+ * How a tool from elsewhere is shown: [title] is its provider's own name for it, [source] the service it
+ * belongs to, and [site] that service's web host, whose icon stands in for the tool's.
+ */
+data class ToolOrigin(val title: String, val source: String, val site: String? = null)

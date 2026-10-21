@@ -60,6 +60,7 @@ object MaterialSymbols {
         "person" to R.drawable.ms_person,
         "person_search" to R.drawable.ms_person_search,
         "push_pin" to R.drawable.ms_push_pin,
+        "question_mark" to R.drawable.ms_question_mark,
         "radio_button_unchecked" to R.drawable.ms_radio_button_unchecked,
         "refresh" to R.drawable.ms_refresh,
         "schedule" to R.drawable.ms_schedule,

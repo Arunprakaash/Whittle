@@ -4,6 +4,7 @@ import kotlinx.serialization.json.booleanOrNull
 import app.whittle.core.config.ConfigName
 import app.whittle.core.config.PromptTemplate
 import app.whittle.core.common.getOrElse
+import app.whittle.tools.api.ToolOrigin
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -12,7 +13,7 @@ import kotlinx.serialization.json.contentOrNull
 import java.net.URI
 import java.net.URISyntaxException
 
-/** Labels for one tool call, ready to show. [site] is the host of the page it reads, if any. */
+/** Labels for one tool call, ready to show. [site] is the host whose icon stands in for the tool's, if any. */
 @Serializable
 data class StepText(val icon: String, val running: String, val done: String, val site: String? = null)
 
@@ -28,6 +29,8 @@ data class DecisionText(
     val decline: String,
     val approvedOutcome: String,
     val declinedOutcome: String,
+    /** The host whose icon stands in for [icon]: the service a connected tool belongs to. */
+    val site: String? = null,
 )
 
 @Serializable
@@ -35,32 +38,33 @@ data class QuestionText(val icon: String, val question: String, val options: Lis
 
 /**
  * Turns a tool call into the words the user sees. When a template can't be filled (an optional
- * argument is missing), the tool's fallback text is used instead of showing a placeholder.
+ * argument is missing), the tool's fallback text is used instead of showing a placeholder. A tool from
+ * elsewhere ([ToolOrigin]) also fills {{toolTitle}} and {{toolSource}} with its provider's own names.
  */
 class ToolPresenter(private val config: ToolPresentationConfig) {
     /** Every argument name that holds the address of a page a step reads. */
     val siteArguments: Set<String> = config.tools.values.mapNotNullTo(mutableSetOf()) { it.siteArgument }
 
-    fun step(toolId: String, arguments: JsonObject): StepText {
+    fun step(toolId: String, arguments: JsonObject, origin: ToolOrigin? = null): StepText {
         val presentation = presentation(toolId) ?: config.fallback
-        val variables = variables(arguments)
+        val variables = variables(arguments, origin)
         return StepText(
             icon = presentation.icon,
             running = fill(presentation.running, variables, config.fallback.running),
             done = fill(presentation.done, variables, config.fallback.done),
-            site = presentation.siteArgument?.let { variables["$it$HOST_SUFFIX"] },
+            site = presentation.siteArgument?.let { variables["$it$HOST_SUFFIX"] } ?: origin?.site,
         )
     }
 
-    fun decision(toolId: String, arguments: JsonObject): DecisionText {
+    fun decision(toolId: String, arguments: JsonObject, origin: ToolOrigin? = null): DecisionText {
         val decision = presentation(toolId)?.decision ?: config.fallback.decision
             ?: error("tool-presentation.json must define fallback.decision")
         val fallback = config.fallback.decision ?: decision
-        val variables = variables(arguments)
+        val variables = variables(arguments, origin)
         return DecisionText(
             icon = decision.icon,
             title = fill(decision.title, variables, fallback.title),
-            body = (listOf(fill(decision.body, variables, fallback.body)) + flagNotes(decision, arguments)).joinToString(SENTENCE_GAP),
+            body = (listOf(fill(decision.body, variables, fallback.body)) + flagNotes(decision, arguments)).filter { it.isNotBlank() }.joinToString(SENTENCE_GAP),
             payload = decision.payloadArgument?.let { variables[it] } ?: if (decision === fallback) describe(arguments) else null,
             payloadLabel = decision.payloadLabelArgument?.let { variables[it] },
             approve = fill(decision.approve, variables, fallback.approve),
@@ -68,6 +72,7 @@ class ToolPresenter(private val config: ToolPresentationConfig) {
             decline = fill(decision.decline, variables, fallback.decline),
             approvedOutcome = fill(decision.approvedOutcome, variables, fallback.approvedOutcome),
             declinedOutcome = fill(decision.declinedOutcome, variables, fallback.declinedOutcome),
+            site = origin?.site,
         )
     }
 
@@ -98,11 +103,16 @@ class ToolPresenter(private val config: ToolPresentationConfig) {
         arguments.entries.joinToString("\n") { (name, value) -> "$name: ${(value as? JsonPrimitive)?.contentOrNull ?: value}" }
             .ifEmpty { null }
 
-    private fun variables(arguments: JsonObject): Map<String, String> = buildMap {
+    private fun variables(arguments: JsonObject, origin: ToolOrigin?): Map<String, String> = buildMap {
         arguments.forEach { (name, value) ->
             val text = (value as? JsonPrimitive)?.contentOrNull ?: return@forEach
             put(name, text)
             hostOf(text)?.let { put("${name}$HOST_SUFFIX", it) }
+        }
+        // Set last, so an argument of the same name can't pass itself off as the tool's own name.
+        origin?.let {
+            put(TOOL_TITLE, it.title)
+            put(TOOL_SOURCE, it.source)
         }
     }
 
@@ -114,6 +124,8 @@ class ToolPresenter(private val config: ToolPresentationConfig) {
 
     companion object {
         const val HOST_SUFFIX = "_host"
+        const val TOOL_TITLE = "toolTitle"
+        const val TOOL_SOURCE = "toolSource"
         private const val SENTENCE_GAP = " "
         private const val WWW_PREFIX = "www."
         private val TEMPLATE_NAME = ConfigName("tool-presentation.json")

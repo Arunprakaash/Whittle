@@ -20,13 +20,22 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import java.util.concurrent.atomic.AtomicLong
 
-/** What a server says about a tool. Only ever used to ask more often, never less. */
+/** What a server says about a tool. Hints are only ever used to ask more often, never less. */
 @Serializable
-data class ToolAnnotations(val readOnlyHint: Boolean? = null, val destructiveHint: Boolean? = null)
+data class ToolAnnotations(val title: String? = null, val readOnlyHint: Boolean? = null, val destructiveHint: Boolean? = null)
 
-/** A tool as the server describes it. */
+/** A tool as the server describes it; [title] is its name for people, when the server gives one. */
 @Serializable
-data class RemoteTool(val name: String, val description: String = "", val inputSchema: JsonObject, val annotations: ToolAnnotations? = null)
+data class RemoteTool(
+    val name: String,
+    val title: String? = null,
+    val description: String = "",
+    val inputSchema: JsonObject,
+    val annotations: ToolAnnotations? = null,
+) {
+    /** What the server calls it for people: its title, else the annotations' title, else its name. */
+    val displayName: String get() = title?.takeIf { it.isNotBlank() } ?: annotations?.title?.takeIf { it.isNotBlank() } ?: name
+}
 
 /** What a tool call returned: its text, and whether the server reports it as an error. */
 data class RemoteResult(val text: String, val isError: Boolean)

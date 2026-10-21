@@ -1,5 +1,6 @@
 package app.whittle.tools.presentation
 
+import app.whittle.tools.api.ToolOrigin
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.Json
@@ -33,6 +34,14 @@ class ToolPresenterTest {
             tools = mapOf(
                 "web_fetch" to ToolPresentation("language", "Reading {{url_host}}", "Read {{url_host}}", siteArgument = "url"),
                 "compose_message" to ToolPresentation("sms", "Writing to {{to}}", "Wrote to {{to}}", decision),
+            ),
+            toolPrefixes = mapOf(
+                "mcp_" to ToolPresentation(
+                    "extension",
+                    "{{toolTitle}} in {{toolSource}}",
+                    "{{toolTitle}} in {{toolSource}}",
+                    decision.copy(title = "{{toolTitle}} in {{toolSource}}?", payloadArgument = null, payloadLabelArgument = null),
+                ),
             ),
         ),
     )
@@ -75,6 +84,24 @@ class ToolPresenterTest {
         assertEquals("Allow this action?", card.title)
         assertEquals("path: /sdcard/a.txt", card.payload)
         assertNull(card.payloadLabel)
+    }
+
+    @Test
+    fun `a connected tool goes by its server's own names and logo`() {
+        val origin = ToolOrigin(title = "Create pages", source = "Notion", site = "notion.so")
+        val step = presenter.step("mcp_notion_notion-create-pages", args("""{"toolTitle":"spoofed"}"""), origin)
+        assertEquals("Create pages in Notion", step.running)
+        assertEquals("notion.so", step.site)
+
+        val card = presenter.decision("mcp_notion_notion-create-pages", args("{}"), origin)
+        assertEquals("Create pages in Notion?", card.title)
+        assertEquals("notion.so", card.site)
+    }
+
+    @Test
+    fun `a connected tool without its names falls back instead of showing a template`() {
+        assertEquals("Working", presenter.step("mcp_notion_search", args("{}")).running)
+        assertEquals("Allow this action?", presenter.decision("mcp_notion_search", args("{}")).title)
     }
 
     private fun args(json: String) = Json.parseToJsonElement(json).jsonObject

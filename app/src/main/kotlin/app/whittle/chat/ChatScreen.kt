@@ -644,6 +644,7 @@ private fun DecisionText.toUi(id: String) = DecisionUi(
     approveLabel = approve,
     approveIcon = approveIcon,
     declineLabel = decline,
+    site = site,
 )
 
 private fun CapabilityPresentation.toUi(id: String) = DecisionUi(

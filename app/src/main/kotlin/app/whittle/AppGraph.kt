@@ -190,11 +190,14 @@ class AppGraph(context: Context) {
         appScope,
     )
 
+    /** Every tool a task can use: the built-in ones and those of the user's connections. */
+    val tools = ToolRegistry(ToolCatalog.create(context, clock, httpClient, workspaceTools(context), harness.agent.maxPlanItems, connectors, memory, agentMessages), connectors::tools)
+
     val runner = AgentRunner(
         adapters = ModelAdapterRegistry(setOf(OpenAiCompatibleAdapter(httpClient, idGenerator), OpenAiResponsesAdapter(httpClient))),
         providers = providers,
         credentials = SecretStoreCredentialsProvider(secrets),
-        tools = ToolRegistry(ToolCatalog.create(context, clock, httpClient, workspaceTools(context), harness.agent.maxPlanItems, connectors, memory, agentMessages), connectors::tools),
+        tools = tools,
         policy = RuleBasedPolicyEngine(load(ConfigFiles.policyRules, PolicyRuleSet.serializer(), PolicyRuleSet.SCHEMA_VERSION)),
         inbox = inbox,
         checkpoints = checkpoints,
