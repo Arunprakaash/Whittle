@@ -88,6 +88,20 @@ class BundledConfigTest {
     }
 
     @Test
+    fun `OpenAI offers only the models it lists, OpenRouter every model`() {
+        val catalog = assertIs<Outcome.Success<ProviderCatalog>>(
+            loader.load(ConfigFiles.providerCatalog, ProviderCatalog.serializer(), ProviderCatalog.SCHEMA_VERSION),
+        ).value
+        val openai = catalog.providers.single { it.id.value == "openai" }
+        listOf("gpt-6-luna", "gpt-5.6-luna", "gpt-5.6-terra")
+            .forEach { assertEquals(true, openai.lists(app.whittle.core.model.ModelId(it)), it) }
+        listOf("gpt-4o", "gpt-5.6-terra-mini", "gpt-5.6-luna-2026-09-01", "o3")
+            .forEach { assertEquals(false, openai.lists(app.whittle.core.model.ModelId(it)), it) }
+        val openrouter = catalog.providers.single { it.id.value == "openrouter" }
+        assertEquals(true, openrouter.lists(app.whittle.core.model.ModelId("anthropic/claude-opus-5.5")))
+    }
+
+    @Test
     fun `wrong schema version is rejected`() {
         val result = loader.load(ConfigFiles.harness, HarnessConfig.serializer(), HarnessConfig.SCHEMA_VERSION + 1)
         assertIs<Outcome.Failure>(result)

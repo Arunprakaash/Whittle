@@ -38,6 +38,11 @@
       "baseUrl": "https://api.openai.com/v1/",
       "generationPath": "responses",
       "modelsPath": "models",
+      "listedModelIdPatterns": [
+        "gpt-6-luna",
+        "gpt-5.6-luna",
+        "gpt-5.6-terra"
+      ],
       "keyCheckPath": "models",
       "auth": {
         "headerName": "Authorization",

@@ -61,6 +61,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import app.whittle.R
+import app.whittle.design.components.TopBarButton
 import app.whittle.design.components.WhittleIcon
 import app.whittle.design.components.WhittleSearchBar
 import app.whittle.design.components.segmentedShape
@@ -86,7 +87,10 @@ fun ConnectScreen(state: ConnectState, viewModel: ConnectViewModel, header: @Com
             is ConnectPhase.ChooseModel -> Column(
                 Modifier.weight(1f).padding(vertical = WhittleSpace.l),
                 verticalArrangement = Arrangement.spacedBy(WhittleSpace.l),
-            ) { ChooseModel(phase, viewModel, onBack = viewModel::backToKey, onChoose = { viewModel.choose(it) }) }
+            ) {
+                PickerTitle(viewModel::backToKey)
+                ChooseModel(phase, viewModel, onChoose = { viewModel.choose(it) })
+            }
             else -> EnterKey(state, phase, viewModel)
         }
     }
@@ -107,36 +111,39 @@ fun ModelPickerScreen(state: ConnectState, viewModel: ConnectViewModel, onClose:
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface)
             .safeDrawingPadding()
-            .imePadding()
-            .padding(horizontal = WhittleSpace.xxl, vertical = WhittleSpace.xxl),
-        verticalArrangement = Arrangement.spacedBy(WhittleSpace.l),
+            .imePadding(),
     ) {
-        val switchProvider: @Composable () -> Unit = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(state.provider.displayName, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                TextButton(onClick = { confirming = true }) { Text(stringResource(R.string.model_picker_other_provider)) }
-            }
-        }
-        when (val phase = state.phase) {
-            is ConnectPhase.ChooseModel -> ChooseModel(phase, viewModel, onBack = onClose, onChoose = { viewModel.choose(it, onClose) }, header = switchProvider)
-            ConnectPhase.Checking -> {
-                PickerTitle(onClose)
-                switchProvider()
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
-                    CircularProgressIndicator(Modifier.size(WhittleSize.Icon.m), strokeWidth = WhittleSpace.hairline)
-                    Text(stringResource(R.string.model_picker_loading), style = MaterialTheme.typography.bodyMedium)
+        // The same top bar as Settings and the other screens it opens.
+        PickerTitle(onClose, Modifier.padding(horizontal = WhittleSpace.m, vertical = WhittleSpace.s))
+        Column(
+            Modifier.weight(1f).padding(horizontal = WhittleSpace.l, vertical = WhittleSpace.l),
+            verticalArrangement = Arrangement.spacedBy(WhittleSpace.l),
+        ) {
+            val switchProvider: @Composable () -> Unit = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(state.provider.displayName, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { confirming = true }) { Text(stringResource(R.string.model_picker_other_provider)) }
                 }
             }
-            is ConnectPhase.LoadFailed -> {
-                PickerTitle(onClose)
-                switchProvider()
-                Text(errorText(phase.error, state.provider.displayName), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-                Button(onClick = { haptics.perform(WhittleHaptic.Tap); viewModel.retry() }, shapes = ButtonDefaults.shapes()) {
-                    Text(stringResource(R.string.model_picker_retry))
+            when (val phase = state.phase) {
+                is ConnectPhase.ChooseModel -> ChooseModel(phase, viewModel, onChoose = { viewModel.choose(it, onClose) }, header = switchProvider)
+                ConnectPhase.Checking -> {
+                    switchProvider()
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+                        CircularProgressIndicator(Modifier.size(WhittleSize.Icon.m), strokeWidth = WhittleSpace.hairline)
+                        Text(stringResource(R.string.model_picker_loading), style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
+                is ConnectPhase.LoadFailed -> {
+                    switchProvider()
+                    Text(errorText(phase.error, state.provider.displayName), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                    Button(onClick = { haptics.perform(WhittleHaptic.Tap); viewModel.retry() }, shapes = ButtonDefaults.shapes()) {
+                        Text(stringResource(R.string.model_picker_retry))
+                    }
+                }
+                // The saved key is missing: ask for it, as when connecting.
+                is ConnectPhase.EnterKey -> EnterKey(state, phase, viewModel)
             }
-            // The saved key is missing: ask for it, as when connecting.
-            is ConnectPhase.EnterKey -> EnterKey(state, phase, viewModel)
         }
     }
     if (confirming) {
@@ -152,13 +159,16 @@ fun ModelPickerScreen(state: ConnectState, viewModel: ConnectViewModel, onClose:
     }
 }
 
+/** Back on its own disc, then the title, as on Settings. */
 @Composable
-private fun PickerTitle(onBack: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack) {
-            WhittleIcon("arrow_back", contentDescription = stringResource(R.string.connect_back))
-        }
-        Text(stringResource(R.string.connect_choose_model), style = MaterialTheme.typography.headlineSmall)
+private fun PickerTitle(onBack: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m),
+    ) {
+        TopBarButton("arrow_back", stringResource(R.string.connect_back), onBack)
+        Text(stringResource(R.string.connect_choose_model), style = MaterialTheme.typography.titleLarge)
     }
 }
 
@@ -304,12 +314,10 @@ private fun KeyField(state: ConnectState, phase: ConnectPhase, viewModel: Connec
 private fun ChooseModel(
     phase: ConnectPhase.ChooseModel,
     viewModel: ConnectViewModel,
-    onBack: () -> Unit,
     onChoose: (ModelDescriptor) -> Unit,
     header: (@Composable () -> Unit)? = null,
 ) {
     val haptics = WhittleTheme.haptics
-    PickerTitle(onBack)
     header?.invoke()
     val search = rememberTextFieldState(phase.query)
     LaunchedEffect(search) { snapshotFlow { search.text.toString() }.collect(viewModel::updateQuery) }
