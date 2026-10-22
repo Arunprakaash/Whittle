@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import app.whittle.AppGraph
@@ -61,6 +62,7 @@ fun ConnectionLibraryScreen(graph: AppGraph, onBack: () -> Unit) {
     BackHandler(onBack = onBack)
     val connectors = graph.connectors
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val connections by connectors.all.collectAsState()
     val search = rememberTextFieldState()
@@ -79,7 +81,7 @@ fun ConnectionLibraryScreen(graph: AppGraph, onBack: () -> Unit) {
                     Toast.makeText(context, addedLabel.format(server.title), Toast.LENGTH_SHORT).show()
                     connectAdded(graph, context, added.value) { askingKeys = it }
                 }
-                is Outcome.Failure -> Toast.makeText(context, context.getString(R.string.connector_failed, added.error.message), Toast.LENGTH_LONG).show()
+                is Outcome.Failure -> Toast.makeText(context, resources.getString(R.string.connector_failed, added.error.message), Toast.LENGTH_LONG).show()
             }
             adding = null
         }

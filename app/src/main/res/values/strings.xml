@@ -273,7 +273,6 @@
     <string name="linux_status_failed">%1$s · Setup stopped</string>
     <string name="linux_ready_title">Linux is ready</string>
     <string name="linux_ready_settings_body">Commands run here. Tools you install stay for every chat.</string>
-    <string name="linux_ready_body">Whittle can install tools and run code now. You can manage it in Settings.</string>
     <string name="linux_keeps_going">Keeps going if you leave the app</string>
     <string name="linux_step_download">Downloading %1$s</string>
     <string name="linux_step_downloaded">Downloaded %1$s</string>

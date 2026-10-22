@@ -50,7 +50,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
@@ -226,7 +226,7 @@ private fun ChatLayout(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
-            CenterAlignedTopAppBar(
+            TopAppBar(
                 navigationIcon = {
                     TopBarButton(
                         icon = "short_text",
@@ -269,7 +269,7 @@ private fun ChatLayout(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
         },
     ) { padding ->
@@ -440,7 +440,8 @@ private fun Dock(
         AnimatedVisibility(state.status != null, enter = WhittleTransitions.riseInPlace(), exit = WhittleTransitions.sinkOutPlace()) {
             state.status?.let { status ->
                 StatusLine(
-                    state = status.state,
+                    // A plan step under way is work, even while the model thinks between its actions.
+                    state = if (status.plan?.any { it.status == PlanStatus.IN_PROGRESS } == true) AgentState.Acting else status.state,
                     verb = status.verb ?: stringResource(
                         when {
                             status.phase == StatusPhase.Retrying -> R.string.status_retrying
@@ -464,8 +465,10 @@ private fun Dock(
             }
         }
         aboveComposer()
-        // Where the next task runs, right where it's typed.
-        ProjectChip(state.project, onClick = onChooseProject, modifier = Modifier.padding(start = WhittleSpace.xs))
+        // Where the next task runs, right where it's typed; while a task runs, its status line stands here instead.
+        AnimatedVisibility(!state.running, enter = WhittleTransitions.riseInPlace(), exit = WhittleTransitions.sinkOutPlace()) {
+            ProjectChip(state.project, onClick = onChooseProject, modifier = Modifier.padding(start = WhittleSpace.xs))
+        }
         Composer(
             value = state.input,
             onValueChange = viewModel::updateInput,

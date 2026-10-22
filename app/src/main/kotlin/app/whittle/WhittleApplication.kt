@@ -4,7 +4,6 @@ import app.whittle.background.PlanProgress
 import app.whittle.agent.PlanStatus
 import android.app.Activity
 import android.app.Application
-import android.app.ForegroundServiceStartNotAllowedException
 import android.app.NotificationManager
 import android.content.Intent
 import android.os.Bundle
@@ -87,8 +86,10 @@ class WhittleApplication : Application() {
     private fun startService(service: Class<*>) {
         try {
             startForegroundService(Intent(this, service))
-        } catch (exception: ForegroundServiceStartNotAllowedException) {
-            // Only possible if it starts while Whittle is already in the background; the work then runs as before.
+        } catch (exception: IllegalStateException) {
+            // Android 12+ refuses a start while Whittle is already in the background
+            // (ForegroundServiceStartNotAllowedException, an IllegalStateException that older versions don't have);
+            // the work then runs as before.
         }
     }
 

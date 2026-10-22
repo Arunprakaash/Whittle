@@ -28,6 +28,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -290,9 +291,10 @@ private fun KeyField(label: String, value: String, secret: Boolean, help: String
 @Composable
 internal fun ConnectorFailures(graph: AppGraph) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     LaunchedEffect(graph) {
         graph.connectors.failures.collect { reason ->
-            Toast.makeText(context, context.getString(R.string.connector_failed, reason), Toast.LENGTH_LONG).show()
+            Toast.makeText(context, resources.getString(R.string.connector_failed, reason), Toast.LENGTH_LONG).show()
         }
     }
 }

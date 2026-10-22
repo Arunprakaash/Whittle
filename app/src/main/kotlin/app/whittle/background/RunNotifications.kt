@@ -57,8 +57,6 @@ class RunNotifications(private val context: Context) {
             .setContentIntent(openApp())
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            // Android holds a service's notification back for a few seconds; quick answers end first.
-            .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_DEFERRED)
             .setCategory(Notification.CATEGORY_PROGRESS)
             .setWhen(progress.startedAtMillis)
             .setUsesChronometer(true)
@@ -66,6 +64,8 @@ class RunNotifications(private val context: Context) {
             .setVisibility(Notification.VISIBILITY_PRIVATE)
             .setPublicVersion(publicVersion(CHANNEL_RUNNING, R.string.notify_running_public))
             .addAction(Notification.Action.Builder(null, context.getString(R.string.status_stop), stopRun()).build())
+        // Android 12+ holds a service's notification back for a few seconds; quick answers end first.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_DEFERRED)
         // Only a planned task has real progress to show: one segment per step, filled as steps finish. It becomes
         // an Android 16 Live Update; without a plan the notification stays a quiet line that keeps the task alive.
         if (plan != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
@@ -74,7 +74,8 @@ class RunNotifications(private val context: Context) {
                     .setProgressSegments(List(plan.total) { Notification.ProgressStyle.Segment(1) })
                     .setProgress(plan.done),
             )
-            builder.setRequestPromotedOngoing(true)
+            // Live Updates arrived in Android 16's first update (36.1).
+            if (Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1) builder.setRequestPromotedOngoing(true)
         }
         return builder.build()
     }

@@ -236,6 +236,7 @@ private fun DocumentScreen(
     val defaults = graph.filesDefaults
     val version by graph.fileChanges.version.collectAsStateWithLifecycle()
     val name = place.path.substringAfterLast('/')
+    val undoRequest = stringResource(R.string.files_undo_request, place.path)
     val content by produceState<Content?>(null, place.path, version) { value = withContext(Dispatchers.IO) { load(graph, place.path, defaults) } }
     val change by produceState<FileChange?>(null, chat, place.path, version) {
         value = chat?.let { graph.fileChanges.changes(it).firstOrNull { change -> change.path == place.path } }
@@ -280,7 +281,7 @@ private fun DocumentScreen(
         when (val shown = content) {
             null -> Unit
             is Content.Text -> if (showChanges) {
-                ChangesView(diff, change, defaults, name, chat != null) { onAsk(context.getString(R.string.files_undo_request, place.path)) }
+                ChangesView(diff, change, defaults, name, chat != null) { onAsk(undoRequest) }
             } else {
                 TextView(shown, marked, defaults, name)
             }

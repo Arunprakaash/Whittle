@@ -1,7 +1,10 @@
 package app.whittle.design.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -32,7 +35,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import app.whittle.design.theme.WhittleTheme
 import app.whittle.design.tokens.WhittleHaptic
 import app.whittle.design.tokens.WhittleMotion
-import app.whittle.design.tokens.WhittleRadius
 import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
 import app.whittle.design.tokens.WhittleTextStyles
@@ -62,14 +64,18 @@ fun StatusLine(
     var expanded by rememberSaveable { mutableStateOf(false) }
     val open = expanded && plan != null
     val chevron by animateFloatAsState(if (open) HALF_TURN else 0f, WhittleMotion.spatialDefault.spec(), label = "planChevron")
+    // One radius, half the line's height, whether folded or open: the corners never jump while the plan folds.
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(if (open) WhittleRadius.xl else WhittleRadius.full))
-            .background(colors.surfaceContainerHigh)
-            .animateContentSize(WhittleMotion.spatialDefault.spec()),
+            .clip(RoundedCornerShape(WhittleSize.statusLine / 2))
+            .background(colors.surfaceContainerHigh),
     ) {
-        AnimatedVisibility(open) {
+        AnimatedVisibility(
+            open,
+            enter = expandVertically(WhittleMotion.spatialDefault.spec(), expandFrom = Alignment.Bottom) + fadeIn(WhittleMotion.effectsDefault.spec()),
+            exit = shrinkVertically(WhittleMotion.spatialDefault.spec(), shrinkTowards = Alignment.Bottom) + fadeOut(WhittleMotion.effectsDefault.spec()),
+        ) {
             Column(
                 contentModifier.padding(start = WhittleSpace.m, end = WhittleSpace.m, top = WhittleSpace.m),
                 verticalArrangement = Arrangement.spacedBy(WhittleSpace.s),

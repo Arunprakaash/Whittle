@@ -2,7 +2,6 @@ package app.whittle.background
 
 import android.app.Service
 import android.content.Intent
-import android.content.pm.ServiceInfo
 import android.os.IBinder
 import app.whittle.WhittleApplication
 import kotlinx.coroutines.CoroutineScope
@@ -32,7 +31,7 @@ class ProcessesService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        startForeground(RunNotifications.ID_PROCESSES, app.notifications.processes(live), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        startInForeground(RunNotifications.ID_PROCESSES, app.notifications.processes(live))
         scope.launch {
             processes.processes.map { list -> list.filter { it.live } }.distinctUntilChanged().collect { current ->
                 if (current.isEmpty()) {

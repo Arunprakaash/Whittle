@@ -2,7 +2,6 @@ package app.whittle.background
 
 import android.app.Service
 import android.content.Intent
-import android.content.pm.ServiceInfo
 import android.os.IBinder
 import app.whittle.WhittleApplication
 import kotlinx.coroutines.CoroutineScope
@@ -33,7 +32,7 @@ class AgentRunService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        startForeground(RunNotifications.ID_RUNNING, app.notifications.running(progress), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        startInForeground(RunNotifications.ID_RUNNING, app.notifications.running(progress))
         scope.launch {
             app.chat.state.map { app.runProgress() }.distinctUntilChanged().collect { current ->
                 if (current == null) {

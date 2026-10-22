@@ -1,9 +1,10 @@
 package app.whittle.linux
 
+import app.whittle.background.startInForeground
+
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ServiceInfo
 import android.os.IBinder
 import app.whittle.WhittleApplication
 import app.whittle.background.RunNotifications
@@ -28,7 +29,7 @@ class LinuxSetupService : Service() {
         val linux = app.graph.linux
         val imageName = linux.image?.name.orEmpty()
         val first = linux.state.value as? LinuxState.SettingUp ?: LinuxState.SettingUp(LinuxSetupStep.Download)
-        startForeground(RunNotifications.ID_LINUX_SETUP, app.notifications.linuxSetup(first, imageName), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        startInForeground(RunNotifications.ID_LINUX_SETUP, app.notifications.linuxSetup(first, imageName))
         val progress = scope.launch {
             linux.state.collectLatest { state ->
                 if (state is LinuxState.SettingUp) app.notificationManager.notify(RunNotifications.ID_LINUX_SETUP, app.notifications.linuxSetup(state, imageName))
