@@ -75,6 +75,10 @@ class Automations(
         tools = config.defaultToolIds,
     )
 
+    /** A new automation filled in from one of the config's ideas. */
+    fun draft(idea: AutomationIdea): Automation =
+        draft(idea.name, idea.prompt).copy(schedule = idea.schedule, tools = config.toolIdsFor(idea))
+
     /**
      * Adds [automation], or replaces the one with its id, and sets its alarm. What its runs did is kept from the
      * stored one: an editor that was open during a run doesn't know about it.

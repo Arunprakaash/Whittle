@@ -53,5 +53,31 @@
       "toolIds": ["write_file", "edit_file"],
       "default": false
     }
+  ],
+  "ideas": [
+    {
+      "icon": "wb_sunny",
+      "name": "Morning brief",
+      "prompt": "Look at today's calendar and the top tech headlines, then give me a five-line brief with anything I should prepare for.",
+      "minuteOfDay": 450,
+      "days": [1, 2, 3, 4, 5],
+      "tools": ["web", "clock", "calendar"]
+    },
+    {
+      "icon": "summarize",
+      "name": "Weekly summary of a project",
+      "prompt": "Read this project's files and summarize what it does and what changed recently, in a short list.",
+      "minuteOfDay": 1080,
+      "days": [5],
+      "tools": ["clock", "readFiles"]
+    },
+    {
+      "icon": "monitor_heart",
+      "name": "Check a site is up",
+      "prompt": "Open my website and tell me whether it loads and anything that looks broken. My website is: ",
+      "minuteOfDay": 540,
+      "days": [1, 2, 3, 4, 5, 6, 7],
+      "tools": ["web"]
+    }
   ]
 }

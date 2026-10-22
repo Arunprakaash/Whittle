@@ -23,13 +23,23 @@ data class AutomationsConfig(
     val alwaysPreApproved: List<String>,
     /** What the user can pre-approve, one row each; a row can stand for several tools. Never anything that sends data out. */
     val tools: List<AutomationToolChoice>,
+    /** Automations to start from when there are none yet; each opens the editor filled in. */
+    val ideas: List<AutomationIdea> = emptyList(),
 ) : VersionedConfig {
     init {
         require(maxAutomations > 0 && maxNameChars > 0 && maxPromptChars > 0) { "limits must be positive" }
         require(defaultMinuteOfDay in 0 until Schedule.MINUTES_PER_DAY) { "defaultMinuteOfDay must be within a day" }
         require(retryAfterMillis > 0 && giveUpAfterMillis >= retryAfterMillis && startTimeoutMillis > 0) { "retry times must be positive" }
         require(tools.map { it.key }.distinct().size == tools.size) { "tool choice keys must be unique" }
+        val keys = tools.map { it.key }.toSet()
+        ideas.forEach { idea ->
+            require(idea.name.length <= maxNameChars && idea.prompt.length <= maxPromptChars) { "idea ${idea.name} is too long" }
+            require(keys.containsAll(idea.tools)) { "idea ${idea.name} names tool choices that don't exist" }
+        }
     }
+
+    /** The tool ids an idea's choices stand for. */
+    fun toolIdsFor(idea: AutomationIdea): Set<String> = tools.filter { it.key in idea.tools }.flatMap { it.toolIds }.toSet()
 
     /** Every tool id an automation may hold. */
     val choosableToolIds: Set<String> get() = tools.flatMap { it.toolIds }.toSet()
@@ -39,6 +49,26 @@ data class AutomationsConfig(
     companion object {
         const val SCHEMA_VERSION = 1
         val FILE = ConfigName("automations.json")
+    }
+}
+
+/** A ready-made automation offered while there are none: what it's called and does, when, and which [tools] choices it starts with. */
+@Serializable
+data class AutomationIdea(
+    val icon: String,
+    val name: String,
+    val prompt: String,
+    val minuteOfDay: Int,
+    /** ISO days of the week, as in [Schedule]. */
+    val days: Set<Int>,
+    /** Keys of [AutomationsConfig.tools]. */
+    val tools: List<String>,
+) {
+    val schedule: Schedule get() = Schedule(minuteOfDay, days)
+
+    init {
+        // Builds the schedule once, so a time or day out of range fails when the config loads.
+        schedule
     }
 }
 
