@@ -71,7 +71,7 @@ fun ChatSidebar(
             Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(horizontal = WhittleSpace.s))
             NavigationDrawerItem(
                 label = { Text(stringResource(R.string.projects_title), style = MaterialTheme.typography.titleSmall) },
-                icon = { WhittleIcon("stacks", size = WhittleSize.Icon.xl) },
+                icon = { WhittleIcon("folder_open", size = WhittleSize.Icon.xl) },
                 selected = false,
                 onClick = { haptics.perform(WhittleHaptic.Tap); onOpenProjects() },
                 modifier = Modifier.padding(top = WhittleSpace.m),
