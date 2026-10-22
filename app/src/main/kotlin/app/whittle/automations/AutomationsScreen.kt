@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.ExtendedFloatingActionButton
+import app.whittle.design.components.BottomActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -102,7 +102,6 @@ private fun AutomationsList(graph: AppGraph, onBack: () -> Unit, onOpen: (Automa
     BackHandler(onBack = onBack)
     val automations by graph.automations.all.collectAsStateWithLifecycle()
     val resources = LocalResources.current
-    val haptics = WhittleTheme.haptics
     val config = graph.automations.config
     // Writes go to the app's scope so leaving the screen never drops a change.
     val change = { action: suspend () -> Unit -> graph.appScope.launch { action() }; Unit }
@@ -114,22 +113,13 @@ private fun AutomationsList(graph: AppGraph, onBack: () -> Unit, onOpen: (Automa
                 TopBarButton("arrow_back", stringResource(R.string.settings_back), onBack)
             }
         },
-        floatingActionButton = {
-            if (!full) {
-                ExtendedFloatingActionButton(
-                    onClick = { haptics.perform(WhittleHaptic.Tap); onOpen(graph.automations.draft(), true) },
-                    icon = { WhittleIcon("add", size = WhittleSize.Icon.xl) },
-                    text = { Text(stringResource(R.string.automation_new), style = MaterialTheme.typography.titleMedium) },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-            }
+        bottomBar = {
+            if (!full) BottomActionButton("add", stringResource(R.string.automation_new), { onOpen(graph.automations.draft(), true) })
         },
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
-            // Room at the bottom so the last automation scrolls clear of the floating button.
-            contentPadding = PaddingValues(start = WhittleSpace.l, end = WhittleSpace.l, top = WhittleSpace.s, bottom = WhittleSize.Button.large + WhittleSpace.xxxl),
+            contentPadding = PaddingValues(start = WhittleSpace.l, end = WhittleSpace.l, top = WhittleSpace.s, bottom = WhittleSpace.l),
             verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline),
         ) {
             item {
