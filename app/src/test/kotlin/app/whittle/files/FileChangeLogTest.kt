@@ -58,5 +58,19 @@ class FileChangeLogTest {
         assertTrue(file.isFile)
     }
 
+    @Test
+    fun `a project folder shows only the chat's changes inside it`() = runBlocking<Unit> {
+        log.record(chat, write("tips/index.html", "a"), FileChanges.Before.Nothing)
+        log.record(chat, write("tips/src/app.ts", "b"), FileChanges.Before.Nothing)
+        log.record(chat, write("tipsy/notes.md", "c"), FileChanges.Before.Nothing)
+        log.record(chat, write("readme.md", "d"), FileChanges.Before.Nothing)
+        val all = log.changes(chat)
+
+        assertEquals(setOf("tips/index.html", "tips/src/app.ts"), FileChange.within("tips", all).map { it.path }.toSet())
+        assertEquals(setOf("tips/src/app.ts"), FileChange.within("tips/src/", all).map { it.path }.toSet())
+        assertEquals(all, FileChange.within("", all))
+        assertTrue(FileChange.within("other", all).isEmpty())
+    }
+
     private fun write(path: String, text: String): File = File(workspace, path).apply { parentFile?.mkdirs(); writeText(text) }
 }

@@ -144,10 +144,14 @@ private fun FolderScreen(graph: AppGraph, path: String, chat: WorkspaceId?, onBa
     val version by graph.fileChanges.version.collectAsStateWithLifecycle()
     var reloads by remember { mutableIntStateOf(0) }
     val entries by produceState<List<Entry>?>(null, path, version, reloads) { value = withContext(Dispatchers.IO) { list(graph, path) } }
-    val changes by produceState(emptyList<FileChange>(), chat, version) { value = chat?.let { graph.fileChanges.changes(it) }.orEmpty() }
+    val allChanges by produceState(emptyList<FileChange>(), chat, version) { value = chat?.let { graph.fileChanges.changes(it) }.orEmpty() }
+    val changes = FileChange.within(path, allChanges)
     val atWorkspace = path.isEmpty()
+    // A chat with a project opens the browser in its folder, so Changed is offered there too, and in any folder
+    // the chat changed something in.
+    val offerChanged = chat != null && (atWorkspace || changes.isNotEmpty())
     var chosen by rememberSaveable(path) { mutableStateOf<Boolean?>(null) }
-    val showChanged = atWorkspace && chat != null && (chosen ?: changes.isNotEmpty())
+    val showChanged = offerChanged && (chosen ?: changes.isNotEmpty())
     var searching by rememberSaveable { mutableStateOf(false) }
     val search = rememberTextFieldState()
     val query = search.text.toString().trim()
@@ -168,7 +172,7 @@ private fun FolderScreen(graph: AppGraph, path: String, chat: WorkspaceId?, onBa
         }
         Column(Modifier.padding(horizontal = WhittleSpace.l), verticalArrangement = Arrangement.spacedBy(WhittleSpace.l)) {
             if (searching) WhittleSearchBar(search, placeholder = stringResource(R.string.files_search), clearLabel = stringResource(R.string.search_clear))
-            if (atWorkspace && chat != null) {
+            if (offerChanged) {
                 Choice(
                     first = stringResource(R.string.files_filter_changed, changes.size),
                     second = stringResource(R.string.files_filter_all),
@@ -184,7 +188,7 @@ private fun FolderScreen(graph: AppGraph, path: String, chat: WorkspaceId?, onBa
             if (showChanged) {
                 val shown = changes.filter { query.isEmpty() || it.path.contains(query, ignoreCase = true) }
                 itemsIndexed(shown, key = { _, change -> change.path }) { index, change ->
-                    ChangedRow(change, defaults, segmentedShape(index, shown.size)) { onOpen(FilesPlace.Document(change.path, changes = true)) }
+                    ChangedRow(change, path, defaults, segmentedShape(index, shown.size)) { onOpen(FilesPlace.Document(change.path, changes = true)) }
                 }
                 if (shown.isEmpty()) item { Empty(R.string.files_no_changes) }
             } else {
@@ -463,10 +467,12 @@ private fun Choice(first: String, second: String, firstChosen: Boolean, onChoose
 }
 
 @Composable
-private fun ChangedRow(change: FileChange, defaults: FilesDefaults, shape: RoundedCornerShape, onClick: () -> Unit) {
+private fun ChangedRow(change: FileChange, folder: String, defaults: FilesDefaults, shape: RoundedCornerShape, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
-    val name = change.path.substringAfterLast('/')
-    val parent = change.path.substringBeforeLast('/', "")
+    // Inside a folder, where it is reads from that folder down.
+    val shownPath = if (folder.isEmpty()) change.path else change.path.removePrefix("$folder/")
+    val name = shownPath.substringAfterLast('/')
+    val parent = shownPath.substringBeforeLast('/', "")
     val now = System.currentTimeMillis()
     val ago = if (now - change.lastAtMillis < DateUtils.MINUTE_IN_MILLIS) {
         stringResource(R.string.files_just_now)

@@ -31,6 +31,14 @@ data class FileChange(
 ) {
     /** Whether Changes can show this file line by line. */
     val comparable: Boolean get() = created || baseline != null
+
+    companion object {
+        /** The ones of [changes] inside [folder] (relative to the workspace), or all of them at the workspace itself. */
+        fun within(folder: String, changes: List<FileChange>): List<FileChange> {
+            val prefix = folder.trim('/').takeIf { it.isNotEmpty() }?.let { "$it/" } ?: return changes
+            return changes.filter { it.path.startsWith(prefix) }
+        }
+    }
 }
 
 /**
