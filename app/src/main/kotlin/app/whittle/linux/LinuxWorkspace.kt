@@ -40,11 +40,17 @@ import kotlin.coroutines.coroutineContext
 sealed interface LinuxState {
     data object NotSetUp : LinuxState
 
-    data class SettingUp(val step: LinuxSetupStep, val doneBytes: Long = 0, val totalBytes: Long = 0) : LinuxState
+    /** [from] is the first step this run does: a repair starts after the download and unpacking. */
+    data class SettingUp(
+        val step: LinuxSetupStep,
+        val doneBytes: Long = 0,
+        val totalBytes: Long = 0,
+        val from: LinuxSetupStep = LinuxSetupStep.Download,
+    ) : LinuxState
 
     data class Ready(val image: String) : LinuxState
 
-    data class Failed(val step: LinuxSetupStep, val reason: String) : LinuxState
+    data class Failed(val step: LinuxSetupStep, val reason: String, val from: LinuxSetupStep = LinuxSetupStep.Download) : LinuxState
 }
 
 enum class LinuxSetupStep { Download, Unpack, Configure, BasePackages }
@@ -106,9 +112,13 @@ class LinuxWorkspace(
 
     private val runner = CommandRunner(environment, maxOutputChars)
 
+    /** The first step of the run in progress, so its progress lists only the steps it does. Set under [lock]. */
+    private var runFrom = LinuxSetupStep.Download
+
     /** Sets Linux up, carrying on from wherever an earlier attempt stopped. */
     suspend fun setUp(): Outcome<Unit> = lock.withLock {
         withContext(Dispatchers.IO) {
+            runFrom = if (configured.isFile) LinuxSetupStep.BasePackages else LinuxSetupStep.Download
             val image = image ?: return@withContext fail(LinuxSetupStep.Download, "There's no Linux image for this phone's processor")
             if (!configured.isFile) {
                 val archive = when (val downloaded = download(image)) {
@@ -125,6 +135,7 @@ class LinuxWorkspace(
     /** Writes the configured files again and reinstalls the base packages; files and added tools stay. */
     suspend fun repair(): Outcome<Unit> = lock.withLock {
         withContext(Dispatchers.IO) {
+            runFrom = LinuxSetupStep.Configure
             val image = image ?: return@withContext fail(LinuxSetupStep.Configure, "There's no Linux image for this phone's processor")
             if (!rootfs.isDirectory) return@withContext fail(LinuxSetupStep.Configure, "Linux isn't unpacked; set it up again")
             configure().failure()?.let { return@withContext fail(LinuxSetupStep.Configure, it) }
@@ -183,7 +194,7 @@ class LinuxWorkspace(
     }
 
     private suspend fun finishSetup(image: LinuxImage): Outcome<Unit> {
-        mutableState.value = LinuxState.SettingUp(LinuxSetupStep.BasePackages)
+        mutableState.value = settingUp(LinuxSetupStep.BasePackages)
         setupWorkspace.mkdirs()
         val before = sizeOf(rootfs) - cachesSize()
         config.baseSetup.commands.forEach { command ->
@@ -214,7 +225,7 @@ class LinuxWorkspace(
         val digest = MessageDigest.getInstance(SHA_256)
         var have = partial.takeIf { it.isFile }?.length() ?: 0L
         if (have > 0) partial.inputStream().use { input -> digestAll(input, digest) }
-        mutableState.value = LinuxState.SettingUp(LinuxSetupStep.Download, have, image.sizeBytes)
+        mutableState.value = settingUp(LinuxSetupStep.Download, have, image.sizeBytes)
         val request = Request.Builder().url(image.url).apply { if (have > 0) header(RANGE, "bytes=$have-") }.build()
         try {
             http.newCall(request).execute().use { response ->
@@ -242,7 +253,7 @@ class LinuxWorkspace(
                             have += read
                             if (have - reported >= config.progressStepBytes) {
                                 reported = have
-                                mutableState.value = LinuxState.SettingUp(LinuxSetupStep.Download, have, image.sizeBytes)
+                                mutableState.value = settingUp(LinuxSetupStep.Download, have, image.sizeBytes)
                             }
                         }
                     }
@@ -266,7 +277,7 @@ class LinuxWorkspace(
         configured.delete()
         rootfs.mkdirs()
         val total = archive.length()
-        mutableState.value = LinuxState.SettingUp(LinuxSetupStep.Unpack, 0, total)
+        mutableState.value = settingUp(LinuxSetupStep.Unpack, 0, total)
         val arguments = listOf(PROOT) + config.prootOptions + listOf(TAR, "-C", rootfs.path, "-xf", "-") +
             config.unpackExclude.map { "--exclude=$it" }
         val process = startHost(arguments)
@@ -275,7 +286,7 @@ class LinuxWorkspace(
                 val errors = async(Dispatchers.IO) { process.errorStream.bufferedReader().readText() }
                 process.outputStream.use { output ->
                     GZIPInputStream(Counting(archive.inputStream().buffered()) { read ->
-                        mutableState.value = LinuxState.SettingUp(LinuxSetupStep.Unpack, read, total)
+                        mutableState.value = settingUp(LinuxSetupStep.Unpack, read, total)
                     }).use { it.copyTo(output, BUFFER_BYTES) }
                 }
                 process.inputStream.close()
@@ -292,7 +303,7 @@ class LinuxWorkspace(
 
     /** The configured files, the resolver, and the mount points proot binds onto. */
     private fun configure(): Outcome<Unit> {
-        mutableState.value = LinuxState.SettingUp(LinuxSetupStep.Configure)
+        mutableState.value = settingUp(LinuxSetupStep.Configure)
         return try {
             config.files.forEach { (path, content) -> writeInside(path, content) }
             refreshDns(rootfs)
@@ -394,8 +405,11 @@ class LinuxWorkspace(
 
     private fun ready(): LinuxState = LinuxState.Ready(image?.name.orEmpty())
 
+    private fun settingUp(step: LinuxSetupStep, doneBytes: Long = 0, totalBytes: Long = 0) =
+        LinuxState.SettingUp(step, doneBytes, totalBytes, from = runFrom)
+
     private fun fail(step: LinuxSetupStep, reason: String): Outcome<Unit> {
-        mutableState.value = LinuxState.Failed(step, reason)
+        mutableState.value = LinuxState.Failed(step, reason, runFrom)
         return Outcome.Failure(HarnessError.Storage(reason))
     }
 

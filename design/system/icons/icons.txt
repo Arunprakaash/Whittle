@@ -3,6 +3,7 @@
 add
 arrow_back
 arrow_downward
+arrow_forward
 arrow_upward
 battery_alert
 block
@@ -40,6 +41,7 @@ folder
 folder_zip
 fullscreen
 help
+hub
 info
 insights
 install_mobile

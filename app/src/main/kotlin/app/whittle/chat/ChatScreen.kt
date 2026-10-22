@@ -129,6 +129,8 @@ fun ChatScreen(
     onOpenSettings: () -> Unit,
     avatarSeed: Long?,
     onOpenProjects: () -> Unit,
+    /** Shown just above the composer, such as Linux finishing its setup. */
+    aboveComposer: @Composable () -> Unit = {},
 ) {
     var previewing by remember { mutableStateOf<ThreadItem.Process?>(null) }
     previewing?.let { item ->
@@ -137,7 +139,7 @@ fun ChatScreen(
         LivePreviewSheet(current, viewModel, previewHeight, onDismiss = { previewing = null })
     }
     CompositionLocalProvider(LocalOpenPreview provides { item -> previewing = item }) {
-        ChatLayout(state, viewModel, sidebarMaxChats, voiceDefaults, onViewAllChats, onOpenSettings, avatarSeed, onOpenProjects)
+        ChatLayout(state, viewModel, sidebarMaxChats, voiceDefaults, onViewAllChats, onOpenSettings, avatarSeed, onOpenProjects, aboveComposer)
     }
 }
 
@@ -154,6 +156,7 @@ private fun ChatLayout(
     onOpenSettings: () -> Unit,
     avatarSeed: Long?,
     onOpenProjects: () -> Unit,
+    aboveComposer: @Composable () -> Unit,
 ) {
     val haptics = WhittleTheme.haptics
     LaunchedEffect(viewModel) { viewModel.haptics.collect { haptics.perform(it) } }
@@ -243,7 +246,7 @@ private fun ChatLayout(
                     else -> key(state.currentChat) { Thread(state.items, state.running, viewModel, requestCapability) }
                 }
             }
-            Dock(state, viewModel, voiceDefaults)
+            Dock(state, viewModel, voiceDefaults, aboveComposer)
         }
     }
     }
@@ -386,7 +389,7 @@ private fun ThreadRow(
 }
 
 @Composable
-private fun Dock(state: ChatState, viewModel: ChatViewModel, voiceDefaults: VoiceDefaults) {
+private fun Dock(state: ChatState, viewModel: ChatViewModel, voiceDefaults: VoiceDefaults, aboveComposer: @Composable () -> Unit) {
     val voice = rememberVoice(voiceDefaults, state.input, viewModel::updateInput)
     Column(
         Modifier.padding(start = WhittleSpace.m, end = WhittleSpace.m, bottom = WhittleSpace.s),
@@ -418,6 +421,7 @@ private fun Dock(state: ChatState, viewModel: ChatViewModel, voiceDefaults: Voic
                 )
             }
         }
+        aboveComposer()
         Composer(
             value = state.input,
             onValueChange = viewModel::updateInput,

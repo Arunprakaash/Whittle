@@ -43,7 +43,15 @@ import app.whittle.chat.ChatScreen
 import app.whittle.connect.ConnectScreen
 import app.whittle.connect.ConnectViewModel
 import app.whittle.design.theme.WhittleTheme
+import androidx.compose.foundation.layout.padding
+import app.whittle.design.tokens.WhittleSpace
+import app.whittle.linux.LinuxProgressStrip
 import app.whittle.linux.LinuxSetupScreen
+import app.whittle.onboarding.ONBOARDING_STEPS
+import app.whittle.onboarding.ONBOARDING_STEP_LINUX
+import app.whittle.onboarding.ONBOARDING_STEP_MODEL
+import app.whittle.onboarding.OnboardingSteps
+import app.whittle.onboarding.WelcomeScreen
 import app.whittle.linux.LinuxWorkspaceScreen
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -68,24 +76,33 @@ class MainActivity : ComponentActivity() {
                 val gate by remember {
                     combine(graph.connections.model, graph.settings.settings) { model, saved ->
                         when {
+                            // First run offers Linux before the model, so it installs while the user connects one.
+                            // An existing user, already connected, sees the offer once after updating.
+                            !saved.linuxOffered -> if (model == null) Gate.Welcome else Gate.Linux
                             model == null -> Gate.Connect
-                            // Offered once, right after the model, and left with Continue or Not now; an existing
-                            // user sees it once after updating.
-                            !saved.linuxOffered -> Gate.Linux
                             else -> Gate.Chat
                         }
                     }
                 }.collectAsStateWithLifecycle(Gate.Loading)
+                var welcomed by rememberSaveable { mutableStateOf(false) }
                 // Surface sets the content color, so text on every screen follows the theme in light and dark.
                 CompositionLocalProvider(LocalSiteIcons provides graph.siteIcons) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
                     when (gate) {
                         Gate.Loading -> Unit
+                        Gate.Welcome -> if (welcomed) {
+                            LinuxSetupScreen(graph, step = ONBOARDING_STEP_LINUX)
+                        } else {
+                            WelcomeScreen(onStart = { welcomed = true })
+                        }
+                        Gate.Linux -> LinuxSetupScreen(graph, step = null)
                         Gate.Connect -> {
                             val connect = viewModel { ConnectViewModel(graph) }
-                            ConnectScreen(connect.state.collectAsStateWithLifecycle().value, connect)
+                            ConnectScreen(connect.state.collectAsStateWithLifecycle().value, connect) {
+                                LinuxProgressStrip(graph, compact = false, Modifier.padding(top = WhittleSpace.s))
+                                OnboardingSteps(ONBOARDING_STEP_MODEL, ONBOARDING_STEPS, Modifier.padding(vertical = WhittleSpace.xl))
+                            }
                         }
-                        Gate.Linux -> LinuxSetupScreen(graph)
                         Gate.Chat -> {
                             // The app owns the chat session, so a task outlives this screen.
                             val chat = (application as WhittleApplication).chat
@@ -158,6 +175,7 @@ class MainActivity : ComponentActivity() {
                                     onViewAllChats = { showingAllChats = true },
                                     onOpenSettings = { showingSettings = true },
                                     avatarSeed = settings?.avatarSeed,
+                                    aboveComposer = { LinuxProgressStrip(graph, compact = true) },
                                     onOpenProjects = {
                                         if (!WorkspaceDocumentsProvider.open(this@MainActivity)) {
                                             Toast.makeText(this@MainActivity, R.string.files_unavailable, Toast.LENGTH_SHORT).show()
@@ -174,7 +192,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /** Whether a model is connected and Linux was offered yet; Loading avoids flashing a first-run screen at launch. */
-    private enum class Gate { Loading, Connect, Linux, Chat }
+    private enum class Gate { Loading, Welcome, Linux, Connect, Chat }
 }
 
 /**

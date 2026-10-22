@@ -3,8 +3,17 @@
     <string name="app_name">Whittle</string>
 
     <!-- Connect a model -->
+    <string name="welcome_title">Meet Whittle</string>
+    <string name="welcome_body">An agent that gets things done on your phone. Ask in plain words; it shows each step as it works.</string>
+    <string name="welcome_point_apps">Builds apps you can try right here</string>
+    <string name="welcome_point_connections">Works with Notion, Supabase and more</string>
+    <string name="welcome_point_private">Your keys and chats stay on this phone</string>
+    <string name="welcome_start">Get started</string>
+    <string name="welcome_time">About two minutes. No account needed.</string>
+    <string name="onboarding_step">Step %1$d of %2$d</string>
     <string name="connect_title">Connect a model</string>
     <string name="connect_body">Whittle talks to the AI provider you choose. Your key stays on this phone, encrypted, and is only sent to that provider.</string>
+    <string name="connect_get_key">Get a key from %1$s</string>
     <string name="connect_provider">Provider</string>
     <string name="connect_key_label">API key</string>
     <string name="connect_key_show">Show key</string>
@@ -243,7 +252,7 @@
     <string name="linux_intro_body">Whittle\'s commands run inside it: installing tools, building apps, running code. Everything stays on this phone, with the same checks as before.</string>
     <string name="linux_get_apt">Install anything with apt</string>
     <string name="linux_get_compile">Compile code and native packages</string>
-    <string name="linux_get_run">Run scripts, tests and builds</string>
+    <string name="linux_get_run">Run servers, and try them here</string>
     <string name="linux_fact_download">Download</string>
     <string name="linux_fact_start">Space to start</string>
     <string name="linux_fact_free">Free on this phone</string>
@@ -251,6 +260,13 @@
     <string name="linux_set_up">Set up Linux workspace</string>
     <string name="linux_skip">Not now</string>
     <string name="linux_continue">Continue</string>
+    <string name="linux_onboarding_title">Give Whittle a computer</string>
+    <string name="linux_onboarding_body">A real Ubuntu on this phone, so Whittle can install tools and run what it builds. It sets up while you connect a model.</string>
+    <string name="linux_onboarding_set_up">Set up</string>
+    <string name="linux_strip_title">Setting up Linux</string>
+    <string name="linux_strip_finishing">Linux is finishing · %1$s</string>
+    <string name="linux_strip_failed">Linux setup stopped</string>
+    <string name="linux_failed_reason">Setup stopped: %1$s</string>
     <string name="linux_try_again">Try again</string>
     <string name="linux_status_not_set_up">%1$s · Not set up</string>
     <string name="linux_status_setting_up">%1$s · Setting up</string>

@@ -4,6 +4,7 @@
     {
       "id": "openrouter",
       "displayName": "OpenRouter",
+      "keysUrl": "https://openrouter.ai/keys",
       "apiFormat": "OPENAI_CHAT_COMPLETIONS",
       "baseUrl": "https://openrouter.ai/api/v1/",
       "generationPath": "chat/completions",
@@ -32,6 +33,7 @@
     {
       "id": "openai",
       "displayName": "OpenAI",
+      "keysUrl": "https://platform.openai.com/api-keys",
       "apiFormat": "OPENAI_RESPONSES",
       "baseUrl": "https://api.openai.com/v1/",
       "generationPath": "responses",

@@ -1,6 +1,21 @@
 package app.whittle.connect
 
+import android.content.ActivityNotFoundException
 import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
+import app.whittle.design.components.connectedShape
+import app.whittle.design.tokens.WhittleFonts
+import app.whittle.design.tokens.WhittleRadius
 import androidx.activity.compose.BackHandler
 import app.whittle.observability.posthog.hiddenFromReplay
 import androidx.compose.foundation.background
@@ -27,10 +42,6 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.text.input.rememberTextFieldState
@@ -59,19 +70,23 @@ import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
 import app.whittle.llm.api.ModelDescriptor
 
+/** Connecting the first model. [header] sits above it: on first run, Linux's setup and the step bar. */
 @Composable
-fun ConnectScreen(state: ConnectState, viewModel: ConnectViewModel) {
+fun ConnectScreen(state: ConnectState, viewModel: ConnectViewModel, header: @Composable ColumnScope.() -> Unit = {}) {
     Column(
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surface)
             .safeDrawingPadding()
             .imePadding()
-            .padding(horizontal = WhittleSpace.xxl, vertical = WhittleSpace.xxl),
-        verticalArrangement = Arrangement.spacedBy(WhittleSpace.l),
+            .padding(horizontal = WhittleSpace.xxl),
     ) {
+        header()
         when (val phase = state.phase) {
-            is ConnectPhase.ChooseModel -> ChooseModel(phase, viewModel, onBack = viewModel::backToKey, onChoose = { viewModel.choose(it) })
+            is ConnectPhase.ChooseModel -> Column(
+                Modifier.weight(1f).padding(vertical = WhittleSpace.l),
+                verticalArrangement = Arrangement.spacedBy(WhittleSpace.l),
+            ) { ChooseModel(phase, viewModel, onBack = viewModel::backToKey, onChoose = { viewModel.choose(it) }) }
             else -> EnterKey(state, phase, viewModel)
         }
     }
@@ -147,61 +162,141 @@ private fun PickerTitle(onBack: () -> Unit) {
     }
 }
 
+/** Provider and key: a connected pair to pick the provider, a filled field for the key, Connect at the bottom. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun EnterKey(state: ConnectState, phase: ConnectPhase, viewModel: ConnectViewModel) {
+private fun ColumnScope.EnterKey(state: ConnectState, phase: ConnectPhase, viewModel: ConnectViewModel) {
     val haptics = WhittleTheme.haptics
-    var keyVisible by remember { mutableStateOf(false) }
+    val colors = MaterialTheme.colorScheme
+    val uriHandler = LocalUriHandler.current
     val checking = phase == ConnectPhase.Checking
-    Text(stringResource(R.string.connect_title), style = MaterialTheme.typography.headlineMedium)
-    Text(stringResource(R.string.connect_body), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    Spacer(Modifier.height(WhittleSpace.s))
-    Text(stringResource(R.string.connect_provider), style = MaterialTheme.typography.labelLarge)
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-        state.providers.forEachIndexed { index, provider ->
-            SegmentedButton(
-                selected = provider.id == state.providerId,
-                onClick = { haptics.perform(WhittleHaptic.Select); viewModel.selectProvider(provider.id) },
-                shape = SegmentedButtonDefaults.itemShape(index, state.providers.size),
-                enabled = !checking,
-            ) { Text(provider.displayName) }
+    Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.xxl)) {
+        Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
+            Text(stringResource(R.string.connect_title), style = MaterialTheme.typography.headlineMedium)
+            Text(stringResource(R.string.connect_body), style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant)
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+            Text(stringResource(R.string.connect_provider), style = MaterialTheme.typography.labelLarge)
+            Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
+                state.providers.forEachIndexed { index, provider ->
+                    val checked = provider.id == state.providerId
+                    val content = if (checked) colors.onSecondaryContainer else colors.onSurface
+                    Row(
+                        Modifier
+                            .weight(1f)
+                            .height(WhittleSize.Button.default)
+                            .clip(connectedShape(index, state.providers.size))
+                            .background(if (checked) colors.secondaryContainer else colors.surfaceContainerHigh)
+                            .selectable(selected = checked, enabled = !checking, role = Role.RadioButton) {
+                                haptics.perform(WhittleHaptic.Select)
+                                viewModel.selectProvider(provider.id)
+                            },
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (checked) {
+                            WhittleIcon("check", size = WhittleSize.Icon.l, tint = content)
+                            Spacer(Modifier.size(WhittleSpace.s))
+                        }
+                        Text(provider.displayName, style = MaterialTheme.typography.labelLarge, color = content, maxLines = 1)
+                    }
+                }
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+            KeyField(state, phase, viewModel)
+            state.provider.keysUrl?.let { url ->
+                Row(
+                    Modifier
+                        .clip(CircleShape)
+                        .clickable(role = Role.Button) {
+                            try {
+                                uriHandler.openUri(url)
+                            } catch (exception: ActivityNotFoundException) {
+                                // No browser on the phone; the link has nowhere to go.
+                            }
+                        }
+                        .padding(WhittleSpace.xs),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s),
+                ) {
+                    Text(stringResource(R.string.connect_get_key, state.provider.displayName), style = MaterialTheme.typography.labelLarge, color = colors.primary)
+                    WhittleIcon("open_in_new", size = WhittleSize.Icon.m, tint = colors.primary)
+                }
+            }
         }
     }
-    OutlinedTextField(
-        value = state.key,
-        onValueChange = viewModel::updateKey,
-        label = { Text(stringResource(R.string.connect_key_label)) },
-        singleLine = true,
-        enabled = !checking,
-        visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done, autoCorrectEnabled = false),
-        keyboardActions = KeyboardActions(onDone = { viewModel.connect() }),
-        trailingIcon = {
-            IconButton(onClick = { keyVisible = !keyVisible }) {
-                WhittleIcon(
-                    if (keyVisible) "visibility_off" else "visibility",
-                    contentDescription = stringResource(if (keyVisible) R.string.connect_key_hide else R.string.connect_key_show),
-                )
-            }
-        },
-        isError = (phase as? ConnectPhase.EnterKey)?.error != null,
-        supportingText = (phase as? ConnectPhase.EnterKey)?.error?.let { error -> { Text(errorText(error, state.provider.displayName)) } },
-        // The key never appears in a session recording, even when shown or when recordings show content.
-        modifier = Modifier.fillMaxWidth().hiddenFromReplay(),
-    )
+    Spacer(Modifier.weight(1f))
     Button(
         onClick = { haptics.perform(WhittleHaptic.Tap); viewModel.connect() },
         shapes = ButtonDefaults.shapes(),
         enabled = state.key.isNotBlank() && !checking,
-        modifier = Modifier.fillMaxWidth().height(WhittleSize.Button.default),
+        modifier = Modifier.padding(top = WhittleSpace.l, bottom = WhittleSpace.xxl).fillMaxWidth().height(WhittleSize.Button.large),
     ) {
         if (checking) {
-            CircularProgressIndicator(Modifier.size(WhittleSize.Icon.m), strokeWidth = WhittleSpace.hairline, color = MaterialTheme.colorScheme.onPrimary)
-            Text(stringResource(R.string.connect_checking), Modifier.padding(start = WhittleSpace.s))
+            CircularProgressIndicator(Modifier.size(WhittleSize.Icon.m), strokeWidth = WhittleSpace.hairline, color = colors.onPrimary)
+            Spacer(Modifier.size(WhittleSpace.s))
+            Text(stringResource(R.string.connect_checking), style = MaterialTheme.typography.titleMedium)
         } else {
-            WhittleIcon("key", size = WhittleSize.Icon.m)
-            Text(stringResource(R.string.connect_action), Modifier.padding(start = WhittleSpace.s))
+            WhittleIcon("key", size = WhittleSize.Icon.l)
+            Spacer(Modifier.size(WhittleSpace.s))
+            Text(stringResource(R.string.connect_action), style = MaterialTheme.typography.titleMedium)
         }
+    }
+}
+
+/** The key: a filled, rounded field like the search bar, its label on top (green while typing, red when refused), the key in mono. */
+@Composable
+private fun KeyField(state: ConnectState, phase: ConnectPhase, viewModel: ConnectViewModel) {
+    val colors = MaterialTheme.colorScheme
+    var keyVisible by remember { mutableStateOf(false) }
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val error = (phase as? ConnectPhase.EnterKey)?.error
+    val accent = when {
+        error != null -> colors.error
+        focused -> colors.primary
+        else -> colors.onSurfaceVariant
+    }
+    BasicTextField(
+        value = state.key,
+        onValueChange = viewModel::updateKey,
+        enabled = phase != ConnectPhase.Checking,
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = WhittleFonts.mono, color = colors.onSurface),
+        cursorBrush = SolidColor(colors.primary),
+        visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done, autoCorrectEnabled = false),
+        keyboardActions = KeyboardActions(onDone = { viewModel.connect() }),
+        interactionSource = interaction,
+        // The key never appears in a session recording, even when shown or when recordings show content.
+        modifier = Modifier.fillMaxWidth().hiddenFromReplay(),
+        decorationBox = { input ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .height(WhittleSize.composerMin)
+                    .clip(RoundedCornerShape(WhittleRadius.l))
+                    .background(colors.surfaceContainerHigh)
+                    .padding(start = WhittleSpace.l, end = WhittleSpace.xs),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.connect_key_label), style = MaterialTheme.typography.labelMedium, color = accent)
+                    input()
+                }
+                IconButton(onClick = { keyVisible = !keyVisible }) {
+                    WhittleIcon(
+                        if (keyVisible) "visibility_off" else "visibility",
+                        contentDescription = stringResource(if (keyVisible) R.string.connect_key_hide else R.string.connect_key_show),
+                        tint = colors.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+    )
+    error?.let {
+        Text(errorText(it, state.provider.displayName), style = MaterialTheme.typography.bodySmall, color = colors.error, modifier = Modifier.padding(start = WhittleSpace.l))
     }
 }
 

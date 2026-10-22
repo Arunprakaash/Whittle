@@ -214,8 +214,10 @@ policy engine. That means a card for untrusted models and tainted runs.
 - **APK:** dropping the Termux runtimes and shipping only proot, tar and their libraries took the release APK from
   69 MB to 8.9 MB. Phase 2 removed esbuild's WebAssembly build and APK export with it.
 - **Setup (measured on the emulator):** 56 s from scratch, leaving 416 MB (Ubuntu, apt's package lists, git and
-  curl; apt's download cache is cleaned). Node.js, in base setup since phase 2, adds about 196 MB and 20 s, so
-  `setupSizeBytes` says 615 MB.
+  curl; apt's download cache is cleaned). With Node.js in base setup (phase 2), a fresh setup measured on the
+  emulator takes 83 s (download, unpack and configure 13 s; packages and Node.js 70 s) and leaves 589 MB: 374 MB
+  of Ubuntu, packages and Node.js, and 214 MB of caches, nearly all apt's package lists. `setupSizeBytes` says
+  590 MB.
 - **On the phone:**
   - 120 MB after setup;
   - about 700 MB with Node;
