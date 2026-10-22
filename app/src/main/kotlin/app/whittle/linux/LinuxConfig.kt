@@ -30,6 +30,8 @@ data class LinuxConfig(
     val files: Map<String, String>,
     val dns: LinuxDns,
     val baseSetup: LinuxBaseSetup,
+    /** Downloads kept to speed up installs: shown apart in Settings, and cleared on request. */
+    val caches: LinuxCaches,
     /** How often the download reports progress. */
     val progressStepBytes: Long,
 ) : VersionedConfig {
@@ -67,7 +69,17 @@ data class LinuxDns(
 
 @Serializable
 data class LinuxBaseSetup(
-    /** Run once at setup, with the network, to install what most tasks need. */
-    val command: String,
+    /** Run in order at setup (and on repair), with the network, to install what most tasks need. */
+    val commands: List<String>,
+    /** For each command. */
+    val timeoutSeconds: Int,
+)
+
+@Serializable
+data class LinuxCaches(
+    /** Linux paths whose contents count as caches. */
+    val paths: List<String>,
+    /** Removes them; apt downloads its package lists again on the next install. */
+    val clearCommand: String,
     val timeoutSeconds: Int,
 )

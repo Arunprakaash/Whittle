@@ -7,8 +7,8 @@
 <p align="center"><a href="https://github.com/Arunprakaash/Whittle/releases/latest">Download the latest APK</a></p>
 
 Whittle runs the whole agent loop on the phone: the model calls, the policy checks, the tools and the
-checkpoints. It searches the web, runs commands in a sandboxed Ubuntu on the phone, builds React apps with esbuild,
-packs them into installable APKs signed on the device, and talks to any MCP server. There is no Whittle server.
+checkpoints. It searches the web, runs commands in a sandboxed Ubuntu on the phone, builds web apps with Vite and
+serves them to a live preview, and talks to any MCP server. There is no Whittle server.
 The phone talks straight to the model provider you pick, using your own key.
 
 <table>
@@ -32,7 +32,7 @@ flowchart TB
     CFG["config:defaults<br/>versioned JSON + prompts"]
     PROV(["Model provider<br/>OpenAI · OpenRouter · any OpenAI-compatible"])
     SANDBOX["Linux workspace<br/>Ubuntu under proot · seccomp sandbox"]
-    BUNDLER["esbuild-wasm<br/>in a hidden WebView"]
+    PREVIEW["Live preview<br/>WebView on 127.0.0.1"]
     MCP(["MCP servers<br/>Streamable HTTP · SSE · OAuth 2.1"])
 
     UI --> RUN
@@ -41,7 +41,7 @@ flowchart TB
     RUN --> TOOLS
     RUN --> STORE
     TOOLS --> SANDBOX
-    TOOLS --> BUNDLER
+    SANDBOX --> PREVIEW
     TOOLS --> MCP
     CFG -.-> RUN & POL & TOOLS & LLM
 ```
@@ -124,22 +124,15 @@ filter, which the command and everything it starts keep for life:
 If the filter can't be installed, the command doesn't run. proot itself is a filesystem view, not a security
 boundary; the filter, Android's app sandbox and the policy engine are.
 
-### Apps built on the phone
+### Apps are servers
 
-`build_web_app` bundles a React + TypeScript project with esbuild's WebAssembly build. It runs inside a
-WebView that is never shown, on a private https origin the app answers itself. The project's code is only
-parsed, never run. Imports resolve through `esm.sh` with a disk cache, so rebuilds work offline.
-
-### APK export without a build server
-
-Any app Whittle builds can be installed as its own Android app:
-
-1. `AppPackager` takes the prebuilt `export:shell` APK, a tiny WebView host.
-2. It rewrites the shell's binary manifest with the app's own package and name, replaces the icon and drops
-   the web app into `assets/www/`.
-3. `AppSigner` signs the result with `apksig`, using a key created in the Android Keystore that never leaves
-   the phone's secure hardware.
-4. The package name is stable per app, so a new export installs as an update.
+Whittle builds apps the way a developer does: a Vite project in the chat's folder, run with `start_process`.
+`ProcessManager` keeps it running after the tool call returns, in Linux behind the same sandbox, and watches its
+port. Once something answers, the chat shows a card with Preview, which opens the page from `127.0.0.1` in a
+WebView, with its console one tap away and Ask to fix sending errors back to the agent. The agent reads output
+with `read_process_output`, and `list_processes` / `stop_process` manage what runs. Processes end when stopped
+or with the app; the card restarts one with the same command. With Keep working in the background on, a
+notification lists them and keeps them running, with Stop all.
 
 ### Connectors
 
@@ -173,7 +166,8 @@ Nothing that may change lives in code. The defaults are in
 | `provider-catalog.json`, `model-defaults.json`, `model-trust.json` | Providers, models and their trust tiers |
 | `policy-rules.json` | Policy rules |
 | `tool-presentation.json` | How each tool's steps and cards are labelled |
-| `connectors.json`, `web-build.json`, `app-defaults.json` | Connectors, app builds and app settings |
+| `connectors.json`, `app-defaults.json` | Connectors and app settings |
+| `terminal.json`, `linux-workspace.json` | Command and process limits, and the Linux image and its setup |
 | `agent-messages.json`, `prompts/agent-system.md` | Everything the model is told |
 
 Every file has a `schemaVersion`, and unknown keys are rejected.
@@ -195,14 +189,13 @@ Every file has a `schemaVersion`, and unknown keys are rejected.
 | `tools:presentation` | Step labels and approval cards for each tool |
 | `tools:device`, `tools:android` | Clock, contacts, calendar, message drafts |
 | `tools:web` | Web fetch over https; output is untrusted |
-| `tools:workspace` | Files, the sandboxed shell (`run_command`) and app builds |
+| `tools:workspace` | Files, the sandboxed shell (`run_command`), long-running processes and Linux paths |
 | `connectors:mcp` | MCP client with OAuth 2.1, tokens or no sign-in |
 | `policy:engine` | The deterministic policy engine |
 | `agent:runtime` | `AgentRunner`, checkpoints, plans, approvals, memory, saved outputs |
 | `observability:api`, `observability:posthog` | Telemetry with consent filtering, and its PostHog adapter |
 | `storage:secrets`, `storage:runs`, `storage:chats` | Encrypted vault, run checkpoints and chats |
 | `design:system` | Compose design system generated from the tokens and the beaver sprite |
-| `export:shell` | The WebView app that exported apps are packed into |
 | `app` | The Android app |
 | `dev:cli` | Runs the real agent loop from a terminal with your own key |
 

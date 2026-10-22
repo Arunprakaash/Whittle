@@ -68,23 +68,6 @@ android {
     }
 }
 
-// esbuild's WebAssembly build, pinned and checked against its npm integrity, ships as an app asset next to
-// the host page in src/main/assets/web-build. The paths here are the ones host.js loads.
-val esbuildWasmAssets = tasks.register<NpmPackageAssetsTask>("esbuildWasmAssets") {
-    registry.set("https://registry.npmjs.org")
-    packageName.set("esbuild-wasm")
-    version.set(libs.versions.esbuildWasm)
-    integrity.set(libs.versions.esbuildWasmIntegrity)
-    files.set(
-        mapOf(
-            "esm/browser.min.js" to "web-build/esbuild/browser.min.js",
-            "esbuild.wasm" to "web-build/esbuild/esbuild.wasm",
-            "LICENSE.md" to "web-build/esbuild/LICENSE.md",
-        ),
-    )
-    outputDirectory.set(layout.buildDirectory.dir("generated/assets/esbuildWasm"))
-}
-
 // The programs that start and unpack Linux (proot, tar) are Termux's Android builds, pinned in
 // termux-runtimes.lock.json (update with ./gradlew :app:updateTermuxLock). Programs and libraries ship as
 // native libraries, the only place Android lets an app run native code from, so the APK must extract them.
@@ -113,30 +96,6 @@ val sandboxExecutable = tasks.register<NativeExecutableTask>("sandboxExecutable"
 }
 android.defaultConfig.buildConfigField("String", "SANDBOX_PROGRAM", "\"lib$sandboxProgram.so\"")
 
-// Exported apps start from the shell app (export/shell): its unsigned release APK ships as an asset, and the
-// placeholders it was built with are what Whittle replaces for each app.
-val exportShellAsset = "export/shell.apk"
-val exportShellApk = tasks.register<FileAssetTask>("exportShellAsset") {
-    dependsOn(":export:shell:assembleRelease")
-    source.set(project(":export:shell").layout.buildDirectory.file("outputs/apk/release/shell-release-unsigned.apk"))
-    assetPath.set(exportShellAsset)
-    assetsDirectory.set(layout.buildDirectory.dir("generated/exportShell/assets"))
-}
-android.defaultConfig.buildConfigField("String", "EXPORT_SHELL_ASSET", "\"$exportShellAsset\"")
-// AppPackagerTest packs the real shell APK.
-tasks.withType<Test>().configureEach {
-    val shellApk = project(":export:shell").layout.buildDirectory.file("outputs/apk/release/shell-release-unsigned.apk")
-    dependsOn(":export:shell:assembleRelease")
-    inputs.file(shellApk)
-    systemProperty("whittle.exportShell.apk", shellApk.get().asFile.absolutePath)
-    systemProperty("whittle.exportShell.testOutput", layout.buildDirectory.dir("tmp/exportShellTest").get().asFile.absolutePath)
-}
-android.defaultConfig.buildConfigField(
-    "String", "EXPORT_PACKAGE_PLACEHOLDER", "\"${providers.gradleProperty("whittle.exportShell.packagePlaceholder").get()}\"",
-)
-android.defaultConfig.buildConfigField(
-    "String", "EXPORT_LABEL_PLACEHOLDER", "\"${providers.gradleProperty("whittle.exportShell.labelPlaceholder").get()}\"",
-)
 android.defaultConfig.buildConfigField("String", "RUNTIME_ASSETS", "\"$runtimeAssetDirectory\"")
 
 // The launcher, themed and notification icons are drawn from the beaver's sprite file.
@@ -148,7 +107,6 @@ val spriteDrawables = tasks.register<GenerateSpriteDrawablesTask>("generateSprit
 androidComponents {
     onVariants { variant ->
         variant.sources.res?.addGeneratedSourceDirectory(spriteDrawables, GenerateSpriteDrawablesTask::outputDirectory)
-        variant.sources.assets?.addGeneratedSourceDirectory(esbuildWasmAssets, NpmPackageAssetsTask::outputDirectory)
         val runtime = tasks.register<TermuxRuntimeTask>("${variant.name}TermuxRuntime") {
             specFile.set(termuxSpec)
             lockFile.set(termuxLock)
@@ -162,7 +120,6 @@ androidComponents {
         }
         variant.sources.jniLibs?.addGeneratedSourceDirectory(runtime, TermuxRuntimeTask::jniLibsDirectory)
         variant.sources.jniLibs?.addGeneratedSourceDirectory(sandboxExecutable, NativeExecutableTask::jniLibsDirectory)
-        variant.sources.assets?.addGeneratedSourceDirectory(exportShellApk, FileAssetTask::assetsDirectory)
         variant.sources.assets?.addGeneratedSourceDirectory(runtime, TermuxRuntimeTask::assetsDirectory)
     }
 }
@@ -185,7 +142,6 @@ dependencies {
     implementation(project(":observability:api"))
     implementation(project(":observability:posthog"))
     implementation(libs.androidx.webkit)
-    implementation(libs.apksig)
     implementation(project(":connectors:mcp"))
     implementation(libs.androidx.browser)
 

@@ -30,10 +30,6 @@ import androidx.compose.material3.AlertDialog
 import app.whittle.design.components.StatusLine
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
-import app.whittle.design.components.AppCard
-import app.whittle.apps.Apps
-import app.whittle.apps.AppSheet
-import app.whittle.apps.AppRef
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.SpanStyle
 import android.content.ClipData
@@ -127,34 +123,26 @@ fun ChatScreen(
     state: ChatState,
     viewModel: ChatViewModel,
     sidebarMaxChats: Int,
-    apps: Apps,
-    appSheetHeight: Float,
     voiceDefaults: VoiceDefaults,
+    previewHeight: Float,
     onViewAllChats: () -> Unit,
-    onOpenAppFullScreen: (AppRef) -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenApps: () -> Unit,
     avatarSeed: Long?,
     onOpenProjects: () -> Unit,
 ) {
-    var sheetApp by remember { mutableStateOf<AppRef?>(null) }
-    sheetApp?.let { ref ->
-        AppSheet(
-            ref = ref,
-            apps = apps,
-            revision = state.workspaceRevision,
-            heightFraction = appSheetHeight,
-            onDismiss = { sheetApp = null },
-            onFullScreen = { sheetApp = null; onOpenAppFullScreen(ref) },
-        )
+    var previewing by remember { mutableStateOf<ThreadItem.Process?>(null) }
+    previewing?.let { item ->
+        // The card may have restarted its process since; the preview follows the card.
+        val current = state.items.firstOrNull { it.key == item.key } as? ThreadItem.Process ?: item
+        LivePreviewSheet(current, viewModel, previewHeight, onDismiss = { previewing = null })
     }
-    CompositionLocalProvider(LocalOpenApp provides { ref -> sheetApp = ref }) {
-        ChatLayout(state, viewModel, sidebarMaxChats, voiceDefaults, onViewAllChats, onOpenSettings, onOpenApps, avatarSeed, onOpenProjects)
+    CompositionLocalProvider(LocalOpenPreview provides { item -> previewing = item }) {
+        ChatLayout(state, viewModel, sidebarMaxChats, voiceDefaults, onViewAllChats, onOpenSettings, avatarSeed, onOpenProjects)
     }
 }
 
-/** Opens an app card's app in the sheet; provided by [ChatScreen] so any thread row can use it. */
-private val LocalOpenApp = staticCompositionLocalOf<(AppRef) -> Unit> { {} }
+/** Opens a process card's live preview; provided by [ChatScreen] so any thread row can use it. */
+private val LocalOpenPreview = staticCompositionLocalOf<(ThreadItem.Process) -> Unit> { {} }
 
 @Composable
 private fun ChatLayout(
@@ -164,7 +152,6 @@ private fun ChatLayout(
     voiceDefaults: VoiceDefaults,
     onViewAllChats: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenApps: () -> Unit,
     avatarSeed: Long?,
     onOpenProjects: () -> Unit,
 ) {
@@ -199,8 +186,6 @@ private fun ChatLayout(
                 onDelete = viewModel::deleteChat,
                 onViewAll = { closeThen(onViewAllChats) },
                 onOpenSettings = { closeThen(onOpenSettings) },
-                appCount = state.apps.size,
-                onOpenApps = { closeThen(onOpenApps) },
                 avatarSeed = avatarSeed,
                 onOpenProjects = { closeThen(onOpenProjects) },
             )
@@ -374,21 +359,12 @@ private fun ThreadRow(
                 }
             }
         }
+        is ThreadItem.Process -> ProcessCard(item, viewModel, onPreview = LocalOpenPreview.current, modifier = content)
         is ThreadItem.Plan -> PlanChecklist(
             title = stringResource(R.string.plan_title, item.steps.count { it.status == PlanStatus.COMPLETED }, item.steps.size),
             steps = item.steps.map { it.toUi() },
             modifier = content,
         )
-        is ThreadItem.App -> {
-            val open = LocalOpenApp.current
-            AppCard(
-                title = item.ref.title,
-                kind = stringResource(R.string.app_kind),
-                openLabel = stringResource(R.string.app_open),
-                onOpen = { open(item.ref) },
-                modifier = content,
-            )
-        }
         is ThreadItem.Sources -> {
             val uriHandler = LocalUriHandler.current
             AnswerSources(

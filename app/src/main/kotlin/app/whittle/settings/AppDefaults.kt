@@ -14,9 +14,8 @@ data class AppDefaults(
     val terminal: TerminalDefaults,
     val chatList: ChatListDefaults,
     val siteIcons: SiteIconDefaults,
-    val apps: AppViewDefaults,
+    val preview: PreviewDefaults,
     val background: BackgroundDefaults,
-    val export: ExportDefaults,
     val voice: VoiceDefaults,
     val toolRuntime: ToolRuntimeDefaults,
     val memory: MemoryDefaults,
@@ -83,54 +82,18 @@ data class SiteIconDefaults(
     }
 }
 
-/** Turning an app the agent built into its own installable Android app. */
-@Serializable
-data class ExportDefaults(
-    /** Exported apps get <packagePrefix>.<name>.<id>; the id is stable for the same app, so re-exports update it. */
-    val packagePrefix: String,
-    val maxNameChars: Int,
-    val maxLabelChars: Int,
-    /** A title is cut before the first of these for the home-screen name, so subtitles don't take the space. */
-    val labelSeparators: List<String>,
-    val signingKeyAlias: String,
-    val certificateSubject: String,
-    val certificateValidityYears: Long,
-    val iconSizePx: Int,
-    /** Icon backgrounds; each app gets one picked from its id. */
-    val iconColors: List<String>,
-    val maxAppBytes: Long,
-    /** Under the app's cache folder: where an app is packaged and signed before installing. */
-    val workDirectoryName: String,
-) {
-    init {
-        require(iconColors.isNotEmpty()) { "export.iconColors must not be empty" }
-        require(maxNameChars > 0 && maxLabelChars > 0 && iconSizePx > 0 && maxAppBytes > 0) { "export limits must be positive" }
-    }
-}
-
 /** Tasks keep running while the user is elsewhere, in a foreground service with an ongoing notification. */
 @Serializable
 data class BackgroundDefaults(val keepRunning: Boolean)
 
-/** How web apps the agent builds are shown, opened elsewhere and shared. */
+/** How a server the agent runs is shown in the live preview. */
 @Serializable
-data class AppViewDefaults(
-    /**
-     * Each chat's apps load from `https://<chat>.<domainSuffix>/`, served by Whittle itself, never the network.
-     * A per-chat origin keeps one chat's app from reading another's saved data. Changing it would leave every
-     * app's saved data behind, so it keeps its old "artifacts" name.
-     */
-    val domainSuffix: String,
-    /** Under the app's cache folder; must match the cache-path in res/xml/file_paths.xml. */
-    val sharedDirectoryName: String,
+data class PreviewDefaults(
     /** Height of the preview sheet as a share of the screen. */
     val sheetHeightFraction: Float,
-    /** Local files larger than this stay linked instead of being inlined when an app is bundled into one file. */
-    val maxInlineBytes: Long,
 ) {
     init {
-        require(sheetHeightFraction in 0.3f..1f) { "apps.sheetHeightFraction must be between 0.3 and 1" }
-        require(maxInlineBytes > 0) { "apps.maxInlineBytes must be positive" }
+        require(sheetHeightFraction in 0.3f..1f) { "preview.sheetHeightFraction must be between 0.3 and 1" }
     }
 }
 

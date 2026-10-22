@@ -1,6 +1,6 @@
 /*
- * Whittle's command sandbox. Starts a command in its own process group, behind a seccomp filter it and
- * everything it starts keep for life:
+ * Whittle's command sandbox. Starts a command behind a seccomp filter it and everything it starts keep for
+ * life:
  *   - always: no ptrace and no process_vm_readv/writev, so a command can't read or change the memory of
  *     Whittle itself (where the user's key is decrypted while in use); no io_uring, which bypasses filters;
  *   - unless --network is given: no sockets of any kind. That covers the internet and also name lookups,
@@ -9,6 +9,12 @@
  *
  * Usage: whittle_sandbox [--network] -- program [args...]
  * Fails closed: if the filter can't be installed, the command doesn't run.
+ *
+ * With --session it only starts the program in a new session, and so its own process group, with no filter:
+ * Whittle starts proot that way, and the command it runs inside Linux stays in that group, so Stop and
+ * timeouts end everything the command started. proot needs ptrace itself, so the filter goes on inside.
+ *
+ * Usage: whittle_sandbox --session -- program [args...]
  */
 #include <errno.h>
 #include <linux/audit.h>
@@ -81,19 +87,26 @@ static int install_filter(int network) {
 
 int main(int argc, char **argv) {
     int network = 0;
+    int session = 0;
     int index = 1;
-    if (index < argc && strcmp(argv[index], "--network") == 0) {
+    if (index < argc && strcmp(argv[index], "--session") == 0) {
+        session = 1;
+        index++;
+    } else if (index < argc && strcmp(argv[index], "--network") == 0) {
         network = 1;
         index++;
     }
     if (index >= argc || strcmp(argv[index], "--") != 0 || index + 1 >= argc) {
-        fprintf(stderr, "usage: whittle_sandbox [--network] -- program [args...]\n");
+        fprintf(stderr, "usage: whittle_sandbox [--network | --session] -- program [args...]\n");
         return EXIT_USAGE;
     }
     index++;
-    /* Its own process group, so Stop and timeouts can end everything the command starts. */
-    setsid();
-    if (install_filter(network) != 0) {
+    if (session) {
+        if (setsid() < 0) {
+            fprintf(stderr, "whittle_sandbox: can't start a session: %s\n", strerror(errno));
+            return EXIT_SANDBOX;
+        }
+    } else if (install_filter(network) != 0) {
         fprintf(stderr, "whittle_sandbox: can't install the command sandbox: %s\n", strerror(errno));
         return EXIT_SANDBOX;
     }

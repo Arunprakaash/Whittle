@@ -9,6 +9,7 @@ import android.app.NotificationManager
 import android.content.Intent
 import android.os.Bundle
 import app.whittle.background.AgentRunService
+import app.whittle.background.ProcessesService
 import app.whittle.background.RunNotifications
 import app.whittle.background.RunProgress
 import app.whittle.chat.ChatEvent
@@ -46,6 +47,12 @@ class WhittleApplication : Application() {
             chat.state.map { it.running }.distinctUntilChanged().collect { running -> if (running && keepRunningInBackground()) startRunService() }
         }
         scope.launch {
+            // Servers the agent started keep running while the user is elsewhere, under their own notification.
+            graph.processes.processes.map { list -> list.any { it.live } }.distinctUntilChanged().collect { live ->
+                if (live && keepRunningInBackground()) startService(ProcessesService::class.java)
+            }
+        }
+        scope.launch {
             chat.events.collect { event ->
                 if (inForeground) return@collect
                 val title = runProgress()?.chatTitle ?: currentChatTitle()
@@ -75,11 +82,13 @@ class WhittleApplication : Application() {
     private fun keepRunningInBackground(): Boolean =
         graph.currentSettings.value?.keepRunningInBackground ?: graph.defaultKeepRunningInBackground
 
-    private fun startRunService() {
+    private fun startRunService() = startService(AgentRunService::class.java)
+
+    private fun startService(service: Class<*>) {
         try {
-            startForegroundService(Intent(this, AgentRunService::class.java))
+            startForegroundService(Intent(this, service))
         } catch (exception: ForegroundServiceStartNotAllowedException) {
-            // Only possible if a task starts while Whittle is already in the background; it then runs as before.
+            // Only possible if it starts while Whittle is already in the background; the work then runs as before.
         }
     }
 

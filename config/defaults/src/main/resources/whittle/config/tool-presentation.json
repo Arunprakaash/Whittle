@@ -43,21 +43,6 @@
       "running": "Looking through {{url_host}}",
       "done": "Looked through {{url_host}}"
     },
-    "build_web_app": {
-      "icon": "build",
-      "running": "Building the app",
-      "done": "Built the app",
-      "decision": {
-        "icon": "build",
-        "title": "Build the app?",
-        "body": "Puts the app together on the phone. It downloads the open-source libraries the app uses, such as React; only their names leave the phone.",
-        "approve": "Build it",
-        "approveIcon": "check",
-        "decline": "Not now",
-        "approvedOutcome": "Built the app",
-        "declinedOutcome": "Not built"
-      }
-    },
     "update_plan": {
       "icon": "checklist",
       "running": "Planning",
@@ -144,6 +129,47 @@
         "decline": "Not now",
         "approvedOutcome": "Ran the command",
         "declinedOutcome": "Didn't run"
+      }
+    },
+    "start_process": {
+      "icon": "play_arrow",
+      "running": "Starting {{name}}",
+      "done": "Started {{name}}",
+      "decision": {
+        "icon": "play_arrow",
+        "title": "Start {{name}}?",
+        "body": "Keeps running in this chat's folder on your phone until it's stopped. It can't see your other apps, photos or files. It can use the internet.",
+        "payloadArgument": "command",
+        "approve": "Start",
+        "approveIcon": "play_arrow",
+        "decline": "Not now",
+        "approvedOutcome": "Started {{name}}",
+        "declinedOutcome": "Not started"
+      }
+    },
+    "read_process_output": {
+      "icon": "notes",
+      "running": "Reading the output",
+      "done": "Read the output"
+    },
+    "list_processes": {
+      "icon": "terminal",
+      "running": "Checking what's running",
+      "done": "Checked what's running"
+    },
+    "stop_process": {
+      "icon": "stop",
+      "running": "Stopping it",
+      "done": "Stopped it",
+      "decision": {
+        "icon": "stop",
+        "title": "Stop it?",
+        "body": "",
+        "approve": "Stop",
+        "approveIcon": "stop",
+        "decline": "Not now",
+        "approvedOutcome": "Stopped it",
+        "declinedOutcome": "Kept it running"
       }
     },
     "list_files": {

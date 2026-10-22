@@ -16,6 +16,7 @@ data class TerminalConfig(
     val maxOutputChars: Int,
     val maxFileChars: Int,
     val maxListedEntries: Int,
+    val processes: ProcessLimits,
 ) : VersionedConfig {
     init {
         require(defaultTimeoutSeconds in 1..maxTimeoutSeconds) { "defaultTimeoutSeconds must be between 1 and maxTimeoutSeconds" }
@@ -25,6 +26,27 @@ data class TerminalConfig(
     companion object {
         const val SCHEMA_VERSION = 1
         val FILE = ConfigName("terminal.json")
+    }
+}
+
+/** Long-running processes the agent starts: servers, watchers. */
+@Serializable
+data class ProcessLimits(
+    /** Running at once in one chat. */
+    val maxPerChat: Int,
+    /** How long start_process waits for a server to answer on its port, or for the command to end, before replying. */
+    val startWaitSeconds: Int,
+    /** With no port known yet, how long it waits for one to show up in the output (a watcher never has one). */
+    val noPortWaitSeconds: Int,
+    /** The latest output kept for each process; older output is dropped. */
+    val keptOutputChars: Int,
+    /** Lines of output a reply shows when the agent doesn't ask for a number. */
+    val readLines: Int,
+    /** After a stop, how long to wait for the process to end before reporting it. */
+    val stopGraceMillis: Long,
+) {
+    init {
+        require(maxPerChat > 0 && startWaitSeconds > 0 && noPortWaitSeconds > 0 && keptOutputChars > 0 && readLines > 0 && stopGraceMillis > 0) { "Process limits must be positive" }
     }
 }
 

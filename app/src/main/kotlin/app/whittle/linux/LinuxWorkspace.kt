@@ -49,6 +49,11 @@ sealed interface LinuxState {
 
 enum class LinuxSetupStep { Download, Unpack, Configure, BasePackages }
 
+/** Where Linux's space went, in bytes. */
+data class LinuxUsage(val base: Long, val added: Long, val caches: Long) {
+    val total: Long get() = base + added + caches
+}
+
 /**
  * The Linux that commands run in: an Ubuntu root filesystem in the app's files folder, started with proot. Setup
  * downloads the image (resumable, checked against its SHA-256), unpacks it, writes the configured files and installs
@@ -70,6 +75,8 @@ class LinuxWorkspace(
     private val rootfs = File(home, ROOTFS)
     private val configured = File(home, CONFIGURED_MARKER)
     private val installed = File(home, INSTALLED_MARKER)
+    /** What setup left on the phone, so Settings can tell what was added since. */
+    private val baseSize = File(home, BASE_SIZE)
     private val downloads = File(home, DOWNLOADS)
     private val setupWorkspace = File(home, SETUP_WORKSPACE)
     private val lock = Mutex()
@@ -140,9 +147,37 @@ class LinuxWorkspace(
     }
 
     /** Space Linux uses on the phone, links counted once and never followed. */
-    suspend fun usedBytes(): Long = withContext(Dispatchers.IO) {
-        if (!Files.exists(home.toPath(), LinkOption.NOFOLLOW_LINKS)) return@withContext 0L
-        Files.walk(home.toPath()).use { paths ->
+    suspend fun usedBytes(): Long = withContext(Dispatchers.IO) { sizeOf(home) }
+
+    /** Where Linux's space went: what setup left, what was added since, and caches. */
+    suspend fun usage(): LinuxUsage = withContext(Dispatchers.IO) {
+        // Linux's own folder only: the download and the markers beside it aren't part of it.
+        val total = sizeOf(rootfs)
+        val caches = cachesSize()
+        val kept = (total - caches).coerceAtLeast(0)
+        val base = (recordedBase() ?: kept).coerceAtMost(kept)
+        LinuxUsage(base = base, added = kept - base, caches = caches)
+    }
+
+    /** Removes cached downloads; tools and files stay. */
+    suspend fun clearCaches(): Outcome<Unit> {
+        if (root() == null) return Outcome.Failure(HarnessError.NotFound(NOT_SET_UP))
+        setupWorkspace.mkdirs()
+        val result = when (val ran = runner.run(config.caches.clearCommand, setupWorkspace, config.caches.timeoutSeconds)) {
+            is Outcome.Failure -> return ran
+            is Outcome.Success -> ran.value
+        }
+        return if (result.exitCode == 0) Outcome.Success(Unit) else Outcome.Failure(HarnessError.Storage(result.stderr.lines().lastOrNull { it.isNotBlank() } ?: "exit ${result.exitCode}"))
+    }
+
+    private fun cachesSize(): Long = config.caches.paths.sumOf { path -> sizeOf(File(rootfs, path.removePrefix(SEPARATOR))) }
+
+    /** What setup left, caches aside; caches come and go, so they're measured when asked. */
+    private fun recordedBase(): Long? = baseSize.takeIf { it.isFile }?.readText()?.trim()?.toLongOrNull()
+
+    private fun sizeOf(folder: File): Long {
+        if (!Files.exists(folder.toPath(), LinkOption.NOFOLLOW_LINKS)) return 0L
+        return Files.walk(folder.toPath()).use { paths ->
             paths.filter { Files.isRegularFile(it, LinkOption.NOFOLLOW_LINKS) }.mapToLong { Files.size(it) }.sum()
         }
     }
@@ -150,15 +185,22 @@ class LinuxWorkspace(
     private suspend fun finishSetup(image: LinuxImage): Outcome<Unit> {
         mutableState.value = LinuxState.SettingUp(LinuxSetupStep.BasePackages)
         setupWorkspace.mkdirs()
-        val result = when (val ran = runner.run(config.baseSetup.command, setupWorkspace, config.baseSetup.timeoutSeconds, network = true)) {
-            is Outcome.Failure -> return fail(LinuxSetupStep.BasePackages, ran.error.message)
-            is Outcome.Success -> ran.value
-        }
-        if (result.timedOut || result.exitCode != 0) {
-            return fail(LinuxSetupStep.BasePackages, (result.stderr.ifBlank { result.stdout }).lines().lastOrNull { it.isNotBlank() } ?: "exit ${result.exitCode}")
+        val before = sizeOf(rootfs) - cachesSize()
+        config.baseSetup.commands.forEach { command ->
+            val result = when (val ran = runner.run(command, setupWorkspace, config.baseSetup.timeoutSeconds, network = true)) {
+                is Outcome.Failure -> return fail(LinuxSetupStep.BasePackages, ran.error.message)
+                is Outcome.Success -> ran.value
+            }
+            if (result.timedOut || result.exitCode != 0) {
+                return fail(LinuxSetupStep.BasePackages, (result.stderr.ifBlank { result.stdout }).lines().lastOrNull { it.isNotBlank() } ?: "exit ${result.exitCode}")
+            }
         }
         installed.writeText(image.version + "\n" + image.sha256)
         deleteTree(downloads)
+        // A fresh Linux starts from the unpacked image; a repair keeps what the user added out of the base and
+        // adds only what the base packages put back.
+        val after = sizeOf(rootfs) - cachesSize()
+        baseSize.writeText(((recordedBase() ?: before) + after - before).coerceAtLeast(0).toString())
         mutableState.value = ready()
         return Outcome.Success(Unit)
     }
@@ -269,6 +311,10 @@ class LinuxWorkspace(
         val sandbox = File(context.applicationInfo.nativeLibraryDir, BuildConfig.SANDBOX_PROGRAM)
         return Outcome.Success(
             buildList {
+                // A new session around proot and everything it starts, so Stop and timeouts can end all of it.
+                add(sandbox.path)
+                add(SESSION_FLAG)
+                add(END_OF_OPTIONS)
                 add(PROOT)
                 addAll(config.prootOptions)
                 add(ROOT_OPTION)
@@ -393,6 +439,7 @@ class LinuxWorkspace(
         const val SETUP_WORKSPACE = "setup"
         const val CONFIGURED_MARKER = ".configured"
         const val INSTALLED_MARKER = ".installed"
+        const val BASE_SIZE = ".base-size"
         const val PARTIAL = ".partial"
         const val SHA_256 = "SHA-256"
         const val RANGE = "Range"
@@ -404,6 +451,7 @@ class LinuxWorkspace(
         const val WORKING_DIRECTORY_OPTION = "-w"
         const val CLEAR_ENVIRONMENT = "-i"
         const val NETWORK_FLAG = "--network"
+        const val SESSION_FLAG = "--session"
         const val END_OF_OPTIONS = "--"
         const val SHELL_COMMAND = "-c"
         const val PATH = "PATH"

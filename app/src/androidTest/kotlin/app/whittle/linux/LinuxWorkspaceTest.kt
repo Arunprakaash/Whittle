@@ -8,6 +8,7 @@ import app.whittle.core.common.Outcome
 import app.whittle.tools.api.WorkspaceId
 import app.whittle.tools.workspace.CommandResult
 import app.whittle.tools.workspace.CommandRunner
+import app.whittle.tools.workspace.ProcessInfo
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -129,6 +130,28 @@ class LinuxWorkspaceTest {
     fun commandsCantOpenWhittlesMemoryFile() = runBlocking<Unit> {
         val result = run("cat /proc/$appPid/mem > /dev/null 2>&1 && echo readable || echo refused")
         assertNotEquals("readable", result.stdout.trim(), "Whittle's /proc/<pid>/mem must not be readable from a command")
+    }
+
+    @Test
+    fun aTimedOutCommandLeavesNothingRunning() = runBlocking<Unit> {
+        val marker = "whittle-timeout-probe-${System.nanoTime()}"
+        val timedOut = assertIs<Outcome.Success<CommandResult>>(runner.run("sleep 300 # $marker", workspace, timeoutSeconds = 2)).value
+        assertTrue(timedOut.timedOut)
+        val left = run("sleep 1; ps -eo args | grep -c '[s]leep 300 # $marker' || true").stdout.trim()
+        assertEquals("0", left, "the timed-out command's processes must be gone")
+    }
+
+    @Test
+    fun aServerInLinuxIsReachableFromTheAppAndStopsCompletely() = runBlocking<Unit> {
+        val port = 18_123
+        val processes = graph.processes
+        val info = assertIs<Outcome.Success<ProcessInfo>>(processes.start(id, workspace, "probe-server", "python3 -m http.server $port --bind 127.0.0.1", port)).value
+        assertTrue(info.listening, "the server must answer on its port: ${processes.output(info.id)}")
+        val page = java.net.URL("http://127.0.0.1:$port/").openStream().use { it.readBytes().decodeToString() }
+        assertTrue(page.contains("Directory listing"))
+        processes.stop(info.id)
+        val left = run("sleep 1; ps -eo args | grep -c '[h]ttp.server $port' || true").stdout.trim()
+        assertEquals("0", left, "the server's processes must be gone after a stop")
     }
 
     @Test

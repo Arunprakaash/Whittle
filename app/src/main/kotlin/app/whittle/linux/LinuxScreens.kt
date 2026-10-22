@@ -8,6 +8,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,6 +37,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.whittle.AppGraph
 import app.whittle.R
@@ -93,7 +100,11 @@ fun LinuxWorkspaceScreen(graph: AppGraph, onBack: () -> Unit) {
     val context = LocalContext.current
     val state by graph.linux.state.collectAsStateWithLifecycle()
     var confirming by remember { mutableStateOf<Confirm?>(null) }
-    val used by produceState(0L, state) { value = graph.linux.usedBytes() }
+    var cleared by remember { mutableIntStateOf(0) }
+    val used by produceState(0L, state, cleared) { value = graph.linux.usedBytes() }
+    val usage by produceState<LinuxUsage?>(null, state, cleared) { value = graph.linux.usage() }
+    val processes by graph.processes.processes.collectAsStateWithLifecycle()
+    val live = processes.filter { it.live }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
@@ -117,51 +128,123 @@ fun LinuxWorkspaceScreen(graph: AppGraph, onBack: () -> Unit) {
                 LinuxState.NotSetUp -> item { SetUpButton(graph) }
                 is LinuxState.Failed -> item { SetUpButton(graph, R.string.linux_try_again) }
                 is LinuxState.SettingUp -> Unit
-                is LinuxState.Ready -> item {
-                    Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
-                        SettingsRow(
-                            icon = "build",
-                            title = stringResource(R.string.linux_repair),
-                            subtitle = stringResource(R.string.linux_repair_body),
-                            shape = segmentedShape(0, MANAGE_ROWS),
-                            onClick = { LinuxSetupService.repair(context) },
-                        )
-                        SettingsRow(
-                            icon = "restart_alt",
-                            title = stringResource(R.string.linux_reset),
-                            subtitle = stringResource(R.string.linux_reset_body),
-                            shape = segmentedShape(1, MANAGE_ROWS),
-                            onClick = { confirming = Confirm.Reset },
-                        )
-                        SettingsRow(
-                            icon = "delete",
-                            title = stringResource(R.string.linux_remove),
-                            subtitle = stringResource(R.string.linux_remove_body, Formatter.formatShortFileSize(context, used)),
-                            shape = segmentedShape(2, MANAGE_ROWS),
-                            destructive = true,
-                            onClick = { confirming = Confirm.Remove },
-                        )
+                is LinuxState.Ready -> {
+                    usage?.let { breakdown ->
+                        item {
+                            StorageCard(breakdown) { graph.appScope.launch { graph.linux.clearCaches(); cleared++ } }
+                        }
                     }
+                    if (live.isNotEmpty()) item {
+                        RunningRow(live.map { it.name }) { graph.appScope.launch { graph.processes.stopAll() } }
+                    }
+                    item { ManageRows(graph, used) { confirming = it } }
                 }
             }
         }
     }
-    confirming?.let { confirm ->
-        AlertDialog(
-            onDismissRequest = { confirming = null },
-            title = { Text(stringResource(confirm.title)) },
-            text = { Text(stringResource(confirm.body)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirming = null
-                    when (confirm) {
-                        Confirm.Reset -> LinuxSetupService.reset(context)
-                        Confirm.Remove -> graph.appScope.launch { graph.linux.remove() }
-                    }
-                }) { Text(stringResource(confirm.action), color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = { TextButton(onClick = { confirming = null }) { Text(stringResource(R.string.connector_cancel)) } },
+    confirming?.let { confirm -> ConfirmDialog(confirm, graph, onDone = { confirming = null }) }
+}
+
+/** Repair, reset and remove, from least to most drastic. */
+@Composable
+private fun ManageRows(graph: AppGraph, used: Long, onConfirm: (Confirm) -> Unit) {
+    val context = LocalContext.current
+    Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
+        SettingsRow(
+            icon = "build",
+            title = stringResource(R.string.linux_repair),
+            subtitle = stringResource(R.string.linux_repair_body),
+            shape = segmentedShape(0, MANAGE_ROWS),
+            onClick = { LinuxSetupService.repair(context) },
         )
+        SettingsRow(
+            icon = "restart_alt",
+            title = stringResource(R.string.linux_reset),
+            subtitle = stringResource(R.string.linux_reset_body),
+            shape = segmentedShape(1, MANAGE_ROWS),
+            onClick = { onConfirm(Confirm.Reset) },
+        )
+        SettingsRow(
+            icon = "delete",
+            title = stringResource(R.string.linux_remove),
+            subtitle = stringResource(R.string.linux_remove_body, Formatter.formatShortFileSize(context, used)),
+            shape = segmentedShape(2, MANAGE_ROWS),
+            destructive = true,
+            onClick = { onConfirm(Confirm.Remove) },
+        )
+    }
+}
+
+@Composable
+private fun ConfirmDialog(confirm: Confirm, graph: AppGraph, onDone: () -> Unit) {
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onDone,
+        title = { Text(stringResource(confirm.title)) },
+        text = { Text(stringResource(confirm.body)) },
+        confirmButton = {
+            TextButton(onClick = {
+                onDone()
+                when (confirm) {
+                    Confirm.Reset -> LinuxSetupService.reset(context)
+                    Confirm.Remove -> graph.appScope.launch { graph.linux.remove() }
+                }
+            }) { Text(stringResource(confirm.action), color = MaterialTheme.colorScheme.error) }
+        },
+        dismissButton = { TextButton(onClick = onDone) { Text(stringResource(R.string.connector_cancel)) } },
+    )
+}
+
+/** Where the space went, as one bar, with the caches clearable. */
+@Composable
+private fun StorageCard(usage: LinuxUsage, onClearCaches: () -> Unit) {
+    val context = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val parts = listOf(
+        Triple(R.string.linux_storage_base, usage.base, colors.primary),
+        Triple(R.string.linux_storage_added, usage.added, colors.tertiary),
+        Triple(R.string.linux_storage_caches, usage.caches, colors.outlineVariant),
+    )
+    Column(
+        Modifier.fillMaxWidth().background(colors.surfaceContainerLow, RoundedCornerShape(WhittleRadius.xl)).padding(WhittleSpace.l),
+        verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
+    ) {
+        Row(Modifier.fillMaxWidth().height(WhittleSpace.m).clip(CircleShape), horizontalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
+            parts.filter { it.second > 0 }.forEach { (_, bytes, color) ->
+                Box(Modifier.weight(bytes.toFloat().coerceAtLeast(MIN_WEIGHT)).fillMaxHeight().background(color))
+            }
+        }
+        parts.forEach { (label, bytes, color) ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
+                Box(Modifier.size(WhittleSpace.m).background(color, RoundedCornerShape(WhittleRadius.xs)))
+                Text(stringResource(label), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                Text(Formatter.formatShortFileSize(context, bytes), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+            }
+        }
+        if (usage.caches > 0) {
+            FilledTonalButton(onClick = onClearCaches) {
+                WhittleIcon("block", size = WhittleSize.Icon.m)
+                Text(stringResource(R.string.linux_clear_caches, Formatter.formatShortFileSize(context, usage.caches)), modifier = Modifier.padding(start = WhittleSpace.s))
+            }
+        }
+    }
+}
+
+/** What the agent has running in Linux right now, with one way to stop it all. */
+@Composable
+private fun RunningRow(names: List<String>, onStopAll: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        Modifier.fillMaxWidth().background(colors.secondaryContainer, RoundedCornerShape(WhittleRadius.l)).padding(start = WhittleSpace.l, end = WhittleSpace.s, top = WhittleSpace.s, bottom = WhittleSpace.s),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m),
+    ) {
+        Box(Modifier.size(WhittleSpace.s).background(colors.primary, CircleShape))
+        Column(Modifier.weight(1f)) {
+            Text(pluralStringResource(R.plurals.linux_processes_running, names.size, names.size), style = MaterialTheme.typography.titleSmall, color = colors.onSecondaryContainer)
+            Text(names.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = colors.onSecondaryContainer, maxLines = 1)
+        }
+        TextButton(onClick = onStopAll) { Text(stringResource(R.string.notify_stop_all)) }
     }
 }
 
@@ -304,6 +387,8 @@ private fun SetUpButton(graph: AppGraph, label: Int = R.string.linux_set_up) {
 private fun freeBytes(context: Context): Long = StatFs(context.filesDir.path).availableBytes
 
 private const val MANAGE_ROWS = 3
+/** Keeps a small part visible in the bar. */
+private const val MIN_WEIGHT = 1f
 private const val PERCENT = 100f
 private val FACT_ICONS = listOf("download", "folder_zip", "folder")
 private val STEP_ICONS = mapOf(

@@ -30,13 +30,8 @@ material3 = "1.5.0-beta01"
 activityCompose = "1.12.4"
 lifecycle = "2.10.0"
 
-# App assets
-# esbuild's WebAssembly build bundles the agent's web apps on the phone. The integrity is the npm
-# registry's dist.integrity for exactly this version; change both together.
-esbuildWasm = "0.28.2"
 # Reads the xz-compressed Termux packages the on-phone tools come from (see app/termux-runtimes.json).
 xz = "1.10"
-esbuildWasmIntegrity = "sha512-GccVwhv3mmOUVQHCQm2Ox/rby8n/EqUwvZxE6Pjfikrq/lWw9g9WX/u9EykWnpot3Ko6j426DgQdea2xWKIAQA=="
 
 [libraries]
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
@@ -71,8 +66,6 @@ androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lif
 # Build logic
 xz = { group = "org.tukaani", name = "xz", version.ref = "xz" }
 android-gradle-plugin = { group = "com.android.tools.build", name = "gradle", version.ref = "agp" }
-# Signs apps exported from Whittle on the phone (APK Signature Scheme v2/v3); the same library apksigner uses.
-apksig = { group = "com.android.tools.build", name = "apksig", version.ref = "agp" }
 kotlin-gradle-plugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
 compose-compiler-gradle-plugin = { group = "org.jetbrains.kotlin", name = "compose-compiler-gradle-plugin", version.ref = "kotlin" }
 

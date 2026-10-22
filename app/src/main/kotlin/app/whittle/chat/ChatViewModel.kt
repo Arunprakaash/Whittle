@@ -9,10 +9,9 @@ import app.whittle.agent.PlanTool
 import app.whittle.agent.PlanStatus
 import app.whittle.agent.PlanItem
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import app.whittle.tools.api.ToolId
 import app.whittle.tools.api.ToolOrigin
-import app.whittle.tools.workspace.BuildWebAppTool
-import app.whittle.apps.AppRef
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.whittle.AppGraph
@@ -36,6 +35,8 @@ import app.whittle.policy.PolicyDecision
 import app.whittle.policy.RunMode
 import app.whittle.storage.chats.ChatId
 import app.whittle.tools.api.WorkspaceId
+import app.whittle.tools.workspace.ProcessInfo
+import app.whittle.tools.workspace.StartProcessTool
 import app.whittle.tools.presentation.StepText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -77,7 +78,6 @@ data class ChatState(
     val chats: List<ChatListItem> = emptyList(),
     val currentChat: ChatId? = null,
     /** Apps the agent made, across every chat, newest chat first. */
-    val apps: List<AppListItem> = emptyList(),
     /** Goes up whenever a tool finishes in this chat, so an open app reloads after the agent edits it. */
     val workspaceRevision: Int = 0,
 ) {
@@ -299,7 +299,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         }
     }
 
-    /** Settings > Delete all chats: every chat, its saved tasks and its workspace files and apps. */
+    /** Settings > Delete all chats: every chat, its saved tasks and its workspace files. */
     fun deleteAllChats() {
         stopWithoutSaving()
         viewModelScope.launch { show(id = null, document = null) }
@@ -314,6 +314,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val document = graph.chats.load(id).getOrNull()?.let { decode(it.document) }
         graph.chats.delete(id)
         document?.let { graph.checkpoints.delete(it.runIds + listOfNotNull(it.activeRunId)) }
+        graph.processes.stopAll(WorkspaceId(id.value))
+        graph.processes.clear(WorkspaceId(id.value))
         graph.workspaces.delete(WorkspaceId(id.value))
     }
 
@@ -369,15 +371,13 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private fun refreshChats() {
         graph.appScope.launch {
             val summaries = graph.chats.list().getOrNull() ?: return@launch
-            // Each chat is read once: for its apps, and for the title of chats saved before titles were stored.
+            // Chats saved before titles were stored get theirs from the document.
             val loaded = summaries.map { summary ->
                 val document = graph.chats.load(summary.id).getOrNull()?.let { decode(it.document) }
                 val title = summary.title ?: document?.title
                 ChatListItem(summary.id, title?.takeIf { it.isNotBlank() }, summary.updatedAtMillis, summary.pinned) to document
             }
-            val apps = AppIndex.from(loaded.mapNotNull { (chat, document) -> document?.let { chat to it } })
-                .filter { graph.apps.exists(it.ref) }
-            _state.update { it.copy(chats = loaded.map { (chat, _) -> chat }, apps = apps) }
+            _state.update { it.copy(chats = loaded.map { (chat, _) -> chat }) }
         }
     }
 
@@ -420,7 +420,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             is RunEvent.HostedToolStarted -> onHostedToolStarted(event)
             is RunEvent.HostedToolFinished -> onHostedToolFinished(event)
             is RunEvent.DecisionRequested -> onDecisionRequested(event)
-            is RunEvent.DecisionResolved, is RunEvent.QuestionAnswered -> Unit // The card already shows the user's choice.
+            is RunEvent.DecisionResolved -> onDecisionResolved(event)
+            is RunEvent.QuestionAnswered -> Unit // The card already shows the user's choice.
             is RunEvent.CapabilityRequested -> onCapabilityRequested(event)
             is RunEvent.Completed -> onCompleted()
             is RunEvent.Paused -> when (event.reason) {
@@ -460,6 +461,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
 
     private fun onToolCallFinished(event: RunEvent.ToolCallFinished) {
         val id = event.result.toolCallId.value
+        // A server that ended at once still gets its card: its output and Ask to fix are on it.
+        if (callTools[id] == StartProcessTool.DEFINITION.id.value) showProcess(event.result.content, stepArguments[id] ?: EMPTY_ARGUMENTS)
         if (id in parkedCalls || id in planCalls) return
         val text = stepTexts[id]
         updateStep(id) { step ->
@@ -476,8 +479,59 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         if (!event.result.isError) {
             _haptics.tryEmit(WhittleHaptic.StepDone)
             _state.update { it.copy(workspaceRevision = it.workspaceRevision + 1) }
-            if (callTools[id] == BuildWebAppTool.DEFINITION.id.value) showApp(event.result.content)
         }
+    }
+
+    /** start_process replied: the process gets a card, the one card per name in this chat. */
+    /** The card already shows the user's choice; a server started from it still needs its own card. */
+    private fun onDecisionResolved(event: RunEvent.DecisionResolved) {
+        val output = event.output ?: return
+        if (event.decision.toolId != StartProcessTool.DEFINITION.id) return
+        showProcess(output.content, arguments(event.decision.toolCall.argumentsJson))
+    }
+
+    private fun showProcess(result: String, arguments: JsonObject) {
+        val fields = arguments(result)
+        val processId = (fields[PROCESS_ID] as? JsonPrimitive)?.contentOrNull ?: return
+        val name = (fields[PROCESS_NAME] as? JsonPrimitive)?.contentOrNull ?: return
+        val command = (arguments[PROCESS_COMMAND] as? JsonPrimitive)?.contentOrNull.orEmpty()
+        val port = (fields[PROCESS_PORT] as? JsonPrimitive)?.intOrNull
+        _state.update { state ->
+            val shown = state.items.any { it is ThreadItem.Process && it.name == name }
+            val items = if (shown) {
+                state.items.map { if (it is ThreadItem.Process && it.name == name) it.copy(processId = processId, command = command, port = port) else it }
+            } else {
+                state.items + ThreadItem.Process(key(), processId, name, command, port)
+            }
+            state.copy(items = items)
+        }
+    }
+
+    /** Every process this run of the app knows; a card whose process isn't here isn't running. */
+    val processes: StateFlow<List<ProcessInfo>> get() = graph.processes.processes
+
+    fun processOutput(item: ThreadItem.Process, lines: Int): String = graph.processes.output(item.processId, lines).orEmpty()
+
+    fun stopProcess(item: ThreadItem.Process) {
+        graph.appScope.launch { graph.processes.stop(item.processId) }
+    }
+
+    /** Runs the card's command again, in the same folder; the card follows the new process. */
+    fun restartProcess(item: ThreadItem.Process) {
+        val chat = chatId ?: return
+        graph.appScope.launch {
+            val directory = graph.workspaces.directory(WorkspaceId(chat.value)).getOrNull() ?: return@launch
+            val started = graph.processes.start(WorkspaceId(chat.value), directory, item.name, item.command, item.port).getOrNull() ?: return@launch
+            _state.update { state ->
+                state.copy(items = state.items.map { if (it is ThreadItem.Process && it.key == item.key) it.copy(processId = started.id, port = started.port ?: it.port) else it })
+            }
+        }
+    }
+
+    /** Sends [text] as the user's message, as if typed: Ask to fix on a card that stopped. */
+    fun sendText(text: String) {
+        _state.update { it.copy(input = text) }
+        send()
     }
 
     /** The current run's plan replaces the previous one in place; the status line follows the active step. */
@@ -490,27 +544,6 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         }
         val active = steps.firstOrNull { it.status == PlanStatus.IN_PROGRESS }?.content
         state.copy(items = items, status = state.status?.copy(plan = steps, verb = active ?: state.status.verb))
-    }
-
-    /**
-     * A build succeeded: the app gets a card pointing at its page in this chat's workspace. Building it again
-     * keeps the one card (an open app reloads by itself), renamed if the agent renamed the app.
-     */
-    private fun showApp(result: String) {
-        val chat = chatId ?: return
-        val fields = arguments(result)
-        val path = (fields[BuildWebAppTool.PAGE] as? JsonPrimitive)?.contentOrNull ?: return
-        val name = (fields[BuildWebAppTool.NAME] as? JsonPrimitive)?.contentOrNull ?: return
-        val ref = AppRef(workspace = chat.value, path = path, title = name)
-        _state.update { state ->
-            val shown = state.items.any { it is ThreadItem.App && it.ref.path == path }
-            val items = if (shown) {
-                state.items.map { if (it is ThreadItem.App && it.ref.path == path) it.copy(ref = ref) else it }
-            } else {
-                state.items + ThreadItem.App(key(), ref)
-            }
-            state.copy(items = items)
-        }
     }
 
     /** Provider-run tools, like web search, show as steps like any other. Policy allowed them before the model call. */
@@ -792,6 +825,11 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         const val MILLIS_PER_SECOND = 1000L
         val KEY_REJECTED_CODES = setOf(401, 403)
         val EMPTY_ARGUMENTS = JsonObject(emptyMap())
+        // start_process's reply fields and argument (see ProcessTools).
+        const val PROCESS_ID = "id"
+        const val PROCESS_NAME = "name"
+        const val PROCESS_PORT = "port"
+        const val PROCESS_COMMAND = "command"
         const val HOSTED_ACTION_SEPARATOR = "."
         const val SAVE_DEBOUNCE_MILLIS = 400L
         const val INSPECTION_MAX_CHARS = 4_000

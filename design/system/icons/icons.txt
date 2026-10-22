@@ -4,6 +4,8 @@ add
 arrow_back
 arrow_downward
 arrow_upward
+battery_alert
+block
 bookmark_add
 bookmark_remove
 bookmarks
@@ -50,12 +52,16 @@ memory
 menu_book
 mic
 more_vert
+notes
 notifications
 open_in_new
 package_2
 payments
 person
 person_search
+play_arrow
+power_settings_new
+preview
 push_pin:fill
 question_mark
 radio_button_checked

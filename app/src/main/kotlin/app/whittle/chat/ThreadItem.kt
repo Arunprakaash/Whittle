@@ -1,7 +1,6 @@
 package app.whittle.chat
 
 import app.whittle.agent.PlanItem
-import app.whittle.apps.AppRef
 import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.tools.api.CapabilityId
@@ -84,11 +83,19 @@ sealed interface ThreadItem {
     @SerialName("plan")
     data class Plan(override val key: String, val steps: List<PlanItem>) : ThreadItem
 
-    /** A web app the agent built, shown as a card that opens it. */
+    /**
+     * A server or watcher the agent started in Linux: a live card while it runs, with Preview once it serves. What
+     * started it is kept, so Restart works after the app restarts, when the process itself is gone.
+     */
     @Serializable
-    // Saved chats name it "artifact", from before apps were called apps; the name stays so they still load.
-    @SerialName("artifact")
-    data class App(override val key: String, val ref: AppRef) : ThreadItem
+    @SerialName("process")
+    data class Process(
+        override val key: String,
+        val processId: String,
+        val name: String,
+        val command: String,
+        val port: Int?,
+    ) : ThreadItem
 
     /** The pages the answer above cites, shown as a pill that opens into a list. */
     @Serializable

@@ -6,12 +6,10 @@ import app.whittle.connectors.mcp.ConnectorsConfig
 import app.whittle.core.common.Outcome
 import app.whittle.core.config.ConfigFiles
 import app.whittle.core.config.ConfigLoader
-import app.whittle.core.config.PromptTemplate
 import app.whittle.design.icons.MaterialSymbols
 import app.whittle.linux.LinuxConfig
 import app.whittle.settings.AppDefaults
 import app.whittle.tools.presentation.ToolPresentationConfig
-import app.whittle.tools.workspace.WebBuildConfig
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -36,13 +34,6 @@ class BundledAppConfigTest {
         assertTrue(Regex("^[0-9a-f]{64}$").matches(image.sha256), "the image must be pinned by its SHA-256")
         assertTrue(image.url.startsWith("https://"))
         assertTrue(linux.workspaceMount !in linux.deviceMounts)
-    }
-
-    @Test
-    fun `web build config loads and its page template takes a title and an entry`() {
-        assertIs<Outcome.Success<WebBuildConfig>>(loader.load(WebBuildConfig.FILE, WebBuildConfig.serializer(), WebBuildConfig.SCHEMA_VERSION))
-        val template = assertIs<Outcome.Success<PromptTemplate>>(PromptTemplate.load(BundledConfigSource(), WebBuildConfig.PAGE_TEMPLATE)).value
-        assertEquals(setOf("title", "entry"), template.placeholders)
     }
 
     @Test

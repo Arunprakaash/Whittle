@@ -42,7 +42,7 @@ abstract class WorkspaceTool(protected val workspaces: Workspaces) : Tool {
 }
 
 /** A run's view of its workspace. */
-class WorkspaceAccess(private val id: app.whittle.tools.api.WorkspaceId, private val workspaces: Workspaces) {
+class WorkspaceAccess(val id: app.whittle.tools.api.WorkspaceId, private val workspaces: Workspaces) {
     fun root(): Outcome<File> = workspaces.directory(id)
 
     fun file(path: String): Outcome<File> = workspaces.locate(id, path)

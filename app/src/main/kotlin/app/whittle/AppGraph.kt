@@ -7,7 +7,6 @@ import app.whittle.settings.VoiceDefaults
 import app.whittle.connectors.CustomConnectorStore
 import app.whittle.connectors.mcp.ConnectorsConfig
 import app.whittle.connectors.Connectors
-import app.whittle.export.AppExporter
 import app.whittle.linux.LinuxConfig
 import app.whittle.linux.LinuxWorkspace
 import app.whittle.design.theme.WhittleAppearance
@@ -71,22 +70,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import app.whittle.tools.workspace.ShellEnvironment
-import app.whittle.tools.workspace.PackageCdn
+import app.whittle.tools.workspace.ProcessManager
 import app.whittle.tools.workspace.TerminalConfig
-import app.whittle.tools.workspace.WebBuildConfig
 import app.whittle.tools.workspace.WorkspaceToolSet
 import app.whittle.tools.workspace.Workspaces
 import kotlinx.serialization.KSerializer
 import java.io.File
-import app.whittle.apps.Apps
 import app.whittle.runtimes.ToolRuntime
 import app.whittle.web.SiteIconLoader
-import app.whittle.webbuild.BuildRoutes
-import app.whittle.webbuild.RemoteModules
-import app.whittle.webbuild.WebViewBundler
-import okhttp3.Cache
 import okhttp3.OkHttpClient
-import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -167,6 +159,9 @@ class AppGraph(context: Context) {
         maxOutputChars = terminalLimits.maxOutputChars,
     )
 
+    /** Servers and watchers the agent starts; they run in Linux until stopped, or until the app ends. */
+    val processes by lazy { ProcessManager(linux.environment, terminalLimits.processes, appScope) }
+
     /** One folder per chat, in the app's private storage, mounted into Linux for its commands and file tools. */
     val workspaces = Workspaces(File(context.filesDir, appDefaults.storage.workspacesDirectoryName), linux.fileSystem)
 
@@ -182,7 +177,6 @@ class AppGraph(context: Context) {
 
     val modelLister = OpenAiCompatibleModelLister(httpClient, modelTrust, modelDefaults.fallbackCapabilities)
     val keyVerifier = ApiKeyVerifier(httpClient)
-    val apps = Apps(context, workspaces, appDefaults.apps)
     /** Services the user connects with their own account; their tools join the agent's once signed in. */
     val connectors = Connectors(
         secrets = secrets,
@@ -195,9 +189,8 @@ class AppGraph(context: Context) {
         custom = CustomConnectorStore(context, appDefaults.storage.customConnectorsStoreName),
         loopbackPage = PromptTemplate.load(configSource, ConfigFiles.loopbackSignInPage).orThrow(ConfigFiles.loopbackSignInPage),
     )
-    val appExporter = AppExporter(context, workspaces, appDefaults.export, context.applicationInfo.minSdkVersion)
-    val appSheetHeight: Float get() = appDefaults.apps.sheetHeightFraction
     val voiceDefaults: VoiceDefaults get() = appDefaults.voice
+    val previewSheetHeight: Float get() = appDefaults.preview.sheetHeightFraction
     val siteIcons = SiteIconLoader(httpClient, File(context.cacheDir, appDefaults.siteIcons.cacheDirectoryName), appDefaults.siteIcons)
     val presenter = ToolPresenter(load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION))
     val inbox = RunInbox()
@@ -215,7 +208,7 @@ class AppGraph(context: Context) {
     )
 
     /** Every tool a task can use: the built-in ones and those of the user's connections. */
-    val tools = ToolRegistry(ToolCatalog.create(context, clock, httpClient, workspaceTools(context), harness.agent.maxPlanItems, connectors, memory, agentMessages), connectors::tools)
+    val tools = ToolRegistry(ToolCatalog.create(context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, agentMessages), connectors::tools)
 
     val runner = AgentRunner(
         adapters = ModelAdapterRegistry(setOf(OpenAiCompatibleAdapter(httpClient, idGenerator), OpenAiResponsesAdapter(httpClient))),
@@ -235,37 +228,12 @@ class AppGraph(context: Context) {
     )
 
     /** The terminal and file tools: one folder per chat, worked on inside Linux. */
-    private fun workspaceTools(context: Context): List<Tool> = WorkspaceToolSet.create(
+    private fun workspaceTools(): List<Tool> = WorkspaceToolSet.create(
         workspaces = workspaces,
         environment = linux.environment,
         config = terminalLimits,
-        webBuild = webBuild(context),
+        processes = processes,
     )
-
-    /** build_web_app: esbuild in a hidden WebView, with npm packages from the CDN cached on the phone. */
-    private fun webBuild(context: Context): WorkspaceToolSet.WebBuild {
-        val config = load(WebBuildConfig.FILE, WebBuildConfig.serializer(), WebBuildConfig.SCHEMA_VERSION)
-        val cdn = PackageCdn(config.packages)
-        val moduleClient = httpClient.newBuilder()
-            .cache(Cache(File(context.cacheDir, config.host.cacheDirectoryName), config.host.cacheMaxBytes))
-            .build()
-        val routes = BuildRoutes(
-            assets = { path ->
-                try {
-                    context.assets.open("${config.host.assetDirectory}/$path")
-                } catch (exception: IOException) {
-                    null
-                }
-            },
-            cdn = cdn,
-            remote = RemoteModules(moduleClient, config.packages.maxModuleBytes, cdn::allows),
-        )
-        return WorkspaceToolSet.WebBuild(
-            bundler = WebViewBundler(context, config, routes, appScope),
-            config = config,
-            pageTemplate = PromptTemplate.load(configSource, WebBuildConfig.PAGE_TEMPLATE).orThrow(WebBuildConfig.PAGE_TEMPLATE),
-        )
-    }
 
     /**
      * PostHog only when the build carries a project key. The user's Settings decide what leaves the phone:

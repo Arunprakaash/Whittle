@@ -4,5 +4,13 @@
   "maxTimeoutSeconds": 300,
   "maxOutputChars": 20000,
   "maxFileChars": 200000,
-  "maxListedEntries": 200
+  "maxListedEntries": 200,
+  "processes": {
+    "maxPerChat": 3,
+    "startWaitSeconds": 20,
+    "noPortWaitSeconds": 4,
+    "keptOutputChars": 100000,
+    "readLines": 60,
+    "stopGraceMillis": 1500
+  }
 }

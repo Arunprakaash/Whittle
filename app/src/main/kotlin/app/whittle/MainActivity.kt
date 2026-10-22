@@ -16,13 +16,10 @@ import android.graphics.Color
 import androidx.activity.SystemBarStyle
 import androidx.compose.runtime.mutableIntStateOf
 import app.whittle.connect.ModelPickerScreen
-import app.whittle.chat.AppsScreen
 import androidx.compose.runtime.LaunchedEffect
 import app.whittle.background.rememberNotificationPermissionRequest
 import app.whittle.settings.SettingsScreen
 import app.whittle.design.theme.WhittleAppearance
-import app.whittle.apps.AppScreen
-import app.whittle.apps.AppRef
 import app.whittle.design.components.LocalSiteIcons
 import androidx.compose.runtime.CompositionLocalProvider
 import android.os.Bundle
@@ -104,8 +101,6 @@ class MainActivity : ComponentActivity() {
                             }
                             val state = chat.state.collectAsStateWithLifecycle().value
                             var showingAllChats by rememberSaveable { mutableStateOf(false) }
-                            var showingApps by rememberSaveable { mutableStateOf(false) }
-                            var fullScreenApp by remember { mutableStateOf<AppRef?>(null) }
                             var showingSettings by rememberSaveable { mutableStateOf(false) }
                             var pickerOpenings by rememberSaveable { mutableIntStateOf(0) }
                             var showingModelPicker by rememberSaveable { mutableStateOf(false) }
@@ -115,7 +110,6 @@ class MainActivity : ComponentActivity() {
                             var toolsOf by rememberSaveable { mutableStateOf<String?>(null) }
                             val connections by graph.connectors.all.collectAsStateWithLifecycle()
                             val toolsConnection = toolsOf?.let { id -> connections.firstOrNull { it.server.id == id } }
-                            val app = fullScreenApp
                             if (showingMemory) {
                                 MemoryScreen(graph, onBack = { showingMemory = false; showingSettings = true })
                             } else if (showingLinux) {
@@ -146,14 +140,6 @@ class MainActivity : ComponentActivity() {
                                     onMemory = { showingSettings = false; showingMemory = true },
                                     onLinux = { showingSettings = false; showingLinux = true },
                                 )
-                            } else if (app != null) {
-                                AppScreen(app, graph.apps, state.workspaceRevision, onBack = { fullScreenApp = null })
-                            } else if (showingApps) {
-                                AppsScreen(
-                                    apps = state.apps,
-                                    onBack = { showingApps = false },
-                                    onOpen = { fullScreenApp = it },
-                                )
                             } else if (showingAllChats) {
                                 BackHandler { showingAllChats = false }
                                 AllChatsScreen(
@@ -167,13 +153,10 @@ class MainActivity : ComponentActivity() {
                                     state = state,
                                     viewModel = chat,
                                     sidebarMaxChats = graph.sidebarMaxChats,
-                                    apps = graph.apps,
-                                    appSheetHeight = graph.appSheetHeight,
                                     voiceDefaults = graph.voiceDefaults,
+                                    previewHeight = graph.previewSheetHeight,
                                     onViewAllChats = { showingAllChats = true },
-                                    onOpenAppFullScreen = { fullScreenApp = it },
                                     onOpenSettings = { showingSettings = true },
-                                    onOpenApps = { showingApps = true },
                                     avatarSeed = settings?.avatarSeed,
                                     onOpenProjects = {
                                         if (!WorkspaceDocumentsProvider.open(this@MainActivity)) {

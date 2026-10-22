@@ -1,7 +1,7 @@
 # Linux workspace
 
-Status: phase 1 (below) is built. A spike on 2026-10-22 (emulator, Android 16 / API 36, arm64) proved every step
-works; phases 2 and 3 are plans.
+Status: phases 1 and 2 (below) are built. A spike on 2026-10-22 (emulator, Android 16 / API 36, arm64) proved every
+step works; phase 3 is a plan.
 
 `run_command` used to run Termux's Android builds of Node, Python and git, shipped in the APK. That covered scripts,
 but not what a coding agent expects from a computer: no apt, no glibc, no compiler, package commands had to go
@@ -13,7 +13,7 @@ Everything still runs on the phone: no server, no account.
 | Piece | Where it runs |
 | --- | --- |
 | `run_command`, package installs, builds, servers | Inside Ubuntu, behind the guest sandbox |
-| `build_web_app` | Inside Ubuntu (`npm install`, `vite build`) from phase 2. esbuild-wasm until then |
+| Apps | Vite projects the agent runs with `start_process`, shown in the live preview. There's no separate build tool, no saved apps and no APK export |
 | `read_file`, `write_file`, `edit_file`, `list_files` | Kotlin, on Linux paths mapped into the Ubuntu folder (see File tools) |
 | `web_fetch`, MCP connections, memory, policy, APK export | Kotlin, unchanged: they need Android's keystore, cards and provenance |
 
@@ -185,8 +185,8 @@ policy engine. That means a card for untrusted models and tainted runs.
   - console messages, so the agent can read errors.
 - The network security config allows cleartext to 127.0.0.1 and localhost only.
 - Vite's hot reload uses a WebSocket on the same port. The spike checked serving but not hot reload; check it.
-- `build_web_app` stays for apps you keep and install. A later "Save as app" can take a dev project through
-  `vite build` into a normal Whittle app.
+- Apps aren't saved or exported: an app is its project folder plus the server that runs it. When the server stops
+  (stopped, or closed with the app), the card or the agent starts it again.
 
 ## Setup flow (prototype in HTML first)
 
@@ -202,8 +202,8 @@ policy engine. That means a card for untrusted models and tainted runs.
   2. Unpack: Kotlin gunzips the download into Termux's `tar`, run under `proot --link2symlink -0` so hard links and
      root-owned files unpack as the app (the spike's method).
   3. Configure: `resolv.conf`, `APT::Sandbox::User`, locale, `/workspace`, the guest sandbox.
-  4. Base packages: `ca-certificates curl git`. Node, Python and compilers come later with apt, when a task needs
-     them.
+  4. Base packages: `ca-certificates curl git xz-utils`, then Node.js LTS (pinned, checked by SHA-256) for web apps.
+     Python and compilers come later with apt, when a task needs them.
 - **Runs under the foreground notification** with progress and cancel, so it survives switching apps.
 - **Manage:** see the space used, Repair (re-run configure), Reset (fresh image, workspaces kept), Remove (frees the
   space; commands are unavailable until it's set up again).
@@ -212,9 +212,10 @@ policy engine. That means a card for untrusted models and tainted runs.
 ## Size
 
 - **APK:** dropping the Termux runtimes and shipping only proot, tar and their libraries took the release APK from
-  69 MB to 8.9 MB. Most of what's left is esbuild's WebAssembly build, which phase 2 removes.
+  69 MB to 8.9 MB. Phase 2 removed esbuild's WebAssembly build and APK export with it.
 - **Setup (measured on the emulator):** 56 s from scratch, leaving 416 MB (Ubuntu, apt's package lists, git and
-  curl; apt's download cache is cleaned).
+  curl; apt's download cache is cleaned). Node.js, in base setup since phase 2, adds about 196 MB and 20 s, so
+  `setupSizeBytes` says 615 MB.
 - **On the phone:**
   - 120 MB after setup;
   - about 700 MB with Node;
@@ -255,8 +256,9 @@ proot is pinned in `termux-runtimes.*.lock.json` like the other runtimes.
    - file tools on Linux paths;
    - DNS;
    - device tests in the app's own process.
-2. **Processes and preview:** the four process tools, the run notification, live preview in the app viewer, and
-   `build_web_app` on real npm and Vite.
+2. **Processes and preview:** the four process tools, the process card, the notification with Stop all, the live
+   preview with its console, Node LTS in base setup, and Settings' storage breakdown. `build_web_app`, saved apps
+   and APK export were removed: apps are servers.
 3. **Polish:** loopback-only network in proot, an interactive terminal screen (a PTY with stdin), and optional
    presets (Node, Python, a C toolchain).
 

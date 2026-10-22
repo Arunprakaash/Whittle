@@ -56,8 +56,6 @@ fun ChatSidebar(
     onDelete: (ChatId) -> Unit,
     onViewAll: () -> Unit,
     onOpenSettings: () -> Unit,
-    appCount: Int,
-    onOpenApps: () -> Unit,
     /** Draws the user's avatar; until it's made, a plain person icon stands in. */
     avatarSeed: Long?,
     onOpenProjects: () -> Unit,
@@ -77,13 +75,6 @@ fun ChatSidebar(
                 selected = false,
                 onClick = { haptics.perform(WhittleHaptic.Tap); onOpenProjects() },
                 modifier = Modifier.padding(top = WhittleSpace.m),
-            )
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.apps_title), style = MaterialTheme.typography.titleSmall) },
-                icon = { WhittleIcon("deployed_code", size = WhittleSize.Icon.xl) },
-                badge = { if (appCount > 0) Text(appCount.toString(), style = MaterialTheme.typography.labelLarge) },
-                selected = false,
-                onClick = { haptics.perform(WhittleHaptic.Tap); onOpenApps() },
             )
             HorizontalDivider(Modifier.padding(horizontal = WhittleSpace.s, vertical = WhittleSpace.s), color = colors.outlineVariant)
             if (chats.isEmpty()) {

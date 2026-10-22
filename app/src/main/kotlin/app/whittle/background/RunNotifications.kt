@@ -2,6 +2,7 @@ package app.whittle.background
 
 import app.whittle.linux.LinuxState
 import app.whittle.linux.LinuxSteps
+import app.whittle.tools.workspace.ProcessInfo
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -114,6 +115,27 @@ class RunNotifications(private val context: Context) {
         manager.notify(id, notification)
     }
 
+    /** Servers the agent started, one line each, with Stop all; the notification that keeps them running. */
+    fun processes(live: List<ProcessInfo>): Notification {
+        val lines = live.map { info ->
+            info.port?.takeIf { info.listening }?.let { context.getString(R.string.notify_process_live, info.name, it) }
+                ?: context.getString(R.string.notify_process_running, info.name)
+        }
+        return Notification.Builder(context, CHANNEL_RUNNING)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.resources.getQuantityString(R.plurals.notify_processes_title, live.size, live.size))
+            .setContentText(lines.joinToString(" · "))
+            .setStyle(Notification.InboxStyle().also { style -> lines.forEach(style::addLine) })
+            .setContentIntent(openApp())
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setCategory(Notification.CATEGORY_SERVICE)
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicVersion(CHANNEL_RUNNING, R.string.notify_processes_public))
+            .addAction(Notification.Action.Builder(null, context.getString(R.string.notify_stop_all), stopAllProcesses()).build())
+            .build()
+    }
+
     /** Linux setup while it downloads, unpacks and installs: a quiet line with real progress where there is some. */
     fun linuxSetup(state: LinuxState.SettingUp, imageName: String): Notification =
         Notification.Builder(context, CHANNEL_RUNNING)
@@ -142,6 +164,13 @@ class RunNotifications(private val context: Context) {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
+    private fun stopAllProcesses(): PendingIntent = PendingIntent.getService(
+        context,
+        REQUEST_STOP_ALL,
+        Intent(context, ProcessesService::class.java).setAction(ProcessesService.ACTION_STOP_ALL),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
     private fun stopRun(): PendingIntent = PendingIntent.getService(
         context,
         REQUEST_STOP,
@@ -152,6 +181,7 @@ class RunNotifications(private val context: Context) {
     companion object {
         const val ID_RUNNING = 1
         const val ID_LINUX_SETUP = 4
+        const val ID_PROCESSES = 5
         private const val PERCENT = 100
         private const val ID_FINISHED = 2
         private const val ID_NEEDS_YOU = 3
@@ -159,5 +189,6 @@ class RunNotifications(private val context: Context) {
         private const val CHANNEL_UPDATES = "task_updates"
         private const val REQUEST_OPEN = 1
         private const val REQUEST_STOP = 2
+        private const val REQUEST_STOP_ALL = 3
     }
 }
