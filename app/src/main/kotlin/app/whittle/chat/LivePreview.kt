@@ -50,7 +50,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.whittle.R
+import app.whittle.design.components.TopBarAction
+import app.whittle.design.components.TopBarActionGroup
+import app.whittle.design.components.TopBarButton
+import app.whittle.design.components.TopBarGroupAction
 import app.whittle.design.components.WhittleIcon
+import app.whittle.design.components.connectedShape
 import app.whittle.design.tokens.WhittleRadius
 import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
@@ -83,35 +88,36 @@ fun LivePreviewSheet(item: ThreadItem.Process, viewModel: ChatViewModel, heightF
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = colors.surface,
-        dragHandle = null,
     ) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(heightFraction)) {
             Row(
-                Modifier.fillMaxWidth().padding(start = WhittleSpace.l, end = WhittleSpace.xs, top = WhittleSpace.s, bottom = WhittleSpace.xs),
+                Modifier.fillMaxWidth().padding(start = WhittleSpace.l, end = WhittleSpace.l, bottom = WhittleSpace.s),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(Modifier.weight(1f)) {
-                    Text(item.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.xs)) {
-                        Box(Modifier.size(WhittleSpace.s).background(if (live) colors.primary else colors.outline, CircleShape))
-                        Text(
-                            (if (live) stringResource(R.string.process_pill_live, info?.port ?: 0) else stringResource(R.string.process_pill_stopped)),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontFamily = FontFamily.Monospace,
-                            color = colors.onSurfaceVariant,
-                        )
+                // The name alone: the actions show whether it runs, and Open in browser has the address.
+                Text(item.name, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                // While it runs, its actions are one connected group; stopped, the Restart card below has the only one.
+                if (live) {
+                    val actions = listOfNotNull(
+                        PreviewAction("refresh", R.string.preview_reload) { reloads++ },
+                        url?.let { address ->
+                            PreviewAction("open_in_new", R.string.preview_open_browser) {
+                                try {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(address)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                } catch (exception: ActivityNotFoundException) {
+                                    Toast.makeText(context, noBrowser, Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        PreviewAction("stop", R.string.preview_stop) { viewModel.stopProcess(item) },
+                    )
+                    TopBarActionGroup(Modifier.padding(end = WhittleSpace.s)) {
+                        actions.forEachIndexed { index, action ->
+                            TopBarAction(action.icon, stringResource(action.label), action.onClick, shape = connectedShape(index, actions.size), modifier = TopBarGroupAction)
+                        }
                     }
                 }
-                Bar("refresh", R.string.preview_reload, enabled = live) { reloads++ }
-                Bar("open_in_new", R.string.preview_open_browser, enabled = live && url != null) {
-                    try {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    } catch (exception: ActivityNotFoundException) {
-                        Toast.makeText(context, noBrowser, Toast.LENGTH_SHORT).show()
-                    }
-                }
-                if (live) Bar("stop", R.string.preview_stop) { viewModel.stopProcess(item) }
-                Bar("close", R.string.preview_close, onClick = onDismiss)
+                TopBarButton("close", stringResource(R.string.preview_close), onClick = onDismiss)
             }
             Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = WhittleSpace.s)) {
                 if (url != null) {
@@ -176,6 +182,9 @@ private fun PreviewPage(url: String, reloads: Int, live: Boolean, onConsole: (Co
 }
 
 /** What the web view last loaded, so an update reloads only when asked. */
+/** One action in the preview's top bar group. */
+private class PreviewAction(val icon: String, val label: Int, val onClick: () -> Unit)
+
 private data class PageState(val url: String, val reloads: Int)
 
 @Composable
