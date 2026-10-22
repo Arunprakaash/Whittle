@@ -200,10 +200,11 @@ private fun ConfirmDialog(confirm: Confirm, graph: AppGraph, onDone: () -> Unit)
 private fun StorageCard(usage: LinuxUsage, onClearCaches: () -> Unit) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
+    // One color at three strengths: the parts stay apart by lightness, whatever colors the wallpaper gives.
     val parts = listOf(
         Triple(R.string.linux_storage_base, usage.base, colors.primary),
-        Triple(R.string.linux_storage_added, usage.added, colors.tertiary),
-        Triple(R.string.linux_storage_caches, usage.caches, colors.outlineVariant),
+        Triple(R.string.linux_storage_added, usage.added, colors.primary.copy(alpha = ADDED_ALPHA)),
+        Triple(R.string.linux_storage_caches, usage.caches, colors.primary.copy(alpha = CACHES_ALPHA)),
     )
     Column(
         Modifier.fillMaxWidth().background(colors.surfaceContainerLow, RoundedCornerShape(WhittleRadius.xl)).padding(WhittleSpace.l),
@@ -222,7 +223,7 @@ private fun StorageCard(usage: LinuxUsage, onClearCaches: () -> Unit) {
             }
         }
         if (usage.caches > 0) {
-            FilledTonalButton(onClick = onClearCaches) {
+            FilledTonalButton(onClick = onClearCaches, modifier = Modifier.fillMaxWidth()) {
                 WhittleIcon("block", size = WhittleSize.Icon.m)
                 Text(stringResource(R.string.linux_clear_caches, Formatter.formatShortFileSize(context, usage.caches)), modifier = Modifier.padding(start = WhittleSpace.s))
             }
@@ -389,6 +390,8 @@ private fun freeBytes(context: Context): Long = StatFs(context.filesDir.path).av
 private const val MANAGE_ROWS = 3
 /** Keeps a small part visible in the bar. */
 private const val MIN_WEIGHT = 1f
+private const val ADDED_ALPHA = 0.55f
+private const val CACHES_ALPHA = 0.22f
 private const val PERCENT = 100f
 private val FACT_ICONS = listOf("download", "folder_zip", "folder")
 private val STEP_ICONS = mapOf(
