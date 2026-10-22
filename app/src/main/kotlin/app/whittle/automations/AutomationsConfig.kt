@@ -46,11 +46,16 @@ data class AutomationsConfig(
 data class AutomationToolChoice(
     val key: String,
     val icon: String,
+    /** For an automation without a project, which works on the whole workspace. */
     val label: String,
+    /** For one with a project, where file tools reach only that folder; [label] when it makes no difference. */
+    val labelInProject: String? = null,
     val toolIds: List<String>,
     /** On for a new automation. */
     val default: Boolean,
 ) {
+    fun labelFor(project: String?): String = if (project != null) labelInProject ?: label else label
+
     init {
         require(toolIds.isNotEmpty()) { "$key must name at least one tool" }
     }

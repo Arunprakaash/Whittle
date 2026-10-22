@@ -248,15 +248,17 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
 
     /**
      * Starts an automation in a new chat titled [name], unattended: only [preApprovedTools] run without asking.
+     * With a [project], the chat is confined to it: its file tools reach nothing else until the user picks another.
      * The chat it leaves is saved first, as when the user opens another. Null while a task is already running.
      */
-    fun startAutomation(name: String, prompt: String, preApprovedTools: Set<ToolId>): ChatId? {
+    suspend fun startAutomation(name: String, prompt: String, preApprovedTools: Set<ToolId>, project: String?): ChatId? {
         if (activeJob?.isActive == true || _state.value.model == null) return null
         leaveCurrentChat()
-        showFresh()
+        show(id = null, document = null)
         val chat = ChatId(graph.idGenerator.newId())
         chatId = chat
         automationName = name
+        project?.let { graph.chatProjects.confine(WorkspaceId(chat.value), it) }
         start(prompt, RunMode.UNATTENDED, preApprovedTools)
         return chat
     }
@@ -457,19 +459,6 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         savedItems = items
         pendingProject = null
         _state.update { it.copy(items = items, status = null, input = "") }
-        syncProject()
-        refreshProjects()
-    }
-
-    /** Puts a fresh, empty chat on screen at once, as [show] does without a document. */
-    private fun showFresh() {
-        chatId = null
-        automationName = null
-        history = emptyList()
-        runIds = emptyList()
-        savedItems = emptyList()
-        pendingProject = null
-        _state.update { it.copy(items = emptyList(), status = null, input = "") }
         syncProject()
         refreshProjects()
     }

@@ -1,11 +1,6 @@
 package app.whittle
 
 import app.whittle.settings.MemoryScreen
-import android.widget.Toast
-import app.whittle.automations.AutomationsScreen
-import app.whittle.automations.RunNowResult
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
 import android.content.res.Configuration
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.WindowCompat
@@ -26,6 +21,7 @@ import app.whittle.design.theme.WhittleAppearance
 import app.whittle.design.components.LocalSiteIcons
 import androidx.compose.runtime.CompositionLocalProvider
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -38,9 +34,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import app.whittle.automations.AutomationsScreen
+import app.whittle.automations.RunNowResult
 import app.whittle.chat.AllChatsScreen
 import app.whittle.chat.ChatScreen
 import app.whittle.connect.ConnectScreen
@@ -62,6 +61,7 @@ import app.whittle.onboarding.WelcomeScreen
 import app.whittle.linux.LinuxWorkspaceScreen
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -141,8 +141,10 @@ class MainActivity : ComponentActivity() {
                             if (opening != null) {
                                 FilesBrowser(graph, opening, onAsk = chat::sendText, onClose = { files = null })
                             } else if (showingAutomations) {
+                                LaunchedEffect(Unit) { chat.refreshProjects() }
                                 AutomationsScreen(
                                     graph,
+                                    projects = state.projects.map { it.name },
                                     onBack = { showingAutomations = false; showingSettings = true },
                                     onRunNow = { automation ->
                                         scope.launch {

@@ -38,11 +38,20 @@
       "default": false
     },
     {
-      "key": "files",
+      "key": "readFiles",
       "icon": "folder",
-      "label": "Read and write files in its chat's folder",
-      "toolIds": ["list_files", "read_file", "write_file", "edit_file"],
+      "label": "Read files in the workspace",
+      "labelInProject": "Read files in its project",
+      "toolIds": ["list_files", "read_file"],
       "default": true
+    },
+    {
+      "key": "changeFiles",
+      "icon": "edit_document",
+      "label": "Change files anywhere in the workspace, every project",
+      "labelInProject": "Change files in its project",
+      "toolIds": ["write_file", "edit_file"],
+      "default": false
     }
   ]
 }

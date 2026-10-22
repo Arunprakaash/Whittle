@@ -49,6 +49,26 @@ data class AgentMessages(
     val memoryFull: String,
     val memoryForgotten: String,
     val memoryNotFound: String,
+    /** schedule_task saved an automation; [PLACE] is [automationInProject] or [automationInWorkspace]. */
+    val automationScheduled: String,
+    val automationInProject: String,
+    val automationInWorkspace: String,
+    val automationEveryDay: String,
+    val automationWeekdays: String,
+    val automationWeekends: String,
+    /** Stands in for the list of tools an automation may use without asking, when there are none. */
+    val automationNoTools: String,
+    val automationNameEmpty: String,
+    val automationNameTooLong: String,
+    val automationPromptEmpty: String,
+    val automationPromptTooLong: String,
+    val automationTooMany: String,
+    val automationToolNotAllowed: String,
+    val automationProjectInvalid: String,
+    val automationProjectMissing: String,
+    val automationTimeInvalid: String,
+    val automationDaysInvalid: String,
+    val automationSaveFailed: String,
 ) : VersionedConfig {
     init {
         requirePlaceholders(unknownTool, TOOL)
@@ -77,6 +97,24 @@ data class AgentMessages(
         requirePlaceholders(memoryFull, LIMIT)
         requirePlaceholders(memoryForgotten)
         requirePlaceholders(memoryNotFound, ID)
+        requirePlaceholders(automationScheduled, NAME, TIME, DAYS, NEXT, PLACE, TOOLS)
+        requirePlaceholders(automationInProject, PROJECT)
+        requirePlaceholders(automationInWorkspace)
+        requirePlaceholders(automationEveryDay)
+        requirePlaceholders(automationWeekdays)
+        requirePlaceholders(automationWeekends)
+        requirePlaceholders(automationNoTools)
+        requirePlaceholders(automationNameEmpty)
+        requirePlaceholders(automationNameTooLong, LIMIT)
+        requirePlaceholders(automationPromptEmpty)
+        requirePlaceholders(automationPromptTooLong, LIMIT)
+        requirePlaceholders(automationTooMany, LIMIT)
+        requirePlaceholders(automationToolNotAllowed)
+        requirePlaceholders(automationProjectInvalid, PROJECT)
+        requirePlaceholders(automationProjectMissing, PROJECT)
+        requirePlaceholders(automationTimeInvalid)
+        requirePlaceholders(automationDaysInvalid)
+        requirePlaceholders(automationSaveFailed, DETAIL)
     }
 
     fun unknownTool(tool: String): String = render(unknownTool, TOOL to tool)
@@ -135,12 +173,29 @@ data class AgentMessages(
 
     fun memoryNotFound(id: String): String = render(memoryNotFound, ID to id)
 
+    fun automationScheduled(name: String, time: String, days: String, next: String, place: String, tools: String): String =
+        render(automationScheduled, NAME to name, TIME to time, DAYS to days, NEXT to next, PLACE to place, TOOLS to tools)
+
+    fun automationInProject(project: String): String = render(automationInProject, PROJECT to project)
+
+    fun automationNameTooLong(limit: Int): String = render(automationNameTooLong, LIMIT to limit.toString())
+
+    fun automationPromptTooLong(limit: Int): String = render(automationPromptTooLong, LIMIT to limit.toString())
+
+    fun automationTooMany(limit: Int): String = render(automationTooMany, LIMIT to limit.toString())
+
+    fun automationProjectInvalid(project: String): String = render(automationProjectInvalid, PROJECT to project)
+
+    fun automationProjectMissing(project: String): String = render(automationProjectMissing, PROJECT to project)
+
+    fun automationSaveFailed(detail: String): String = render(automationSaveFailed, DETAIL to detail)
+
     /** The memory section of the system prompt: one line per remembered fact, as (id, text) pairs. */
     fun memories(items: List<Pair<String, String>>): String =
         if (items.isEmpty()) noMemories else items.joinToString("\n") { (id, text) -> render(memoryLine, ID to id, TEXT to text) }
 
     companion object {
-        const val SCHEMA_VERSION = 9
+        const val SCHEMA_VERSION = 10
         private const val TOOL = "tool"
         private const val DETAIL = "detail"
         private const val LIMIT = "limit"
@@ -156,5 +211,12 @@ data class AgentMessages(
         private const val PATH = "path"
         private const val ID = "id"
         private const val TEXT = "text"
+        private const val NAME = "name"
+        private const val TIME = "time"
+        private const val DAYS = "days"
+        private const val NEXT = "next"
+        private const val PLACE = "place"
+        private const val TOOLS = "tools"
+        private const val PROJECT = "project"
     }
 }

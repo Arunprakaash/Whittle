@@ -18,10 +18,17 @@ data class Automation(
     val prompt: String,
     val schedule: Schedule,
     val tools: Set<String>,
+    /**
+     * A folder at the top of the workspace. Each run's chat works in it and its file tools reach nothing else;
+     * null for the whole workspace.
+     */
+    val project: String? = null,
     val enabled: Boolean = true,
     val lastRunAtMillis: Long? = null,
     /** The chat the last run went to, so the user can open what it found. */
     val lastChatId: String? = null,
+    /** When a run was due but couldn't start in time (no model, or the phone busy throughout); cleared by the next run. */
+    val missedAtMillis: Long? = null,
 )
 
 /** A time of day on some days of the week, in the phone's time zone at the moment it's due. */

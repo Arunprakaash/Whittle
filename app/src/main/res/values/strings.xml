@@ -420,26 +420,40 @@
     <string name="automation_some_days">%1$s at %2$s</string>
     <string name="automation_next">Next %1$s</string>
     <string name="automation_off">Off</string>
+    <string name="automation_missed">Missed %1$s</string>
     <string name="automation_name">Name</string>
     <string name="automation_prompt">What should Whittle do each time?</string>
     <string name="automation_prompt_hint">Write it as the full instruction; each run starts a fresh chat.</string>
     <string name="automation_time">Time</string>
     <string name="automation_days">Days</string>
+    <string name="automation_project">Project</string>
+    <string name="automation_project_whole">Whole workspace</string>
     <string name="automation_tools">Runs without asking</string>
     <string name="automation_tools_hint">Anything else waits for your approval in the chat.</string>
     <string name="automation_save">Save</string>
     <string name="automation_ok">OK</string>
+    <string name="automation_cancel">Cancel</string>
     <string name="automation_run_now">Run now</string>
     <string name="automation_open_last">Open last run</string>
     <string name="automation_delete">Delete</string>
     <string name="automation_delete_title">Delete %1$s?</string>
     <string name="automation_delete_body">It won\'t run again. Chats from earlier runs stay.</string>
     <string name="automation_error_name_empty">Give it a name.</string>
-    <string name="automation_error_name_long">The name can be up to %1$d characters.</string>
     <string name="automation_error_prompt_empty">Say what Whittle should do.</string>
-    <string name="automation_error_prompt_long">The instruction can be up to %1$d characters.</string>
-    <string name="automation_error_too_many">You can have up to %1$d automations.</string>
+    <string name="automation_error_project">Pick a project from the list.</string>
     <string name="automation_error_tool">One of those tools can\'t run without asking.</string>
+    <plurals name="automation_error_name_long">
+        <item quantity="one">The name can be up to %1$d character.</item>
+        <item quantity="other">The name can be up to %1$d characters.</item>
+    </plurals>
+    <plurals name="automation_error_prompt_long">
+        <item quantity="one">The instruction can be up to %1$d character.</item>
+        <item quantity="other">The instruction can be up to %1$d characters.</item>
+    </plurals>
+    <plurals name="automation_error_too_many">
+        <item quantity="one">You can have up to %1$d automation.</item>
+        <item quantity="other">You can have up to %1$d automations.</item>
+    </plurals>
     <string name="automation_busy">A task is running. Try again when it\'s done.</string>
     <string name="automation_no_model">Connect a model first.</string>
 </resources>

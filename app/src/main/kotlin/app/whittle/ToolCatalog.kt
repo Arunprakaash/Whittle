@@ -4,7 +4,6 @@ import app.whittle.connectors.FindConnectionTool
 import app.whittle.agent.AgentMessages
 import app.whittle.agent.ForgetTool
 import app.whittle.agent.MemoryStore
-import app.whittle.automations.Automations
 import app.whittle.automations.ScheduleTaskTool
 import app.whittle.agent.RememberTool
 import app.whittle.connectors.Connectors
@@ -49,7 +48,7 @@ object ToolCatalog {
         connectors: Connectors,
         memory: MemoryStore,
         messages: AgentMessages,
-        automations: Automations,
+        scheduleTask: ScheduleTaskTool,
     ): Set<Tool> = (
         setOf(
             AskUserTool(),
@@ -63,7 +62,7 @@ object ToolCatalog {
             FindConnectionTool(connectors),
             RememberTool(memory, messages),
             ForgetTool(memory, messages),
-            ScheduleTaskTool(automations),
+            scheduleTask,
         ) + workspaceTools
         ).also { tools ->
         check(tools.map { it.definition }.toSet() == definitions.toSet()) { "ToolCatalog.definitions is out of step with create()" }

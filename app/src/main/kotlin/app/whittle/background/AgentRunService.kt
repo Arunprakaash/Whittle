@@ -6,6 +6,7 @@ import android.os.IBinder
 import app.whittle.WhittleApplication
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -19,6 +20,7 @@ import kotlinx.coroutines.launch
 class AgentRunService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val app get() = application as WhittleApplication
+    private var mirroring: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -33,7 +35,9 @@ class AgentRunService : Service() {
             return START_NOT_STICKY
         }
         startInForeground(RunNotifications.ID_RUNNING, app.notifications.running(progress))
-        scope.launch {
+        // Started again for the same task (by the app and by an automation's alarm): one mirror is enough.
+        if (mirroring?.isActive == true) return START_NOT_STICKY
+        mirroring = scope.launch {
             app.chat.state.map { app.runProgress() }.distinctUntilChanged().collect { current ->
                 if (current == null) {
                     stopForeground(STOP_FOREGROUND_REMOVE)

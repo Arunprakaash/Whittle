@@ -1,11 +1,6 @@
 package app.whittle
 
 import app.whittle.agent.MemoryStore
-import app.whittle.automations.AndroidAutomationAlarms
-import app.whittle.automations.Automations
-import app.whittle.automations.AutomationsConfig
-import app.whittle.automations.EncryptedFileAutomations
-import java.time.ZoneId
 import app.whittle.memory.EncryptedFileMemory
 import app.whittle.tools.workspace.WorkspaceOutputs
 import app.whittle.settings.VoiceDefaults
@@ -32,11 +27,17 @@ import android.system.OsConstants
 import app.whittle.agent.AgentMessages
 import app.whittle.agent.AgentRunner
 import app.whittle.agent.RunInbox
+import app.whittle.automations.AndroidAutomationAlarms
+import app.whittle.automations.Automations
+import app.whittle.automations.AutomationsConfig
+import app.whittle.automations.EncryptedFileAutomations
+import app.whittle.automations.ScheduleTaskTool
 import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.core.common.EpochClock
 import app.whittle.core.common.IdGenerator
 import app.whittle.core.common.Outcome
 import app.whittle.core.common.getOrElse
+import app.whittle.core.common.getOrNull
 import app.whittle.core.config.ConfigFiles
 import app.whittle.core.config.ConfigLoader
 import app.whittle.core.config.ConfigName
@@ -88,6 +89,7 @@ import java.io.File
 import app.whittle.runtimes.ToolRuntime
 import app.whittle.web.SiteIconLoader
 import okhttp3.OkHttpClient
+import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
 /**
@@ -235,13 +237,13 @@ class AppGraph(context: Context) {
         config = load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
         clock = clock,
         ids = idGenerator,
-        zone = ZoneId::systemDefault,
+        zones = ZoneId::systemDefault,
         scope = appScope,
     )
 
     /** Every tool a task can use: the built-in ones and those of the user's connections. */
     val tools = ToolRegistry(
-        ToolCatalog.create(context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, agentMessages, automations),
+        ToolCatalog.create(context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, agentMessages, scheduleTask()),
         connectors::tools,
     )
 
@@ -260,6 +262,14 @@ class AppGraph(context: Context) {
         clock = clock,
         outputs = WorkspaceOutputs(workspaces, harness.agent.toolOutput.directory)::save,
         memory = memory,
+    )
+
+    /** schedule_task: an automation takes the chat's project unless the model names another that exists. */
+    private fun scheduleTask() = ScheduleTaskTool(
+        automations = automations,
+        messages = agentMessages,
+        projectOf = workspaces::projectOf,
+        projectExists = { name -> workspaces.folder().getOrNull()?.let { File(it, name).isDirectory } == true },
     )
 
     /** The terminal and file tools, working in the shared workspace inside Linux. */

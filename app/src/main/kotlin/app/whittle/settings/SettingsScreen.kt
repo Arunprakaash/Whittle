@@ -40,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.whittle.AppGraph
 import app.whittle.BuildConfig
 import app.whittle.linux.LinuxState
@@ -139,7 +140,7 @@ fun SettingsScreen(
                 }
             }
             item {
-                val enabledCount = graph.automations.all.collectAsState().value.count { it.enabled }
+                val enabledCount = graph.automations.all.collectAsStateWithLifecycle().value.count { it.enabled }
                 SettingsSection(stringResource(R.string.settings_section_automations)) {
                     SettingsRow(
                         icon = "schedule",

@@ -54,12 +54,27 @@ class Workspaces(
         }
     }
 
-    /** A path the model gave a file tool: a Linux path when there is a Linux, else one relative to the workspace. */
+    /**
+     * A path the model gave a file tool: a Linux path when there is a Linux, else one relative to the workspace. A
+     * confined chat ([ChatProjects.isConfined]) only reaches its project's folder.
+     */
     fun locate(id: WorkspaceId, path: String): Outcome<File> {
-        val linux = linux ?: return resolve(id, path)
+        val linux = linux ?: return confined(id, path, resolve(id, path))
         return when (val directory = directory(id)) {
             is Outcome.Failure -> directory
-            is Outcome.Success -> linux.resolve(directory.value, inProject(id, path))
+            is Outcome.Success -> confined(id, path, linux.resolve(directory.value, inProject(id, path)))
+        }
+    }
+
+    private fun confined(id: WorkspaceId, path: String, located: Outcome<File>): Outcome<File> {
+        if (located !is Outcome.Success || !projects.isConfined(id)) return located
+        val project = projects.projectOf(id) ?: return invalid("This chat is limited to a project, but it has none")
+        return try {
+            val base = File(root, project).canonicalFile
+            val target = located.value.canonicalFile
+            if (target == base || target.path.startsWith(base.path + File.separator)) located else invalid("'$path' is outside the project '$project', which this chat is limited to")
+        } catch (exception: IOException) {
+            invalid("'$path' can't be resolved: ${exception.message}")
         }
     }
 

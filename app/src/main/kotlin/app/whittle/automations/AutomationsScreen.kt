@@ -1,6 +1,6 @@
 package app.whittle.automations
 
-import android.content.Context
+import android.content.res.Resources
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,15 +16,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.whittle.AppGraph
 import app.whittle.R
 import app.whittle.design.components.SettingsRow
@@ -45,10 +45,16 @@ import java.util.Locale
 
 /** The user's automations, each switchable and editable, and a way to add one. */
 @Composable
-fun AutomationsScreen(graph: AppGraph, onBack: () -> Unit, onRunNow: (Automation) -> Unit, onOpenChat: (ChatId) -> Unit) {
+fun AutomationsScreen(
+    graph: AppGraph,
+    projects: List<String>,
+    onBack: () -> Unit,
+    onRunNow: (Automation) -> Unit,
+    onOpenChat: (ChatId) -> Unit,
+) {
     BackHandler(onBack = onBack)
-    val automations by graph.automations.all.collectAsState()
-    val context = LocalContext.current
+    val automations by graph.automations.all.collectAsStateWithLifecycle()
+    val resources = LocalResources.current
     var editing by remember { mutableStateOf<Automation?>(null) }
     var editingIsNew by remember { mutableStateOf(false) }
     // Writes go to the app's scope so leaving the screen never drops a change.
@@ -85,7 +91,7 @@ fun AutomationsScreen(graph: AppGraph, onBack: () -> Unit, onRunNow: (Automation
                 SettingsRow(
                     icon = "schedule",
                     title = automation.name,
-                    subtitle = automationSubtitle(context, automation, next),
+                    subtitle = automationSubtitle(resources, automation, next, graph.automations.zone),
                     shape = segmentedShape(index, automations.size),
                     modifier = Modifier.userContent(),
                     onClick = { editing = automation; editingIsNew = false },
@@ -114,6 +120,7 @@ fun AutomationsScreen(graph: AppGraph, onBack: () -> Unit, onRunNow: (Automation
         AutomationEditorSheet(
             graph = graph,
             initial = automation,
+            projects = projects,
             isNew = editingIsNew,
             onDismiss = { editing = null },
             onRunNow = { editing = null; onRunNow(it) },
@@ -123,28 +130,32 @@ fun AutomationsScreen(graph: AppGraph, onBack: () -> Unit, onRunNow: (Automation
 }
 
 /** "Every day at 07:00", "Mon, Wed at 07:00"; [Schedule] days are named in the phone's language. */
-internal fun scheduleText(context: Context, schedule: Schedule): String {
+internal fun scheduleText(resources: Resources, schedule: Schedule): String {
     val time = formatTime(schedule.time)
     return when (schedule.days) {
-        Schedule.EVERY_DAY -> context.getString(R.string.automation_every_day, time)
-        Schedule.WEEKDAYS -> context.getString(R.string.automation_weekdays, time)
-        Schedule.WEEKENDS -> context.getString(R.string.automation_weekends, time)
-        else -> context.getString(R.string.automation_some_days, schedule.daysOfWeek.joinToString(", ") { shortDay(it) }, time)
+        Schedule.EVERY_DAY -> resources.getString(R.string.automation_every_day, time)
+        Schedule.WEEKDAYS -> resources.getString(R.string.automation_weekdays, time)
+        Schedule.WEEKENDS -> resources.getString(R.string.automation_weekends, time)
+        else -> resources.getString(R.string.automation_some_days, schedule.daysOfWeek.joinToString(", ") { shortDay(it) }, time)
     }
 }
 
-/** The schedule, then when it next runs ("Next Thu 07:00") or that it's off. */
-internal fun automationSubtitle(context: Context, automation: Automation, nextRunMillis: Long?): String {
-    val schedule = scheduleText(context, automation.schedule)
-    val tail = if (!automation.enabled) {
-        context.getString(R.string.automation_off)
-    } else {
-        nextRunMillis?.let { millis ->
-            val at = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault())
-            context.getString(R.string.automation_next, "${shortDay(at.dayOfWeek)} ${formatTime(at.toLocalTime())}")
-        }
+/**
+ * The schedule, then the project if one is set, then that it's off, when it was missed ("Missed Thu 07:00")
+ * or when it next runs ("Next Thu 07:00"), the days and times in [zone].
+ */
+internal fun automationSubtitle(resources: Resources, automation: Automation, nextRunMillis: Long?, zone: ZoneId): String {
+    fun dayAndTime(millis: Long): String {
+        val at = Instant.ofEpochMilli(millis).atZone(zone)
+        return "${shortDay(at.dayOfWeek)} ${formatTime(at.toLocalTime())}"
     }
-    return if (tail == null) schedule else "$schedule · $tail"
+    val tail = when {
+        !automation.enabled -> resources.getString(R.string.automation_off)
+        automation.missedAtMillis != null -> resources.getString(R.string.automation_missed, dayAndTime(automation.missedAtMillis))
+        nextRunMillis != null -> resources.getString(R.string.automation_next, dayAndTime(nextRunMillis))
+        else -> null
+    }
+    return listOfNotNull(scheduleText(resources, automation.schedule), automation.project, tail).joinToString(" · ")
 }
 
 /** A time of day in the phone's preferred style. */
