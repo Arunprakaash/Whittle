@@ -1,13 +1,14 @@
 # Linux workspace
 
-Status: phases 1 and 2 (below) are built. A spike on 2026-10-22 (emulator, Android 16 / API 36, arm64) proved every
-step works; phase 3 is a plan.
+Status: phases 1 and 2 (below) are built and have shipped since 0.10.0; phase 3 is a plan. This page began as the
+design, after a spike on 2026-10-22 (emulator, Android 16 / API 36, arm64). It now describes what's built, and keeps
+the spike's findings for the record.
 
 `run_command` used to run Termux's Android builds of Node, Python and git, shipped in the APK. That covered scripts,
 but not what a coding agent expects from a computer: no apt, no glibc, no compiler, package commands had to go
 through their interpreter, and every command was killed when it ended, so nothing could be served. Now Ubuntu is
-Whittle's only runtime, downloaded during onboarding. Commands and builds run inside it; later phases let servers
-keep running and show what they serve in a live preview. The APK ships only proot and tar.
+Whittle's only runtime, downloaded during onboarding. Commands and builds run inside it, servers keep running, and
+what they serve shows in a live preview. The APK ships only proot and tar.
 Everything still runs on the phone: no server, no account.
 
 | Piece | Where it runs |
@@ -15,7 +16,8 @@ Everything still runs on the phone: no server, no account.
 | `run_command`, package installs, builds, servers | Inside Ubuntu, behind the guest sandbox |
 | Apps | Vite projects the agent runs with `start_process`, shown in the live preview. There's no separate build tool, no saved apps and no APK export |
 | `read_file`, `write_file`, `edit_file`, `list_files` | Kotlin, on Linux paths mapped into the Ubuntu folder (see File tools) |
-| `web_fetch`, MCP connections, memory, policy, APK export | Kotlin, unchanged: they need Android's keystore, cards and provenance |
+| `use_project` | Kotlin: picks the chat's project folder (see Shared workspace and projects) |
+| `web_fetch`, MCP connections, memory, policy | Kotlin, unchanged: they need Android's keystore, cards and provenance |
 
 ## What the spike showed
 
@@ -48,13 +50,13 @@ Ubuntu 24.04 base under proot, inside Whittle's own process (SELinux domain `unt
 ## Approach and alternatives
 
 **Chosen:** proot plus a distribution root filesystem. proot uses ptrace to give programs their own root folder
-without root access. This is the standard technique behind Termux's proot-distro, UserLAnd and Andronix. The
-spike uses Termux's own `proot` package, pinned like our other runtimes, and Ubuntu's official base image.
-Nothing comes from Mobile-Harness.
+without root access. This is the standard technique behind Termux's proot-distro, UserLAnd and Andronix. Whittle
+uses Termux's own `proot` package, pinned like our other runtimes, and Ubuntu's official base image. Nothing comes
+from Mobile-Harness.
 
 | Option | Why not |
 | --- | --- |
-| Termux runtimes only (today) | Android's bionic libc: no glibc binaries, no apt, many pip and npm packages fail |
+| Termux runtimes only (before 0.10) | Android's bionic libc: no glibc binaries, no apt, many pip and npm packages fail |
 | Android Virtualization Framework (a real VM, as in Google's Terminal app) | Needs `MANAGE_VIRTUAL_MACHINE`, which is signature/privileged: third-party apps can't use it |
 | QEMU full-system emulation | 5–20× slower; large download |
 | chroot | Needs root |
@@ -71,7 +73,7 @@ GitHub Releases only. There is no Play build:
 - Play requires a target of API 36 or higher for new apps and updates (from August 31, 2026).
 - Play's policy forbids downloading code to run, which apt does by design.
 
-The cost of targeting SDK 28, all to check:
+What targeting SDK 28 costs:
 
 - **Install floor:** Android 14 blocks installing apps that target below 23, and Android 15 and 16 below 24. 28
   installs fine.
@@ -89,28 +91,43 @@ The cost of targeting SDK 28, all to check:
 Every `run_command` becomes:
 
 ```
-proot -r <rootfs> -b /dev -b /proc -b /sys -b <chat workspace>:/workspace -w /workspace \
-  /usr/local/libexec/whittle/sandbox [--network] -- /bin/bash -lc "<command>"
+proot -r <rootfs> -b /dev -b /proc -b /sys -b <workspace>:/workspace -w /workspace \
+  /usr/local/libexec/whittle/sandbox [--network] -- /bin/bash -lc "[cd -- '<project>' && ]<command>"
 ```
 
+- The mounts, shell and environment come from `linux-workspace.json`. When the chat has a project, the command
+  starts in that folder (see Shared workspace and projects).
 - **proot runs unfiltered.** It needs ptrace and process_vm_readv itself. The sandbox filter is installed inside the
   guest, so it applies to the command and its children only. That's the order the spike verified.
-- **The guest sandbox:** the same `whittle_sandbox.c`. Built as a static arm64 binary with the NDK, so it needs no
-  libc from the image, and bind-mounted read-only into the guest. (The spike built it with the image's gcc; the
-  static NDK build still needs checking.)
+- **The guest sandbox:** the same `whittle_sandbox.c`, built as a static arm64 binary with the NDK, so it needs no
+  libc from the image, and bind-mounted read-only into the guest.
 - **What the guest sees:**
   - the root filesystem;
-  - this chat's workspace as `/workspace`;
+  - the shared workspace as `/workspace`;
   - `/dev`, `/proc` and `/sys`;
-  - nothing else of the app's storage: no other chats, no keys, no databases.
+  - nothing else of the app's storage: no chats, no keys, no databases.
 - **Honesty about proot:** it is a filesystem view, not a security boundary. Protection still comes from three
-  layers, as today:
+  layers:
   - Android's per-app sandbox;
   - the seccomp filter: no ptrace, no process_vm, no io_uring, and no sockets when offline;
   - the policy engine's approvals.
-- **To verify:** a guest process can't read Whittle's own memory through `/proc/<pid>/mem`. Release builds aren't
-  dumpable, which should refuse it.
+- **Checked on the device:** a guest process can't ptrace Whittle or read its memory through `/proc/<pid>/mem`.
 - The guest runs as fake root (`proot -0`), so apt works. That gives no extra power outside the guest.
+
+## Shared workspace and projects
+
+- **One workspace for every chat.** `/workspace` is one folder outside Ubuntu, so Reset and Remove never touch
+  your files. A new chat can carry on with work an earlier chat started, and deleting a chat leaves its files.
+- **What stays per chat:** its running processes, its record of the files it changed, and its project. A chat's
+  id (`WorkspaceId`) ties them together.
+- **Projects:** a chat can have one folder of the workspace as its project. You pick it from the chip above the
+  composer, or the agent picks it with `use_project`. Relative paths in the file tools and the working folder of
+  commands and processes then start there. A chat with no project works on the whole workspace.
+- **Changes:** `write_file` and `edit_file` report what a file held before. `FileChangeLog` keeps the first version
+  each chat saw, so the file browser can show what the chat changed, line by line, and ask the agent to undo it.
+- **The file browser** (top bar, a Wrote or Edited step, or Projects in the sidebar) lists the projects, what this
+  chat changed, and every file, with copy, share and delete.
+- **Android's Files app** sees the same workspace through a `DocumentsProvider`.
 
 ## File tools
 
@@ -119,8 +136,8 @@ writes it directly: about 2 ms a read on the emulator, against about 50 ms throu
 and a write from either side shows up on the other at once.
 
 - **One set of paths:** the agent only uses Linux paths.
-  - `/workspace/...` maps to the workspace every chat shares, which lives outside Ubuntu, so Reset and Remove
-    never touch your files.
+  - `/workspace/...` maps to the shared workspace.
+  - A relative path starts at the chat's project, or at `/workspace` when it has none.
   - Everything else maps into the Ubuntu folder.
   - Tool results show Linux paths too.
 - **Links resolve the way Linux would, inside Ubuntu.**
@@ -135,10 +152,10 @@ and a write from either side shows up on the other at once.
 
 ## Network control
 
-The model stays the same: the `network` flag on each command, enforced by the guest sandbox, and decided by the
-policy engine. That means a card for untrusted models and tainted runs.
+The `network` flag on each command is enforced by the guest sandbox and decided by the policy engine. That means a
+card for untrusted models and tainted runs.
 
-- apt, pip and npm installs need network, so they're outbound, as `npm install` is today.
+- apt, pip and npm installs need network, so they're outbound.
 - **DNS:** Android has no `/etc/resolv.conf`. Setup writes one from the active network's DNS servers
   (`ConnectivityManager` link properties), falling back to servers named in config, and refreshes it when the
   network changes.
@@ -153,17 +170,18 @@ policy engine. That means a card for untrusted models and tainted runs.
 
 | Tool | Does |
 | --- | --- |
-| `start_process` | Starts a command in the background (name, command, network); returns an id |
+| `start_process` | Starts a command in the background (name, command, port, network); returns an id |
 | `read_process_output` | The latest output, or output since an offset |
-| `list_processes` | What's running in this chat, with uptime and listening ports |
+| `list_processes` | What this chat is running, with uptime and listening ports |
 | `stop_process` | Stops it and its children |
 
-- **Lifetime:** a process belongs to a chat. It stops when the chat is deleted or archived, on app update, or at the
-  configured limits. The limits come from config: processes per chat, total processes, run time, output buffer.
-- **Kept alive by the run notification.** While anything runs, the existing foreground notification says so and
-  has a Stop all action.
-- **Output:** each process logs to its own capped file in `.whittle/processes/<id>.log`, which the tools read in
-  sections like `.whittle/outputs` does today.
+- **Lifetime:** a process belongs to the chat that started it. It stops when that chat is deleted, from the process
+  card, from Settings › Linux workspace, or with Stop all on the notification.
+- **Limits** come from `terminal.json` (`processes`): how many each chat may run, how long to wait for a port, how
+  much output to keep, and the grace period before a stop turns into a kill.
+- **Kept alive by a foreground notification** while anything runs and Keep working in the background is on, with a
+  Stop all action.
+- **Output** is kept in memory, capped at `keptOutputChars`, and read in sections.
 - **Android's phantom process killer (12+):**
   - It allows at most 32 child processes across all apps.
   - It kills CPU-heavy children of background apps.
@@ -171,32 +189,27 @@ policy engine. That means a card for untrusted models and tainted runs.
   - When something is killed with signal 9, say so plainly and point to the developer-options switch that turns
     the killer off.
   - Whether a foreground service exempts us is unclear. Measure it on a real phone.
-- **System prompt:** "for servers, use start_process, then show the preview".
+- **System prompt:** for servers, use `start_process`, then show the preview.
 
 ## Localhost preview
 
-- A tool (or an option on `start_process`) opens `http://127.0.0.1:<port>` in the app viewer, the same viewer that
-  shows built apps today.
-- **The viewer adds:**
-  - a "Live" label with the process name;
-  - reload;
-  - stop;
-  - open in browser;
-  - console messages, so the agent can read errors.
+- The process card opens `http://127.0.0.1:<port>` in a sheet with a WebView.
+- **The sheet has:** the process name, reload, stop, open in browser, and a console. The console collects the
+  page's messages; Whittle can read them, and Ask to fix sends the errors to the agent.
 - The network security config allows cleartext to 127.0.0.1 and localhost only.
 - Vite's hot reload uses a WebSocket on the same port. The spike checked serving but not hot reload; check it.
-- Apps aren't saved or exported: an app is its project folder plus the server that runs it. When the server stops
-  (stopped, or closed with the app), the card or the agent starts it again.
+- Apps aren't saved or exported: an app is its project folder plus the server that runs it. When the server stops,
+  the sheet says so, and the card or the agent starts it again.
 
-## Setup flow (prototype in HTML first)
+## Setup flow
 
 - **Where it's offered:**
-  - **Onboarding**, right after the model key: what you get, the download size (about 30 MB to start, growing with
-    what you install), a Wi-Fi tip, then Set up. It can be skipped.
-  - **When a task needs it** and setup was skipped or removed, a card: "Set up a Linux workspace? Downloads about
-    30 MB." Approve or not now.
-  - **Settings › Linux workspace**, to manage it.
-- **Until it's set up,** Whittle still chats, searches the web and uses connections. It just can't run commands.
+  - **Onboarding,** before the model: Welcome, then "Give Whittle a computer" with Set up. Setup starts in the
+    background while you connect a model, and a strip under that screen shows its progress. It can be skipped
+    (Not now).
+  - **Settings › Linux workspace,** to set it up later or manage it.
+- **Until it's set up,** Whittle still chats, searches the web and uses connections. Commands and Linux paths fail
+  with a plain "isn't set up on this phone yet".
 - **Steps, shown as ordinary Whittle steps:**
   1. Download: checksum pinned in config, resumable.
   2. Unpack: Kotlin gunzips the download into Termux's `tar`, run under `proot --link2symlink -0` so hard links and
@@ -204,53 +217,46 @@ policy engine. That means a card for untrusted models and tainted runs.
   3. Configure: `resolv.conf`, `APT::Sandbox::User`, locale, `/workspace`, the guest sandbox.
   4. Base packages: `ca-certificates curl git xz-utils`, then Node.js LTS (pinned, checked by SHA-256) for web apps.
      Python and compilers come later with apt, when a task needs them.
-- **Runs under the foreground notification** with progress and cancel, so it survives switching apps.
-- **Manage:** see the space used, Repair (re-run configure), Reset (fresh image, workspaces kept), Remove (frees the
-  space; commands are unavailable until it's set up again).
-- **Storage:** `filesDir/linux`, excluded from backups. The image is stored once; the workspace is one folder that every chat shares.
+- **Runs under a foreground notification** with progress, so it survives switching apps.
+- **Manage:** see the space used, Repair (re-runs setup, keeps everything), Reset (a fresh Ubuntu, workspace kept),
+  Remove (frees the space; commands are unavailable until it's set up again).
+- **Storage:** `filesDir/linux`, excluded from backups. The image is stored once; the workspace is one folder that
+  every chat shares.
 
 ## Size
 
 - **APK:** dropping the Termux runtimes and shipping only proot, tar and their libraries took the release APK from
   69 MB to 8.9 MB. Phase 2 removed esbuild's WebAssembly build and APK export with it.
-- **Setup (measured on the emulator):** 56 s from scratch, leaving 416 MB (Ubuntu, apt's package lists, git and
-  curl; apt's download cache is cleaned). With Node.js in base setup (phase 2), a fresh setup measured on the
-  emulator takes 83 s (download, unpack and configure 13 s; packages and Node.js 70 s) and leaves 589 MB: 374 MB
-  of Ubuntu, packages and Node.js, and 214 MB of caches, nearly all apt's package lists. `setupSizeBytes` says
-  590 MB.
-- **On the phone:**
-  - 120 MB after setup;
-  - about 700 MB with Node;
-  - about 2 GB with compilers, Python and a typical web project.
-  - Settings shows the space used and offers `apt-get clean`.
+- **Setup (measured on the emulator):** a fresh setup takes 83 s (download, unpack and configure 13 s; packages and
+  Node.js 70 s) and leaves 589 MB: 374 MB of Ubuntu, packages and Node.js, and 214 MB of caches, nearly all apt's
+  package lists. `setupSizeBytes` says 590 MB.
+- **On the phone:** about 2 GB with compilers, Python and a typical web project. Settings shows the space used, by
+  part, and can clear the caches.
 
 ## Config, not code
 
-A new `linux-workspace.json` holds:
+`linux-workspace.json` holds:
 
-- `image` (URL, SHA-256 and version per ABI);
+- `images` (URL, SHA-256, version and setup size per ABI);
+- the mounts (`deviceMounts`, `workspaceMount`, `sandboxMount`) and proot options;
+- shell and environment;
 - DNS fallback;
-- binds;
-- environment;
-- base packages;
-- process limits;
-- preview options.
+- base setup (packages, Node.js);
+- caches Settings can clear.
 
-proot is pinned in `termux-runtimes.*.lock.json` like the other runtimes.
+Process limits are in `terminal.json`. proot and tar are pinned in `app/termux-runtimes.lock.json`.
 
 ## Risks to check on a real phone
 
-- **Speed:** ptrace costs on every system call. npm and pip are the slowest; measure them against Termux's native
-  builds.
+- **Speed:** ptrace costs on every system call. npm and pip are the slowest.
 - **The phantom process killer** under a foreground service.
 - **OEM kernels and SELinux:** some vendors break proot. Termux's issue tracker lists known ones.
 - **Storage pressure:** low-storage phones need a clear warning before installing.
-- **Supply chain:** apt, pip and npm fetch code from the internet, as npm and pip already do today. That's why
-  installs stay outbound and approved.
+- **Supply chain:** apt, pip and npm fetch code from the internet. That's why installs stay outbound and approved.
 
 ## Phases
 
-1. **Foundation:**
+1. **Foundation (built):**
    - the single SDK-28 build, with the Termux runtimes replaced by proot and tar;
    - `linux-workspace.json`;
    - setup with progress, in onboarding and in Settings;
@@ -258,16 +264,9 @@ proot is pinned in `termux-runtimes.*.lock.json` like the other runtimes.
    - file tools on Linux paths;
    - DNS;
    - device tests in the app's own process.
-2. **Processes and preview:** the four process tools, the process card, the notification with Stop all, the live
-   preview with its console, Node LTS in base setup, and Settings' storage breakdown. `build_web_app`, saved apps
-   and APK export were removed: apps are servers.
-3. **Polish:** loopback-only network in proot, an interactive terminal screen (a PTY with stdin), and optional
-   presets (Node, Python, a C toolchain).
-
-## Spike code (uncommitted)
-
-- `app/build.gradle.kts`: a `linux` build type, which installs as `app.whittle.linux`, targets SDK 28 and uses its
-  own runtime spec.
-- `app/termux-runtimes.linux.json` and its lock file: the usual runtimes plus `proot` and `tar`.
-- `app/src/linux/`: `SpikeShellService`, which runs a script inside the app's process for testing.
-- `ToolRuntime.kt`: the data-folder check by device and inode. This is a real fix, worth keeping either way.
+2. **Processes and preview (built):** the four process tools, the process card, the notification with Stop all, the
+   live preview with its console, Node LTS in base setup, and Settings' storage breakdown. `build_web_app`, saved
+   apps and APK export were removed: apps are servers. Since then: one shared workspace, per-chat projects, and the
+   file browser.
+3. **Polish (planned):** loopback-only network in proot, an interactive terminal screen (a PTY with stdin), and
+   optional presets (Node, Python, a C toolchain).

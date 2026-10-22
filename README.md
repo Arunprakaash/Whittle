@@ -8,7 +8,7 @@
 
 Whittle runs the whole agent loop on the phone: the model calls, the policy checks, the tools and the
 checkpoints. It searches the web, runs commands in a sandboxed Ubuntu on the phone, builds web apps with Vite and
-serves them to a live preview, and talks to any MCP server. There is no Whittle server.
+serves them to a live preview, shows every file it changed, and talks to any MCP server. There is no Whittle server.
 The phone talks straight to the model provider you pick, using your own key.
 
 <table>
@@ -32,6 +32,7 @@ flowchart TB
     CFG["config:defaults<br/>versioned JSON + prompts"]
     PROV(["Model provider<br/>OpenAI · OpenRouter · any OpenAI-compatible"])
     SANDBOX["Linux workspace<br/>Ubuntu under proot · seccomp sandbox"]
+    FILES["Shared /workspace<br/>projects · file browser · change records"]
     PREVIEW["Live preview<br/>WebView on 127.0.0.1"]
     MCP(["MCP servers<br/>Streamable HTTP · SSE · OAuth 2.1"])
 
@@ -41,6 +42,8 @@ flowchart TB
     RUN --> TOOLS
     RUN --> STORE
     TOOLS --> SANDBOX
+    TOOLS --> FILES
+    SANDBOX --> FILES
     SANDBOX --> PREVIEW
     TOOLS --> MCP
     CFG -.-> RUN & POL & TOOLS & LLM
@@ -95,8 +98,8 @@ rating can't use high-risk tools at all.
 
 ### Linux on the phone
 
-Commands run in a real Ubuntu (24.04) that Whittle downloads during onboarding, so `apt`, compilers and
-prebuilt Linux programs work as on a computer. It's an ordinary folder in the app's storage, started with
+Commands run in a real Ubuntu (24.04) that Whittle sets up in the background during onboarding, while you connect
+a model, so `apt`, compilers and prebuilt Linux programs work as on a computer. It's an ordinary folder in the app's storage, started with
 [proot](https://github.com/termux/proot), which gives programs their own root folder without root access.
 `docs/linux-workspace.md` has the design.
 
@@ -113,7 +116,10 @@ prebuilt Linux programs work as on a computer. It's an ordinary folder in the ap
   (`use_project`, or the chip above the composer): its commands then start in that folder and relative paths resolve
   inside it. Deleting a chat keeps its files.
   The file tools read and write Linux paths directly, following links the way Linux would without ever leaving
-  the workspace (`LinuxFileSystem`), and record what each chat changed for the file browser (`FileChangeLog`).
+  Linux and the workspace (`LinuxFileSystem`), and record what each chat changed (`FileChangeLog`).
+- **File browser.** The folder button in the top bar opens the workspace: its projects, what this chat changed
+  (line by line, with Ask to undo), and every file, to copy, share or delete. The chevron on a Wrote or Edited
+  step opens that file.
 
 Every command starts through `whittle_sandbox`, a small C program built with the NDK
 (`app/src/main/native/sandbox`), linked statically and mounted into Linux. It puts the command behind a seccomp
@@ -133,9 +139,9 @@ Whittle builds apps the way a developer does: a Vite project in its own folder i
 `ProcessManager` keeps it running after the tool call returns, in Linux behind the same sandbox, and watches its
 port. Once something answers, the chat shows a card with Preview, which opens the page from `127.0.0.1` in a
 WebView, with its console one tap away and Ask to fix sending errors back to the agent. The agent reads output
-with `read_process_output`, and `list_processes` / `stop_process` manage what runs. Processes end when stopped
-or with the app; the card restarts one with the same command. With Keep working in the background on, a
-notification lists them and keeps them running, with Stop all.
+with `read_process_output`, and `list_processes` / `stop_process` manage what runs. Processes end when stopped,
+when their chat is deleted, or with the app; the card restarts one with the same command. With Keep working in
+the background on, a notification lists them and keeps them running, with Stop all.
 
 ### Connectors
 
@@ -192,7 +198,7 @@ Every file has a `schemaVersion`, and unknown keys are rejected.
 | `tools:presentation` | Step labels and approval cards for each tool |
 | `tools:device`, `tools:android` | Clock, contacts, calendar, message drafts |
 | `tools:web` | Web fetch over https; output is untrusted |
-| `tools:workspace` | Files, the sandboxed shell (`run_command`), long-running processes and Linux paths |
+| `tools:workspace` | Files, the sandboxed shell (`run_command`), long-running processes, Linux paths, projects and change records |
 | `connectors:mcp` | MCP client with OAuth 2.1, tokens or no sign-in |
 | `policy:engine` | The deterministic policy engine |
 | `agent:runtime` | `AgentRunner`, checkpoints, plans, approvals, memory, saved outputs |
@@ -203,7 +209,8 @@ Every file has a `schemaVersion`, and unknown keys are rejected.
 | `dev:cli` | Runs the real agent loop from a terminal with your own key |
 
 The design-time diagrams are in [docs/architecture](docs/architecture/README.md), with their Excalidraw
-sources. They were drawn before the code, so where they differ, the code is right.
+sources. They were drawn before the code, so where they differ, the code is right; that page notes the ones
+that no longer apply.
 
 ## Build
 
