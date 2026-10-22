@@ -92,6 +92,11 @@ class MainActivity : ComponentActivity() {
                     }
                 }.collectAsStateWithLifecycle(Gate.Loading)
                 var welcomed by rememberSaveable { mutableStateOf(false) }
+                // The picker and Connect keep their state in view models keyed by how often they've opened. The counts
+                // live out here so they never start again when the gate moves (switching provider passes through
+                // Connect): a key used before would bring back that old screen, with the provider it had then.
+                var pickerOpenings by rememberSaveable { mutableIntStateOf(0) }
+                var connectOpenings by rememberSaveable { mutableIntStateOf(0) }
                 // Surface sets the content color, so text on every screen follows the theme in light and dark.
                 CompositionLocalProvider(LocalSiteIcons provides graph.siteIcons) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
@@ -104,7 +109,7 @@ class MainActivity : ComponentActivity() {
                         }
                         Gate.Linux -> LinuxSetupScreen(graph, step = null)
                         Gate.Connect -> {
-                            val connect = viewModel { ConnectViewModel(graph) }
+                            val connect = viewModel(key = "connect$connectOpenings") { ConnectViewModel(graph) }
                             ConnectScreen(connect.state.collectAsStateWithLifecycle().value, connect) {
                                 LinuxProgressStrip(graph, compact = false, Modifier.padding(top = WhittleSpace.s))
                                 OnboardingSteps(ONBOARDING_STEP_MODEL, ONBOARDING_STEPS, Modifier.padding(vertical = WhittleSpace.xl))
@@ -126,7 +131,6 @@ class MainActivity : ComponentActivity() {
                             val state = chat.state.collectAsStateWithLifecycle().value
                             var showingAllChats by rememberSaveable { mutableStateOf(false) }
                             var showingSettings by rememberSaveable { mutableStateOf(false) }
-                            var pickerOpenings by rememberSaveable { mutableIntStateOf(0) }
                             var showingModelPicker by rememberSaveable { mutableStateOf(false) }
                             var showingConnectionLibrary by rememberSaveable { mutableStateOf(false) }
                             var showingMemory by rememberSaveable { mutableStateOf(false) }
@@ -173,7 +177,7 @@ class MainActivity : ComponentActivity() {
                                     state = picker.state.collectAsStateWithLifecycle().value,
                                     viewModel = picker,
                                     onClose = { showingModelPicker = false; showingSettings = true },
-                                    onSwitchProvider = { showingModelPicker = false; chat.switchProvider() },
+                                    onSwitchProvider = { showingModelPicker = false; connectOpenings += 1; chat.switchProvider() },
                                 )
                             } else if (showingSettings) {
                                 SettingsScreen(
