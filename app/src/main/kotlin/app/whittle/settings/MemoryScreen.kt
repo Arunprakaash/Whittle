@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExtendedFloatingActionButton
+import app.whittle.design.components.BottomActionButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -85,7 +85,6 @@ private fun MemoryList(graph: AppGraph, onBack: () -> Unit, onOpen: (MemoryDraft
     BackHandler(onBack = onBack)
     val memories by graph.memory.all.collectAsStateWithLifecycle()
     val resources = LocalResources.current
-    val haptics = WhittleTheme.haptics
     val policy = graph.memory.policy
     var showingMenu by remember { mutableStateOf(false) }
     var confirmingClear by remember { mutableStateOf(false) }
@@ -114,22 +113,13 @@ private fun MemoryList(graph: AppGraph, onBack: () -> Unit, onOpen: (MemoryDraft
                 }
             }
         },
-        floatingActionButton = {
-            if (!full) {
-                ExtendedFloatingActionButton(
-                    onClick = { haptics.perform(WhittleHaptic.Tap); onOpen(MemoryDraft(null, "")) },
-                    icon = { WhittleIcon("add", size = WhittleSize.Icon.xl) },
-                    text = { Text(stringResource(R.string.memory_add), style = MaterialTheme.typography.titleMedium) },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-            }
+        bottomBar = {
+            if (!full) BottomActionButton("add", stringResource(R.string.memory_add), { onOpen(MemoryDraft(null, "")) })
         },
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
-            // Room at the bottom so the last memory scrolls clear of the floating button.
-            contentPadding = PaddingValues(start = WhittleSpace.l, end = WhittleSpace.l, top = WhittleSpace.s, bottom = WhittleSize.Button.large + WhittleSpace.xxxl),
+            contentPadding = PaddingValues(start = WhittleSpace.l, end = WhittleSpace.l, top = WhittleSpace.s, bottom = WhittleSpace.l),
             verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline),
         ) {
             item {
