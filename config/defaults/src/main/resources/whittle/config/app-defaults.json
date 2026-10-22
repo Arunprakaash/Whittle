@@ -12,7 +12,8 @@
     "chatsDatabaseName": "whittle_chats.db",
     "workspaceDirectoryName": "workspace",
     "connectorsDirectoryName": "connectors",
-    "customConnectorsStoreName": "whittle_connectors"
+    "customConnectorsStoreName": "whittle_connectors",
+    "chatProjectsFileName": "chat-projects.json"
   },
   "terminal": {
     "shell": "/system/bin/sh",
@@ -39,6 +40,11 @@
   },
   "background": {
     "keepRunning": true
+  },
+  "projects": {
+    "promptWithProject": "This chat works on the project {{project}}, in {{mount}}/{{project}}: commands start there and relative paths resolve inside it.",
+    "promptWithoutProject": "This chat has no project yet: commands start in {{mount}}.",
+    "recentCount": 3
   },
   "files": {
     "changesDirectoryName": "file-changes",

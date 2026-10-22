@@ -31,6 +31,7 @@ object MaterialSymbols {
         "contacts" to R.drawable.ms_contacts,
         "content_copy" to R.drawable.ms_content_copy,
         "contrast" to R.drawable.ms_contrast,
+        "create_new_folder" to R.drawable.ms_create_new_folder,
         "dark_mode" to R.drawable.ms_dark_mode,
         "data_object" to R.drawable.ms_data_object,
         "database" to R.drawable.ms_database,
@@ -104,6 +105,7 @@ object MaterialSymbols {
         "visibility_off" to R.drawable.ms_visibility_off,
         "wallpaper" to R.drawable.ms_wallpaper,
         "wifi" to R.drawable.ms_wifi,
+        "workspaces" to R.drawable.ms_workspaces,
     )
 
     private val filled: Map<String, Int> = mapOf(

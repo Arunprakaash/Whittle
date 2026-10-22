@@ -133,6 +133,8 @@ fun ChatScreen(
     onOpenProjects: () -> Unit,
     /** Opens the file browser, at the workspace or at a file a step wrote. */
     onOpenFiles: (FilesOpening) -> Unit,
+    /** How many recent projects a new chat offers to carry on. */
+    recentProjects: Int,
     /** Shown just above the composer, such as Linux finishing its setup. */
     aboveComposer: @Composable () -> Unit = {},
 ) {
@@ -149,7 +151,8 @@ fun ChatScreen(
     ) {
         ChatLayout(
             state, viewModel, sidebarMaxChats, voiceDefaults, onViewAllChats, onOpenSettings, avatarSeed, onOpenProjects, aboveComposer,
-            onOpenWorkspace = { onOpenFiles(FilesOpening(FilesPlace.Folder(""), chat)) },
+            onOpenWorkspace = { onOpenFiles(FilesOpening(FilesPlace.Folder(state.project.orEmpty()), chat)) },
+            recentProjects = recentProjects,
         )
     }
 }
@@ -172,9 +175,20 @@ private fun ChatLayout(
     onOpenProjects: () -> Unit,
     aboveComposer: @Composable () -> Unit,
     onOpenWorkspace: () -> Unit,
+    recentProjects: Int,
 ) {
     val haptics = WhittleTheme.haptics
     LaunchedEffect(viewModel) { viewModel.haptics.collect { haptics.perform(it) } }
+    var choosingProject by rememberSaveable { mutableStateOf(false) }
+    if (choosingProject) {
+        ProjectSheet(
+            current = state.project,
+            projects = state.projects,
+            onChoose = viewModel::chooseProject,
+            onCreate = viewModel::createProject,
+            onDismiss = { choosingProject = false },
+        )
+    }
     val requestCapability = rememberCapabilityRequest(state.items, viewModel)
     val drawer = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -263,12 +277,12 @@ private fun ChatLayout(
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when {
                     state.restoring -> Unit
-                    state.items.isEmpty() -> EmptyThread(state)
+                    state.items.isEmpty() -> EmptyThread(state, recentProjects, viewModel::chooseProject)
                     // One list per chat: switching replaces the thread instead of animating one chat into another.
                     else -> key(state.currentChat) { Thread(state.items, state.running, viewModel, requestCapability) }
                 }
             }
-            Dock(state, viewModel, voiceDefaults, aboveComposer)
+            Dock(state, viewModel, voiceDefaults, aboveComposer, onChooseProject = { viewModel.refreshProjects(); choosingProject = true })
         }
     }
     }
@@ -411,7 +425,13 @@ private fun ThreadRow(
 }
 
 @Composable
-private fun Dock(state: ChatState, viewModel: ChatViewModel, voiceDefaults: VoiceDefaults, aboveComposer: @Composable () -> Unit) {
+private fun Dock(
+    state: ChatState,
+    viewModel: ChatViewModel,
+    voiceDefaults: VoiceDefaults,
+    aboveComposer: @Composable () -> Unit,
+    onChooseProject: () -> Unit,
+) {
     val voice = rememberVoice(voiceDefaults, state.input, viewModel::updateInput)
     Column(
         Modifier.padding(start = WhittleSpace.m, end = WhittleSpace.m, bottom = WhittleSpace.s),
@@ -444,6 +464,8 @@ private fun Dock(state: ChatState, viewModel: ChatViewModel, voiceDefaults: Voic
             }
         }
         aboveComposer()
+        // Where the next task runs, right where it's typed.
+        ProjectChip(state.project, onClick = onChooseProject, modifier = Modifier.padding(start = WhittleSpace.xs))
         Composer(
             value = state.input,
             onValueChange = viewModel::updateInput,
@@ -524,7 +546,7 @@ private fun rememberVoice(defaults: VoiceDefaults, input: String, onInput: (Stri
 }
 
 @Composable
-private fun EmptyThread(state: ChatState) {
+private fun EmptyThread(state: ChatState, recentProjects: Int, onPickProject: (String) -> Unit) {
     Column(
         Modifier.fillMaxSize().padding(horizontal = WhittleSpace.xxl),
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.s, Alignment.CenterVertically),
@@ -534,6 +556,7 @@ private fun EmptyThread(state: ChatState) {
         state.model?.let {
             Text(stringResource(R.string.chat_empty_body, it.displayName), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        if (state.project == null) CarryOn(state.projects.take(recentProjects), onPickProject)
     }
 }
 

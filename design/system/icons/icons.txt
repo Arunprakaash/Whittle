@@ -24,6 +24,7 @@ code
 contacts
 content_copy
 contrast
+create_new_folder
 dark_mode:fill
 data_object
 database
@@ -97,3 +98,4 @@ visibility
 visibility_off
 wallpaper
 wifi
+workspaces

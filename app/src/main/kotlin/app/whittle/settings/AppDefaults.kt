@@ -15,6 +15,7 @@ data class AppDefaults(
     val chatList: ChatListDefaults,
     val siteIcons: SiteIconDefaults,
     val preview: PreviewDefaults,
+    val projects: ProjectDefaults,
     val files: FilesDefaults,
     val background: BackgroundDefaults,
     val voice: VoiceDefaults,
@@ -53,6 +54,8 @@ data class AppStorageNames(
     val connectorsDirectoryName: String,
     /** The MCP servers the user added (names and addresses; their sign-ins are in the secret store). */
     val customConnectorsStoreName: String,
+    /** Under the app's files folder: the project each chat works on. */
+    val chatProjectsFileName: String,
 )
 
 /** How many chats the sidebar shows before pointing to the Chats page. */
@@ -180,4 +183,26 @@ data class FilesDefaults(
     fun isImage(name: String): Boolean = name.substringAfterLast('.', "").lowercase() in imageExtensions
 
     fun isCode(name: String): Boolean = name.substringAfterLast('.', "").lowercase().let { it.isNotEmpty() && it !in proseExtensions }
+}
+
+/** A chat's project: how the agent is told about it, and how many recent ones a new chat offers. */
+@Serializable
+data class ProjectDefaults(
+    /** {{project}} is the folder name, {{mount}} where the workspace is in Linux. */
+    val promptWithProject: String,
+    /** {{mount}} is where the workspace is in Linux. */
+    val promptWithoutProject: String,
+    val recentCount: Int,
+) {
+    init {
+        require(recentCount >= 0) { "projects.recentCount can't be negative" }
+    }
+
+    fun prompt(project: String?, mount: String): String =
+        (if (project == null) promptWithoutProject else promptWithProject.replace(PROJECT, project)).replace(MOUNT, mount)
+
+    private companion object {
+        const val PROJECT = "{{project}}"
+        const val MOUNT = "{{mount}}"
+    }
 }

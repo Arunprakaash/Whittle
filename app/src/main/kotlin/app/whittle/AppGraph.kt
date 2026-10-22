@@ -73,7 +73,9 @@ import app.whittle.tools.workspace.ShellEnvironment
 import app.whittle.tools.workspace.ProcessManager
 import app.whittle.tools.workspace.TerminalConfig
 import app.whittle.tools.workspace.WorkspaceToolSet
+import app.whittle.files.ChatProjectStore
 import app.whittle.files.FileChangeLog
+import app.whittle.settings.ProjectDefaults
 import app.whittle.settings.FilesDefaults
 import app.whittle.tools.workspace.Workspaces
 import kotlinx.serialization.KSerializer
@@ -165,16 +167,22 @@ class AppGraph(context: Context) {
     val processes by lazy { ProcessManager(linux.environment, terminalLimits.processes, appScope) }
 
     /** The workspace every chat shares, in the app's private storage, mounted into Linux as /workspace. */
-    val workspaces = Workspaces(File(context.filesDir, appDefaults.storage.workspaceDirectoryName), linux.fileSystem)
+    /** Lives as long as the process: for writes that must finish even when a screen goes away. */
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** The project each chat works on; commands and relative paths follow it. */
+    val chatProjects = ChatProjectStore(File(context.filesDir, appDefaults.storage.chatProjectsFileName), appScope)
+
+    val workspaces = Workspaces(File(context.filesDir, appDefaults.storage.workspaceDirectoryName), linux.fileSystem, chatProjects)
+
+    /** How a chat's project is put to the agent, and how many recent ones a new chat offers. */
+    val projectDefaults: ProjectDefaults get() = appDefaults.projects
 
     /** The file browser's settings. */
     val filesDefaults: FilesDefaults get() = appDefaults.files
 
     /** What each chat's agent changed in the workspace, for the file browser's Changes. */
     val fileChanges = FileChangeLog(File(context.filesDir, appDefaults.files.changesDirectoryName), workspaces)
-
-    /** Lives as long as the process: for writes that must finish even when a screen goes away. */
-    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** The user's settings, kept current; null until the saved choices have loaded. */
     val currentSettings: StateFlow<UserSettings?> = settings.settings.stateIn(appScope, SharingStarted.Eagerly, null)
@@ -242,6 +250,7 @@ class AppGraph(context: Context) {
         config = terminalLimits,
         processes = processes,
         changes = fileChanges,
+        projects = chatProjects,
     )
 
     /**

@@ -109,7 +109,9 @@ prebuilt Linux programs work as on a computer. It's an ordinary folder in the ap
   libraries, with the Termux prefix rewritten to the app's own (padded to the same length, so the binaries stay
   intact).
 - **One workspace for every chat.** A single folder lives outside Linux and is mounted at `/workspace`; a chat
-  can start several projects in it and any other chat can carry on with them. Deleting a chat keeps its files.
+  can start several projects in it and any other chat can carry on with them. A chat can focus on one project
+  (`use_project`, or the chip above the composer): its commands then start in that folder and relative paths resolve
+  inside it. Deleting a chat keeps its files.
   The file tools read and write Linux paths directly, following links the way Linux would without ever leaving
   the workspace (`LinuxFileSystem`), and record what each chat changed for the file browser (`FileChangeLog`).
 

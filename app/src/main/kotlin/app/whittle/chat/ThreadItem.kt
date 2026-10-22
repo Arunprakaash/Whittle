@@ -95,6 +95,8 @@ sealed interface ThreadItem {
         val name: String,
         val command: String,
         val port: Int?,
+        /** The chat's project when it started, so Restart runs it from the same folder. */
+        val project: String? = null,
     ) : ThreadItem
 
     /** The pages the answer above cites, shown as a pill that opens into a list. */

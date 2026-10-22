@@ -67,7 +67,10 @@ class BundledConfigTest {
         val template = PromptTemplate.load(source, ConfigFiles.agentSystemPrompt)
         assertIs<Outcome.Success<PromptTemplate>>(template)
         assertEquals(
-            setOf(SystemPromptVariables.CURRENT_DATE, SystemPromptVariables.USER_LOCALE, SystemPromptVariables.USER_TIME_ZONE, SystemPromptVariables.MEMORIES),
+            setOf(
+                SystemPromptVariables.CURRENT_DATE, SystemPromptVariables.USER_LOCALE, SystemPromptVariables.USER_TIME_ZONE,
+                SystemPromptVariables.PROJECT, SystemPromptVariables.MEMORIES,
+            ),
             template.value.placeholders,
         )
     }

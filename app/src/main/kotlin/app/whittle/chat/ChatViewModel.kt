@@ -40,8 +40,14 @@ import app.whittle.tools.workspace.StartProcessTool
 import app.whittle.tools.workspace.WriteFileTool
 import app.whittle.tools.workspace.EditFileTool
 import app.whittle.files.workspacePath
+import app.whittle.files.ProjectFolder
+import app.whittle.tools.workspace.ChatProjects
+import app.whittle.tools.workspace.UseProjectTool
+import app.whittle.tools.workspace.commandIn
 import app.whittle.tools.presentation.StepText
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
@@ -83,6 +89,10 @@ data class ChatState(
     /** Apps the agent made, across every chat, newest chat first. */
     /** Goes up whenever a tool finishes in this chat, so an open app reloads after the agent edits it. */
     val workspaceRevision: Int = 0,
+    /** The project this chat works on; null for the whole workspace. */
+    val project: String? = null,
+    /** The workspace's projects, most recently changed first, to pick from. */
+    val projects: List<ProjectFolder> = emptyList(),
 ) {
     val running: Boolean get() = status != null
 }
@@ -145,6 +155,12 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private var segment = Segment(start = 0, startedAtMillis = 0)
     private val stepTexts = mutableMapOf<String, StepText>()
     private val parkedCalls = mutableSetOf<String>()
+
+    /** Calls that show elsewhere than as a step, such as use_project in the chip. */
+    private val quietCalls = mutableSetOf<String>()
+
+    /** A project picked in a new chat, before it has an id to keep it under. */
+    private var pendingProject: String? = null
     private val needsAccess = mutableSetOf<String>()
     private val stepArguments = mutableMapOf<String, JsonObject>()
     private var nextKey = 0L
@@ -161,7 +177,48 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
 
     init {
         viewModelScope.launch { graph.connections.model.collect { model -> _state.update { it.copy(model = model) } } }
+        // The agent's use_project changes it too, mid-run.
+        viewModelScope.launch { graph.chatProjects.projects.collect { syncProject() } }
         restore()
+        refreshProjects()
+    }
+
+    /** Sets the chat's project, or the whole workspace for null. A new chat keeps it until its first message. */
+    fun chooseProject(project: String?) {
+        val chat = chatId
+        if (chat == null) pendingProject = project else graph.chatProjects.choose(WorkspaceId(chat.value), project)
+        syncProject()
+    }
+
+    /** Makes a project folder and works on it; false when [name] isn't a plain folder name or can't be made. */
+    fun createProject(name: String): Boolean {
+        val clean = name.trim()
+        if (!ChatProjects.isValidName(clean)) return false
+        val root = graph.workspaces.folder().getOrNull() ?: return false
+        val folder = File(root, clean)
+        if (!folder.isDirectory && !folder.mkdirs()) return false
+        chooseProject(clean)
+        refreshProjects()
+        return true
+    }
+
+    /** Lists the workspace's projects again, for the picker and a new chat's suggestions. */
+    fun refreshProjects() {
+        viewModelScope.launch {
+            val projects = withContext(Dispatchers.IO) {
+                val root = graph.workspaces.folder().getOrNull()
+                val hidden = graph.filesDefaults.hiddenNames
+                root?.listFiles().orEmpty()
+                    .filter { it.isDirectory && it.name !in hidden }
+                    .map { ProjectFolder(it.name, it.lastModified()) }
+                    .sortedByDescending { it.changedAtMillis }
+            }
+            _state.update { it.copy(projects = projects) }
+        }
+    }
+
+    private fun syncProject() = _state.update { state ->
+        state.copy(project = chatId?.let { graph.workspaces.projectOf(WorkspaceId(it.value)) } ?: pendingProject)
     }
 
     override fun onCleared() {
@@ -185,6 +242,9 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         }
         val runId = RunId(graph.idGenerator.newId())
         val chat = chatId ?: ChatId(graph.idGenerator.newId()).also { chatId = it }
+        // A project picked before the first message belongs to the chat from now on.
+        pendingProject?.let { graph.chatProjects.choose(WorkspaceId(chat.value), it) }
+        pendingProject = null
         runIds = runIds + runId
         append(ThreadItem.User(key(), text, steer = false))
         val request = RunRequest(
@@ -201,6 +261,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
                 SystemPromptVariables.CURRENT_DATE to LocalDate.now().toString(),
                 SystemPromptVariables.USER_LOCALE to Locale.getDefault().toLanguageTag(),
                 SystemPromptVariables.USER_TIME_ZONE to ZoneId.systemDefault().id,
+                SystemPromptVariables.PROJECT to graph.projectDefaults.prompt(graph.workspaces.projectOf(WorkspaceId(chat.value)), graph.linux.workspaceMount),
             ),
         )
         collect(runId, graph.runner.start(request))
@@ -321,6 +382,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         graph.processes.clear(WorkspaceId(id.value))
         // The workspace is shared, so its files stay; only this chat's record of what it changed goes.
         graph.fileChanges.forget(WorkspaceId(id.value))
+        graph.chatProjects.forget(WorkspaceId(id.value))
     }
 
     fun setPinned(id: ChatId, pinned: Boolean) {
@@ -369,7 +431,10 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val restored = ThreadBackfill(graph.presenter.siteArguments, ::key).apply(document?.items.orEmpty())
         val items = restored.map(::settle) + listOfNotNull(interrupted)
         savedItems = items
+        pendingProject = null
         _state.update { it.copy(items = items, status = null, input = "") }
+        syncProject()
+        refreshProjects()
     }
 
     private fun refreshChats() {
@@ -450,6 +515,11 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         finishNarration()
         val call = event.toolCall
         val arguments = arguments(call.argumentsJson)
+        // Focusing on a project shows in the chip under the title, not as a step.
+        if (call.toolName == UseProjectTool.DEFINITION.id.value) {
+            quietCalls += call.id.value
+            return
+        }
         // A plan isn't a step: it updates the checklist in place.
         if (call.toolName == PlanTool.ID) {
             planCalls += call.id.value
@@ -474,6 +544,10 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val id = event.result.toolCallId.value
         // A server that ended at once still gets its card: its output and Ask to fix are on it.
         if (callTools[id] == StartProcessTool.DEFINITION.id.value) showProcess(event.result.content, stepArguments[id] ?: EMPTY_ARGUMENTS)
+        if (id in quietCalls) {
+            refreshProjects()
+            return
+        }
         if (id in parkedCalls || id in planCalls) return
         val text = stepTexts[id]
         updateStep(id) { step ->
@@ -512,7 +586,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             val items = if (shown) {
                 state.items.map { if (it is ThreadItem.Process && it.name == name) it.copy(processId = processId, command = command, port = port) else it }
             } else {
-                state.items + ThreadItem.Process(key(), processId, name, command, port)
+                state.items + ThreadItem.Process(key(), processId, name, command, port, project = chatId?.let { graph.workspaces.projectOf(WorkspaceId(it.value)) })
             }
             state.copy(items = items)
         }
@@ -532,7 +606,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val chat = chatId ?: return
         graph.appScope.launch {
             val directory = graph.workspaces.directory(WorkspaceId(chat.value)).getOrNull() ?: return@launch
-            val started = graph.processes.start(WorkspaceId(chat.value), directory, item.name, item.command, item.port).getOrNull() ?: return@launch
+            val command = commandIn(item.project, item.command)
+            val started = graph.processes.start(WorkspaceId(chat.value), directory, item.name, command, item.port).getOrNull() ?: return@launch
             _state.update { state ->
                 state.copy(items = state.items.map { if (it is ThreadItem.Process && it.key == item.key) it.copy(processId = started.id, port = started.port ?: it.port) else it })
             }

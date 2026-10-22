@@ -31,6 +31,9 @@ object SystemPromptVariables {
     /** An IANA zone id such as Asia/Kolkata. Without it models guess a zone from the locale. */
     const val USER_TIME_ZONE = "userTimeZone"
 
+    /** Where the chat works in the shared workspace: its project, or the whole workspace. Hosts fill it. */
+    const val PROJECT = "project"
+
     /** What the agent remembers about the user; the runner fills it from its [MemoryStore], so hosts don't pass it. */
     const val MEMORIES = "memories"
 }

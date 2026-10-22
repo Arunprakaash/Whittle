@@ -393,4 +393,16 @@
         <item quantity="one">⋯ %d line</item>
         <item quantity="other">⋯ %d lines</item>
     </plurals>
+    <string name="project_whole">Whole workspace</string>
+    <string name="project_whole_meta">No project · sees every folder</string>
+    <string name="project_choose">Choose this chat\'s project</string>
+    <string name="project_sheet_title">Project for this chat</string>
+    <string name="project_sheet_body">Commands start in its folder. Files stay in the workspace either way.</string>
+    <string name="project_changed">Changed %1$s</string>
+    <string name="project_new">New project</string>
+    <string name="project_new_hint">Folder name</string>
+    <string name="project_new_invalid">Use letters, digits, dots, dashes and underscores.</string>
+    <string name="project_create">Create</string>
+    <string name="project_cancel">Cancel</string>
+    <string name="project_carry_on">Carry on with</string>
 </resources>

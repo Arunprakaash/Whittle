@@ -134,6 +134,24 @@ class WorkspaceToolsTest {
     }
 
     @Test
+    fun `a chat's project is where its commands start and its relative paths land`() = runBlocking<Unit> {
+        val chosen = mutableMapOf<WorkspaceId, String?>()
+        val projects = object : ChatProjects {
+            override fun projectOf(chat: WorkspaceId) = chosen[chat]
+            override fun choose(chat: WorkspaceId, project: String?) { chosen[chat] = project }
+        }
+        val shared = Workspaces(root, projects = projects)
+        UseProjectTool(shared, projects).execute(args("""{"name":"tip-splitter"}"""), context)
+        WriteFileTool(shared, config).execute(args("""{"path":"src/App.tsx","content":"app"}"""), context)
+        assertTrue(File(root, "tip-splitter/src/App.tsx").isFile)
+        val pwd = RunCommandTool(shared, CommandRunner(environment, config.maxOutputChars), config).execute(args("""{"command":"pwd -P"}"""), context)
+        assertEquals(File(root, "tip-splitter").canonicalPath, pwd.field("stdout").trim())
+        UseProjectTool(shared, projects).execute(args("""{}"""), context)
+        assertEquals(null, chosen[context.workspace])
+        assertTrue(UseProjectTool(shared, projects).execute(args("""{"name":"../escape"}"""), context).isError)
+    }
+
+    @Test
     fun `every chat works in the same folder`() = runBlocking<Unit> {
         WriteFileTool(workspaces, config).execute(args("""{"path":"notes/plan.md","content":"from chat 1"}"""), context)
         val otherChat = ToolExecutionContext(RunId("run-2"), ToolCallId("call-2"), WorkspaceId("chat-2"))

@@ -15,6 +15,7 @@ object WorkspaceToolSet {
         ReadProcessOutputTool.DEFINITION,
         ListProcessesTool.DEFINITION,
         StopProcessTool.DEFINITION,
+        UseProjectTool.DEFINITION,
     )
 
     fun create(
@@ -23,6 +24,7 @@ object WorkspaceToolSet {
         config: TerminalConfig,
         processes: ProcessManager,
         changes: FileChanges = FileChanges.NONE,
+        projects: ChatProjects = ChatProjects.NONE,
     ): List<Tool> = listOf(
         RunCommandTool(workspaces, CommandRunner(environment, config.maxOutputChars), config),
         ListFilesTool(workspaces, config),
@@ -33,5 +35,6 @@ object WorkspaceToolSet {
         ReadProcessOutputTool(workspaces, processes),
         ListProcessesTool(workspaces, processes),
         StopProcessTool(workspaces, processes),
+        UseProjectTool(workspaces, projects),
     )
 }

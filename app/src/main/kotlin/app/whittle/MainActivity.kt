@@ -184,6 +184,7 @@ class MainActivity : ComponentActivity() {
                                     aboveComposer = { LinuxProgressStrip(graph, compact = true) },
                                     onOpenProjects = { files = FilesOpening(FilesPlace.Folder("")) },
                                     onOpenFiles = { files = it },
+                                    recentProjects = graph.projectDefaults.recentCount,
                                 )
                             }
                         }

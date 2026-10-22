@@ -12,7 +12,14 @@ import java.io.IOException
  * shared, so a chat can start several projects and another chat can carry on with them. Every path a tool touches
  * must resolve inside the workspace, or, with [linux], inside the Linux that commands run in.
  */
-class Workspaces(private val root: File, private val linux: LinuxFileSystem? = null) {
+class Workspaces(
+    private val root: File,
+    private val linux: LinuxFileSystem? = null,
+    private val projects: ChatProjects = ChatProjects.NONE,
+) {
+    /** The folder [id] works in, relative to the workspace, while it still exists; null for the whole workspace. */
+    fun projectOf(id: WorkspaceId): String? = projects.projectOf(id)?.takeIf { File(root, it).isDirectory }
+
     /** The shared folder, for the chat [id]. */
     fun directory(id: WorkspaceId): Outcome<File> {
         if (!SAFE_ID.matches(id.value)) return invalid("Workspace id '${id.value}' is not a plain name")
@@ -28,7 +35,7 @@ class Workspaces(private val root: File, private val linux: LinuxFileSystem? = n
     /** Resolves [path] (relative to the workspace) for the chat [id]; see the other [resolve]. */
     fun resolve(id: WorkspaceId, path: String): Outcome<File> {
         if (!SAFE_ID.matches(id.value)) return invalid("Workspace id '${id.value}' is not a plain name")
-        return resolve(path)
+        return resolve(inProject(id, path))
     }
 
     /** Resolves [path] (relative to the workspace) and refuses anything that lands outside it, symlinks included. */
@@ -52,8 +59,14 @@ class Workspaces(private val root: File, private val linux: LinuxFileSystem? = n
         val linux = linux ?: return resolve(id, path)
         return when (val directory = directory(id)) {
             is Outcome.Failure -> directory
-            is Outcome.Success -> linux.resolve(directory.value, path)
+            is Outcome.Success -> linux.resolve(directory.value, inProject(id, path))
         }
+    }
+
+    /** A relative path, inside the chat's project when it has one; absolute paths are left as they are. */
+    private fun inProject(id: WorkspaceId, path: String): String {
+        val project = projectOf(id) ?: return path
+        return if (path.startsWith("/")) path else "$project/$path"
     }
 
     private fun invalid(message: String): Outcome<Nothing> = Outcome.Failure(HarnessError.NotFound(message))

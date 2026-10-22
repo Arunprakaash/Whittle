@@ -119,7 +119,7 @@
       "decision": {
         "icon": "terminal",
         "title": "Run this command?",
-        "body": "Runs in this chat's folder on your phone. It can't see your other apps, photos or files.",
+        "body": "Runs in your workspace on your phone. It can't see your other apps, photos or files.",
         "flagNotes": {
           "network": "It can also use the internet."
         },
@@ -138,7 +138,7 @@
       "decision": {
         "icon": "play_arrow",
         "title": "Start {{name}}?",
-        "body": "Keeps running in this chat's folder on your phone until it's stopped. It can't see your other apps, photos or files. It can use the internet.",
+        "body": "Keeps running in your workspace on your phone until it's stopped. It can't see your other apps, photos or files. It can use the internet.",
         "payloadArgument": "command",
         "approve": "Start",
         "approveIcon": "play_arrow",
@@ -151,6 +151,21 @@
       "icon": "notes",
       "running": "Reading the output",
       "done": "Read the output"
+    },
+    "use_project": {
+      "icon": "folder",
+      "running": "Choosing the project",
+      "done": "Working in {{name}}",
+      "decision": {
+        "icon": "folder",
+        "title": "Work in {{name}}?",
+        "body": "This chat's commands start in that folder of your workspace, made if it isn't there.",
+        "approve": "Use it",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Working in {{name}}",
+        "declinedOutcome": "Kept the workspace"
+      }
     },
     "list_processes": {
       "icon": "terminal",
@@ -189,7 +204,7 @@
       "decision": {
         "icon": "edit_document",
         "title": "Save {{path}}?",
-        "body": "Writes this file in the chat's workspace on your phone.",
+        "body": "Writes this file in your workspace on your phone.",
         "payloadArgument": "content",
         "payloadLabelArgument": "path",
         "approve": "Save",
@@ -206,7 +221,7 @@
       "decision": {
         "icon": "edit",
         "title": "Change {{path}}?",
-        "body": "Edits this file in the chat's workspace on your phone.",
+        "body": "Edits this file in your workspace on your phone.",
         "payloadArgument": "newText",
         "payloadLabelArgument": "path",
         "approve": "Change",

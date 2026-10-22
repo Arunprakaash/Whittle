@@ -40,7 +40,7 @@ class RunCommandTool(workspaces: Workspaces, private val runner: CommandRunner, 
             is Outcome.Success -> root.value
         }
         val network = arguments.flag(NETWORK)
-        val result = when (val ran = runner.run(command, directory, timeout, network)) {
+        val result = when (val ran = runner.run(access.command(command), directory, timeout, network)) {
             is Outcome.Failure -> return error(ran.error.message)
             is Outcome.Success -> ran.value
         }

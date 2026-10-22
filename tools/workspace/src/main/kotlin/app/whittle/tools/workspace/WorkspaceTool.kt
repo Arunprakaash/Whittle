@@ -46,4 +46,14 @@ class WorkspaceAccess(val id: app.whittle.tools.api.WorkspaceId, private val wor
     fun root(): Outcome<File> = workspaces.directory(id)
 
     fun file(path: String): Outcome<File> = workspaces.locate(id, path)
+
+    /** The chat's project, relative to the workspace, or null for the whole workspace. */
+    fun project(): String? = workspaces.projectOf(id)
+
+    /** [command] as it runs: from the chat's project folder when it has one. */
+    fun command(command: String): String = commandIn(project(), command)
 }
+
+/** [command] run from [project], a folder at the top of the workspace, or as it is for none. Commands start at the workspace. */
+fun commandIn(project: String?, command: String): String =
+    project?.let { "cd -- '" + it.replace("'", "'\\''") + "' && " + command } ?: command

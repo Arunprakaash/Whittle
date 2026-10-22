@@ -63,7 +63,7 @@ class StartProcessTool(workspaces: Workspaces, processes: ProcessManager) : Proc
             is Outcome.Failure -> return error(root.error.message)
             is Outcome.Success -> root.value
         }
-        val info = when (val started = processes.start(access.id, directory, name, command, arguments.int(PORT))) {
+        val info = when (val started = processes.start(access.id, directory, name, access.command(command), arguments.int(PORT))) {
             is Outcome.Failure -> return error(started.error.message)
             is Outcome.Success -> started.value
         }

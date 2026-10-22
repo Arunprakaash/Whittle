@@ -138,6 +138,8 @@ fun main(args: Array<String>) = runBlocking {
                 SystemPromptVariables.CURRENT_DATE to LocalDate.now().toString(),
                 SystemPromptVariables.USER_LOCALE to Locale.getDefault().toLanguageTag(),
                 SystemPromptVariables.USER_TIME_ZONE to ZoneId.systemDefault().id,
+                // The CLI has no chat projects: every command starts at the workspace.
+                SystemPromptVariables.PROJECT to "",
             ),
         ),
     )
