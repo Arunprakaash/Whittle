@@ -22,7 +22,10 @@ value class WorkspaceId(val value: String)
 enum class RiskTier {
     READ,
 
-    /** Changes only the chat's own workspace inside Whittle; nothing else on the phone is touched. */
+    /**
+     * Changes only what's inside Whittle: the workspace every chat shares, and the Linux it runs in. Nothing else on
+     * the phone is touched, but every project is in reach, so pre-approve it with care where nobody is watching.
+     */
     WORKSPACE,
 
     /**

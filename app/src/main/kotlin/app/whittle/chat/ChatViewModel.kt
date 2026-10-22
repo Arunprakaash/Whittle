@@ -252,7 +252,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             model = model,
             userMessage = Message.userText(text),
             priorMessages = history,
-            // One workspace per chat: files from earlier turns are still there for follow-ups.
+            // The workspace is shared; this id ties the run's processes, outputs and changes to this chat.
             workspace = WorkspaceId(chat.value),
             mode = RunMode.LIVE,
             reasoningEffort = graph.modelDefaults.defaultReasoningEffort,

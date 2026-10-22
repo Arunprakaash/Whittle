@@ -14,7 +14,7 @@ data class RunRequest(
     val userMessage: Message,
     /** Earlier turns of the same chat, so a follow-up continues the conversation. Empty for a new chat. */
     val priorMessages: List<Message> = emptyList(),
-    /** Where workspace tools read, write and run commands. Usually one per chat. */
+    /** The chat the run belongs to, for the workspace tools: the workspace is shared, the id ties processes, outputs and changes to the chat. */
     val workspace: WorkspaceId? = null,
     val mode: RunMode,
     val reasoningEffort: ReasoningEffort,
