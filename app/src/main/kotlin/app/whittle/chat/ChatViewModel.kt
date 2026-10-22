@@ -175,6 +175,9 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     /** The items as last loaded or saved; unchanged items are never re-saved, so opening a chat doesn't reorder the list. */
     private var savedItems: List<ThreadItem>? = null
 
+    /** Set in a chat an automation started: the chat is titled after it, not after its first message. */
+    private var automationName: String? = null
+
     init {
         viewModelScope.launch { graph.connections.model.collect { model -> _state.update { it.copy(model = model) } } }
         // The agent's use_project changes it too, mid-run.
@@ -231,7 +234,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     /** Starts a task, or adds to the one that's running without stopping it. */
     fun send() {
         val text = _state.value.input.trim()
-        val model = _state.value.model ?: return
+        if (_state.value.model == null) return
         if (text.isEmpty()) return
         _state.update { it.copy(input = "") }
         val running = activeRunId
@@ -240,6 +243,26 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             append(ThreadItem.User(key(), text, steer = true))
             return
         }
+        start(text, RunMode.LIVE, preApprovedTools = emptySet())
+    }
+
+    /**
+     * Starts an automation in a new chat titled [name], unattended: only [preApprovedTools] run without asking.
+     * The chat it leaves is saved first, as when the user opens another. Null while a task is already running.
+     */
+    fun startAutomation(name: String, prompt: String, preApprovedTools: Set<ToolId>): ChatId? {
+        if (activeJob?.isActive == true || _state.value.model == null) return null
+        leaveCurrentChat()
+        showFresh()
+        val chat = ChatId(graph.idGenerator.newId())
+        chatId = chat
+        automationName = name
+        start(prompt, RunMode.UNATTENDED, preApprovedTools)
+        return chat
+    }
+
+    private fun start(text: String, mode: RunMode, preApprovedTools: Set<ToolId>) {
+        val model = _state.value.model ?: return
         val runId = RunId(graph.idGenerator.newId())
         val chat = chatId ?: ChatId(graph.idGenerator.newId()).also { chatId = it }
         // A project picked before the first message belongs to the chat from now on.
@@ -254,9 +277,9 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             priorMessages = history,
             // The workspace is shared; this id ties the run's processes, outputs and changes to this chat.
             workspace = WorkspaceId(chat.value),
-            mode = RunMode.LIVE,
+            mode = mode,
             reasoningEffort = graph.modelDefaults.defaultReasoningEffort,
-            preApprovedTools = emptySet(),
+            preApprovedTools = preApprovedTools,
             promptVariables = mapOf(
                 SystemPromptVariables.CURRENT_DATE to LocalDate.now().toString(),
                 SystemPromptVariables.USER_LOCALE to Locale.getDefault().toLanguageTag(),
@@ -422,6 +445,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     /** Puts a chat on screen: [document] null means a fresh, empty chat. */
     private suspend fun show(id: ChatId?, document: ChatDocument?) {
         chatId = id.takeIf { document != null }
+        automationName = document?.automationName
         history = document?.history.orEmpty()
         runIds = document?.runIds.orEmpty()
         nextKey = document?.nextKey ?: nextKey
@@ -433,6 +457,19 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         savedItems = items
         pendingProject = null
         _state.update { it.copy(items = items, status = null, input = "") }
+        syncProject()
+        refreshProjects()
+    }
+
+    /** Puts a fresh, empty chat on screen at once, as [show] does without a document. */
+    private fun showFresh() {
+        chatId = null
+        automationName = null
+        history = emptyList()
+        runIds = emptyList()
+        savedItems = emptyList()
+        pendingProject = null
+        _state.update { it.copy(items = emptyList(), status = null, input = "") }
         syncProject()
         refreshProjects()
     }
@@ -874,7 +911,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         if (items.isEmpty() || items == savedItems) return
         savedItems = items
         val id = chatId ?: ChatId(graph.idGenerator.newId()).also { chatId = it }
-        val title = items.filterIsInstance<ThreadItem.User>().firstOrNull()?.text.orEmpty().take(TITLE_MAX_CHARS)
+        val title = (automationName ?: items.filterIsInstance<ThreadItem.User>().firstOrNull()?.text.orEmpty()).take(TITLE_MAX_CHARS)
         val document = ChatDocument(
             schemaVersion = ChatDocument.SCHEMA_VERSION,
             title = title,
@@ -883,6 +920,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             activeRunId = activeRunId,
             nextKey = nextKey,
             runIds = runIds,
+            automationName = automationName,
         )
         graph.appScope.launch {
             saveLock.withLock { graph.chats.save(id, title, document.encode()) }

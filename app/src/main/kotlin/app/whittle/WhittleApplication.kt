@@ -7,6 +7,7 @@ import android.app.Application
 import android.app.NotificationManager
 import android.content.Intent
 import android.os.Bundle
+import app.whittle.automations.AutomationRunner
 import app.whittle.background.AgentRunService
 import app.whittle.background.ProcessesService
 import app.whittle.background.RunNotifications
@@ -27,6 +28,9 @@ class WhittleApplication : Application() {
      */
     val chat: ChatViewModel by lazy { ChatViewModel(graph) }
 
+    /** Starts automations in [chat] when they're due, or when the user taps Run now. */
+    val automationRunner: AutomationRunner by lazy { AutomationRunner(graph.automations, chat, graph.clock) { inForeground } }
+
     val notifications: RunNotifications by lazy { RunNotifications(this) }
     val notificationManager: NotificationManager by lazy { getSystemService(NotificationManager::class.java) }
 
@@ -42,9 +46,14 @@ class WhittleApplication : Application() {
         registerActivityLifecycleCallbacks(VisibilityTracker())
         scope.launch {
             // Started with the task, while Whittle is on screen (Android refuses it once in the background).
-            // Its notification waits a few seconds, so a quick answer never shows one.
-            chat.state.map { it.running }.distinctUntilChanged().collect { running -> if (running && keepRunningInBackground()) startRunService() }
+            // Its notification waits a few seconds, so a quick answer never shows one. A task that starts while the
+            // user is away is an automation, which runs only in the background, so it always gets the service.
+            chat.state.map { it.running }.distinctUntilChanged().collect { running ->
+                if (running && (keepRunningInBackground() || !inForeground)) startRunService()
+            }
         }
+        // Alarms don't survive a force stop or a restore from backup; setting them at each launch costs nothing.
+        graph.appScope.launch { graph.automations.rescheduleAll() }
         scope.launch {
             // Servers the agent started keep running while the user is elsewhere, under their own notification.
             graph.processes.processes.map { list -> list.any { it.live } }.distinctUntilChanged().collect { live ->

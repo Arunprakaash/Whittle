@@ -56,6 +56,8 @@ data class AppStorageNames(
     val customConnectorsStoreName: String,
     /** Under the app's files folder: the project each chat works on. */
     val chatProjectsFileName: String,
+    /** The user's automations, encrypted. */
+    val automationsFileName: String,
 )
 
 /** How many chats the sidebar shows before pointing to the Chats page. */

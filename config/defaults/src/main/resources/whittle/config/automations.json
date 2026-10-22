@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "maxAutomations": 20,
+  "maxNameChars": 60,
+  "maxPromptChars": 2000,
+  "defaultMinuteOfDay": 420,
+  "retryAfterMillis": 300000,
+  "giveUpAfterMillis": 10800000,
+  "startTimeoutMillis": 10000,
+  "alwaysPreApproved": ["ask_user", "update_plan"],
+  "tools": [
+    {
+      "key": "web",
+      "icon": "travel_explore",
+      "label": "Search and read the web",
+      "toolIds": ["web_search", "web_fetch"],
+      "default": true
+    },
+    {
+      "key": "clock",
+      "icon": "schedule",
+      "label": "Check the date and time",
+      "toolIds": ["device_clock_now"],
+      "default": true
+    },
+    {
+      "key": "calendar",
+      "icon": "calendar_month",
+      "label": "Read your calendar",
+      "toolIds": ["calendar_events"],
+      "default": false
+    },
+    {
+      "key": "contacts",
+      "icon": "contacts",
+      "label": "Look up your contacts",
+      "toolIds": ["contacts_search"],
+      "default": false
+    },
+    {
+      "key": "files",
+      "icon": "folder",
+      "label": "Read and write files in its chat's folder",
+      "toolIds": ["list_files", "read_file", "write_file", "edit_file"],
+      "default": true
+    }
+  ]
+}

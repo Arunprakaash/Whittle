@@ -13,6 +13,8 @@
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <!-- Speaking instead of typing in the chat; asked the first time the mic is tapped. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Automations: their alarms are set again after the phone restarts. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Android 11+ only shows the speech recognizer to apps that declare they use it. -->
     <queries>
@@ -66,6 +68,18 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Keeps local development servers the user's AI agent started running, listed in a notification with a Stop all button." />
         </service>
+        <!-- Automations: woken by their own alarms, and by the system to set those alarms again. Not exported;
+             system broadcasts still arrive, and no other app can start a run. -->
+        <receiver
+            android:name=".automations.AutomationReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
         <!-- Connector sign-in pages send the user back here; the address matches redirectUri in connectors.json. -->
         <activity
             android:name=".connectors.ConnectorRedirectActivity"

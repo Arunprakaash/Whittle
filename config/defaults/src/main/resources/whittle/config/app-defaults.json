@@ -13,7 +13,8 @@
     "workspaceDirectoryName": "workspace",
     "connectorsDirectoryName": "connectors",
     "customConnectorsStoreName": "whittle_connectors",
-    "chatProjectsFileName": "chat-projects.json"
+    "chatProjectsFileName": "chat-projects.json",
+    "automationsFileName": "automations.enc"
   },
   "terminal": {
     "shell": "/system/bin/sh",

@@ -404,4 +404,42 @@
     <string name="project_create">Create</string>
     <string name="project_cancel">Cancel</string>
     <string name="project_carry_on">Carry on with</string>
+
+    <!-- Automations -->
+    <string name="settings_section_automations">Automations</string>
+    <string name="automation_title">Automations</string>
+    <string name="automation_settings_idle">Run tasks on a schedule</string>
+    <string name="automation_settings_on">%1$d on</string>
+    <string name="automation_intro">Tasks Whittle runs by itself on a schedule, each in a new chat. Ask for one in a chat (\"every weekday at 7, brief me on…\") or add one here.</string>
+    <string name="automation_new">New automation</string>
+    <string name="automation_edit">Edit automation</string>
+    <string name="automation_limit">You can have up to %1$d</string>
+    <string name="automation_every_day">Every day at %1$s</string>
+    <string name="automation_weekdays">Weekdays at %1$s</string>
+    <string name="automation_weekends">Weekends at %1$s</string>
+    <string name="automation_some_days">%1$s at %2$s</string>
+    <string name="automation_next">Next %1$s</string>
+    <string name="automation_off">Off</string>
+    <string name="automation_name">Name</string>
+    <string name="automation_prompt">What should Whittle do each time?</string>
+    <string name="automation_prompt_hint">Write it as the full instruction; each run starts a fresh chat.</string>
+    <string name="automation_time">Time</string>
+    <string name="automation_days">Days</string>
+    <string name="automation_tools">Runs without asking</string>
+    <string name="automation_tools_hint">Anything else waits for your approval in the chat.</string>
+    <string name="automation_save">Save</string>
+    <string name="automation_ok">OK</string>
+    <string name="automation_run_now">Run now</string>
+    <string name="automation_open_last">Open last run</string>
+    <string name="automation_delete">Delete</string>
+    <string name="automation_delete_title">Delete %1$s?</string>
+    <string name="automation_delete_body">It won\'t run again. Chats from earlier runs stay.</string>
+    <string name="automation_error_name_empty">Give it a name.</string>
+    <string name="automation_error_name_long">The name can be up to %1$d characters.</string>
+    <string name="automation_error_prompt_empty">Say what Whittle should do.</string>
+    <string name="automation_error_prompt_long">The instruction can be up to %1$d characters.</string>
+    <string name="automation_error_too_many">You can have up to %1$d automations.</string>
+    <string name="automation_error_tool">One of those tools can\'t run without asking.</string>
+    <string name="automation_busy">A task is running. Try again when it\'s done.</string>
+    <string name="automation_no_model">Connect a model first.</string>
 </resources>

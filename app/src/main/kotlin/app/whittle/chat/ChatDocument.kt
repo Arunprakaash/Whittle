@@ -18,6 +18,8 @@ data class ChatDocument(
     val nextKey: Long,
     /** Every run this chat started, so deleting the chat deletes their checkpoints too. */
     val runIds: List<RunId> = emptyList(),
+    /** The automation that started this chat, which it's titled after. */
+    val automationName: String? = null,
 ) {
     fun encode(): String = JSON.encodeToString(serializer(), this)
 
