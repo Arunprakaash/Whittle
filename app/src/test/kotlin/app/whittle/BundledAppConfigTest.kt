@@ -1,6 +1,9 @@
 package app.whittle
 
+import app.whittle.automations.AutomationsConfig
 import app.whittle.config.defaults.BundledConfigSource
+import app.whittle.llm.api.HostedTool
+import app.whittle.tools.api.RiskTier
 import app.whittle.connectors.matches
 import app.whittle.connectors.mcp.ConnectorsConfig
 import app.whittle.core.common.Outcome
@@ -34,6 +37,23 @@ class BundledAppConfigTest {
         assertTrue(Regex("^[0-9a-f]{64}$").matches(image.sha256), "the image must be pinned by its SHA-256")
         assertTrue(image.url.startsWith("https://"))
         assertTrue(linux.workspaceMount !in linux.deviceMounts)
+    }
+
+    @Test
+    fun `automations can only pre-approve built-in tools that read, never ones that send data out`() {
+        val config = assertIs<Outcome.Success<AutomationsConfig>>(
+            loader.load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
+        ).value
+        // Hosted web search is a web read the provider runs (see HostedToolDefinitions).
+        val tiers = ToolCatalog.definitions.associate { it.id.value to it.riskTier } + (HostedTool.WEB_SEARCH.toolName to RiskTier.WEB_READ)
+        val named = config.choosableToolIds + config.alwaysPreApproved
+        val unknown = named - tiers.keys
+        assertTrue(unknown.isEmpty(), "automations.json names tools that don't exist: $unknown")
+        val risky = named.filter { tiers.getValue(it) > RiskTier.WEB_READ }
+        assertTrue(risky.isEmpty(), "Automations must not run these without asking: $risky")
+        assertTrue(config.defaultToolIds.isNotEmpty())
+        val missingIcons = config.tools.map { it.icon }.toSet() - MaterialSymbols.names
+        assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
     }
 
     @Test

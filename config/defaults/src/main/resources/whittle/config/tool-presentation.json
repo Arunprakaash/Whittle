@@ -372,6 +372,22 @@
         "declinedOutcome": "Not searched"
       }
     },
+    "schedule_task": {
+      "icon": "schedule",
+      "running": "Scheduling {{name}}",
+      "done": "Scheduled {{name}}",
+      "decision": {
+        "icon": "schedule",
+        "title": "Schedule {{name}}?",
+        "body": "Whittle will run this by itself at {{time}}, in a new chat each time, and let you know when it's done. It uses only the tools you allow in Settings › Automations; anything else waits for you.",
+        "payloadArgument": "prompt",
+        "approve": "Schedule",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Scheduled {{name}}",
+        "declinedOutcome": "Not scheduled"
+      }
+    },
     "remember": {
       "icon": "bookmark_add",
       "running": "Remembering this",

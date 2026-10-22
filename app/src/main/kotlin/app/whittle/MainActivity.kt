@@ -1,6 +1,11 @@
 package app.whittle
 
 import app.whittle.settings.MemoryScreen
+import android.widget.Toast
+import app.whittle.automations.AutomationsScreen
+import app.whittle.automations.RunNowResult
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import android.content.res.Configuration
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.WindowCompat
@@ -126,6 +131,8 @@ class MainActivity : ComponentActivity() {
                             var showingConnectionLibrary by rememberSaveable { mutableStateOf(false) }
                             var showingMemory by rememberSaveable { mutableStateOf(false) }
                             var showingLinux by rememberSaveable { mutableStateOf(false) }
+                            var showingAutomations by rememberSaveable { mutableStateOf(false) }
+                            val scope = rememberCoroutineScope()
                             var toolsOf by rememberSaveable { mutableStateOf<String?>(null) }
                             var files by rememberSaveable(stateSaver = filesOpeningSaver) { mutableStateOf<FilesOpening?>(null) }
                             val connections by graph.connectors.all.collectAsStateWithLifecycle()
@@ -133,6 +140,22 @@ class MainActivity : ComponentActivity() {
                             val opening = files
                             if (opening != null) {
                                 FilesBrowser(graph, opening, onAsk = chat::sendText, onClose = { files = null })
+                            } else if (showingAutomations) {
+                                AutomationsScreen(
+                                    graph,
+                                    onBack = { showingAutomations = false; showingSettings = true },
+                                    onRunNow = { automation ->
+                                        scope.launch {
+                                            when ((application as WhittleApplication).automationRunner.runNow(automation.id)) {
+                                                RunNowResult.STARTED -> { showingAutomations = false; showingSettings = false }
+                                                RunNowResult.BUSY -> Toast.makeText(this@MainActivity, R.string.automation_busy, Toast.LENGTH_SHORT).show()
+                                                RunNowResult.NO_MODEL -> Toast.makeText(this@MainActivity, R.string.automation_no_model, Toast.LENGTH_SHORT).show()
+                                                RunNowResult.NOT_FOUND -> Unit
+                                            }
+                                        }
+                                    },
+                                    onOpenChat = { id -> chat.openChat(id); showingAutomations = false; showingSettings = false },
+                                )
                             } else if (showingMemory) {
                                 MemoryScreen(graph, onBack = { showingMemory = false; showingSettings = true })
                             } else if (showingLinux) {
@@ -161,6 +184,7 @@ class MainActivity : ComponentActivity() {
                                     onBrowseConnections = { showingSettings = false; showingConnectionLibrary = true },
                                     onConnectionTools = { connection -> showingSettings = false; toolsOf = connection.server.id },
                                     onMemory = { showingSettings = false; showingMemory = true },
+                                    onAutomations = { showingSettings = false; showingAutomations = true },
                                     onLinux = { showingSettings = false; showingLinux = true },
                                 )
                             } else if (showingAllChats) {

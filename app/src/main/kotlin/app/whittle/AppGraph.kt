@@ -1,6 +1,11 @@
 package app.whittle
 
 import app.whittle.agent.MemoryStore
+import app.whittle.automations.AndroidAutomationAlarms
+import app.whittle.automations.Automations
+import app.whittle.automations.AutomationsConfig
+import app.whittle.automations.EncryptedFileAutomations
+import java.time.ZoneId
 import app.whittle.memory.EncryptedFileMemory
 import app.whittle.tools.workspace.WorkspaceOutputs
 import app.whittle.settings.VoiceDefaults
@@ -223,8 +228,22 @@ class AppGraph(context: Context) {
         appScope,
     )
 
+    /** Tasks Whittle runs by itself on a schedule, each with an alarm for its next run. */
+    val automations = Automations(
+        backend = EncryptedFileAutomations(File(context.filesDir, appDefaults.storage.automationsFileName), cipher),
+        alarms = AndroidAutomationAlarms(context),
+        config = load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
+        clock = clock,
+        ids = idGenerator,
+        zone = ZoneId::systemDefault,
+        scope = appScope,
+    )
+
     /** Every tool a task can use: the built-in ones and those of the user's connections. */
-    val tools = ToolRegistry(ToolCatalog.create(context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, agentMessages), connectors::tools)
+    val tools = ToolRegistry(
+        ToolCatalog.create(context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, agentMessages, automations),
+        connectors::tools,
+    )
 
     val runner = AgentRunner(
         adapters = ModelAdapterRegistry(setOf(OpenAiCompatibleAdapter(httpClient, idGenerator), OpenAiResponsesAdapter(httpClient))),

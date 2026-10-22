@@ -21,6 +21,13 @@
       "matcher": {
         "toolIdPattern": "add_connection"
       }
+    },
+    {
+      "id": "automations-always-confirm",
+      "effect": "ASK",
+      "matcher": {
+        "toolIdPattern": "schedule_task"
+      }
     }
   ],
   "riskTierDefaults": {

@@ -137,6 +137,21 @@ with `read_process_output`, and `list_processes` / `stop_process` manage what ru
 or with the app; the card restarts one with the same command. With Keep working in the background on, a
 notification lists them and keeps them running, with Stop all.
 
+### Automations
+
+An automation is a task Whittle runs by itself at a time of day, on chosen days. The user sets one up in
+Settings › Automations, or asks in a chat and approves the `schedule_task` card.
+
+- **Scheduling.** Each enabled automation has an exact alarm for its next run (`setExactAndAllowWhileIdle`,
+  which needs no permission at SDK 28). The alarms are set again after a reboot, an app update, a clock or
+  time zone change, and at every launch.
+- **Running.** `AutomationRunner` starts the automation in a new chat titled after it, in `RunMode.UNATTENDED`.
+  The policy engine then allows only the tools the user pre-approved for it; anything else pauses the run with
+  a Needs you notification. automations.json limits which tools can be pre-approved to ones that read, plus
+  the chat's own files. A test keeps outbound tools out.
+- **Not taking over.** While a task is running or the user is in the app, a due automation tries again every
+  few minutes and gives up after a few hours. Run now starts at once.
+
 ### Connectors
 
 `connectors:mcp` speaks MCP over Streamable HTTP and the older SSE transport. Sign-in uses OAuth 2.1:
@@ -170,6 +185,7 @@ Nothing that may change lives in code. The defaults are in
 | `policy-rules.json` | Policy rules |
 | `tool-presentation.json` | How each tool's steps and cards are labelled |
 | `connectors.json`, `app-defaults.json` | Connectors and app settings |
+| `automations.json` | Automation limits and the tools an automation may use without asking |
 | `terminal.json`, `linux-workspace.json` | Command and process limits, and the Linux image and its setup |
 | `agent-messages.json`, `prompts/agent-system.md` | Everything the model is told |
 

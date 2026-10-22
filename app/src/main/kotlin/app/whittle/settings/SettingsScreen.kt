@@ -67,6 +67,7 @@ fun SettingsScreen(
     onBrowseConnections: () -> Unit,
     onConnectionTools: (McpConnection) -> Unit,
     onMemory: () -> Unit,
+    onAutomations: () -> Unit,
     onLinux: () -> Unit,
 ) {
     BackHandler(onBack = onBack)
@@ -133,6 +134,19 @@ fun SettingsScreen(
                         subtitle = pluralStringResource(R.plurals.memory_count, remembered.size, remembered.size),
                         shape = segmentedShape(0, 1),
                         onClick = onMemory,
+                        trailing = { WhittleIcon("chevron_right", size = WhittleSize.Icon.m, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    )
+                }
+            }
+            item {
+                val enabledCount = graph.automations.all.collectAsState().value.count { it.enabled }
+                SettingsSection(stringResource(R.string.settings_section_automations)) {
+                    SettingsRow(
+                        icon = "schedule",
+                        title = stringResource(R.string.automation_title),
+                        subtitle = if (enabledCount > 0) stringResource(R.string.automation_settings_on, enabledCount) else stringResource(R.string.automation_settings_idle),
+                        shape = segmentedShape(0, 1),
+                        onClick = onAutomations,
                         trailing = { WhittleIcon("chevron_right", size = WhittleSize.Icon.m, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                     )
                 }
