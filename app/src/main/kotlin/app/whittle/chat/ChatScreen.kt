@@ -65,6 +65,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,13 +75,16 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import app.whittle.R
 import app.whittle.design.components.Composer
 import app.whittle.design.components.LatestPill
@@ -273,16 +277,25 @@ private fun ChatLayout(
             )
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                when {
-                    state.restoring -> Unit
-                    state.items.isEmpty() -> EmptyThread(state, recentProjects, viewModel::chooseProject)
-                    // One list per chat: switching replaces the thread instead of animating one chat into another.
-                    else -> key(state.currentChat) { Thread(state.items, state.running, viewModel, requestCapability) }
-                }
+        // The dock floats over the end of the thread, so only its status card, chip and composer hide what's behind
+        // them; the thread leaves room for the dock at its bottom, so nothing ends up under it for good.
+        var dockHeight by remember { mutableIntStateOf(0) }
+        val dockSpace = with(LocalDensity.current) { dockHeight.toDp() }
+        Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
+            when {
+                state.restoring -> Unit
+                state.items.isEmpty() -> EmptyThread(state, recentProjects, viewModel::chooseProject, Modifier.padding(bottom = dockSpace))
+                // One list per chat: switching replaces the thread instead of animating one chat into another.
+                else -> key(state.currentChat) { Thread(state.items, state.running, viewModel, requestCapability, dockSpace) }
             }
-            Dock(state, viewModel, voiceDefaults, aboveComposer, onChooseProject = { viewModel.refreshProjects(); choosingProject = true })
+            Dock(
+                state,
+                viewModel,
+                voiceDefaults,
+                aboveComposer,
+                onChooseProject = { viewModel.refreshProjects(); choosingProject = true },
+                modifier = Modifier.align(Alignment.BottomCenter).onSizeChanged { dockHeight = it.height },
+            )
         }
     }
     }
@@ -293,7 +306,14 @@ private fun ChatLayout(
  * as it streams; scrolling up stops following, and the Latest pill brings them back.
  */
 @Composable
-private fun Thread(items: List<ThreadItem>, working: Boolean, viewModel: ChatViewModel, requestCapability: (ThreadItem.Capability) -> Unit) {
+private fun Thread(
+    items: List<ThreadItem>,
+    working: Boolean,
+    viewModel: ChatViewModel,
+    requestCapability: (ThreadItem.Capability) -> Unit,
+    /** The height of the dock floating over the thread's end, kept clear below the last item. */
+    dockSpace: Dp,
+) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var following by remember { mutableStateOf(true) }
@@ -304,13 +324,14 @@ private fun Thread(items: List<ThreadItem>, working: Boolean, viewModel: ChatVie
     }
     // Changes whenever anything new appears or the last item changes at all: streaming text, a step
     // added to a group, a card resolving. While following, each change keeps the bottom in view.
-    LaunchedEffect(items.size, items.lastOrNull()) {
+    // The dock growing (a status card appearing) also moves the bottom, so it keeps it in view too.
+    LaunchedEffect(items.size, items.lastOrNull(), dockSpace) {
         if (following && items.isNotEmpty()) listState.scrollToItem(items.lastIndex, scrollOffset = Int.MAX_VALUE)
     }
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
-            contentPadding = PaddingValues(horizontal = WhittleSpace.l, vertical = WhittleSpace.l),
+            contentPadding = PaddingValues(start = WhittleSpace.l, top = WhittleSpace.l, end = WhittleSpace.l, bottom = WhittleSpace.l + dockSpace),
             verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
             modifier = Modifier.fillMaxSize(),
         ) {
@@ -323,7 +344,7 @@ private fun Thread(items: List<ThreadItem>, working: Boolean, viewModel: ChatVie
         }
         AnimatedVisibility(
             visible = !following && listState.canScrollForward,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = WhittleSpace.s),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = WhittleSpace.s + dockSpace),
             // A small surface: the fast spatial spring gives it Expressive's slight overshoot as it lands.
             enter = WhittleTransitions.riseIn(WhittleMotion.spatialFast),
             exit = WhittleTransitions.sinkOut(),
@@ -431,10 +452,12 @@ private fun Dock(
     voiceDefaults: VoiceDefaults,
     aboveComposer: @Composable () -> Unit,
     onChooseProject: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val voice = rememberVoice(voiceDefaults, state.input, viewModel::updateInput)
+    // No background of its own: only the cards, the chip and the composer cover the thread behind them.
     Column(
-        Modifier.padding(start = WhittleSpace.m, end = WhittleSpace.m, bottom = WhittleSpace.s),
+        modifier.fillMaxWidth().padding(start = WhittleSpace.m, end = WhittleSpace.m, bottom = WhittleSpace.s),
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.s),
     ) {
         AnimatedVisibility(state.status != null, enter = WhittleTransitions.riseInPlace(), exit = WhittleTransitions.sinkOutPlace()) {
@@ -549,9 +572,9 @@ private fun rememberVoice(defaults: VoiceDefaults, input: String, onInput: (Stri
 }
 
 @Composable
-private fun EmptyThread(state: ChatState, recentProjects: Int, onPickProject: (String) -> Unit) {
+private fun EmptyThread(state: ChatState, recentProjects: Int, onPickProject: (String) -> Unit, modifier: Modifier = Modifier) {
     Column(
-        Modifier.fillMaxSize().padding(horizontal = WhittleSpace.xxl),
+        modifier.fillMaxSize().padding(horizontal = WhittleSpace.xxl),
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.s, Alignment.CenterVertically),
     ) {
         WelcomeMascot(Modifier.padding(bottom = WhittleSpace.m))
