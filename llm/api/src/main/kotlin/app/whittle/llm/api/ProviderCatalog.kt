@@ -48,6 +48,8 @@ data class ProviderDescriptor(
     val baseUrl: String,
     val generationPath: String,
     val modelsPath: String? = null,
+    /** The models offered from this provider's list (`*` wildcard); empty offers every model it returns. */
+    val listedModelIdPatterns: List<String> = emptyList(),
     /** An endpoint that requires a valid key, used to check one before it is saved. Model lists can be public. */
     val keyCheckPath: String? = null,
     val auth: ProviderAuth,
@@ -62,6 +64,10 @@ data class ProviderDescriptor(
     /** Tools this provider runs itself, such as web search, and the models that support them. */
     val hostedTools: List<HostedToolSupport> = emptyList(),
 ) {
+    /** Whether [modelId] is offered when listing this provider's models. */
+    fun lists(modelId: ModelId): Boolean =
+        listedModelIdPatterns.isEmpty() || listedModelIdPatterns.any { GlobPattern(it).matches(modelId.value) }
+
     fun hostedToolsFor(modelId: ModelId): Set<HostedTool> =
         hostedTools.filter { support -> support.modelIdPatterns.any { GlobPattern(it).matches(modelId.value) } }
             .mapTo(mutableSetOf()) { it.tool }

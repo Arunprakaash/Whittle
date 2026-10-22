@@ -17,8 +17,8 @@ import okhttp3.OkHttpClient
 import java.io.IOException
 
 /**
- * Builds the model catalog from the provider's own model list, so model ids are never hardcoded.
- * Capabilities come from the provider's configured overrides first, then the server's own metadata
+ * Builds the model catalog from the provider's own model list, so model ids are never hardcoded; a provider can
+ * narrow it to the models its config lists. Capabilities come from the provider's configured overrides first, then the server's own metadata
  * (OpenRouter reports it), then [fallbackCapabilities].
  */
 class OpenAiCompatibleModelLister(
@@ -36,7 +36,7 @@ class OpenAiCompatibleModelLister(
                     val body = response.body?.string().orEmpty()
                     if (!response.isSuccessful) return@use Outcome.Failure(HarnessError.Provider(response.code, body))
                     val models = WireJson.decodeFromString(ModelListResponse.serializer(), body).data
-                    Outcome.Success(models.map { it.toDescriptor(provider) })
+                    Outcome.Success(models.filter { provider.lists(ModelId(it.id)) }.map { it.toDescriptor(provider) })
                 }
             } catch (exception: IOException) {
                 Outcome.Failure(HarnessError.Network(exception.message ?: exception.javaClass.simpleName))
