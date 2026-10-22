@@ -151,12 +151,18 @@ Settings › Automations, or asks in a chat and approves the `schedule_task` car
 - **Scheduling.** Each enabled automation has an exact alarm for its next run (`setExactAndAllowWhileIdle`,
   which needs no permission at SDK 28). The alarms are set again after a reboot, an app update, a clock or
   time zone change, and at every launch.
-- **Running.** `AutomationRunner` starts the automation in a new chat titled after it, in `RunMode.UNATTENDED`.
-  The policy engine then allows only the tools the user pre-approved for it; anything else pauses the run with
-  a Needs you notification. automations.json limits which tools can be pre-approved to ones that read, plus
-  the chat's own files. A test keeps outbound tools out.
-- **Not taking over.** While a task is running or the user is in the app, a due automation tries again every
-  few minutes and gives up after a few hours. Run now starts at once.
+- **Running.** `AutomationRunner` starts the automation in a new chat titled after it, in `RunMode.UNATTENDED`,
+  and starts the run's foreground service before the alarm lets the process go. The policy engine then allows
+  only the tools the user pre-approved for it; anything else pauses the run with a Needs you notification.
+- **What runs without asking.** automations.json lists what can be pre-approved: web reads, the clock, the
+  calendar, contacts and the workspace's files, never anything that sends data out. A new automation may only
+  read; changing files is a separate choice, off by default. A test keeps both rules.
+- **Projects.** An automation can have a project. Its chat is then confined to that folder: the file tools
+  refuse paths outside it, and the agent can't move the chat to another project, until the user picks one
+  (`ChatProjects.isConfined`). Without a project it works on the whole shared workspace.
+- **Not taking over.** While a task is running, the user is in the app or no model is connected, a due
+  automation tries again every few minutes. After a few hours it gives up, and the list shows the run as
+  missed. Run now starts at once.
 
 ### Connectors
 

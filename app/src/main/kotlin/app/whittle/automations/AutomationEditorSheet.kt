@@ -1,6 +1,7 @@
 package app.whittle.automations
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -12,6 +13,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import app.whittle.AppGraph
 import app.whittle.R
@@ -60,6 +64,7 @@ import java.time.LocalTime
 fun AutomationEditorSheet(
     graph: AppGraph,
     initial: Automation,
+    projects: List<String>,
     isNew: Boolean,
     onDismiss: () -> Unit,
     onRunNow: (Automation) -> Unit,
@@ -71,6 +76,8 @@ fun AutomationEditorSheet(
     var minuteOfDay by remember { mutableIntStateOf(initial.schedule.minuteOfDay) }
     var days by remember { mutableStateOf(initial.schedule.days) }
     var tools by remember { mutableStateOf(initial.tools) }
+    var project by remember { mutableStateOf(initial.project) }
+    var pickingProject by remember { mutableStateOf(false) }
     var pickingTime by remember { mutableStateOf(false) }
     var confirmingDelete by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
@@ -80,14 +87,15 @@ fun AutomationEditorSheet(
     val colors = MaterialTheme.colorScheme
     val requestNotifications = rememberNotificationPermissionRequest()
     val time = Schedule(minuteOfDay, days).time
-    val edited = initial.copy(name = name, prompt = prompt, schedule = Schedule(minuteOfDay, days), tools = tools)
+    val edited = initial.copy(name = name, prompt = prompt, schedule = Schedule(minuteOfDay, days), tools = tools, project = project)
 
     val problemText = mapOf(
         AutomationProblem.NAME_EMPTY to stringResource(R.string.automation_error_name_empty),
-        AutomationProblem.NAME_TOO_LONG to stringResource(R.string.automation_error_name_long, config.maxNameChars),
+        AutomationProblem.NAME_TOO_LONG to pluralStringResource(R.plurals.automation_error_name_long, config.maxNameChars, config.maxNameChars),
         AutomationProblem.PROMPT_EMPTY to stringResource(R.string.automation_error_prompt_empty),
-        AutomationProblem.PROMPT_TOO_LONG to stringResource(R.string.automation_error_prompt_long, config.maxPromptChars),
-        AutomationProblem.TOO_MANY to stringResource(R.string.automation_error_too_many, config.maxAutomations),
+        AutomationProblem.PROMPT_TOO_LONG to pluralStringResource(R.plurals.automation_error_prompt_long, config.maxPromptChars, config.maxPromptChars),
+        AutomationProblem.TOO_MANY to pluralStringResource(R.plurals.automation_error_too_many, config.maxAutomations, config.maxAutomations),
+        AutomationProblem.PROJECT_INVALID to stringResource(R.string.automation_error_project),
         AutomationProblem.TOOL_NOT_ALLOWED to stringResource(R.string.automation_error_tool),
     )
 
@@ -144,6 +152,30 @@ fun AutomationEditorSheet(
                     enabled = !saving,
                     onClick = { pickingTime = true },
                 )
+                Box {
+                    SettingsRow(
+                        icon = "folder",
+                        title = stringResource(R.string.automation_project),
+                        subtitle = project ?: stringResource(R.string.automation_project_whole),
+                        shape = segmentedShape(0, 1),
+                        enabled = !saving,
+                        onClick = { pickingProject = true },
+                        modifier = Modifier.userContent(),
+                    )
+                    DropdownMenu(expanded = pickingProject, onDismissRequest = { pickingProject = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.automation_project_whole)) },
+                            onClick = { project = null; pickingProject = false; error = null },
+                        )
+                        // A project whose folder is gone stays pickable so it isn't lost silently.
+                        (projects + listOfNotNull(project).filter { it !in projects }).forEach { name ->
+                            DropdownMenuItem(
+                                text = { Text(name, Modifier.userContent()) },
+                                onClick = { project = name; pickingProject = false; error = null },
+                            )
+                        }
+                    }
+                }
                 Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
                     Text(
                         stringResource(R.string.automation_days),
@@ -176,7 +208,7 @@ fun AutomationEditorSheet(
                     config.tools.forEachIndexed { index, choice ->
                         SettingsToggleRow(
                             icon = choice.icon,
-                            title = choice.label,
+                            title = choice.labelFor(project),
                             subtitle = null,
                             checked = tools.containsAll(choice.toolIds),
                             onCheckedChange = { on -> tools = if (on) tools + choice.toolIds else tools - choice.toolIds.toSet() },
@@ -230,7 +262,7 @@ fun AutomationEditorSheet(
                     pickingTime = false
                 }) { Text(stringResource(R.string.automation_ok)) }
             },
-            dismissButton = { TextButton(onClick = { pickingTime = false }) { Text(stringResource(R.string.connector_cancel)) } },
+            dismissButton = { TextButton(onClick = { pickingTime = false }) { Text(stringResource(R.string.automation_cancel)) } },
         )
     }
     if (confirmingDelete) {
@@ -245,7 +277,7 @@ fun AutomationEditorSheet(
                     onDismiss()
                 }) { Text(stringResource(R.string.automation_delete), color = colors.error) }
             },
-            dismissButton = { TextButton(onClick = { confirmingDelete = false }) { Text(stringResource(R.string.connector_cancel)) } },
+            dismissButton = { TextButton(onClick = { confirmingDelete = false }) { Text(stringResource(R.string.automation_cancel)) } },
         )
     }
 }

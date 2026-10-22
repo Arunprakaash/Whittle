@@ -1,11 +1,9 @@
 package app.whittle.automations
 
-import app.whittle.chat.ChatViewModel
 import app.whittle.core.common.EpochClock
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.CoroutineContext
 
 enum class RunNowResult { STARTED, BUSY, NO_MODEL, NOT_FOUND }
 
@@ -16,42 +14,44 @@ enum class RunNowResult { STARTED, BUSY, NO_MODEL, NOT_FOUND }
  */
 class AutomationRunner(
     private val automations: Automations,
-    private val chat: ChatViewModel,
+    private val chat: AutomationChat,
     private val clock: EpochClock,
     private val inForeground: () -> Boolean,
+    /** Keeps the process alive for a run that started in the background: the run's foreground service. */
+    private val protect: () -> Unit,
+    private val main: CoroutineContext = Dispatchers.Main,
 ) {
-    /** An alarm went off for [id], which was due at [scheduledForMillis]. */
+    /**
+     * An alarm went off for [id], which was due at [scheduledForMillis]. Returns once the run has started and is
+     * protected, or a retry is set, so the alarm's receiver can let the process go.
+     */
     suspend fun due(id: String, scheduledForMillis: Long) {
         val automation = automations.get(id)?.takeIf { it.enabled } ?: return
         // The next run is set first, so a run that can't start never ends the schedule.
         automations.scheduleNext(id)
         // Both alarms of one due time can go off; the first one that ran wins.
         if ((automation.lastRunAtMillis ?: 0) >= scheduledForMillis) return
-        val started = restored() && withContext(Dispatchers.Main) {
-            !inForeground() && !chat.state.value.running && start(automation) != RunNowResult.BUSY
+        val started = chat.awaitRestored(automations.config.startTimeoutMillis) && withContext(main) {
+            !inForeground() && !chat.isRunning && start(automation) == RunNowResult.STARTED
         }
-        if (!started && clock.nowMillis() - scheduledForMillis < automations.config.giveUpAfterMillis) {
-            automations.retryLater(id, scheduledForMillis)
+        when {
+            started -> protect()
+            clock.nowMillis() - scheduledForMillis < automations.config.giveUpAfterMillis -> automations.retryLater(id, scheduledForMillis)
+            else -> automations.recordMissed(id, scheduledForMillis)
         }
     }
 
     /** The user tapped Run now. */
     suspend fun runNow(id: String): RunNowResult {
         val automation = automations.get(id) ?: return RunNowResult.NOT_FOUND
-        if (!restored()) return RunNowResult.BUSY
-        return withContext(Dispatchers.Main) { start(automation) }
+        if (!chat.awaitRestored(automations.config.startTimeoutMillis)) return RunNowResult.BUSY
+        return withContext(main) { start(automation) }
     }
 
-    /** On the main thread, where the chat session lives. */
     private suspend fun start(automation: Automation): RunNowResult {
-        if (chat.state.value.model == null) return RunNowResult.NO_MODEL
-        val chatId = chat.startAutomation(automation.name, automation.prompt, automations.preApprovedTools(automation))
-            ?: return RunNowResult.BUSY
-        automations.recordRun(automation.id, chatId.value, clock.nowMillis())
+        if (!chat.hasModel) return RunNowResult.NO_MODEL
+        val chatId = chat.start(automation, automations.preApprovedTools(automation)) ?: return RunNowResult.BUSY
+        automations.recordRun(automation.id, chatId, clock.nowMillis())
         return RunNowResult.STARTED
     }
-
-    /** A run that woke the app waits for the saved chats, so the new chat doesn't land under a restoring one. */
-    private suspend fun restored(): Boolean =
-        withTimeoutOrNull(automations.config.startTimeoutMillis) { chat.state.first { !it.restoring } } != null
 }

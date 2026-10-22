@@ -1,5 +1,6 @@
 package app.whittle.automations
 
+import app.whittle.agent.AgentMessages
 import app.whittle.core.model.Provenance
 import app.whittle.tools.api.ExecutionSite
 import app.whittle.tools.api.RiskTier
@@ -8,6 +9,8 @@ import app.whittle.tools.api.ToolDefinition
 import app.whittle.tools.api.ToolExecutionContext
 import app.whittle.tools.api.ToolId
 import app.whittle.tools.api.ToolOutput
+import app.whittle.tools.api.WorkspaceId
+import app.whittle.tools.workspace.ChatProjects
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -17,57 +20,87 @@ import kotlinx.serialization.json.jsonObject
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import java.time.format.TextStyle
 import java.util.Locale
 
 /**
  * Sets up an automation the user asked for in the chat. It always asks first (the card shows the instruction).
  * The model can't choose what runs without asking: a new automation gets the default tools, and the user
- * changes them in Settings › Automations.
+ * changes them in Settings › Automations. Without a project it takes the chat's own.
  */
-class ScheduleTaskTool(private val automations: Automations, private val zone: () -> ZoneId = ZoneId::systemDefault) : Tool {
+class ScheduleTaskTool(
+    private val automations: Automations,
+    private val messages: AgentMessages,
+    /** The project a chat works in, while its folder exists. */
+    private val projectOf: (WorkspaceId) -> String?,
+    /** Whether a project folder of that name is in the workspace. */
+    private val projectExists: (String) -> Boolean,
+) : Tool {
     override val definition = DEFINITION
 
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
         val request = when (val parsed = parse(arguments)) {
             is Parsed.Request -> parsed
-            is Parsed.Invalid -> return reply(parsed.reason, error = true)
+            Parsed.Invalid.TIME -> return reply(messages.automationTimeInvalid, error = true)
+            Parsed.Invalid.DAYS -> return reply(messages.automationDaysInvalid, error = true)
         }
-        val draft = automations.draft(request.name, request.prompt).copy(schedule = request.schedule)
+        val project = when (request.project) {
+            null -> context.workspace?.let(projectOf)
+            "" -> null
+            else -> request.project
+        }
+        if (project != null) {
+            if (!ChatProjects.isValidName(project)) return reply(messages.automationProjectInvalid(project), error = true)
+            if (!projectExists(project)) return reply(messages.automationProjectMissing(project), error = true)
+        }
+        val draft = automations.draft(request.name, request.prompt).copy(schedule = request.schedule, project = project)
         return when (val saved = automations.save(draft)) {
             is SaveResult.Saved -> reply(describe(saved))
-            is SaveResult.Refused -> reply(refusal(saved.problem), error = true)
-            is SaveResult.Failed -> reply("Couldn't save it: ${saved.error.message}", error = true)
+            is SaveResult.Refused -> reply(refusal(saved.problem, project), error = true)
+            is SaveResult.Failed -> reply(messages.automationSaveFailed(saved.error.message), error = true)
         }
     }
 
     private fun describe(saved: SaveResult.Saved): String {
         val automation = saved.automation
-        val next = saved.nextRunMillis?.let { NEXT_FORMAT.format(Instant.ofEpochMilli(it).atZone(zone())) }
-        val labels = automations.config.tools.filter { automation.tools.containsAll(it.toolIds) }.map { it.label.lowercase(Locale.ROOT) }
-        return "Scheduled \"${automation.name}\" at ${automation.schedule.time} on ${days(automation.schedule)}" +
-            (next?.let { ", next on $it" } ?: "") + ". Each run starts a new chat and the user gets a notification when it's done. " +
-            "It may ${labels.joinToString().ifEmpty { "use no tools" }} without asking; anything else waits for the user's approval. " +
-            "They can change or turn it off in Settings › Automations."
+        val next = saved.nextRunMillis?.let { Instant.ofEpochMilli(it).atZone(automations.zone) }
+        val tools = automations.config.tools.filter { automation.tools.containsAll(it.toolIds) }
+            .joinToString { it.labelFor(automation.project).lowercase(Locale.ROOT) }
+        return messages.automationScheduled(
+            name = automation.name,
+            time = automation.schedule.time.toString(),
+            days = days(automation.schedule),
+            next = next?.let { "${it.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH)} ${it.toLocalDate()} ${it.toLocalTime()}" }.orEmpty(),
+            place = automation.project?.let(messages::automationInProject) ?: messages.automationInWorkspace,
+            tools = tools.ifEmpty { messages.automationNoTools },
+        )
     }
 
-    private fun refusal(problem: AutomationProblem): String = when (problem) {
-        AutomationProblem.NAME_EMPTY -> "Give it a short name."
-        AutomationProblem.NAME_TOO_LONG -> "Use a name of at most ${automations.config.maxNameChars} characters."
-        AutomationProblem.PROMPT_EMPTY -> "Say what to do each time (prompt)."
-        AutomationProblem.PROMPT_TOO_LONG -> "Keep the prompt under ${automations.config.maxPromptChars} characters."
-        AutomationProblem.TOO_MANY -> "The user already has ${automations.config.maxAutomations} automations; they can remove one in Settings › Automations."
-        AutomationProblem.TOOL_NOT_ALLOWED -> "Those tools can't run unattended."
+    private fun days(schedule: Schedule): String = when (schedule.days) {
+        Schedule.EVERY_DAY -> messages.automationEveryDay
+        Schedule.WEEKDAYS -> messages.automationWeekdays
+        Schedule.WEEKENDS -> messages.automationWeekends
+        else -> schedule.daysOfWeek.joinToString { it.getDisplayName(TextStyle.SHORT, Locale.ENGLISH) }
+    }
+
+    private fun refusal(problem: AutomationProblem, project: String?): String = when (problem) {
+        AutomationProblem.NAME_EMPTY -> messages.automationNameEmpty
+        AutomationProblem.NAME_TOO_LONG -> messages.automationNameTooLong(automations.config.maxNameChars)
+        AutomationProblem.PROMPT_EMPTY -> messages.automationPromptEmpty
+        AutomationProblem.PROMPT_TOO_LONG -> messages.automationPromptTooLong(automations.config.maxPromptChars)
+        AutomationProblem.TOO_MANY -> messages.automationTooMany(automations.config.maxAutomations)
+        AutomationProblem.TOOL_NOT_ALLOWED -> messages.automationToolNotAllowed
+        AutomationProblem.PROJECT_INVALID -> messages.automationProjectInvalid(project.orEmpty())
     }
 
     private fun reply(text: String, error: Boolean = false) = ToolOutput(text, isError = error, provenance = Provenance.Trusted)
 
     internal sealed interface Parsed {
-        data class Request(val name: String, val prompt: String, val schedule: Schedule) : Parsed
+        /** [project] is null when not given, empty for the whole workspace. */
+        data class Request(val name: String, val prompt: String, val schedule: Schedule, val project: String?) : Parsed
 
-        data class Invalid(val reason: String) : Parsed
+        enum class Invalid : Parsed { TIME, DAYS }
     }
 
     companion object {
@@ -75,31 +108,27 @@ class ScheduleTaskTool(private val automations: Automations, private val zone: (
         private const val PROMPT = "prompt"
         private const val TIME = "time"
         private const val DAYS = "days"
+        private const val PROJECT = "project"
         private val DAY_NAMES = DayOfWeek.entries.associateBy { it.name.take(3).lowercase(Locale.ROOT) }
-        private val NEXT_FORMAT = DateTimeFormatter.ofPattern("EEE d MMM 'at' HH:mm", Locale.ENGLISH)
 
         internal fun parse(arguments: JsonObject): Parsed {
-            val name = arguments.string(NAME).orEmpty()
-            val prompt = arguments.string(PROMPT).orEmpty()
             val time = try {
                 LocalTime.parse(arguments.string(TIME).orEmpty())
             } catch (exception: DateTimeParseException) {
-                return Parsed.Invalid("Give the time as 24-hour HH:mm, e.g. 07:30.")
+                return Parsed.Invalid.TIME
             }
             val days = when (val listed = arguments[DAYS]) {
                 null -> Schedule.EVERY_DAY
-                is JsonArray -> listed.map { (it as? JsonPrimitive)?.contentOrNull?.lowercase(Locale.ROOT)?.let(DAY_NAMES::get) ?: return Parsed.Invalid("Name days as mon, tue, wed, thu, fri, sat or sun.") }
+                is JsonArray -> listed.map { (it as? JsonPrimitive)?.contentOrNull?.lowercase(Locale.ROOT)?.let(DAY_NAMES::get) ?: return Parsed.Invalid.DAYS }
                     .map { it.value }.toSet().ifEmpty { Schedule.EVERY_DAY }
-                else -> return Parsed.Invalid("days must be a list, e.g. [\"mon\", \"fri\"].")
+                else -> return Parsed.Invalid.DAYS
             }
-            return Parsed.Request(name, prompt, Schedule.at(time, days))
-        }
-
-        private fun days(schedule: Schedule): String = when (schedule.days) {
-            Schedule.EVERY_DAY -> "every day"
-            Schedule.WEEKDAYS -> "weekdays"
-            Schedule.WEEKENDS -> "weekends"
-            else -> schedule.daysOfWeek.joinToString { it.name.take(3).lowercase(Locale.ROOT).replaceFirstChar(Char::titlecase) }
+            return Parsed.Request(
+                name = arguments.string(NAME).orEmpty(),
+                prompt = arguments.string(PROMPT).orEmpty(),
+                schedule = Schedule.at(time, days),
+                project = arguments.string(PROJECT)?.trim('/'),
+            )
         }
 
         private fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull?.trim()
@@ -109,14 +138,17 @@ class ScheduleTaskTool(private val automations: Automations, private val zone: (
             description = "Sets up an automation: a task Whittle runs by itself at a time of day, on chosen days, each run in a new " +
                 "chat with a notification when it's done. Use it when the user asks for something recurring (\"every morning\", " +
                 "\"each Friday\"). Write the prompt as the full instruction for one run, with everything it needs, since the run " +
-                "won't see this chat. The user approves first, and chooses in Settings which tools it may use without asking.",
+                "won't see this chat. Each run works in one project, the chat's own unless you give another; its file tools " +
+                "reach nothing else. The user approves first, and chooses in Settings which tools it may use without asking.",
             inputSchema = Json.parseToJsonElement(
                 """{"type":"object","properties":{""" +
                     """"name":{"type":"string","description":"Short name, e.g. Morning brief"},""" +
                     """"prompt":{"type":"string","description":"The instruction each run gets, complete on its own"},""" +
                     """"time":{"type":"string","description":"Time of day, 24-hour HH:mm in the user's time zone"},""" +
                     """"days":{"type":"array","items":{"type":"string","enum":["mon","tue","wed","thu","fri","sat","sun"]},""" +
-                    """"description":"Days it runs; leave out for every day"}},"required":["name","prompt","time"]}""",
+                    """"description":"Days it runs; leave out for every day"},""" +
+                    """"project":{"type":"string","description":"Project folder each run works in; leave out for this chat's project, or give an empty string for the whole workspace"}},""" +
+                    """"required":["name","prompt","time"]}""",
             ).jsonObject,
             // It changes what the phone does later, by itself; policy-rules.json makes every call ask (automations-always-confirm).
             riskTier = RiskTier.WRITE_LOCAL,

@@ -52,6 +52,13 @@ class BundledAppConfigTest {
         val risky = named.filter { tiers.getValue(it) > RiskTier.WEB_READ }
         assertTrue(risky.isEmpty(), "Automations must not run these without asking: $risky")
         assertTrue(config.defaultToolIds.isNotEmpty())
+        // Reading is all a new automation may do: anything that changes files is the user's to turn on.
+        val readOnly = setOf(RiskTier.READ, RiskTier.WEB_READ)
+        val changing = (config.defaultToolIds + config.alwaysPreApproved).filter { tiers.getValue(it) !in readOnly }
+        assertTrue(changing.isEmpty(), "New automations must not change anything without asking: $changing")
+        // A choice that changes files says where: the whole workspace without a project, only the project with one.
+        val unlabelled = config.tools.filter { choice -> choice.toolIds.any { tiers.getValue(it) !in readOnly } && choice.labelInProject == null }
+        assertTrue(unlabelled.isEmpty(), "Give these a labelInProject: ${unlabelled.map { it.key }}")
         val missingIcons = config.tools.map { it.icon }.toSet() - MaterialSymbols.names
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
     }

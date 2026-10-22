@@ -1,0 +1,142 @@
+package app.whittle.automations
+
+import app.whittle.core.common.EpochClock
+import app.whittle.core.common.IdGenerator
+import app.whittle.tools.api.ToolId
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runTest
+import java.time.LocalDateTime
+import java.time.ZoneId
+import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+class AutomationRunnerTest {
+    private val zone = ZoneId.of("Asia/Kolkata")
+    private val due = LocalDateTime.parse("2026-10-22T07:00").atZone(zone).toInstant().toEpochMilli()
+    private var now = due
+    private val backend = MemoryBackend()
+    private val alarms = RecordingAlarms()
+    private val chat = FakeChat()
+    private var inForeground = false
+    private var protections = 0
+
+    private fun TestScope.setUp(): Pair<Automations, AutomationRunner> {
+        val automations = Automations(backend, alarms, testAutomationsConfig, EpochClock { now }, IdGenerator { "brief" }, { zone }, this)
+        val runner = AutomationRunner(automations, chat, EpochClock { now }, { inForeground }, { protections++ }, EmptyCoroutineContext)
+        return automations to runner
+    }
+
+    private suspend fun Automations.saved(): Automation {
+        val result = assertIs<SaveResult.Saved>(save(draft("Brief", "Brief me")))
+        alarms.set.clear()
+        return result.automation
+    }
+
+    @Test
+    fun `a due automation starts in its own chat, is recorded and protected`() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.saved()
+        runner.due(automation.id, due)
+        val (started, tools) = chat.started.single()
+        assertEquals("Brief me", started.prompt)
+        assertEquals(setOf(ToolId("web_search"), ToolId("web_fetch"), ToolId("update_plan")), tools)
+        assertEquals(due, automations.all.value.single().lastRunAtMillis)
+        assertEquals("chat-1", automations.all.value.single().lastChatId)
+        assertEquals(1, protections)
+    }
+
+    @Test
+    fun `the next run is set even when this one can't start`() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.saved()
+        chat.isRunning = true
+        runner.due(automation.id, due)
+        assertTrue(alarms.set.any { !it.retry && it.atMillis > due }, "the next day's alarm must be set")
+    }
+
+    @Test
+    fun `waits while the user is in the app, a task runs, the chats are loading or no model is connected`() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.saved()
+        val busy = listOf<() -> Unit>(
+            { inForeground = true },
+            { chat.isRunning = true },
+            { chat.restored = false },
+            { chat.hasModel = false },
+        )
+        busy.forEach { makeBusy ->
+            inForeground = false
+            chat.isRunning = false
+            chat.restored = true
+            chat.hasModel = true
+            makeBusy()
+            alarms.set.clear()
+            runner.due(automation.id, due)
+            assertTrue(chat.started.isEmpty())
+            assertEquals(Alarm(automation.id, now + testAutomationsConfig.retryAfterMillis, due, retry = true), alarms.set.single { it.retry })
+        }
+        assertEquals(0, protections)
+        assertNull(automations.all.value.single().missedAtMillis)
+    }
+
+    @Test
+    fun `gives up once it's too late and notes the missed run`() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.saved()
+        chat.hasModel = false
+        now = due + testAutomationsConfig.giveUpAfterMillis
+        runner.due(automation.id, due)
+        assertTrue(alarms.set.none { it.retry })
+        assertEquals(due, automations.all.value.single().missedAtMillis)
+    }
+
+    @Test
+    fun `a due time that already ran doesn't run again`() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.saved()
+        runner.due(automation.id, due)
+        // The retry alarm for the same due time goes off too.
+        now = due + testAutomationsConfig.retryAfterMillis
+        runner.due(automation.id, due)
+        assertEquals(1, chat.started.size)
+    }
+
+    @Test
+    fun `an automation that was turned off or deleted does nothing`() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.saved()
+        automations.setEnabled(automation.id, false)
+        alarms.set.clear()
+        runner.due(automation.id, due)
+        runner.due("gone", due)
+        assertTrue(chat.started.isEmpty())
+        assertTrue(alarms.set.isEmpty())
+    }
+
+    @Test
+    fun `Run now starts at once, even with the user in the app`() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.saved()
+        inForeground = true
+        assertEquals(RunNowResult.STARTED, runner.runNow(automation.id))
+        assertEquals(1, chat.started.size)
+        assertEquals(0, protections, "the user is looking; the app's own rule decides about the service")
+    }
+
+    @Test
+    fun `Run now says why it couldn't start`() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.saved()
+        assertEquals(RunNowResult.NOT_FOUND, runner.runNow("gone"))
+        chat.hasModel = false
+        assertEquals(RunNowResult.NO_MODEL, runner.runNow(automation.id))
+        chat.hasModel = true
+        chat.isRunning = true
+        assertEquals(RunNowResult.BUSY, runner.runNow(automation.id))
+        assertTrue(chat.started.isEmpty())
+    }
+}

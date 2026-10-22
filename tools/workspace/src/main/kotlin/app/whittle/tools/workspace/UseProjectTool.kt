@@ -25,6 +25,9 @@ class UseProjectTool(workspaces: Workspaces, private val projects: ChatProjects)
 
     override suspend fun run(arguments: JsonObject, access: WorkspaceAccess): ToolOutput {
         val name = arguments.text(NAME)?.trim()?.trim('/')?.takeIf { it.isNotEmpty() }
+        if (projects.isConfined(access.id)) {
+            return error("This chat is limited to the project '${projects.projectOf(access.id)}'; only the user can change that")
+        }
         if (name == null) {
             projects.choose(access.id, null)
             return success(buildJsonObject { put(PROJECT, null as String?) })

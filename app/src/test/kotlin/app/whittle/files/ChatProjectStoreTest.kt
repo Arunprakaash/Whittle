@@ -12,7 +12,9 @@ import java.nio.file.Files
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ChatProjectStoreTest {
     private val base = Files.createTempDirectory("whittle-projects").toFile()
@@ -41,6 +43,26 @@ class ChatProjectStoreTest {
         store.forget(CHAT)
         settle()
         assertNull(ChatProjectStore(file, scope).projectOf(CHAT))
+    }
+
+    @Test
+    fun `a confined chat stays confined after a restart, until the user chooses a project`() = runBlocking<Unit> {
+        val store = ChatProjectStore(file, scope)
+        store.confine(CHAT, "brief")
+        settle()
+        val restarted = ChatProjectStore(file, scope)
+        assertEquals("brief", restarted.projectOf(CHAT))
+        assertTrue(restarted.isConfined(CHAT))
+        restarted.choose(CHAT, "notes")
+        assertFalse(restarted.isConfined(CHAT))
+    }
+
+    @Test
+    fun `reads the projects a version without confinement wrote`() = runBlocking<Unit> {
+        file.writeText("""{"chat-1":"tip-splitter"}""")
+        val store = ChatProjectStore(file, scope)
+        assertEquals("tip-splitter", store.projectOf(CHAT))
+        assertFalse(store.isConfined(CHAT))
     }
 
     /** Writes happen right after a choice, off the caller's thread. */

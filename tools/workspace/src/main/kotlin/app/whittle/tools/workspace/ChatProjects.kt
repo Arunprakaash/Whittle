@@ -12,6 +12,12 @@ interface ChatProjects {
     /** Sets [chat]'s project; null for the whole workspace. Takes effect at once, for the next command. */
     fun choose(chat: WorkspaceId, project: String?)
 
+    /**
+     * Whether [chat]'s file tools may only reach its project's folder, and the chat can't move to another project
+     * by itself: a chat an automation started, until the user picks a project for it.
+     */
+    fun isConfined(chat: WorkspaceId): Boolean = false
+
     companion object {
         val NONE = object : ChatProjects {
             override fun projectOf(chat: WorkspaceId): String? = null

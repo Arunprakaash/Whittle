@@ -11,23 +11,35 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.IOException
 
-/** The user's automations in one file, encrypted with the app's Keystore-backed key, written whole and swapped in. */
+/**
+ * The user's automations in one file, encrypted with the app's Keystore-backed key, written whole and swapped in.
+ * A file that can't be read (a lost key, or a schedule that no longer passes its checks) is set aside as
+ * [UNREADABLE] rather than left for the next save to overwrite.
+ */
 class EncryptedFileAutomations(private val file: File, private val cipher: ContentCipher) : AutomationBackend {
     override suspend fun load(): List<Automation> = withContext(Dispatchers.IO) {
         if (!file.isFile) return@withContext emptyList()
         val bytes = try {
             file.readBytes()
         } catch (exception: IOException) {
-            return@withContext emptyList()
+            return@withContext setAside()
         }
-        val plain = (cipher.decrypt(bytes, ASSOCIATED_DATA) as? Outcome.Success)?.value ?: return@withContext emptyList()
+        val plain = (cipher.decrypt(bytes, ASSOCIATED_DATA) as? Outcome.Success)?.value ?: return@withContext setAside()
         try {
             json.decodeFromString(LIST, plain.decodeToString())
         } catch (exception: SerializationException) {
-            emptyList()
+            setAside()
         } catch (exception: IllegalArgumentException) {
-            emptyList() // A schedule that no longer passes its checks.
+            setAside()
         }
+    }
+
+    /** Keeps the unreadable file next to the new one, replacing any kept before. */
+    private fun setAside(): List<Automation> {
+        val aside = File(file.parentFile, file.name + UNREADABLE)
+        aside.delete()
+        file.renameTo(aside)
+        return emptyList()
     }
 
     override suspend fun save(automations: List<Automation>): Outcome<Unit> = withContext(Dispatchers.IO) {
@@ -49,5 +61,6 @@ class EncryptedFileAutomations(private val file: File, private val cipher: Conte
         val LIST = ListSerializer(Automation.serializer())
         val json = Json { ignoreUnknownKeys = true }
         const val PARTIAL = ".part"
+        const val UNREADABLE = ".unreadable"
     }
 }

@@ -5,6 +5,7 @@ import app.whittle.core.common.HarnessError
 import app.whittle.core.common.IdGenerator
 import app.whittle.core.common.Outcome
 import app.whittle.tools.api.ToolId
+import app.whittle.tools.workspace.ChatProjects
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,7 +31,7 @@ interface AutomationAlarms {
 }
 
 /** Why an automation wasn't saved. */
-enum class AutomationProblem { NAME_EMPTY, NAME_TOO_LONG, PROMPT_EMPTY, PROMPT_TOO_LONG, TOO_MANY, TOOL_NOT_ALLOWED }
+enum class AutomationProblem { NAME_EMPTY, NAME_TOO_LONG, PROMPT_EMPTY, PROMPT_TOO_LONG, TOO_MANY, TOOL_NOT_ALLOWED, PROJECT_INVALID }
 
 sealed interface SaveResult {
     data class Saved(val automation: Automation, val nextRunMillis: Long?) : SaveResult
@@ -50,7 +51,7 @@ class Automations(
     val config: AutomationsConfig,
     private val clock: EpochClock,
     private val ids: IdGenerator,
-    private val zone: () -> ZoneId,
+    private val zones: () -> ZoneId,
     scope: CoroutineScope,
 ) {
     private val changes = Mutex()
@@ -59,6 +60,9 @@ class Automations(
 
     /** Every automation, in the order they were made; empty until loaded. */
     val all: StateFlow<List<Automation>> = _all.asStateFlow()
+
+    /** The time zone schedules are in: the phone's, as it is now. */
+    val zone: ZoneId get() = zones()
 
     suspend fun get(id: String): Automation? = current().firstOrNull { it.id == id }
 
@@ -72,7 +76,7 @@ class Automations(
     )
 
     /**
-     * Adds [automation], or replaces the one with its id, and sets its alarm. When it last ran is kept from the
+     * Adds [automation], or replaces the one with its id, and sets its alarm. What its runs did is kept from the
      * stored one: an editor that was open during a run doesn't know about it.
      */
     suspend fun save(automation: Automation): SaveResult = changes.withLock {
@@ -81,8 +85,10 @@ class Automations(
         val cleaned = automation.copy(
             name = automation.name.trim(),
             prompt = automation.prompt.trim(),
+            project = automation.project?.trim()?.trim('/')?.ifEmpty { null },
             lastRunAtMillis = stored?.lastRunAtMillis,
             lastChatId = stored?.lastChatId,
+            missedAtMillis = stored?.missedAtMillis,
         )
         problemWith(cleaned, isNew = stored == null, count = current.size)?.let { return@withLock SaveResult.Refused(it) }
         val updated = if (current.any { it.id == cleaned.id }) current.map { if (it.id == cleaned.id) cleaned else it } else current + cleaned
@@ -104,7 +110,12 @@ class Automations(
 
     /** Notes that [id] ran into [chatId], for the list and for Open last run. */
     suspend fun recordRun(id: String, chatId: String, atMillis: Long): Outcome<Unit> = changes.withLock {
-        store(current().map { if (it.id == id) it.copy(lastRunAtMillis = atMillis, lastChatId = chatId) else it })
+        store(current().map { if (it.id == id) it.copy(lastRunAtMillis = atMillis, lastChatId = chatId, missedAtMillis = null) else it })
+    }
+
+    /** Notes that [id]'s run due at [scheduledForMillis] never started, so the list can say so. */
+    suspend fun recordMissed(id: String, scheduledForMillis: Long): Outcome<Unit> = changes.withLock {
+        store(current().map { if (it.id == id) it.copy(missedAtMillis = scheduledForMillis) else it })
     }
 
     /** Sets every alarm again: after a reboot, an update or a time zone change, and at each launch. */
@@ -120,7 +131,7 @@ class Automations(
 
     /** When [automation] runs next, or null while it's off. */
     fun nextRunMillis(automation: Automation): Long? =
-        if (automation.enabled) automation.schedule.nextAfter(Instant.ofEpochMilli(clock.nowMillis()), zone()).toEpochMilli() else null
+        if (automation.enabled) automation.schedule.nextAfter(Instant.ofEpochMilli(clock.nowMillis()), zone).toEpochMilli() else null
 
     /** What a run of [automation] may use without asking. Only tools automations.json lets the user choose count. */
     fun preApprovedTools(automation: Automation): Set<ToolId> =
@@ -146,6 +157,7 @@ class Automations(
         automation.prompt.isEmpty() -> AutomationProblem.PROMPT_EMPTY
         automation.prompt.length > config.maxPromptChars -> AutomationProblem.PROMPT_TOO_LONG
         !config.choosableToolIds.containsAll(automation.tools) -> AutomationProblem.TOOL_NOT_ALLOWED
+        automation.project != null && !ChatProjects.isValidName(automation.project) -> AutomationProblem.PROJECT_INVALID
         isNew && count >= config.maxAutomations -> AutomationProblem.TOO_MANY
         else -> null
     }

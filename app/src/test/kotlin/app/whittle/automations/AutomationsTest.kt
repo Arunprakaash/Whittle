@@ -2,7 +2,6 @@ package app.whittle.automations
 
 import app.whittle.core.common.EpochClock
 import app.whittle.core.common.IdGenerator
-import app.whittle.core.common.Outcome
 import app.whittle.tools.api.ToolId
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -19,21 +18,7 @@ class AutomationsTest {
     private val now = LocalDateTime.parse("2026-10-22T06:00").atZone(zone).toInstant().toEpochMilli()
     private val backend = MemoryBackend()
     private val alarms = RecordingAlarms()
-    private val config = AutomationsConfig(
-        schemaVersion = AutomationsConfig.SCHEMA_VERSION,
-        maxAutomations = 2,
-        maxNameChars = 20,
-        maxPromptChars = 100,
-        defaultMinuteOfDay = 7 * Schedule.MINUTES_PER_HOUR,
-        retryAfterMillis = 60_000,
-        giveUpAfterMillis = 3_600_000,
-        startTimeoutMillis = 1_000,
-        alwaysPreApproved = listOf("update_plan"),
-        tools = listOf(
-            AutomationToolChoice("web", "travel_explore", "Web", listOf("web_search", "web_fetch"), default = true),
-            AutomationToolChoice("calendar", "calendar_month", "Calendar", listOf("calendar_events"), default = false),
-        ),
-    )
+    private val config = testAutomationsConfig
     private var nextId = 0
 
     private fun TestScope.automations() =
@@ -144,31 +129,27 @@ class AutomationsTest {
         assertEquals(listOf(off.id), alarms.cancelled)
     }
 
+    @Test
+    fun `a missed run is noted until the next one starts`() = runTest {
+        val automations = automations()
+        val saved = assertIs<SaveResult.Saved>(automations.save(automations.draft("Brief", "Brief me"))).automation
+        automations.recordMissed(saved.id, scheduledForMillis = now - 1)
+        assertEquals(now - 1, automations.all.value.single().missedAtMillis)
+        // An edit doesn't clear it; a run does.
+        automations.save(automations.all.value.single().copy(name = "Morning"))
+        assertEquals(now - 1, automations.all.value.single().missedAtMillis)
+        automations.recordRun(saved.id, chatId = "chat", atMillis = now)
+        assertNull(automations.all.value.single().missedAtMillis)
+    }
+
+    @Test
+    fun `a project must be a plain folder name, and blank means the whole workspace`() = runTest {
+        val automations = automations()
+        val draft = automations.draft("Brief", "Brief me")
+        assertEquals(AutomationProblem.PROJECT_INVALID, refusal(automations.save(draft.copy(project = "../etc"))))
+        assertEquals("notes", assertIs<SaveResult.Saved>(automations.save(draft.copy(project = " notes/ "))).automation.project)
+        assertNull(assertIs<SaveResult.Saved>(automations.save(draft.copy(project = " "))).automation.project)
+    }
+
     private fun refusal(result: SaveResult) = assertIs<SaveResult.Refused>(result).problem
-
-    private data class Alarm(val id: String, val atMillis: Long, val scheduledForMillis: Long, val retry: Boolean)
-
-    private class RecordingAlarms : AutomationAlarms {
-        val set = mutableListOf<Alarm>()
-        val cancelled = mutableListOf<String>()
-
-        override fun set(id: String, atMillis: Long, scheduledForMillis: Long, retry: Boolean) {
-            set += Alarm(id, atMillis, scheduledForMillis, retry)
-        }
-
-        override fun cancel(id: String) {
-            cancelled += id
-        }
-    }
-
-    private class MemoryBackend : AutomationBackend {
-        var stored: List<Automation> = emptyList()
-
-        override suspend fun load(): List<Automation> = stored
-
-        override suspend fun save(automations: List<Automation>): Outcome<Unit> {
-            stored = automations
-            return Outcome.Success(Unit)
-        }
-    }
 }
