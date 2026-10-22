@@ -122,6 +122,8 @@ data class StepModel(
     val inspection: String? = null,
     /** Host of the web page the step reads; its site icon replaces [icon]. */
     val site: String? = null,
+    /** The file the step wrote, relative to the workspace; the step opens it in the file browser. */
+    val file: String? = null,
 )
 
 @Serializable

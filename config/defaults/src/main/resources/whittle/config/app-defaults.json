@@ -10,7 +10,7 @@
     "settingsStoreName": "whittle_settings",
     "runsDatabaseName": "whittle_runs.db",
     "chatsDatabaseName": "whittle_chats.db",
-    "workspacesDirectoryName": "workspaces",
+    "workspaceDirectoryName": "workspace",
     "connectorsDirectoryName": "connectors",
     "customConnectorsStoreName": "whittle_connectors"
   },
@@ -39,6 +39,36 @@
   },
   "background": {
     "keepRunning": true
+  },
+  "files": {
+    "changesDirectoryName": "file-changes",
+    "hiddenNames": [".whittle"],
+    "maxPreviewChars": 200000,
+    "maxImageSidePx": 2048,
+    "diffContextLines": 3,
+    "maxDiffCells": 4000000,
+    "folderIcon": "folder",
+    "defaultFileIcon": "description",
+    "fileIcons": {
+      "ts": "code", "tsx": "code", "js": "code", "jsx": "code", "mjs": "code", "cjs": "code", "kt": "code",
+      "java": "code", "py": "code", "rb": "code", "go": "code", "rs": "code", "c": "code", "h": "code",
+      "cpp": "code", "swift": "code", "sql": "code", "sh": "terminal", "bash": "terminal",
+      "css": "palette", "scss": "palette", "less": "palette", "html": "html", "htm": "html",
+      "json": "data_object", "md": "description", "txt": "description", "csv": "description",
+      "png": "image", "jpg": "image", "jpeg": "image", "gif": "image", "webp": "image", "svg": "image", "bmp": "image",
+      "toml": "settings", "yaml": "settings", "yml": "settings", "ini": "settings", "conf": "settings", "lock": "settings", "env": "settings"
+    },
+    "imageExtensions": ["png", "jpg", "jpeg", "gif", "webp", "bmp"],
+    "proseExtensions": ["md", "markdown", "txt", "csv", "log", "rst"],
+    "keywords": [
+      "import", "export", "from", "default", "const", "let", "var", "function", "return", "if", "else", "for", "while",
+      "class", "extends", "new", "async", "await", "try", "catch", "throw", "true", "false", "null", "undefined",
+      "def", "fun", "val", "in", "not", "and", "or", "None", "True", "False", "self", "this", "type", "interface"
+    ],
+    "lineComments": {
+      "//": ["ts", "tsx", "js", "jsx", "mjs", "cjs", "kt", "java", "go", "rs", "c", "h", "cpp", "swift", "scss", "less"],
+      "#": ["py", "rb", "sh", "bash", "yaml", "yml", "toml", "conf", "ini", "env"]
+    }
   },
   "preview": {
     "sheetHeightFraction": 0.88

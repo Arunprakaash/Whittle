@@ -50,8 +50,7 @@
     <string name="chats_title">Chats</string>
     <string name="projects_title">Projects</string>
     <string name="files_unavailable">This phone has no app for browsing files.</string>
-    <string name="documents_summary">Your chats\' files</string>
-    <string name="documents_untitled">Untitled chat</string>
+    <string name="documents_summary">Your workspace</string>
     <string name="chats_search">Search chats</string>
     <string name="search_clear">Clear search</string>
     <string name="chats_no_match">No chats match.</string>
@@ -67,7 +66,7 @@
     <string name="sidebar_untitled">New chat</string>
     <string name="sidebar_delete">Delete</string>
     <string name="sidebar_delete_title">Delete this chat?</string>
-    <string name="sidebar_delete_body">Its messages, files and saved tasks are removed from this phone. This can\'t be undone.</string>
+    <string name="sidebar_delete_body">Its messages and saved tasks are removed from this phone. Files it made stay in your workspace. This can\'t be undone.</string>
     <string name="sidebar_delete_confirm">Delete</string>
     <string name="sidebar_delete_cancel">Cancel</string>
     <string name="chat_empty_headline">What should we get done?</string>
@@ -122,7 +121,7 @@
     <string name="settings_section_data">Data</string>
     <string name="settings_delete_all_title">Delete all chats</string>
     <string name="settings_delete_all_confirm_title">Delete all chats?</string>
-    <string name="settings_delete_all_confirm_body">Every chat, its files and the apps made in it are removed from this phone. This can\'t be undone.</string>
+    <string name="settings_delete_all_confirm_body">Every chat and its saved tasks are removed from this phone. Files and apps stay in your workspace. This can\'t be undone.</string>
     <string name="settings_delete_all_confirm">Delete all</string>
     <string name="settings_cancel">Cancel</string>
     <string name="settings_section_about">About</string>
@@ -352,5 +351,46 @@
     <plurals name="linux_processes_running">
         <item quantity="one">%d process running</item>
         <item quantity="other">%d processes running</item>
+    </plurals>
+    <string name="files_title">Projects</string>
+    <string name="files_open">Files</string>
+    <string name="files_back">Back</string>
+    <string name="files_search">Search files</string>
+    <string name="files_open_in_files">Open in Files app</string>
+    <string name="files_filter_changed">Changed · %1$d</string>
+    <string name="files_filter_all">All</string>
+    <string name="files_no_changes">This chat hasn\'t changed any files yet.</string>
+    <string name="files_empty">Nothing here yet.</string>
+    <string name="files_badge_new">New</string>
+    <string name="files_badge_edited">Edited</string>
+    <string name="files_just_now">just now</string>
+    <string name="files_delete_title">Delete %1$s?</string>
+    <string name="files_delete_body">It\'s removed from the workspace, for every chat. This can\'t be undone.</string>
+    <string name="files_delete_confirm">Delete</string>
+    <string name="files_cancel">Cancel</string>
+    <string name="files_copy">Copy</string>
+    <string name="files_share">Share</string>
+    <string name="files_view_file">File</string>
+    <string name="files_view_changes">Changes · +%1$d −%2$d</string>
+    <string name="files_view_added">Changes · +%1$d</string>
+    <string name="files_undo">Ask Whittle to undo this</string>
+    <string name="files_undo_request">Undo your changes to %1$s.</string>
+    <string name="files_not_text">This file isn\'t text. Share it to open it in another app.</string>
+    <string name="files_truncated">That\'s as much as fits here. Share the file to see the rest.</string>
+    <plurals name="files_lines">
+        <item quantity="one">%d line</item>
+        <item quantity="other">%d lines</item>
+    </plurals>
+    <plurals name="files_items">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
+    <plurals name="files_since">
+        <item quantity="one">Since this chat started · %d edit by Whittle</item>
+        <item quantity="other">Since this chat started · %d edits by Whittle</item>
+    </plurals>
+    <plurals name="files_folded">
+        <item quantity="one">⋯ %d line</item>
+        <item quantity="other">⋯ %d lines</item>
     </plurals>
 </resources>

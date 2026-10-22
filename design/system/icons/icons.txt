@@ -20,10 +20,12 @@ checklist
 chevron_right
 close
 cloud_upload
+code
 contacts
 content_copy
 contrast
 dark_mode:fill
+data_object
 database
 delete
 deployed_code
@@ -38,10 +40,14 @@ expand_less
 expand_more
 extension
 folder
+folder_open
 folder_zip
 fullscreen
 help
+history
+html
 hub
+image
 info
 insights
 install_mobile
@@ -58,6 +64,7 @@ notes
 notifications
 open_in_new
 package_2
+palette
 payments
 person
 person_search
@@ -84,6 +91,7 @@ stop:fill
 table
 terminal
 travel_explore
+undo
 vibration
 visibility
 visibility_off

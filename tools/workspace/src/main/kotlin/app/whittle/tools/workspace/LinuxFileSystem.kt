@@ -9,7 +9,7 @@ import java.nio.file.Files
 /**
  * The Linux that commands run in, as the file tools see it. Linux is a folder on the device ([root]), so files are
  * read and written there directly, at the same bytes a command sees. A path resolves the way Linux would resolve it,
- * links included, with the chat's own folder mounted at [workspaceMount]. Nothing outside those two folders is
+ * links included, with the shared workspace mounted at [workspaceMount]. Nothing outside those two folders is
  * reachable: an absolute link target starts at Linux's root, and `..` stops there.
  */
 class LinuxFileSystem(

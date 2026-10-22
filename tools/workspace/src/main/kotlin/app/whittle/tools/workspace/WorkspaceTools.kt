@@ -66,7 +66,7 @@ class RunCommandTool(workspaces: Workspaces, private val runner: CommandRunner, 
 
         val DEFINITION = ToolDefinition(
             id = ToolId("run_command"),
-            description = "Runs a bash command in Linux (Ubuntu on the phone), in /workspace, this chat's own folder. " +
+            description = "Runs a bash command in Linux (Ubuntu on the phone), in /workspace, the workspace every chat shares. " +
                 "Install what you need with apt-get, npm or pip; installed tools stay for every chat. " +
                 "The command ends when it finishes or times out, so servers don't keep running. " +
                 "Commands are offline: they can't open network connections unless you set $NETWORK to true, which also " +
@@ -130,7 +130,7 @@ class ListFilesTool(workspaces: Workspaces, private val config: TerminalConfig) 
 
         val DEFINITION = ToolDefinition(
             id = ToolId("list_files"),
-            description = "Lists the files and folders in a Linux folder. Paths are Linux paths: absolute, or relative to /workspace, this chat's own folder.",
+            description = "Lists the files and folders in a Linux folder. Paths are Linux paths: absolute, or relative to /workspace, the shared workspace.",
             inputSchema = schema("""{"type":"object","properties":{"$PATH":{"type":"string","description":"Folder: absolute, or relative to /workspace; default is /workspace"}}}"""),
             riskTier = RiskTier.READ,
             executionSite = ExecutionSite.DEVICE,
@@ -175,7 +175,7 @@ class ReadFileTool(workspaces: Workspaces, private val config: TerminalConfig) :
 
         val DEFINITION = ToolDefinition(
             id = ToolId("read_file"),
-            description = "Reads a text file from Linux. Paths are absolute, or relative to /workspace, this chat's own folder.",
+            description = "Reads a text file from Linux. Paths are absolute, or relative to /workspace, the shared workspace.",
             inputSchema = schema("""{"type":"object","properties":{"$PATH":{"type":"string","description":"Absolute, or relative to /workspace"}},"required":["$PATH"]}"""),
             riskTier = RiskTier.READ,
             executionSite = ExecutionSite.DEVICE,
@@ -186,7 +186,11 @@ class ReadFileTool(workspaces: Workspaces, private val config: TerminalConfig) :
     }
 }
 
-class WriteFileTool(workspaces: Workspaces, private val config: TerminalConfig) : WorkspaceTool(workspaces) {
+class WriteFileTool(
+    workspaces: Workspaces,
+    private val config: TerminalConfig,
+    private val changes: FileChanges = FileChanges.NONE,
+) : WorkspaceTool(workspaces) {
     override val definition = DEFINITION
 
     override suspend fun run(arguments: JsonObject, access: WorkspaceAccess): ToolOutput {
@@ -197,7 +201,10 @@ class WriteFileTool(workspaces: Workspaces, private val config: TerminalConfig) 
             is Outcome.Failure -> return error(resolved.error.message)
             is Outcome.Success -> resolved.value
         }
-        return writeText(file, content)?.let(::error) ?: success(buildJsonObject { put(PATH, path); put(CHARACTERS, content.length) })
+        val before = previousText(file, config.maxFileChars)
+        writeText(file, content)?.let { return error(it) }
+        changes.record(access.id, file, before)
+        return success(buildJsonObject { put(PATH, path); put(CHARACTERS, content.length) })
     }
 
     companion object {
@@ -207,7 +214,7 @@ class WriteFileTool(workspaces: Workspaces, private val config: TerminalConfig) 
 
         val DEFINITION = ToolDefinition(
             id = ToolId("write_file"),
-            description = "Creates or replaces a text file in Linux. Folders are created as needed. Paths are absolute, or relative to /workspace, this chat's own folder.",
+            description = "Creates or replaces a text file in Linux. Folders are created as needed. Paths are absolute, or relative to /workspace, the shared workspace.",
             inputSchema = schema(
                 """{"type":"object","properties":{"$PATH":{"type":"string","description":"Absolute, or relative to /workspace"},""" +
                     """"$CONTENT":{"type":"string","description":"The whole file"}},"required":["$PATH","$CONTENT"]}""",
@@ -221,7 +228,11 @@ class WriteFileTool(workspaces: Workspaces, private val config: TerminalConfig) 
     }
 }
 
-class EditFileTool(workspaces: Workspaces, private val config: TerminalConfig) : WorkspaceTool(workspaces) {
+class EditFileTool(
+    workspaces: Workspaces,
+    private val config: TerminalConfig,
+    private val changes: FileChanges = FileChanges.NONE,
+) : WorkspaceTool(workspaces) {
     override val definition = DEFINITION
 
     override suspend fun run(arguments: JsonObject, access: WorkspaceAccess): ToolOutput {
@@ -244,7 +255,9 @@ class EditFileTool(workspaces: Workspaces, private val config: TerminalConfig) :
         if (matches > 1) return error("oldText appears $matches times in '$path'; include more surrounding text")
         val updated = text.replaceFirst(oldText, newText)
         if (updated.length > config.maxFileChars) return error("the edited file would be longer than ${config.maxFileChars} characters")
-        return writeText(file, updated)?.let(::error) ?: success(buildJsonObject { put(PATH, path); put(EDITED, true) })
+        writeText(file, updated)?.let { return error(it) }
+        changes.record(access.id, file, FileChanges.Before.Text(text))
+        return success(buildJsonObject { put(PATH, path); put(EDITED, true) })
     }
 
     private fun String.windowedIndexes(needle: String): Int =

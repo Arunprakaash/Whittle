@@ -48,6 +48,8 @@ data class StepUi(
     val inspection: String? = null,
     /** Host of the web page this step reads; its own icon is shown instead of [icon] once loaded. */
     val site: String? = null,
+    /** Opens what the step made, such as the file it wrote: a done step's tap does it, and a chevron says so. */
+    val onOpen: (() -> Unit)? = null,
 )
 
 /** Consecutive steps as one segmented group: large outer corners, small corners between rows. */
@@ -58,14 +60,17 @@ fun StepGroup(steps: List<StepUi>, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
         steps.forEachIndexed { index, step ->
             val open = step.id in expanded
-            val toggle = step.inspection?.let {
-                { _: StepUi ->
+            val opener = step.onOpen?.takeIf { step.status == StepStatus.Done }
+            val toggle = when {
+                opener != null -> { _: StepUi -> haptics.perform(WhittleHaptic.Tap); opener() }
+                step.inspection != null -> { _: StepUi ->
                     haptics.perform(WhittleHaptic.Tap)
                     expanded = if (open) expanded - step.id else expanded + step.id
                 }
+                else -> null
             }
             StepRow(step, segmentedShape(index, steps.size), toggle)
-            AnimatedVisibility(open && step.inspection != null) {
+            AnimatedVisibility(open && step.inspection != null && step.onOpen == null) {
                 Text(
                     text = step.inspection.orEmpty(),
                     style = WhittleTextStyles.mono,
@@ -123,7 +128,11 @@ private fun StepRow(step: StepUi, shape: Shape, onClick: ((StepUi) -> Unit)?) {
         Box(Modifier.size(WhittleSize.Icon.xl), contentAlignment = Alignment.Center) {
             when (step.status) {
                 StepStatus.Running -> CircularProgressIndicator(Modifier.size(WhittleSize.Icon.s), strokeWidth = SPINNER_STROKE)
-                StepStatus.Done -> WhittleIcon("check", size = WhittleSize.Icon.m, tint = colors.primary)
+                StepStatus.Done -> if (step.onOpen != null) {
+                    WhittleIcon("chevron_right", size = WhittleSize.Icon.l, tint = colors.primary)
+                } else {
+                    WhittleIcon("check", size = WhittleSize.Icon.m, tint = colors.primary)
+                }
                 StepStatus.Failed -> WhittleIcon("refresh", size = WhittleSize.Icon.m, tint = colors.error)
                 StepStatus.Blocked -> WhittleIcon("lock", size = WhittleSize.Icon.m, tint = colors.onSurfaceVariant)
                 StepStatus.Stopped -> WhittleIcon("stop", size = WhittleSize.Icon.m, tint = colors.onSurfaceVariant)

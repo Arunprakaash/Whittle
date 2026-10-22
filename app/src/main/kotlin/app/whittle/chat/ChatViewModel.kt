@@ -37,6 +37,9 @@ import app.whittle.storage.chats.ChatId
 import app.whittle.tools.api.WorkspaceId
 import app.whittle.tools.workspace.ProcessInfo
 import app.whittle.tools.workspace.StartProcessTool
+import app.whittle.tools.workspace.WriteFileTool
+import app.whittle.tools.workspace.EditFileTool
+import app.whittle.files.workspacePath
 import app.whittle.tools.presentation.StepText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -299,7 +302,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         }
     }
 
-    /** Settings > Delete all chats: every chat, its saved tasks and its workspace files. */
+    /** Settings > Delete all chats: every chat and its saved tasks; the workspace's files stay. */
     fun deleteAllChats() {
         stopWithoutSaving()
         viewModelScope.launch { show(id = null, document = null) }
@@ -316,7 +319,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         document?.let { graph.checkpoints.delete(it.runIds + listOfNotNull(it.activeRunId)) }
         graph.processes.stopAll(WorkspaceId(id.value))
         graph.processes.clear(WorkspaceId(id.value))
-        graph.workspaces.delete(WorkspaceId(id.value))
+        // The workspace is shared, so its files stay; only this chat's record of what it changed goes.
+        graph.fileChanges.forget(WorkspaceId(id.value))
     }
 
     fun setPinned(id: ChatId, pinned: Boolean) {
@@ -435,6 +439,13 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         }
     }
 
+    /** The workspace file a write or edit touches, so its step can open it. */
+    private fun writtenFile(tool: String, arguments: JsonObject): String? {
+        if (tool != WriteFileTool.DEFINITION.id.value && tool != EditFileTool.DEFINITION.id.value) return null
+        val path = (arguments[FILE_PATH] as? JsonPrimitive)?.contentOrNull ?: return null
+        return workspacePath(path, graph.linux.workspaceMount)
+    }
+
     private fun onToolCallDecided(event: RunEvent.ToolCallDecided) {
         finishNarration()
         val call = event.toolCall
@@ -451,7 +462,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         stepArguments[call.id.value] = arguments
         when (event.decision) {
             is PolicyDecision.Allow -> {
-                addStep(StepModel(call.id.value, text.icon, text.running, StepState.Running, site = text.site))
+                addStep(StepModel(call.id.value, text.icon, text.running, StepState.Running, site = text.site, file = writtenFile(call.toolName, arguments)))
                 setStatus(AgentState.Acting, text.running)
             }
             is PolicyDecision.Deny -> addStep(StepModel(call.id.value, text.icon, text.running, StepState.Blocked, site = text.site))
@@ -830,6 +841,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         const val PROCESS_NAME = "name"
         const val PROCESS_PORT = "port"
         const val PROCESS_COMMAND = "command"
+        /** The path argument of the file tools. */
+        const val FILE_PATH = "path"
         const val HOSTED_ACTION_SEPARATOR = "."
         const val SAVE_DEBOUNCE_MILLIS = 400L
         const val INSPECTION_MAX_CHARS = 4_000

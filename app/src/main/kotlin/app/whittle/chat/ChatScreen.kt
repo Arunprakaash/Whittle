@@ -99,6 +99,8 @@ import app.whittle.design.components.lightMarkdown
 import app.whittle.design.components.RunSummaryChip
 import app.whittle.design.components.SourceUi
 import app.whittle.design.components.TopBarAction
+import app.whittle.files.FilesOpening
+import app.whittle.files.FilesPlace
 import app.whittle.design.components.TopBarActionGroup
 import app.whittle.design.components.TopBarButton
 import app.whittle.design.components.TopBarGroupAction
@@ -129,6 +131,8 @@ fun ChatScreen(
     onOpenSettings: () -> Unit,
     avatarSeed: Long?,
     onOpenProjects: () -> Unit,
+    /** Opens the file browser, at the workspace or at a file a step wrote. */
+    onOpenFiles: (FilesOpening) -> Unit,
     /** Shown just above the composer, such as Linux finishing its setup. */
     aboveComposer: @Composable () -> Unit = {},
 ) {
@@ -138,13 +142,23 @@ fun ChatScreen(
         val current = state.items.firstOrNull { it.key == item.key } as? ThreadItem.Process ?: item
         LivePreviewSheet(current, viewModel, previewHeight, onDismiss = { previewing = null })
     }
-    CompositionLocalProvider(LocalOpenPreview provides { item -> previewing = item }) {
-        ChatLayout(state, viewModel, sidebarMaxChats, voiceDefaults, onViewAllChats, onOpenSettings, avatarSeed, onOpenProjects, aboveComposer)
+    val chat = state.currentChat?.value
+    CompositionLocalProvider(
+        LocalOpenPreview provides { item -> previewing = item },
+        LocalOpenFile provides { path -> onOpenFiles(FilesOpening(FilesPlace.Document(path), chat)) },
+    ) {
+        ChatLayout(
+            state, viewModel, sidebarMaxChats, voiceDefaults, onViewAllChats, onOpenSettings, avatarSeed, onOpenProjects, aboveComposer,
+            onOpenWorkspace = { onOpenFiles(FilesOpening(FilesPlace.Folder(""), chat)) },
+        )
     }
 }
 
 /** Opens a process card's live preview; provided by [ChatScreen] so any thread row can use it. */
 private val LocalOpenPreview = staticCompositionLocalOf<(ThreadItem.Process) -> Unit> { {} }
+
+/** Opens a file in the workspace by its path there, such as one a step wrote; provided by [ChatScreen]. */
+private val LocalOpenFile = staticCompositionLocalOf<(String) -> Unit> { {} }
 
 @Composable
 private fun ChatLayout(
@@ -157,6 +171,7 @@ private fun ChatLayout(
     avatarSeed: Long?,
     onOpenProjects: () -> Unit,
     aboveComposer: @Composable () -> Unit,
+    onOpenWorkspace: () -> Unit,
 ) {
     val haptics = WhittleTheme.haptics
     LaunchedEffect(viewModel) { viewModel.haptics.collect { haptics.perform(it) } }
@@ -218,10 +233,17 @@ private fun ChatLayout(
                 actions = {
                     TopBarActionGroup(Modifier.padding(end = WhittleSpace.m)) {
                         TopBarAction(
+                            icon = "folder_open",
+                            contentDescription = stringResource(R.string.files_open),
+                            onClick = onOpenWorkspace,
+                            shape = connectedShape(0, TOP_BAR_ACTIONS),
+                            modifier = TopBarGroupAction,
+                        )
+                        TopBarAction(
                             icon = "edit_square",
                             contentDescription = stringResource(R.string.sidebar_new_chat),
                             onClick = viewModel::newChat,
-                            shape = connectedShape(0, TOP_BAR_ACTIONS),
+                            shape = connectedShape(1, TOP_BAR_ACTIONS),
                             modifier = TopBarGroupAction,
                         )
                         val current = state.chats.firstOrNull { it.id == state.currentChat }
@@ -229,7 +251,7 @@ private fun ChatLayout(
                             pinned = current?.pinned,
                             onPin = { pinned -> current?.let { viewModel.setPinned(it.id, pinned) } },
                             onDelete = { current?.let { viewModel.deleteChat(it.id) } },
-                            shape = connectedShape(1, TOP_BAR_ACTIONS),
+                            shape = connectedShape(2, TOP_BAR_ACTIONS),
                         )
                     }
                 },
@@ -643,7 +665,13 @@ private fun CapabilityPresentation.toUi(id: String) = DecisionUi(
 )
 
 @Composable
-private fun StepModel.toUi(): StepUi = StepUi(
+private fun StepModel.toUi(): StepUi {
+    val openFile = LocalOpenFile.current
+    return toUi(onOpen = file?.let { path -> { openFile(path) } })
+}
+
+@Composable
+private fun StepModel.toUi(onOpen: (() -> Unit)?): StepUi = StepUi(
     id = id,
     icon = icon,
     label = label,
@@ -663,6 +691,7 @@ private fun StepModel.toUi(): StepUi = StepUi(
     },
     inspection = inspection,
     site = site,
+    onOpen = onOpen,
 )
 
 @Composable
@@ -682,8 +711,8 @@ private const val TICK_MILLIS = 250L
 private const val MILLIS_PER_SECOND = 1000L
 private const val SECONDS_PER_MINUTE = 60L
 
-/** New chat and the overflow menu share one connected group. */
-private const val TOP_BAR_ACTIONS = 2
+/** Files, new chat and the overflow menu share one connected group. */
+private const val TOP_BAR_ACTIONS = 3
 
 private fun PlanItem.toUi(): PlanStepUi = PlanStepUi(
     text = content,

@@ -119,15 +119,15 @@ writes it directly: about 2 ms a read on the emulator, against about 50 ms throu
 and a write from either side shows up on the other at once.
 
 - **One set of paths:** the agent only uses Linux paths.
-  - `/workspace/...` maps to the chat's folder, which lives outside Ubuntu, so Reset and Remove never touch your
-    files.
+  - `/workspace/...` maps to the workspace every chat shares, which lives outside Ubuntu, so Reset and Remove
+    never touch your files.
   - Everything else maps into the Ubuntu folder.
   - Tool results show Linux paths too.
 - **Links resolve the way Linux would, inside Ubuntu.**
   - An absolute link target starts at Ubuntu's root, never the phone's.
   - `..` stops at that root.
   - proot's stand-ins for hard links (`--link2symlink`) are followed like any link.
-  - Nothing outside Ubuntu and the chat's folder is reachable.
+  - Nothing outside Ubuntu and the workspace is reachable.
 - **Not covered:** `/proc`, `/dev` and `/sys` are live views passed in from Android, not files in the folder. Only
   `run_command` sees them.
 - **Owners:** inside Linux, files look owned by root, because proot pretends; on disk, the app owns them. Only the
@@ -207,7 +207,7 @@ policy engine. That means a card for untrusted models and tainted runs.
 - **Runs under the foreground notification** with progress and cancel, so it survives switching apps.
 - **Manage:** see the space used, Repair (re-run configure), Reset (fresh image, workspaces kept), Remove (frees the
   space; commands are unavailable until it's set up again).
-- **Storage:** `filesDir/linux`, excluded from backups. The image is stored once; workspaces stay per chat.
+- **Storage:** `filesDir/linux`, excluded from backups. The image is stored once; the workspace is one folder that every chat shares.
 
 ## Size
 

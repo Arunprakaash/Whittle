@@ -41,7 +41,7 @@ import app.whittle.storage.chats.ChatId
 import java.time.ZoneId
 
 /**
- * Projects and Apps, then pinned chats and the last week (capped); everything else is one tap away on the
+ * Projects (the shared workspace), then pinned chats and the last week (capped); everything else is one tap away on the
  * Chats page. At the bottom: the user's own button, which opens Settings, and New chat.
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

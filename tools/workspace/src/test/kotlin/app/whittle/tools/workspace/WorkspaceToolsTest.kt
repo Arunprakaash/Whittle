@@ -36,11 +36,24 @@ class WorkspaceToolsTest {
     }
 
     @Test
+    fun `the file tools report what each file held before they wrote it`() = runBlocking<Unit> {
+        val heard = mutableListOf<Pair<String, FileChanges.Before>>()
+        val changes = FileChanges { _, file, before -> heard += file.name to before }
+        WriteFileTool(workspaces, config, changes).execute(args("""{"path":"plan.md","content":"one\n"}"""), context)
+        WriteFileTool(workspaces, config, changes).execute(args("""{"path":"plan.md","content":"two\n"}"""), context)
+        EditFileTool(workspaces, config, changes).execute(args("""{"path":"plan.md","oldText":"two","newText":"three"}"""), context)
+        assertEquals(
+            listOf("plan.md" to FileChanges.Before.Nothing, "plan.md" to FileChanges.Before.Text("one\n"), "plan.md" to FileChanges.Before.Text("two\n")),
+            heard,
+        )
+    }
+
+    @Test
     fun `commands start in the workspace with a scrubbed environment`() = runBlocking<Unit> {
         val output = command("""pwd -P; echo "${'$'}HOME"; env | grep -q '^USER=' && echo leaked || echo clean""")
         val lines = output.field("stdout").lines()
-        assertEquals(File(root, "chat-1").canonicalPath, lines[0])
-        assertEquals(File(root, "chat-1").path, lines[1])
+        assertEquals(root.canonicalPath, lines[0])
+        assertEquals(root.path, lines[1])
         assertEquals("clean", lines[2], "the app's own environment must not leak into commands")
     }
 
@@ -64,7 +77,7 @@ class WorkspaceToolsTest {
     @Test
     fun `cancelling a run stops its command at once`() = runBlocking<Unit> {
         val runner = CommandRunner(environment, config.maxOutputChars)
-        val directory = File(root, "chat-1").apply { mkdirs() }
+        val directory = root.apply { mkdirs() }
         val job = launch(Dispatchers.IO) { runner.run("sleep 30", directory, timeoutSeconds = 60) }
         delay(500)
         val started = System.currentTimeMillis()
@@ -109,7 +122,7 @@ class WorkspaceToolsTest {
     @Test
     fun `paths outside the workspace are refused, through symlinks too`() = runBlocking<Unit> {
         val outside = Files.createTempFile("outside", ".txt").toFile().apply { writeText("secret") }
-        val workspace = File(root, "chat-1").apply { mkdirs() }
+        val workspace = root.apply { mkdirs() }
         Files.createSymbolicLink(File(workspace, "link.txt").toPath(), outside.toPath())
         val read = ReadFileTool(workspaces, config)
         listOf("../escape.txt", "/etc/hosts", "link.txt").forEach { path ->
@@ -121,11 +134,11 @@ class WorkspaceToolsTest {
     }
 
     @Test
-    fun `deleting a workspace removes its files`() = runBlocking<Unit> {
-        WriteFileTool(workspaces, config).execute(args("""{"path":"a/b.txt","content":"x"}"""), context)
-        assertTrue(File(root, "chat-1").exists())
-        workspaces.delete(WorkspaceId("chat-1"))
-        assertFalse(File(root, "chat-1").exists())
+    fun `every chat works in the same folder`() = runBlocking<Unit> {
+        WriteFileTool(workspaces, config).execute(args("""{"path":"notes/plan.md","content":"from chat 1"}"""), context)
+        val otherChat = ToolExecutionContext(RunId("run-2"), ToolCallId("call-2"), WorkspaceId("chat-2"))
+        val output = ReadFileTool(workspaces, config).execute(args("""{"path":"notes/plan.md"}"""), otherChat)
+        assertEquals("from chat 1", output.field("content"))
     }
 
     @Test

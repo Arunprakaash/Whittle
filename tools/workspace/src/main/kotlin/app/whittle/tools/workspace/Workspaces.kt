@@ -7,35 +7,33 @@ import java.io.File
 import java.io.IOException
 
 /**
- * One folder per workspace under [root]. Every path a tool touches must resolve inside its workspace, or, with
- * [linux], inside the Linux that commands run in, where the workspace is mounted.
+ * The one folder every chat works in, [root], mounted at /workspace in Linux. A [WorkspaceId] names the chat that
+ * is working, for what belongs to the chat (its processes, its saved outputs, what it changed); the files are
+ * shared, so a chat can start several projects and another chat can carry on with them. Every path a tool touches
+ * must resolve inside the workspace, or, with [linux], inside the Linux that commands run in.
  */
 class Workspaces(private val root: File, private val linux: LinuxFileSystem? = null) {
+    /** The shared folder, for the chat [id]. */
     fun directory(id: WorkspaceId): Outcome<File> {
         if (!SAFE_ID.matches(id.value)) return invalid("Workspace id '${id.value}' is not a plain name")
-        val directory = File(root, id.value)
-        if (!directory.isDirectory && !directory.mkdirs()) return Outcome.Failure(HarnessError.Storage("Can't create workspace ${id.value}"))
-        return Outcome.Success(directory)
+        return folder()
     }
 
-    /** Every workspace on the phone, whether or not its chat still exists. */
-    fun ids(): List<WorkspaceId> =
-        root.listFiles().orEmpty().filter { it.isDirectory && SAFE_ID.matches(it.name) }.map { WorkspaceId(it.name) }
+    /** The shared folder, created if it isn't there yet. */
+    fun folder(): Outcome<File> {
+        if (!root.isDirectory && !root.mkdirs()) return Outcome.Failure(HarnessError.Storage("Can't create the workspace"))
+        return Outcome.Success(root)
+    }
 
-    /** Removes a workspace and everything in it, e.g. when its chat is deleted. */
-    fun delete(id: WorkspaceId): Outcome<Unit> {
+    /** Resolves [path] (relative to the workspace) for the chat [id]; see the other [resolve]. */
+    fun resolve(id: WorkspaceId, path: String): Outcome<File> {
         if (!SAFE_ID.matches(id.value)) return invalid("Workspace id '${id.value}' is not a plain name")
-        val directory = File(root, id.value)
-        return if (!directory.exists() || directory.deleteRecursively()) {
-            Outcome.Success(Unit)
-        } else {
-            Outcome.Failure(HarnessError.Storage("Can't delete workspace ${id.value}"))
-        }
+        return resolve(path)
     }
 
     /** Resolves [path] (relative to the workspace) and refuses anything that lands outside it, symlinks included. */
-    fun resolve(id: WorkspaceId, path: String): Outcome<File> {
-        val directory = when (val dir = directory(id)) {
+    fun resolve(path: String): Outcome<File> {
+        val directory = when (val dir = folder()) {
             is Outcome.Failure -> return dir
             is Outcome.Success -> dir.value
         }

@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.database.Cursor
+import android.net.Uri
 import android.database.MatrixCursor
 import android.os.CancellationSignal
 import android.os.ParcelFileDescriptor
@@ -15,18 +16,16 @@ import android.webkit.MimeTypeMap
 import app.whittle.R
 import app.whittle.WhittleApplication
 import app.whittle.core.common.getOrNull
-import app.whittle.tools.api.WorkspaceId
-import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 
 /**
- * Shows the chats' workspaces in Android's own Files app, as a "Whittle" location with one folder per chat,
- * named after the chat. Files can be opened, shared, added, renamed and deleted there. Only the system's
- * document UI can reach this provider (MANAGE_DOCUMENTS), and every path is resolved inside its workspace.
+ * Shows the workspace every chat shares in Android's own Files app, as a "Whittle" location. Files can be opened,
+ * shared, added, renamed and deleted there. Only the system's document UI, or an app the user shared a file with,
+ * can reach this provider (MANAGE_DOCUMENTS, URI grants), and every path is resolved inside the workspace.
  *
- * Document ids: [ROOT] for the location, `ROOT/<workspace>` for a chat's folder, `ROOT/<workspace>/<path>` below.
+ * Document ids: [ROOT] for the workspace, `ROOT/<path>` for anything in it.
  */
 class WorkspaceDocumentsProvider : DocumentsProvider() {
     private val graph get() = (requireNotNull(context).applicationContext as WhittleApplication).graph
@@ -45,16 +44,12 @@ class WorkspaceDocumentsProvider : DocumentsProvider() {
     }
 
     override fun queryDocument(documentId: String, projection: Array<out String>?): Cursor =
-        MatrixCursor(projection ?: DOCUMENT_COLUMNS).apply { addRow(this, documentId, titles()) }
+        MatrixCursor(projection ?: DOCUMENT_COLUMNS).apply { addRow(this, documentId) }
 
     override fun queryChildDocuments(parentDocumentId: String, projection: Array<out String>?, sortOrder: String?): Cursor =
         MatrixCursor(projection ?: DOCUMENT_COLUMNS).apply {
-            if (parentDocumentId == ROOT) {
-                val titles = titles()
-                graph.workspaces.ids().forEach { addRow(this, "$ROOT/${it.value}", titles) }
-            } else {
-                fileFor(parentDocumentId).listFiles().orEmpty().forEach { addRow(this, "$parentDocumentId/${it.name}", emptyMap()) }
-            }
+            val hidden = graph.filesDefaults.hiddenNames
+            fileFor(parentDocumentId).listFiles().orEmpty().filter { it.name !in hidden }.forEach { addRow(this, "$parentDocumentId/${it.name}") }
             setNotificationUri(requireNotNull(context).contentResolver, childrenUri(parentDocumentId))
         }
 
@@ -64,7 +59,6 @@ class WorkspaceDocumentsProvider : DocumentsProvider() {
     }
 
     override fun createDocument(parentDocumentId: String, mimeType: String, displayName: String): String {
-        if (parentDocumentId == ROOT) throw FileNotFoundException("New folders go inside a chat's folder")
         val parent = fileFor(parentDocumentId).takeIf { it.isDirectory } ?: throw FileNotFoundException(parentDocumentId)
         val file = unusedName(parent, displayName)
         val created = try {
@@ -78,7 +72,7 @@ class WorkspaceDocumentsProvider : DocumentsProvider() {
     }
 
     override fun renameDocument(documentId: String, displayName: String): String {
-        if (workspaceOf(documentId) == null || isWorkspace(documentId)) throw FileNotFoundException("Only files and folders inside a chat can be renamed")
+        if (documentId == ROOT) throw FileNotFoundException("The workspace can't be renamed")
         val file = fileFor(documentId)
         val target = unusedName(file.parentFile ?: throw FileNotFoundException(documentId), displayName)
         if (!file.renameTo(target)) throw FileNotFoundException("Couldn't rename ${file.name}")
@@ -87,15 +81,9 @@ class WorkspaceDocumentsProvider : DocumentsProvider() {
         return "$parentId/${target.name}"
     }
 
-    /** Deleting a chat's folder removes its files, including apps Whittle built; the chat itself stays. */
     override fun deleteDocument(documentId: String) {
-        val workspace = workspaceOf(documentId) ?: throw FileNotFoundException("The Whittle location can't be deleted")
-        val deleted = if (isWorkspace(documentId)) {
-            graph.workspaces.delete(WorkspaceId(workspace)).getOrNull() != null
-        } else {
-            fileFor(documentId).deleteRecursively()
-        }
-        if (!deleted) throw FileNotFoundException("Couldn't delete $documentId")
+        if (documentId == ROOT) throw FileNotFoundException("The workspace can't be deleted")
+        if (!fileFor(documentId).deleteRecursively()) throw FileNotFoundException("Couldn't delete $documentId")
         changed(documentId.substringBeforeLast('/'))
     }
 
@@ -104,52 +92,36 @@ class WorkspaceDocumentsProvider : DocumentsProvider() {
     override fun getDocumentType(documentId: String): String =
         if (documentId == ROOT || fileFor(documentId).isDirectory) Document.MIME_TYPE_DIR else mimeType(fileFor(documentId))
 
-    private fun addRow(cursor: MatrixCursor, documentId: String, titles: Map<String, String>) {
+    private fun addRow(cursor: MatrixCursor, documentId: String) {
         val context = requireNotNull(context)
         if (documentId == ROOT) {
             cursor.newRow()
                 .add(Document.COLUMN_DOCUMENT_ID, ROOT)
                 .add(Document.COLUMN_DISPLAY_NAME, context.getString(R.string.app_name))
                 .add(Document.COLUMN_MIME_TYPE, Document.MIME_TYPE_DIR)
-                .add(Document.COLUMN_FLAGS, 0)
+                .add(Document.COLUMN_FLAGS, Document.FLAG_DIR_SUPPORTS_CREATE)
             return
         }
         val file = fileFor(documentId)
-        val workspace = isWorkspace(documentId)
-        val name = if (workspace) {
-            titles[workspaceOf(documentId)].orEmpty().ifEmpty { context.getString(R.string.documents_untitled) }
+        val flags = if (file.isDirectory) {
+            Document.FLAG_DIR_SUPPORTS_CREATE or Document.FLAG_SUPPORTS_DELETE or Document.FLAG_SUPPORTS_RENAME
         } else {
-            file.name
-        }
-        val flags = when {
-            workspace -> Document.FLAG_DIR_SUPPORTS_CREATE or Document.FLAG_SUPPORTS_DELETE
-            file.isDirectory -> Document.FLAG_DIR_SUPPORTS_CREATE or Document.FLAG_SUPPORTS_DELETE or Document.FLAG_SUPPORTS_RENAME
-            else -> Document.FLAG_SUPPORTS_WRITE or Document.FLAG_SUPPORTS_DELETE or Document.FLAG_SUPPORTS_RENAME
+            Document.FLAG_SUPPORTS_WRITE or Document.FLAG_SUPPORTS_DELETE or Document.FLAG_SUPPORTS_RENAME
         }
         cursor.newRow()
             .add(Document.COLUMN_DOCUMENT_ID, documentId)
-            .add(Document.COLUMN_DISPLAY_NAME, name)
+            .add(Document.COLUMN_DISPLAY_NAME, file.name)
             .add(Document.COLUMN_MIME_TYPE, if (file.isDirectory) Document.MIME_TYPE_DIR else mimeType(file))
             .add(Document.COLUMN_SIZE, if (file.isFile) file.length() else null)
             .add(Document.COLUMN_LAST_MODIFIED, file.lastModified())
             .add(Document.COLUMN_FLAGS, flags)
     }
 
-    /** Chat titles by workspace id; a workspace is named after its chat. */
-    private fun titles(): Map<String, String> = runBlocking {
-        graph.chats.list().getOrNull().orEmpty().associate { it.id.value to it.title.orEmpty() }
-    }
-
     private fun fileFor(documentId: String): File {
-        val workspace = workspaceOf(documentId) ?: throw FileNotFoundException(documentId)
-        val path = documentId.removePrefix("$ROOT/$workspace").removePrefix("/").ifEmpty { CURRENT }
-        return graph.workspaces.resolve(WorkspaceId(workspace), path).getOrNull() ?: throw FileNotFoundException(documentId)
+        if (documentId != ROOT && !documentId.startsWith("$ROOT/")) throw FileNotFoundException(documentId)
+        val path = documentId.removePrefix(ROOT).removePrefix("/").ifEmpty { CURRENT }
+        return graph.workspaces.resolve(path).getOrNull() ?: throw FileNotFoundException(documentId)
     }
-
-    private fun workspaceOf(documentId: String): String? =
-        documentId.removePrefix("$ROOT/").takeIf { documentId.startsWith("$ROOT/") }?.substringBefore('/')?.ifEmpty { null }
-
-    private fun isWorkspace(documentId: String): Boolean = documentId.count { it == '/' } == 1
 
     private fun unusedName(parent: File, displayName: String): File {
         val clean = displayName.replace('/', '_').trim().ifEmpty { FALLBACK_NAME }
@@ -185,6 +157,10 @@ class WorkspaceDocumentsProvider : DocumentsProvider() {
         )
 
         private fun authority(context: Context) = context.packageName + AUTHORITY_SUFFIX
+
+        /** A file in the workspace, for sharing; the provider resolves it inside the workspace. */
+        fun documentUri(context: Context, relativePath: String): Uri =
+            DocumentsContract.buildDocumentUri(authority(context), "$ROOT/$relativePath")
 
         /** Opens Android's Files app at the Whittle location; false when the phone has no app for it. */
         fun open(context: Context): Boolean {

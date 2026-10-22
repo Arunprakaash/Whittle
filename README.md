@@ -108,9 +108,10 @@ prebuilt Linux programs work as on a computer. It's an ordinary folder in the ap
   than Play. proot and tar themselves are pinned Termux packages that `TermuxRuntimeTask` packs as native
   libraries, with the Termux prefix rewritten to the app's own (padded to the same length, so the binaries stay
   intact).
-- **One view of files.** Each chat's folder lives outside Linux and is mounted at `/workspace`. The file tools
-  read and write Linux paths directly, following links the way Linux would without ever leaving its folder
-  (`LinuxFileSystem`).
+- **One workspace for every chat.** A single folder lives outside Linux and is mounted at `/workspace`; a chat
+  can start several projects in it and any other chat can carry on with them. Deleting a chat keeps its files.
+  The file tools read and write Linux paths directly, following links the way Linux would without ever leaving
+  the workspace (`LinuxFileSystem`), and record what each chat changed for the file browser (`FileChangeLog`).
 
 Every command starts through `whittle_sandbox`, a small C program built with the NDK
 (`app/src/main/native/sandbox`), linked statically and mounted into Linux. It puts the command behind a seccomp
@@ -126,7 +127,7 @@ boundary; the filter, Android's app sandbox and the policy engine are.
 
 ### Apps are servers
 
-Whittle builds apps the way a developer does: a Vite project in the chat's folder, run with `start_process`.
+Whittle builds apps the way a developer does: a Vite project in its own folder in the workspace, run with `start_process`.
 `ProcessManager` keeps it running after the tool call returns, in Linux behind the same sandbox, and watches its
 port. Once something answers, the chat shows a card with Preview, which opens the page from `127.0.0.1` in a
 WebView, with its console one tap away and Ask to fix sending errors back to the agent. The agent reads output

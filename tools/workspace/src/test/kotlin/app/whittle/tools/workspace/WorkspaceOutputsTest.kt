@@ -21,13 +21,13 @@ class WorkspaceOutputsTest {
 
         val path = assertIs<Outcome.Success<String>>(saved).value
         assertEquals(".whittle/outputs/run_1-call_7.txt", path)
-        assertEquals("[exitCode] 0\n\n[stdout]\n2\n3\n5\n\n[stderr]\n", File(root, "chat1/$path").readText())
+        assertEquals("[exitCode] 0\n\n[stdout]\n2\n3\n5\n\n[stderr]\n", File(root, path).readText())
     }
 
     @Test
     fun `anything that isn't a JSON object is saved as it is`() = runTest {
         val path = assertIs<Outcome.Success<String>>(outputs.save(WorkspaceId("chat1"), RunId("r"), ToolCallId("c"), "plain\ntext")).value
 
-        assertEquals("plain\ntext", File(root, "chat1/$path").readText())
+        assertEquals("plain\ntext", File(root, path).readText())
     }
 }

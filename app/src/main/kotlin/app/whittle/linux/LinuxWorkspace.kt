@@ -99,6 +99,9 @@ class LinuxWorkspace(
     /** What the file tools see: Linux paths, with the chat's folder at the workspace mount. */
     val fileSystem = LinuxFileSystem(::root, config.workspaceMount, config.deviceMounts)
 
+    /** Where the shared workspace appears in Linux, such as /workspace. */
+    val workspaceMount: String get() = config.workspaceMount
+
     val launcher = CommandLauncher { workspace, network -> command(workspace, network) }
 
     /** How workspace commands run: through [launcher], with proot and tar on the path. */

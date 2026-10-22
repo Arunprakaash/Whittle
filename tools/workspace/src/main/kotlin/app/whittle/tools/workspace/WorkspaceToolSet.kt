@@ -17,12 +17,18 @@ object WorkspaceToolSet {
         StopProcessTool.DEFINITION,
     )
 
-    fun create(workspaces: Workspaces, environment: ShellEnvironment, config: TerminalConfig, processes: ProcessManager): List<Tool> = listOf(
+    fun create(
+        workspaces: Workspaces,
+        environment: ShellEnvironment,
+        config: TerminalConfig,
+        processes: ProcessManager,
+        changes: FileChanges = FileChanges.NONE,
+    ): List<Tool> = listOf(
         RunCommandTool(workspaces, CommandRunner(environment, config.maxOutputChars), config),
         ListFilesTool(workspaces, config),
         ReadFileTool(workspaces, config),
-        WriteFileTool(workspaces, config),
-        EditFileTool(workspaces, config),
+        WriteFileTool(workspaces, config, changes),
+        EditFileTool(workspaces, config, changes),
         StartProcessTool(workspaces, processes),
         ReadProcessOutputTool(workspaces, processes),
         ListProcessesTool(workspaces, processes),

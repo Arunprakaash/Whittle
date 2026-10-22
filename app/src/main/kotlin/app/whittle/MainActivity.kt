@@ -1,7 +1,5 @@
 package app.whittle
 
-import android.widget.Toast
-import app.whittle.files.WorkspaceDocumentsProvider
 import app.whittle.settings.MemoryScreen
 import android.content.res.Configuration
 import androidx.core.view.WindowInsetsControllerCompat
@@ -45,6 +43,10 @@ import app.whittle.connect.ConnectViewModel
 import app.whittle.design.theme.WhittleTheme
 import androidx.compose.foundation.layout.padding
 import app.whittle.design.tokens.WhittleSpace
+import app.whittle.files.FilesBrowser
+import app.whittle.files.FilesOpening
+import app.whittle.files.FilesPlace
+import app.whittle.files.filesOpeningSaver
 import app.whittle.linux.LinuxProgressStrip
 import app.whittle.linux.LinuxSetupScreen
 import app.whittle.onboarding.ONBOARDING_STEPS
@@ -125,9 +127,13 @@ class MainActivity : ComponentActivity() {
                             var showingMemory by rememberSaveable { mutableStateOf(false) }
                             var showingLinux by rememberSaveable { mutableStateOf(false) }
                             var toolsOf by rememberSaveable { mutableStateOf<String?>(null) }
+                            var files by rememberSaveable(stateSaver = filesOpeningSaver) { mutableStateOf<FilesOpening?>(null) }
                             val connections by graph.connectors.all.collectAsStateWithLifecycle()
                             val toolsConnection = toolsOf?.let { id -> connections.firstOrNull { it.server.id == id } }
-                            if (showingMemory) {
+                            val opening = files
+                            if (opening != null) {
+                                FilesBrowser(graph, opening, onAsk = chat::sendText, onClose = { files = null })
+                            } else if (showingMemory) {
                                 MemoryScreen(graph, onBack = { showingMemory = false; showingSettings = true })
                             } else if (showingLinux) {
                                 LinuxWorkspaceScreen(graph, onBack = { showingLinux = false; showingSettings = true })
@@ -176,11 +182,8 @@ class MainActivity : ComponentActivity() {
                                     onOpenSettings = { showingSettings = true },
                                     avatarSeed = settings?.avatarSeed,
                                     aboveComposer = { LinuxProgressStrip(graph, compact = true) },
-                                    onOpenProjects = {
-                                        if (!WorkspaceDocumentsProvider.open(this@MainActivity)) {
-                                            Toast.makeText(this@MainActivity, R.string.files_unavailable, Toast.LENGTH_SHORT).show()
-                                        }
-                                    },
+                                    onOpenProjects = { files = FilesOpening(FilesPlace.Folder("")) },
+                                    onOpenFiles = { files = it },
                                 )
                             }
                         }
