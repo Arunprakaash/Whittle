@@ -106,6 +106,14 @@ object MaterialSymbols {
         "wallpaper" to R.drawable.ms_wallpaper,
         "wifi" to R.drawable.ms_wifi,
         "workspaces" to R.drawable.ms_workspaces,
+        "wb_sunny" to R.drawable.ms_wb_sunny,
+        "summarize" to R.drawable.ms_summarize,
+        "monitor_heart" to R.drawable.ms_monitor_heart,
+        "forum" to R.drawable.ms_forum,
+        "task_alt" to R.drawable.ms_task_alt,
+        "toggle_off" to R.drawable.ms_toggle_off,
+        "toggle_on" to R.drawable.ms_toggle_on,
+        "pause_circle" to R.drawable.ms_pause_circle,
     )
 
     private val filled: Map<String, Int> = mapOf(

@@ -99,3 +99,11 @@ visibility_off
 wallpaper
 wifi
 workspaces
+wb_sunny
+summarize
+monitor_heart
+forum
+task_alt
+toggle_off
+toggle_on
+pause_circle

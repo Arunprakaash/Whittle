@@ -64,6 +64,21 @@ class BundledAppConfigTest {
     }
 
     @Test
+    fun `automation ideas only read, and their icons are bundled`() {
+        val config = assertIs<Outcome.Success<AutomationsConfig>>(
+            loader.load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
+        ).value
+        assertTrue(config.ideas.isNotEmpty())
+        val tiers = ToolCatalog.definitions.associate { it.id.value to it.riskTier } + (HostedTool.WEB_SEARCH.toolName to RiskTier.WEB_READ)
+        val readOnly = setOf(RiskTier.READ, RiskTier.WEB_READ)
+        // An idea is one tap from saved, so like a new automation it never starts able to change anything.
+        val changing = config.ideas.associate { it.name to config.toolIdsFor(it).filter { id -> tiers.getValue(id) !in readOnly } }.filterValues { it.isNotEmpty() }
+        assertTrue(changing.isEmpty(), "These ideas would change things without asking: $changing")
+        val missingIcons = config.ideas.map { it.icon }.toSet() - MaterialSymbols.names
+        assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
+    }
+
+    @Test
     fun `every icon the tool labels name is bundled`() {
         val config = assertIs<Outcome.Success<ToolPresentationConfig>>(
             loader.load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION),
