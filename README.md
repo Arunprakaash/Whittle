@@ -150,7 +150,7 @@ Tokens are kept in the vault and never pass through the chat.
 ### Storage, telemetry, design
 
 - **Storage.** Keys and tokens are in a Tink vault keyed by the Android Keystore. Chats and run checkpoints
-  are in Room, with their content encrypted through `ContentCipher`. Each chat's workspace is exposed to Android's Files app through a
+  are in Room, with their content encrypted through `ContentCipher`. The shared workspace is exposed to Android's Files app through a
   `DocumentsProvider`.
 - **Telemetry.** `observability:api` is vendor-neutral with consent filtering, and `observability:posthog`
   adapts it. Events carry metadata only. Session replays mask messages, answers, chat titles and apps.
@@ -292,3 +292,8 @@ dev/cli/build/install/cli/bin/cli --provider openai --model <model-id> --prompt 
 Pick the reasoning effort with `--reasoning none|low|medium|high`; the default comes from `model-defaults.json`.
 Use `--approve ask|always|never` to choose how approvals are handled (the default `ask` prompts in the
 terminal), and `--memory-file` to choose where memories are kept (default `~/.whittle/cli-memory.json`).
+
+## Contributing
+
+How we work (branches and pull requests, config over code, design tokens, safety, tests) is in
+[CONTRIBUTING.md](CONTRIBUTING.md).
