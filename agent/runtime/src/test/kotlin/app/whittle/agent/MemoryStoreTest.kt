@@ -51,4 +51,23 @@ class MemoryStoreTest {
         assertEquals("empty", assertIs<Outcome.Failure>(memory.remember("  ")).error.message)
         assertEquals(2, memory.current().size)
     }
+
+    @Test
+    fun `a fact can be rewritten in place, within the same limits`() = runTest {
+        val memory = store(this)
+        val tea = assertIs<Outcome.Success<Memory>>(memory.remember("Likes tea")).value
+        val dog = assertIs<Outcome.Success<Memory>>(memory.remember("Has a dog")).value
+
+        val changed = assertIs<Outcome.Success<Memory?>>(memory.change(tea.id, "  Drinks   green tea ")).value
+        assertEquals(Memory(tea.id, "Drinks green tea", 7L), changed)
+        assertEquals(listOf(changed, dog), memory.current())
+
+        assertEquals("empty", assertIs<Outcome.Failure>(memory.change(tea.id, " ")).error.message)
+        assertEquals("too long, limit 40", assertIs<Outcome.Failure>(memory.change(tea.id, "x".repeat(41))).error.message)
+        assertEquals(Outcome.Success(null), memory.change("missing", "Anything"))
+
+        // Rewritten into another fact's words, the two become one.
+        assertEquals(dog, assertIs<Outcome.Success<Memory?>>(memory.change(tea.id, "has a dog")).value)
+        assertEquals(listOf(dog), memory.current())
+    }
 }

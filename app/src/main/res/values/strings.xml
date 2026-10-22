@@ -133,11 +133,41 @@
         <item quantity="one">%1$d thing, used in every chat</item>
         <item quantity="other">%1$d things, used in every chat</item>
     </plurals>
-    <string name="memory_empty">Nothing yet. Tell Whittle about yourself or how you like things done, or say \"remember that…\", and it keeps it here for future chats.</string>
-    <string name="memory_forget">Forget</string>
+    <string name="memory_heading">Memory</string>
+    <string name="memory_intro">What Whittle knows about you, in every chat.</string>
+    <plurals name="memory_used">
+        <item quantity="one">%1$d of %2$d used</item>
+        <item quantity="other">%1$d of %2$d used</item>
+    </plurals>
+    <string name="memory_today">Today</string>
+    <string name="memory_earlier">Earlier</string>
+    <string name="memory_yesterday">Yesterday</string>
+    <string name="memory_empty_title">Nothing remembered yet</string>
+    <string name="memory_empty_body">Say “remember that…” in any chat, or add something here. Whittle uses it in every chat, and it stays on this phone.</string>
+    <string name="memory_ideas">Start with one of these</string>
+    <string name="memory_add">Add</string>
+    <string name="memory_full">Memory is full. Forget something to add more.</string>
+    <string name="memory_new">Remember something</string>
+    <string name="memory_edit">Edit memory</string>
+    <string name="memory_field">What should Whittle remember?</string>
+    <string name="memory_field_hint">One short fact works best.</string>
+    <string name="memory_counter">%1$d / %2$d</string>
+    <string name="memory_saved_at">Saved %1$s</string>
+    <string name="memory_saved_note">Whittle reads it at the start of every chat</string>
+    <string name="memory_private">Stays on this phone</string>
+    <string name="memory_private_note">Encrypted, and sent only to your model with each chat</string>
+    <string name="memory_save">Save</string>
+    <string name="memory_close">Close</string>
+    <string name="memory_more">More</string>
+    <string name="memory_save_failed">Couldn\'t save it. Try again.</string>
+    <string name="memory_forget">Forget this</string>
+    <string name="memory_cancel">Cancel</string>
     <string name="memory_clear">Forget everything</string>
     <string name="memory_clear_title">Forget everything?</string>
-    <string name="memory_clear_body">Whittle deletes everything it remembers about you from this phone. Your chats stay.</string>
+    <plurals name="memory_clear_body">
+        <item quantity="one">Whittle deletes the %1$d thing it remembers about you from this phone. Your chats stay.</item>
+        <item quantity="other">Whittle deletes all %1$d things it remembers about you from this phone. Your chats stay.</item>
+    </plurals>
     <string name="memory_clear_confirm">Forget everything</string>
     <string name="settings_theme_title">Theme</string>
     <string name="settings_theme_system">System</string>

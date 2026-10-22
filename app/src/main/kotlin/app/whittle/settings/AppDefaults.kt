@@ -138,11 +138,19 @@ data class VoiceDefaults(
 
 /** Where the phone keeps what Whittle remembers (encrypted); the limits are the harness's (MemoryPolicy). */
 @Serializable
-data class MemoryDefaults(val fileName: String) {
+data class MemoryDefaults(
+    val fileName: String,
+    /** Kinds of thing to remember, offered while there are none; each opens the editor started for it. */
+    val ideas: List<MemoryIdea> = emptyList(),
+) {
     init {
         require(fileName.isNotBlank()) { "memory.fileName must be set" }
     }
 }
+
+/** A kind of thing worth remembering: what it's about, an example, and the words the editor starts with. */
+@Serializable
+data class MemoryIdea(val icon: String, val title: String, val example: String, val start: String)
 
 /** The file browser: what it hides, how much it shows, how it marks changes and colours code. */
 @Serializable

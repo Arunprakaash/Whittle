@@ -31,6 +31,16 @@ class BundledAppConfigTest {
     }
 
     @Test
+    fun `memory ideas have bundled icons and somewhere to start`() {
+        val defaults = assertIs<Outcome.Success<AppDefaults>>(loader.load(AppDefaults.FILE, AppDefaults.serializer(), AppDefaults.SCHEMA_VERSION)).value
+        val ideas = defaults.memory.ideas
+        assertTrue(ideas.isNotEmpty())
+        val missingIcons = ideas.map { it.icon }.toSet() - MaterialSymbols.names
+        assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
+        assertTrue(ideas.all { it.title.isNotBlank() && it.start.isNotBlank() })
+    }
+
+    @Test
     fun `the Linux config loads with a checked image for arm64`() {
         val linux = assertIs<Outcome.Success<LinuxConfig>>(loader.load(LinuxConfig.FILE, LinuxConfig.serializer(), LinuxConfig.SCHEMA_VERSION)).value
         val image = assertNotNull(linux.images["arm64-v8a"])

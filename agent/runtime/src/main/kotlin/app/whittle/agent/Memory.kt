@@ -47,7 +47,8 @@ interface MemoryBackend {
  */
 class MemoryStore(
     private val backend: MemoryBackend,
-    private val policy: MemoryPolicy,
+    /** The limits, which the host's screen shows too. */
+    val policy: MemoryPolicy,
     private val messages: AgentMessages,
     private val clock: EpochClock,
     private val ids: IdGenerator,
@@ -67,14 +68,33 @@ class MemoryStore(
     }
 
     suspend fun remember(text: String): Outcome<Memory> = changes.withLock {
-        val fact = text.trim().replace(WHITESPACE, " ")
-        if (fact.isEmpty()) return@withLock refused(messages.memoryEmpty)
-        if (fact.length > policy.maxItemChars) return@withLock refused(messages.memoryTooLong(policy.maxItemChars))
+        val fact = when (val checked = checked(text)) {
+            is Outcome.Failure -> return@withLock checked
+            is Outcome.Success -> checked.value
+        }
         val current = current()
         current.firstOrNull { it.text.equals(fact, ignoreCase = true) }?.let { return@withLock Outcome.Success(it) }
         if (current.size >= policy.maxItems) return@withLock refused(messages.memoryFull(policy.maxItems))
         val memory = Memory(ids.newId().take(policy.idChars), fact, clock.nowMillis())
         save(current + memory).map { memory }
+    }
+
+    /**
+     * Rewrites the fact with [id], keeping its id and dating it now; null when nothing had that id. When the new
+     * words are another fact's, that one stays and this one goes, so nothing is kept twice.
+     */
+    suspend fun change(id: String, text: String): Outcome<Memory?> = changes.withLock {
+        val fact = when (val checked = checked(text)) {
+            is Outcome.Failure -> return@withLock checked
+            is Outcome.Success -> checked.value
+        }
+        val current = current()
+        if (current.none { it.id == id }) return@withLock Outcome.Success(null)
+        current.firstOrNull { it.id != id && it.text.equals(fact, ignoreCase = true) }?.let { same ->
+            return@withLock save(current.filterNot { it.id == id }).map { same }
+        }
+        val changed = Memory(id, fact, clock.nowMillis())
+        save(current.map { if (it.id == id) changed else it }).map { changed }
     }
 
     /** False when nothing had that id. */
@@ -91,6 +111,16 @@ class MemoryStore(
 
     private suspend fun save(memories: List<Memory>): Outcome<Unit> =
         backend.save(memories).map { _all.value = memories }
+
+    /** [text] as one tidy line, or why it can't be kept. */
+    private fun checked(text: String): Outcome<String> {
+        val fact = text.trim().replace(WHITESPACE, " ")
+        return when {
+            fact.isEmpty() -> refused(messages.memoryEmpty)
+            fact.length > policy.maxItemChars -> refused(messages.memoryTooLong(policy.maxItemChars))
+            else -> Outcome.Success(fact)
+        }
+    }
 
     private fun refused(message: String): Outcome<Nothing> = Outcome.Failure(HarnessError.Configuration(message))
 
