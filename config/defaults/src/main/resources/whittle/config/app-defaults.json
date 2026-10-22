@@ -87,6 +87,11 @@
     "busyRetryMillis": 400
   },
   "memory": {
-    "fileName": "memory.bin"
+    "fileName": "memory.bin",
+    "ideas": [
+      { "icon": "person", "title": "What to call you", "example": "“Call me Sam.”", "start": "Call me " },
+      { "icon": "language", "title": "Units and language", "example": "“Use metric units and British English.”", "start": "Use " },
+      { "icon": "short_text", "title": "How you like answers", "example": "“Short, main point first.”", "start": "I like answers that are " }
+    ]
   }
 }
