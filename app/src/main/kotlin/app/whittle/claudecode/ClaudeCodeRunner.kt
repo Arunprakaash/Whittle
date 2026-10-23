@@ -17,7 +17,6 @@ import app.whittle.core.model.ToolCallId
 import app.whittle.policy.ApprovalScope
 import app.whittle.policy.DecisionReason
 import app.whittle.policy.PolicyDecision
-import app.whittle.policy.RunMode
 import app.whittle.tools.api.ExecutionSite
 import app.whittle.tools.api.RiskTier
 import app.whittle.tools.api.ToolDefinition
@@ -66,7 +65,6 @@ class ClaudeCodeRunner(
         val command = config.run(
             model = request.model.id.value,
             session = chat?.let(sessions::get),
-            unattended = request.mode == RunMode.UNATTENDED,
             preApproved = request.preApprovedTools.mapTo(mutableSetOf()) { it.value },
         )
         val process = when (val started = InteractiveCommand.start(environment, command, folder, network = true)) {

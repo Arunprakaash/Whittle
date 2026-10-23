@@ -14,7 +14,6 @@
   "signOutCommand": "claude auth logout",
   "runCommand": "claude -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --permission-prompt-tool stdio --model {{model}}",
   "resumeArguments": "--resume {{session}}",
-  "unattendedArguments": "--permission-prompts none",
   "allowedToolsArguments": "--allowedTools {{tools}}",
   "preApprovedTools": {
     "web_fetch": [

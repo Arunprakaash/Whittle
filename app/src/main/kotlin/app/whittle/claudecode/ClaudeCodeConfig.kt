@@ -37,9 +37,10 @@ data class ClaudeCodeConfig(
     val runCommand: String,
     /** Added to [runCommand] to carry on a chat's conversation; `{{session}}` is Claude Code's session id. */
     val resumeArguments: String,
-    /** Added for a task nobody watches, such as an automation: what would need approval is refused, not asked. */
-    val unattendedArguments: String,
-    /** Added with the Claude Code tools an automation lets run without asking; `{{tools}}` is their list. */
+    /**
+     * Added with the Claude Code tools an automation lets run without asking; `{{tools}}` is their list. Anything
+     * else still asks, and the approval reaches the user as a notification, as with Whittle's own automations.
+     */
     val allowedToolsArguments: String,
     /** Whittle's tool ids an automation can pre-approve, by the Claude Code tools that do the same. */
     val preApprovedTools: Map<String, List<String>>,
@@ -75,17 +76,14 @@ data class ClaudeCodeConfig(
     }
 
     /**
-     * The command that runs [model], carrying on [session] when the chat has one. An [unattended] task refuses what
-     * would need approval, apart from the Claude Code tools that match [preApproved] (Whittle's tool ids).
+     * The command that runs [model], carrying on [session] when the chat has one. The Claude Code tools that match
+     * [preApproved] (Whittle's tool ids, from an automation) run without asking.
      */
-    fun run(model: String, session: String?, unattended: Boolean = false, preApproved: Set<String> = emptySet()): String {
+    fun run(model: String, session: String?, preApproved: Set<String> = emptySet()): String {
         val parts = mutableListOf(runCommand.replace(placeholder(MODEL), quoted(model)))
         session?.let { parts += resumeArguments.replace(placeholder(SESSION), quoted(it)) }
-        if (unattended) {
-            parts += unattendedArguments
-            val tools = preApproved.flatMap { preApprovedTools[it].orEmpty() }.distinct()
-            if (tools.isNotEmpty()) parts += allowedToolsArguments.replace(placeholder(TOOLS), quoted(tools.joinToString(TOOL_SEPARATOR)))
-        }
+        val tools = preApproved.flatMap { preApprovedTools[it].orEmpty() }.distinct()
+        if (tools.isNotEmpty()) parts += allowedToolsArguments.replace(placeholder(TOOLS), quoted(tools.joinToString(TOOL_SEPARATOR)))
         return parts.joinToString(" ")
     }
 
