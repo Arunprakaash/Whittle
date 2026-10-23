@@ -275,6 +275,8 @@ class AppGraph(context: Context) {
             inbox = inbox,
             changes = fileChanges,
             maxFileChars = terminalLimits.maxFileChars,
+            connections = connectors::access,
+            linuxFile = { path -> linux.root()?.let { File(it, path.removePrefix("/")) } },
         )
     }
 

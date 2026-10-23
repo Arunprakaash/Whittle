@@ -16,7 +16,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import java.util.concurrent.atomic.AtomicLong
 
@@ -59,7 +58,7 @@ class McpClient(
     /** Headers the user gave this server (an API key header, say), sent with every message. */
     private val headers: suspend () -> Map<String, String> = { emptyMap() },
 ) {
-    private val endpoint = server.url.toHttpUrl().newBuilder().apply { server.query.forEach { (key, value) -> addQueryParameter(key, value) } }.build()
+    private val endpoint = server.endpoint
     private val name = server.name
     private val ids = AtomicLong()
     private val sessionLock = Mutex()

@@ -27,6 +27,7 @@ import app.whittle.tools.workspace.InteractiveCommand
 import app.whittle.tools.workspace.ShellEnvironment
 import app.whittle.tools.workspace.previousText
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOf
@@ -58,17 +59,31 @@ class ClaudeCodeRunner(
     private val changes: FileChanges,
     /** Text kept of a file's earlier content; a longer file shows as changed without its lines. */
     private val maxFileChars: Int,
+    /** The user's connections, handed to each task. */
+    private val connections: ClaudeCodeConnections,
 ) {
     fun start(request: RunRequest): Flow<RunEvent> = channelFlow {
         val chat = request.workspace
         val folder = directory(chat) ?: return@channelFlow send(RunEvent.Failed(HarnessError.Storage(NO_WORKSPACE)))
+        val handed = connections.hand(request.runId.value)
+        try {
+            run(request, folder, handed)
+        } finally {
+            handed?.remove()
+        }
+    }
+
+    private suspend fun ProducerScope<RunEvent>.run(request: RunRequest, folder: File, handed: ClaudeCodeConnections.Handed?) {
+        val chat = request.workspace
         val command = config.run(
             model = request.model.id.value,
             session = chat?.let(sessions::get),
             preApproved = request.preApprovedTools.mapTo(mutableSetOf()) { it.value },
+            mcpConfig = handed?.path,
+            blocked = handed?.blocked.orEmpty(),
         )
         val process = when (val started = InteractiveCommand.start(environment, command, folder, network = true)) {
-            is Outcome.Failure -> return@channelFlow send(RunEvent.Failed(started.error))
+            is Outcome.Failure -> return send(RunEvent.Failed(started.error))
             is Outcome.Success -> started.value
         }
         // Each message sent gets a result; once every one has, nothing more is coming and Claude Code may end.
@@ -77,6 +92,8 @@ class ClaudeCodeRunner(
         var step = 0
         var apiError: String? = null
         var finished = false
+        // A connection's tools show under their Whittle names, so the chat presents them like Whittle's own.
+        val named: (String) -> String = { tool -> handed?.toolId(tool) ?: tool }
         val asking = ConcurrentHashMap<String, Asking>()
         val writing = mutableMapOf<String, Writing>()
         suspend fun say(text: String) {
@@ -114,7 +131,7 @@ class ClaudeCodeRunner(
                         is ClaudeCodeEvent.TextDelta -> send(RunEvent.AssistantTextDelta(event.text))
                         is ClaudeCodeEvent.ToolUse -> {
                             chat?.let { writing(it, event.name, event.input) }?.let { writing[event.id] = it }
-                            send(RunEvent.ToolCallDecided(call(event.id, event.name, event.input), ALLOWED))
+                            send(RunEvent.ToolCallDecided(call(event.id, named(event.name), event.input), ALLOWED))
                         }
                         is ClaudeCodeEvent.ToolResult -> {
                             writing.remove(event.id)?.let { write -> if (!event.isError && chat != null) changes.record(chat, write.file, write.before) }
@@ -122,9 +139,10 @@ class ClaudeCodeRunner(
                         }
                         is ClaudeCodeEvent.PermissionRequest -> {
                             val id = event.toolUseId ?: event.requestId
-                            val decision = PendingDecision(call(id, event.toolName, event.input), ToolId(event.toolName), ApprovalScope.EVERY_CALL, step)
+                            val name = named(event.toolName)
+                            val decision = PendingDecision(call(id, name, event.input), ToolId(name), ApprovalScope.EVERY_CALL, step)
                             asking[id] = Asking(event.requestId, event.input, decision)
-                            send(RunEvent.DecisionRequested(decision, definition(event.toolName), event.input))
+                            send(RunEvent.DecisionRequested(decision, definition(name), event.input))
                         }
                         is ClaudeCodeEvent.OtherRequest -> process.write(ClaudeCodeStream.unsupported(event.requestId))
                         is ClaudeCodeEvent.ApiError -> apiError = event.kind

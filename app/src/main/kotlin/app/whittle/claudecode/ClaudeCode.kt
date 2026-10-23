@@ -1,6 +1,7 @@
 package app.whittle.claudecode
 
 import app.whittle.agent.RunInbox
+import app.whittle.connectors.mcp.McpAccess
 import app.whittle.core.common.Outcome
 import app.whittle.core.common.getOrNull
 import app.whittle.core.model.ModelId
@@ -108,6 +109,10 @@ class ClaudeCode(
     inbox: RunInbox,
     changes: FileChanges,
     maxFileChars: Int,
+    /** The user's connections, handed to each task. */
+    connections: suspend () -> List<McpAccess>,
+    /** The host file at a Linux path; null before Linux is set up. */
+    linuxFile: (String) -> File?,
 ) {
     private val commands = CommandRunner(environment, config.outputChars)
     private val mutableState = MutableStateFlow<ClaudeCodeState>(ClaudeCodeState.Checking)
@@ -130,6 +135,7 @@ class ClaudeCode(
         locate = { chat, path -> workspaces.locate(chat, path).getOrNull() },
         changes = changes,
         maxFileChars = maxFileChars,
+        connections = ClaudeCodeConnections(config, connections, linuxFile),
     )
 
     private val updating = Mutex()

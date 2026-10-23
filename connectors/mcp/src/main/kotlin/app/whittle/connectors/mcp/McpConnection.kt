@@ -168,6 +168,20 @@ class McpConnection(
         publish(emptyList())
     }
 
+    /**
+     * How another MCP client reaches this server as the user, with a token fresh enough to use now; null when it
+     * isn't connected or the token can't be had.
+     */
+    suspend fun access(): McpAccess? {
+        if (!signedIn) return null
+        val token = when (val fresh = accessToken(refresh = false)) {
+            is Outcome.Failure -> return null
+            is Outcome.Success -> fresh.value
+        }
+        val headers = credentials.load()?.headers.orEmpty() + listOfNotNull(token?.let { AUTHORIZATION to "$BEARER $it" })
+        return McpAccess(server.id, server.toolPrefix, server.endpoint.toString(), server.transport, headers, excluded)
+    }
+
     suspend fun refreshTools(): Outcome<Unit> = when (val listed = client.listTools()) {
         is Outcome.Success -> {
             writeCache(listed.value)

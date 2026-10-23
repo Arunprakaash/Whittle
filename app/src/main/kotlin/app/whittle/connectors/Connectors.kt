@@ -2,6 +2,7 @@ package app.whittle.connectors
 
 import app.whittle.core.config.PromptTemplate
 import app.whittle.connectors.mcp.LoopbackRedirects
+import app.whittle.connectors.mcp.McpAccess
 import app.whittle.connectors.mcp.OAuthClientCredentials
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import app.whittle.connectors.mcp.McpTransportKind
@@ -94,6 +95,9 @@ class Connectors(
 
     /** Every connected service's tools, as they are right now. */
     fun tools(): List<Tool> = _all.value.flatMap { it.tools }
+
+    /** How another MCP client reaches each connected service as the user, for Claude Code's tasks. */
+    suspend fun access(): List<McpAccess> = _all.value.mapNotNull { it.access() }
 
     fun isCustom(connection: McpConnection): Boolean = connection.server.id !in bundledIds
 

@@ -40,6 +40,14 @@
     "MultiEdit": "file_path",
     "NotebookEdit": "notebook_path"
   },
+  "mcpConfigArguments": "--mcp-config {{file}}",
+  "disallowedToolsArguments": "--disallowedTools {{tools}}",
+  "mcpToolName": "mcp__{{server}}__{{tool}}",
+  "mcpTransports": {
+    "STREAMABLE_HTTP": "http",
+    "SSE": "sse"
+  },
+  "mcpConfigDirectory": "/root/.whittle",
   "installTimeoutSeconds": 900,
   "updateEveryHours": 24,
   "commandTimeoutSeconds": 60,
