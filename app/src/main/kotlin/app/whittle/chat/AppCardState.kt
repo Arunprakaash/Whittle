@@ -35,6 +35,18 @@ fun appCardState(card: ThreadItem.App, installed: Int?): AppCardState = when {
     else -> AppCardState.NEWER_INSTALLED
 }
 
+/**
+ * The thread with [card] at its end: a rebuild of an app already shown moves its card down, keeping that card's key so
+ * what it showed about the install carries over, and Update sits next to the agent's words about it.
+ */
+fun placeAppCard(items: List<ThreadItem>, card: ThreadItem.App): List<ThreadItem> {
+    val shown = items.firstOrNull { it is ThreadItem.App && it.packageName == card.packageName } ?: return items + card
+    return items.filterNot { it is ThreadItem.App && it.packageName == card.packageName } + card.copy(key = shown.key)
+}
+
+/** The project folder the card's app was built in: the first part of its workspace-relative APK path. */
+fun projectOf(card: ThreadItem.App): String = card.apkPath.substringBefore('/')
+
 /** The card's APK in the workspace, or null when its path would leave [root]. */
 fun resolveApk(root: File, apkPath: String): File? {
     val file = File(root, apkPath)

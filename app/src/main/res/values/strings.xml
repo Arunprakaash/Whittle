@@ -628,7 +628,6 @@
     <string name="automation_no_model">Connect a model first.</string>
 
     <!-- The card for an app Whittle built -->
-    <string name="app_card_version">Version %1$d</string>
     <string name="app_card_version_status">Version %1$d · %2$s</string>
     <string name="app_card_not_installed">Not installed</string>
     <string name="app_card_installed">Installed</string>
@@ -659,7 +658,7 @@
     <string name="app_card_crash_more">Show more</string>
     <string name="app_card_crash_less">Show less</string>
     <string name="app_card_ask_fix">Ask to fix</string>
-    <string name="app_fix_message">%1$s crashed. Here\'s the stack trace:\n\n%2$s\n\nPlease fix it and build it again.</string>
+    <string name="app_fix_message">%1$s, in the project folder %2$s, crashed. Here\'s the stack trace:\n\n%3$s\n\nPlease fix it and build it again.</string>
     <string name="app_card_open_failed">This app has nothing to open.</string>
     <string name="app_powerful_dialog_title">Before you install</string>
     <plurals name="app_powerful_dialog_body">

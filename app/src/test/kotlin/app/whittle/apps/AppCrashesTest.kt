@@ -92,6 +92,28 @@ class AppCrashesTest {
     }
 
     @Test
+    fun `a newer install clears its app's crash, on disk too`() {
+        val crashes = crashes()
+        crashes.accept(NOTES, "boom")
+        crashes.accept(TIMER, "tick")
+        crashes.clear(NOTES)
+        assertEquals(mapOf(TIMER to "tick"), crashes.latest.value)
+        assertEquals(mapOf(TIMER to "tick"), crashes().latest.value)
+        crashes.clear("app.whittle.made.absent")
+        assertEquals(mapOf(TIMER to "tick"), crashes.latest.value)
+    }
+
+    @Test
+    fun `a caller is checked by uid, column and prefix before any key is looked at`() {
+        assertTrue(isWhittleCaller(NOTES, listOf(NOTES), NOTES, PREFIX))
+        assertFalse(isWhittleCaller("com.evil", listOf("com.evil"), "com.evil", PREFIX))
+        assertFalse(isWhittleCaller(NOTES, listOf(TIMER), NOTES, PREFIX))
+        assertFalse(isWhittleCaller(NOTES, listOf(NOTES), TIMER, PREFIX))
+        assertFalse(isWhittleCaller(null, listOf(NOTES), NOTES, PREFIX))
+        assertFalse(isWhittleCaller(NOTES, null, NOTES, PREFIX))
+    }
+
+    @Test
     fun `the signer is the one certificate of a single signer`() {
         val a = byteArrayOf(1)
         assertContentEquals(a, soleSigner(listOf(a), history = null, multipleSigners = false))

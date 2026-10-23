@@ -21,7 +21,9 @@ class InstallResultTest {
         assertEquals(InstallResult.CANCELLED, installResult(PackageInstaller.STATUS_FAILURE_ABORTED, "User rejected"))
         assertEquals(InstallResult.BLOCKED, installResult(PackageInstaller.STATUS_FAILURE_BLOCKED, null))
         assertEquals(InstallResult.INSTALLED, installResult(PackageInstaller.STATUS_SUCCESS, null))
-        assertEquals(InstallResult.FAILED, installResult(PackageInstaller.STATUS_FAILURE_CONFLICT, "something else"))
+        // A conflict means an app with this package but another signature is installed, whatever the message says.
+        assertEquals(InstallResult.KEY_CHANGED, installResult(PackageInstaller.STATUS_FAILURE_CONFLICT, "something else"))
+        assertEquals(InstallResult.KEY_CHANGED, installResult(PackageInstaller.STATUS_FAILURE_CONFLICT, null))
         assertEquals(InstallResult.FAILED, installResult(PackageInstaller.STATUS_FAILURE_STORAGE, null))
     }
 

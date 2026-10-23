@@ -42,6 +42,11 @@ class AndroidKeystoreKeys : SigningKeys {
         null
     } catch (_: IOException) {
         null
+    } catch (_: ProviderException) {
+        null
+    } catch (_: IllegalStateException) {
+        // The Keystore can refuse while it is locked or still starting.
+        null
     }
 
     private fun generate(alias: String, packageName: String) {

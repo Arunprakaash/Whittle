@@ -742,7 +742,8 @@ class ChatViewModel(
         val id = event.result.toolCallId.value
         // A server that ended at once still gets its card: its output and Ask to fix are on it.
         if (callTools[id] == StartProcessTool.DEFINITION.id.value) showProcess(event.result.content, stepArguments[id] ?: EMPTY_ARGUMENTS)
-        if (callTools[id] == BuildAppTool.DEFINITION.id.value && !event.result.isError) showApp(event.result.content)
+        // The card is built from what build_app returned, not from the model's possibly shortened copy.
+        if (callTools[id] == BuildAppTool.DEFINITION.id.value && !event.result.isError) showApp(event.fullContent)
         if (id in quietCalls) {
             refreshProjects()
             return
@@ -792,18 +793,14 @@ class ChatViewModel(
         }
     }
 
-    /** build_app succeeded: its app gets a card to install from, the one card per package in this chat. */
+    /** build_app succeeded: its app gets a card to install from, the one card per package in this chat, moved to the end on a rebuild. */
     private fun showApp(result: String) {
         val runId = activeRunId
         viewModelScope.launch {
             // If the run can't be checked, the card says it may have read the web.
             val tainted = runId?.let { graph.checkpoints.load(it).getOrNull()?.tainted } ?: true
             val card = appCardFromBuild(key(), result, tainted) ?: return@launch
-            _state.update { state ->
-                val shown = state.items.any { it is ThreadItem.App && it.packageName == card.packageName }
-                val items = if (shown) state.items.map { if (it is ThreadItem.App && it.packageName == card.packageName) card.copy(key = it.key) else it } else state.items + card
-                state.copy(items = items)
-            }
+            _state.update { it.copy(items = placeAppCard(it.items, card)) }
         }
     }
 
@@ -860,6 +857,8 @@ class ChatViewModel(
             } catch (_: Exception) {
                 outcome = InstallResult.FAILED
             } finally {
+                // A newer build is on the phone now, so the last crash was the old one's.
+                if (outcome == InstallResult.INSTALLED) graph.appCrashes.clear(card.packageName)
                 // Whatever happened, the card leaves installing.
                 val installed = withContext(NonCancellable + Dispatchers.IO) { runCatching { graph.appInstaller.installedVersion(card.packageName) }.getOrNull() }
                 updateApp(card.key) { it.copy(installing = false, result = outcome, installed = installed, sessionId = null) }

@@ -2,7 +2,6 @@ package app.whittle.apps
 
 import app.whittle.core.common.HarnessError
 import app.whittle.core.common.Outcome
-import app.whittle.core.common.getOrNull
 import com.android.apksig.ApkSigner
 import com.android.apksig.KeyConfig
 import com.android.apksig.apk.ApkFormatException
@@ -59,10 +58,7 @@ class AppSigner(private val keys: SigningKeys) {
         }
     }
 
-    /** The certificate [packageName] is signed with, or null when its key isn't available. */
-    fun certificateFor(packageName: String): X509Certificate? = keys.keyFor(packageName).getOrNull()?.certificate
-
-    /** Like [certificateFor], but only for a key that already exists; checking a crash must not make keys. */
+    /** The certificate of the key already held for [packageName], or null; checking a crash or an install must not make keys. */
     fun existingCertificate(packageName: String): X509Certificate? = keys.existingCertificate(packageName)
 
     private companion object {

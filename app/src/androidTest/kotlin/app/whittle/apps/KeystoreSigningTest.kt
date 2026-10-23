@@ -47,7 +47,7 @@ class KeystoreSigningTest {
             .verify()
         assertTrue(result.isVerified, result.errors.joinToString())
         assertTrue(result.isVerifiedUsingV2Scheme)
-        assertEquals(listOf(signer.certificateFor(packageName)), result.signerCertificates)
+        assertEquals(listOf(signer.existingCertificate(packageName)), result.signerCertificates)
     }
 
     private companion object {

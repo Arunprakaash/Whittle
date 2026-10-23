@@ -123,7 +123,6 @@ sealed interface ThreadItem {
         val powerful: List<PowerfulDeclaration>,
         /** The run read content from the web before this was built. */
         val fromTaintedRun: Boolean,
-        val lastCrash: String? = null,
     ) : ThreadItem
 
     /** The pages the answer above cites, shown as a pill that opens into a list. */

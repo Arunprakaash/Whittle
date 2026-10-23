@@ -33,7 +33,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -45,6 +44,7 @@ import app.whittle.design.components.WhittleIcon
 import app.whittle.design.tokens.WhittleRadius
 import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
+import app.whittle.design.tokens.WhittleTextStyles
 
 /**
  * An app Whittle built: Install, Update, Open or Remove it. Only the user's tap installs anything, and what is installed is
@@ -69,7 +69,7 @@ fun AppCard(item: ThreadItem.App, viewModel: ChatViewModel, modifier: Modifier =
     val crashes by viewModel.appCrashes.collectAsStateWithLifecycle()
     val crash = crashes[item.packageName]
     var crashExpanded by remember { mutableStateOf(false) }
-    val fixMessage = stringResource(R.string.app_fix_message, item.name, crash.orEmpty())
+    val fixMessage = stringResource(R.string.app_fix_message, item.name, projectOf(item), crash.orEmpty())
 
     fun begin() {
         notice = null
@@ -157,8 +157,7 @@ fun AppCard(item: ThreadItem.App, viewModel: ChatViewModel, modifier: Modifier =
                 Text(stringResource(R.string.app_card_crash_title), style = MaterialTheme.typography.labelLarge)
                 Text(
                     crash,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
+                    style = WhittleTextStyles.mono,
                     color = colors.onSurfaceVariant,
                     maxLines = if (crashExpanded) Int.MAX_VALUE else CRASH_LINES,
                     overflow = TextOverflow.Ellipsis,
@@ -169,7 +168,6 @@ fun AppCard(item: ThreadItem.App, viewModel: ChatViewModel, modifier: Modifier =
             }
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s), verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
-            if (crash != null) Action("build", R.string.app_card_ask_fix, primary = state == AppCardState.OPEN || state == AppCardState.NEWER_INSTALLED) { viewModel.sendText(fixMessage) }
             when (state) {
                 AppCardState.INSTALL -> Action("download", R.string.app_card_install, primary = true, enabled = !installing) { begin() }
                 AppCardState.UPDATE -> {
@@ -193,6 +191,8 @@ fun AppCard(item: ThreadItem.App, viewModel: ChatViewModel, modifier: Modifier =
                     Action("delete", R.string.app_card_remove) { viewModel.clearAppResult(item); needsAllow = false; notice = if (remove(context, item)) null else R.string.app_card_remove_failed }
                 }
             }
+            // Secondary, after the card's main action, whichever it is.
+            if (crash != null) Action("build", R.string.app_card_ask_fix) { viewModel.sendText(fixMessage) }
         }
     }
     if (confirming.isNotEmpty()) PowerfulDialog(item, confirming, onContinue = { confirming = emptyList(); viewModel.installApp(item) }, onCancel = { confirming = emptyList() })

@@ -51,9 +51,18 @@ class AppCrashes(
      * The caller must be one of that uid's packages, and the `package` column must name it.
      */
     fun report(callingPackage: String?, uidPackages: Collection<String>?, claimedPackage: String?, stack: String?): Boolean {
-        if (callingPackage == null || uidPackages == null || callingPackage !in uidPackages) return false
-        if (claimedPackage != callingPackage || stack.isNullOrBlank()) return false
+        if (callingPackage == null || stack.isNullOrBlank() || !isWhittleCaller(callingPackage, uidPackages, claimedPackage, prefix)) return false
         return accept(callingPackage, stack)
+    }
+
+    /** Forgets [packageName]'s last crash: a newer build of it has just been installed. */
+    fun clear(packageName: String) {
+        synchronized(lock) {
+            if (packageName !in _latest.value) return
+            val next = _latest.value - packageName
+            persist(next)
+            _latest.value = next
+        }
     }
 
     private fun load(): Map<String, String> = try {
@@ -85,6 +94,14 @@ class AppCrashes(
         private val SERIALIZER = MapSerializer(String.serializer(), String.serializer())
     }
 }
+
+/**
+ * Whether a crash report's caller can be one of Whittle's apps, from what Android says about the call alone: [callingPackage]
+ * shares the calling uid ([uidPackages]), the `package` column names it, and it is under [prefix]. Keys are checked after.
+ */
+fun isWhittleCaller(callingPackage: String?, uidPackages: Collection<String>?, claimedPackage: String?, prefix: String): Boolean =
+    callingPackage != null && uidPackages != null && callingPackage in uidPackages && claimedPackage == callingPackage &&
+        callingPackage.startsWith(prefix)
 
 /** Two certificates are the same key when their encoded bytes are equal. */
 fun sameCertificate(a: X509Certificate, b: X509Certificate): Boolean = try {

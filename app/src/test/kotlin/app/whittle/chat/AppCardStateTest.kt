@@ -79,6 +79,21 @@ class AppCardStateTest {
     }
 
     @Test
+    fun `a rebuilt app's card moves to the end of the thread and keeps its key`() {
+        val user = ThreadItem.User("u", "make it blue", steer = false)
+        val reply = ThreadItem.Narration("n", "Done", streaming = false)
+        val rebuilt = card.copy(key = "new", versionCode = 4, apkPath = "notes/build/notes-4.apk")
+        assertEquals(listOf(user, reply, rebuilt.copy(key = "k")), placeAppCard(listOf(user, card, reply), rebuilt))
+        // A first build just adds its card.
+        assertEquals(listOf(user, rebuilt), placeAppCard(listOf(user), rebuilt))
+    }
+
+    @Test
+    fun `the project folder comes from the card's APK path`() {
+        assertEquals("notes", projectOf(card))
+    }
+
+    @Test
     fun `an install that lost its session stops installing`() {
         // The receiver never fired: the session is gone and the build isn't installed.
         assertEquals(false, stillInstalling(installing = true, installed = 2, cardVersion = 3, sessionId = 7, liveSessions = emptySet()))

@@ -27,11 +27,15 @@ import kotlin.coroutines.resume
 /** How an install ended, in the terms the card speaks. [CHANGED] means the APK no longer matched what the card showed, so nothing was installed. */
 enum class InstallResult { INSTALLED, CANCELLED, KEY_CHANGED, BLOCKED, FAILED, CHANGED }
 
-/** Maps what [PackageInstaller] reports to what the card says. */
+/**
+ * Maps what [PackageInstaller] reports to what the card says. A conflict means the installed app is signed differently
+ * (Whittle's key was lost), whatever words the message uses on this phone.
+ */
 fun installResult(status: Int, message: String?): InstallResult = when {
     status == PackageInstaller.STATUS_SUCCESS -> InstallResult.INSTALLED
     status == PackageInstaller.STATUS_FAILURE_ABORTED -> InstallResult.CANCELLED
     status == PackageInstaller.STATUS_FAILURE_BLOCKED -> InstallResult.BLOCKED
+    status == PackageInstaller.STATUS_FAILURE_CONFLICT -> InstallResult.KEY_CHANGED
     message?.contains("INSTALL_FAILED_UPDATE_INCOMPATIBLE") == true -> InstallResult.KEY_CHANGED
     else -> InstallResult.FAILED
 }
@@ -85,6 +89,13 @@ fun verifyCopy(card: ThreadItem.App, apk: File, copy: File, expected: X509Certif
         InstallCheck.CHANGED
     }
 
+/**
+ * [verifyCopy] against the key Whittle already holds for the card's package. It never makes a key: without one the APK
+ * can't be Whittle's build, so it is a changed file.
+ */
+fun verifyForInstall(card: ThreadItem.App, apk: File, copy: File, signer: AppSigner, inspector: ApkInspector, configured: List<PowerfulDeclaration>): InstallCheck =
+    verifyCopy(card, apk, copy, signer.existingCertificate(card.packageName), inspector, configured)
+
 private const val MIN_CHECKED_SDK = 26
 
 /**
@@ -132,7 +143,7 @@ class AppInstaller(
     suspend fun install(card: ThreadItem.App, apk: File, onSession: (Int) -> Unit = {}): InstallResult {
         val copy = File(File(context.cacheDir, CACHE_DIRECTORY).apply { mkdirs() }, "${UUID.randomUUID()}.apk")
         try {
-            val prepared = withContext(Dispatchers.IO) { verifyCopy(card, apk, copy, signer.certificateFor(card.packageName), inspector, configured) }
+            val prepared = withContext(Dispatchers.IO) { verifyForInstall(card, apk, copy, signer, inspector, configured) }
             if (prepared != InstallCheck.OK) return InstallResult.CHANGED
             return withContext(Dispatchers.IO) { commit(card, copy, onSession) }
         } catch (e: CancellationException) {

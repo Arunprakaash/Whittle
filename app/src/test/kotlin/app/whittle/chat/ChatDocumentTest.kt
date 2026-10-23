@@ -15,6 +15,15 @@ class ChatDocumentTest {
     private val run = RunId("run-1")
 
     @Test
+    fun `an app card saved with the old lastCrash field still loads`() {
+        val saved = """{"schemaVersion":${ChatDocument.SCHEMA_VERSION},"title":"Notes","items":[{"type":"app","key":"a1","name":"Notes",""" +
+            """"packageName":"app.whittle.made.notes","versionCode":2,"apkPath":"notes/build/notes-2.apk","permissions":[],""" +
+            """"powerful":[],"fromTaintedRun":false,"lastCrash":"boom"}],"history":[],"activeRunId":null,"nextKey":2}"""
+        val card = ChatDocument.decode(saved)?.items?.single()
+        assertEquals(ThreadItem.App("a1", "Notes", "app.whittle.made.notes", 2, "notes/build/notes-2.apk", emptyList(), emptyList(), false), card)
+    }
+
+    @Test
     fun `every kind of thread item survives a save and load`() {
         val narration = ThreadItem.Narration("n1", "Let me check.", streaming = false)
         val steps = ThreadItem.Steps("s1", listOf(StepModel("c1", "schedule", "Checked the time", StepState.Done)))

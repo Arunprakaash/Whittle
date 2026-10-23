@@ -8,27 +8,41 @@ import android.net.Uri
 import android.os.Binder
 import android.os.Build
 import app.whittle.WhittleApplication
+import app.whittle.config.defaults.BundledConfigSource
+import app.whittle.core.common.getOrNull
+import app.whittle.core.config.ConfigLoader
 import java.security.cert.X509Certificate
 
 /**
  * Where the generated apps' crash reports arrive. It is exported with no permission, because a generated app has its own key and
  * can't hold one of Whittle's; [AppCrashes] decides who is heard. Nothing can be read, changed or deleted through it.
- * `onCreate` runs before the application's, so the app graph is reached only when a report arrives.
+ * `onCreate` runs before the application's, so the app graph is reached only when a report arrives, and only for a caller that
+ * passed the checks that need no keys.
  */
 class AppCrashProvider : ContentProvider() {
+    /** The package prefix of Whittle's apps, read from the bundled config without starting the app graph. */
+    private val prefix: String? by lazy {
+        ConfigLoader(BundledConfigSource()).load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION).getOrNull()?.packagePrefix
+    }
+
     override fun onCreate(): Boolean = true
 
-    override fun insert(uri: Uri, values: ContentValues?): Uri? {
-        val context = context ?: return null
-        val application = context.applicationContext as? WhittleApplication ?: return null
+    /** Never throws: a report that can't be checked or kept is dropped. */
+    override fun insert(uri: Uri, values: ContentValues?): Uri? = try {
+        if (accept(values)) uri else null
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun accept(values: ContentValues?): Boolean {
+        val context = context ?: return false
+        val caller = callingPackage
         val uidPackages = context.packageManager.getPackagesForUid(Binder.getCallingUid())?.toList()
-        val accepted = application.graph.appCrashes.report(
-            callingPackage,
-            uidPackages,
-            values?.getAsString("package"),
-            values?.getAsString("stack"),
-        )
-        return if (accepted) uri else null
+        val claimed = values?.getAsString("package")
+        val prefix = prefix ?: return false
+        if (!isWhittleCaller(caller, uidPackages, claimed, prefix)) return false
+        val application = context.applicationContext as? WhittleApplication ?: return false
+        return application.graph.appCrashes.report(caller, uidPackages, claimed, values?.getAsString("stack"))
     }
 
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor? = null

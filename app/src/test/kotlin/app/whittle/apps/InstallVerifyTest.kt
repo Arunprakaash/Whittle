@@ -49,6 +49,27 @@ class InstallVerifyTest {
         assertFalse(signerMatches(verify(unsignedApk()), keyA.certificate))
     }
 
+    @Test
+    fun `install checks against the key Whittle already holds and never makes one`() {
+        val apk = signed(keyA, "held.apk")
+        val inspector = ApkInspector { Outcome.Success(ApkFacts(card.packageName, 1L, emptyList(), emptyList(), false, 26, 35)) }
+        val held = NoMinting(keyA.certificate)
+        assertEquals(InstallCheck.OK, verifyForInstall(card, apk, File(directory, "held-copy.apk"), AppSigner(held), inspector, emptyList()))
+        val none = NoMinting(null)
+        assertEquals(InstallCheck.CHANGED, verifyForInstall(card, apk, File(directory, "none-copy.apk"), AppSigner(none), inspector, emptyList()))
+        assertEquals(0, held.minted + none.minted)
+    }
+
+    /** Holds [certificate], or nothing; counts any attempt to make a key. */
+    private class NoMinting(private val certificate: X509Certificate?) : SigningKeys {
+        var minted = 0
+        override fun keyFor(packageName: String): Outcome<SigningKey> {
+            minted++
+            return Outcome.Failure(HarnessError.Storage("must not mint"))
+        }
+        override fun existingCertificate(packageName: String): X509Certificate? = certificate
+    }
+
     private fun verify(apk: File): ApkVerifier.Result = ApkVerifier.Builder(apk).setMinCheckedPlatformVersion(26).build().verify()
 
     private fun unsignedApk(): File = File(directory, "unsigned.apk").also { file ->

@@ -40,7 +40,7 @@ class AppSignerTest {
 
     @Test
     fun `reports the certificate that signs a package`() {
-        assertEquals(fake.certificate, signer.certificateFor(PACKAGE))
+        assertEquals(fake.certificate, signer.existingCertificate(PACKAGE))
     }
 
     @Test
@@ -50,7 +50,7 @@ class AppSignerTest {
 
         assertIs<Outcome.Failure>(refusing.sign(unsignedApk(), signed, PACKAGE))
         assertTrue(!signed.exists())
-        assertNull(refusing.certificateFor(PACKAGE))
+        assertNull(refusing.existingCertificate(PACKAGE))
     }
 
     @Test
