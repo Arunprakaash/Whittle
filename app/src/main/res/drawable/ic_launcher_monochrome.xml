@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The themed icon: Whittle's W, one colour Android tints. It's scaled to the size of other apps' themed glyphs,
+     well inside the adaptive icon's 66-unit safe zone. The notification icon (ic_notification) is the same W,
+     cropped to fill the status bar's 24dp. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="54"
+        android:pivotY="55"
+        android:scaleX="0.68"
+        android:scaleY="0.68">
+        <path
+            android:pathData="M30,40 L42,70 L54,46 L66,70 L78,40"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="10"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>

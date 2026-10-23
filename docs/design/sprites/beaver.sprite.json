@@ -1,5 +1,5 @@
 {
-  "$description": "Whittle's beaver. Pixel art on a 16×14 grid: each row is one string, each character a palette key, '.' is empty. Poses play frames in steps and move the body around the pivot (an art pixel, bottom centre): breathe scales gently, bite dips and squashes on each chomp, pop springs in, and particles fly out on each bite or once at the start. Lengths are in art pixels, times in milliseconds, angles in degrees with 0 pointing right and -90 up. The app plays the pose for the agent's state; the launcher, themed and notification icons are generated from it. Edit here, never in generated files.",
+  "$description": "Whittle's beaver. Pixel art on a 16×14 grid: each row is one string, each character a palette key, '.' is empty. Poses play frames in steps and move the body around the pivot (an art pixel, bottom centre): breathe scales gently, bite dips and squashes on each chomp, pop springs in, and particles fly out on each bite or once at the start. Lengths are in art pixels, times in milliseconds, angles in degrees with 0 pointing right and -90 up. The app plays the pose for the agent's state; the full-colour launcher icon is generated from it. Edit here, never in generated files.",
   "name": "Beaver",
   "width": 16,
   "height": 14,
@@ -306,35 +306,11 @@
     }
   },
   "icons": {
-    "$description": "Drawables generated from the sprite. Launcher layers are 108×108 with the art inside the 66-unit safe zone; monochrome icons are one shape Android tints, and their holes are palette keys left out so the face stays readable.",
+    "$description": "Drawables generated from the sprite. Launcher layers are 108×108 with the art inside the 66-unit safe zone. The themed and notification icons are one colour Android tints, where the beaver reads as a blob, so they are the W in app/src/main/res/drawable instead.",
     "launcherForeground": {
       "frame": "idle",
       "viewport": 108,
       "pixel": 3.125
-    },
-    "launcherMonochrome": {
-      "frame": "idle",
-      "viewport": 108,
-      "pixel": 3.125,
-      "monochrome": true,
-      "holes": [
-        "K",
-        "W",
-        "N",
-        "O"
-      ]
-    },
-    "notification": {
-      "frame": "idle",
-      "viewport": 24,
-      "pixel": 1.375,
-      "monochrome": true,
-      "holes": [
-        "K",
-        "W",
-        "N",
-        "O"
-      ]
     }
   }
 }

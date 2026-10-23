@@ -183,8 +183,8 @@ Tokens are kept in the vault and never pass through the chat.
 - **Telemetry.** `observability:api` is vendor-neutral with consent filtering, and `observability:posthog`
   adapts it. Events carry metadata only. Session replays mask messages, answers, chat titles and apps.
 - **Design system.** W3C DTCG tokens in `docs/design/tokens` generate the Compose colors, type, spacing and
-  Material 3 Expressive motion springs. A sprite file generates the beaver's animation and every launcher
-  and notification icon.
+  Material 3 Expressive motion springs. A sprite file generates the beaver's animation and the launcher icon;
+  the themed and notification icons are a W, since Android tints them one colour.
 
 ### Configuration
 
