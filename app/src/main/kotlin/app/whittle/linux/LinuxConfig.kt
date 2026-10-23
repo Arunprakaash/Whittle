@@ -1,6 +1,8 @@
 package app.whittle.linux
 
+import app.whittle.core.common.getOrElse
 import app.whittle.core.config.ConfigName
+import app.whittle.core.config.PromptTemplate
 import app.whittle.core.config.VersionedConfig
 import kotlinx.serialization.Serializable
 
@@ -69,11 +71,34 @@ data class LinuxDns(
 
 @Serializable
 data class LinuxBaseSetup(
-    /** Run in order at setup (and on repair), with the network, to install what most tasks need. */
+    /** apt packages most tasks need, installed first; ones added later reach an existing Linux at the next launch. */
+    val packages: List<String>,
+    /** Installs packages, given as `{{packages}}`. */
+    val installCommand: String,
+    /** Run in order after the packages at setup (and on repair), with the network. */
     val commands: List<String>,
     /** For each command. */
     val timeoutSeconds: Int,
-)
+) {
+    init {
+        require(packages.all { PACKAGE_NAME.matches(it) }) { "packages must be plain apt package names" }
+        require(PromptTemplate(LinuxConfig.FILE, installCommand).placeholders == setOf(PACKAGES)) {
+            "installCommand must take {{$PACKAGES}} and nothing else"
+        }
+    }
+
+    /** The command that installs [names]. Rendering can't fail: init checked its only placeholder. */
+    fun install(names: Collection<String>): String =
+        PromptTemplate(LinuxConfig.FILE, installCommand).render(mapOf(PACKAGES to names.joinToString(" ")))
+            .getOrElse { error(it.message) }
+
+    private companion object {
+        const val PACKAGES = "packages"
+
+        /** Debian's rule for package names, which also keeps them safe to put in a shell command unquoted. */
+        val PACKAGE_NAME = Regex("^[a-z0-9][a-z0-9+.-]+$")
+    }
+}
 
 @Serializable
 data class LinuxCaches(

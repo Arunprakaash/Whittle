@@ -39,8 +39,9 @@
     "fallbackServers": ["1.1.1.1", "8.8.8.8"]
   },
   "baseSetup": {
+    "packages": ["ca-certificates", "curl", "git", "xz-utils", "poppler-utils"],
+    "installCommand": "dpkg --configure -a && apt-get update -q && apt-get install -y -q --no-install-recommends {{packages}} && apt-get clean",
     "commands": [
-      "dpkg --configure -a && apt-get update -q && apt-get install -y -q --no-install-recommends ca-certificates curl git xz-utils && apt-get clean",
       "curl -fsSL -o /tmp/node.tar.xz https://nodejs.org/dist/v24.22.1/node-v24.22.1-linux-arm64.tar.xz && echo 'dbabf7a1cbf947e6059ffad2c27b80041db97dea1e553b62afdee7f13fca336e  /tmp/node.tar.xz' | sha256sum -c - && tar -C /usr/local --strip-components=1 --exclude='*.md' --exclude=LICENSE -xJf /tmp/node.tar.xz && rm /tmp/node.tar.xz && node --version"
     ],
     "timeoutSeconds": 900
