@@ -43,6 +43,8 @@
     "src/MainActivity.kt",
     "src/CrashReporter.kt",
     "res/values/strings.xml",
+    "res/values/themes.xml",
+    "res/values-v29/themes.xml",
     "res/drawable/ic_launcher.xml"
   ],
   "permissionWords": [
