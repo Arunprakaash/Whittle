@@ -15,9 +15,10 @@ import java.security.cert.X509Certificate
 
 /**
  * The last crash of each app Whittle built (docs/native-apps.md, Crashes). A report counts only when the caller is a package
- * under [prefix] whose signing certificate is the key Whittle holds for it, so the apps that can be heard are few and Whittle's
- * own. The last stack of each, cut to [maxChars], is kept in [file] so one that started Whittle's process only to be recorded
- * survives the process being killed.
+ * under [prefix] ([isWhittleCaller], checked once, by [AppCrashProvider]) whose signing certificate is the key Whittle holds
+ * for it (checked here), so the apps that can be heard are few and Whittle's own. The last stack of each, cut to [maxChars], is
+ * kept in [file] so one that started Whittle's process only to be recorded survives the process being killed. [prefix] also
+ * filters what is loaded from [file].
  */
 class AppCrashes(
     private val expectedCertificate: (String) -> X509Certificate?,
@@ -32,9 +33,12 @@ class AppCrashes(
     /** The last crash's stack by package. */
     val latest: StateFlow<Map<String, String>> = _latest.asStateFlow()
 
-    /** Keeps [stack] as [callingPackage]'s last crash when that package is one of Whittle's, signed with its own key. */
-    fun accept(callingPackage: String?, stack: String): Boolean {
-        if (callingPackage == null || !callingPackage.startsWith(prefix) || stack.isBlank()) return false
+    /**
+     * Keeps [stack] as [callingPackage]'s last crash when that package is signed with the key Whittle holds for it. It trusts its
+     * caller to have passed [isWhittleCaller] for [callingPackage] already: only [AppCrashProvider] calls it, after that gate.
+     */
+    internal fun acceptFromCheckedCaller(callingPackage: String, stack: String?): Boolean {
+        if (stack.isNullOrBlank()) return false
         val expected = expectedCertificate(callingPackage) ?: return false
         val actual = signerOf(callingPackage) ?: return false
         if (!sameCertificate(expected, actual)) return false
@@ -44,15 +48,6 @@ class AppCrashes(
             _latest.value = next
         }
         return true
-    }
-
-    /**
-     * What the provider hands over: the caller Android reports, the packages that share the calling uid, and the two columns.
-     * The caller must be one of that uid's packages, and the `package` column must name it.
-     */
-    fun report(callingPackage: String?, uidPackages: Collection<String>?, claimedPackage: String?, stack: String?): Boolean {
-        if (callingPackage == null || stack.isNullOrBlank() || !isWhittleCaller(callingPackage, uidPackages, claimedPackage, prefix)) return false
-        return accept(callingPackage, stack)
     }
 
     /** Forgets [packageName]'s last crash: a newer build of it has just been installed. */

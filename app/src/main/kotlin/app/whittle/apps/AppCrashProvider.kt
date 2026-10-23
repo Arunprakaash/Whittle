@@ -15,7 +15,7 @@ import java.security.cert.X509Certificate
 
 /**
  * Where the generated apps' crash reports arrive. It is exported with no permission, because a generated app has its own key and
- * can't hold one of Whittle's; [AppCrashes] decides who is heard. Nothing can be read, changed or deleted through it.
+ * can't hold one of Whittle's; it checks the caller ([isWhittleCaller]) and [AppCrashes] its key. Nothing can be read, changed or deleted through it.
  * `onCreate` runs before the application's, so the app graph is reached only when a report arrives, and only for a caller that
  * passed the checks that need no keys.
  */
@@ -36,13 +36,14 @@ class AppCrashProvider : ContentProvider() {
 
     private fun accept(values: ContentValues?): Boolean {
         val context = context ?: return false
-        val caller = callingPackage
+        val caller = callingPackage ?: return false
         val uidPackages = context.packageManager.getPackagesForUid(Binder.getCallingUid())?.toList()
         val claimed = values?.getAsString("package")
         val prefix = prefix ?: return false
+        // The one caller check, before the app graph starts; AppCrashes then checks only the signer.
         if (!isWhittleCaller(caller, uidPackages, claimed, prefix)) return false
         val application = context.applicationContext as? WhittleApplication ?: return false
-        return application.graph.appCrashes.report(caller, uidPackages, claimed, values?.getAsString("stack"))
+        return application.graph.appCrashes.acceptFromCheckedCaller(caller, values?.getAsString("stack"))
     }
 
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor? = null

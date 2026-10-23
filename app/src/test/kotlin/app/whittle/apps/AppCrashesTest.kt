@@ -27,37 +27,34 @@ class AppCrashesTest {
     @Test
     fun `accepts a crash from a Whittle app signed with its key`() {
         val crashes = crashes()
-        assertTrue(crashes.accept(NOTES, "boom"))
+        assertTrue(crashes.acceptFromCheckedCaller(NOTES, "boom"))
         assertEquals(mapOf(NOTES to "boom"), crashes.latest.value)
     }
 
     @Test
-    fun `drops an unknown package, a package outside the prefix, and one signed with another key`() {
+    fun `drops a package with no key, one signed with another key, and an empty stack`() {
         val crashes = crashes()
-        signers["com.evil"] = mine
-        expected["com.evil"] = mine
         signers["app.whittle.made.fake"] = other
         expected["app.whittle.made.fake"] = mine
-        assertFalse(crashes.accept(null, "x"))
-        assertFalse(crashes.accept("app.whittle.made.unknown", "x"))
-        assertFalse(crashes.accept("com.evil", "x"))
-        assertFalse(crashes.accept("app.whittle.made.fake", "x"))
-        assertFalse(crashes.accept(NOTES, "  "))
+        assertFalse(crashes.acceptFromCheckedCaller("app.whittle.made.unknown", "x"))
+        assertFalse(crashes.acceptFromCheckedCaller("app.whittle.made.fake", "x"))
+        assertFalse(crashes.acceptFromCheckedCaller(NOTES, "  "))
+        assertFalse(crashes.acceptFromCheckedCaller(NOTES, null))
         assertTrue(crashes.latest.value.isEmpty())
     }
 
     @Test
     fun `keeps the last crash per app, capped`() {
         val crashes = crashes(max = 5)
-        assertTrue(crashes.accept(NOTES, "first"))
-        assertTrue(crashes.accept(NOTES, "0123456789"))
-        assertTrue(crashes.accept(TIMER, "t"))
+        assertTrue(crashes.acceptFromCheckedCaller(NOTES, "first"))
+        assertTrue(crashes.acceptFromCheckedCaller(NOTES, "0123456789"))
+        assertTrue(crashes.acceptFromCheckedCaller(TIMER, "t"))
         assertEquals(mapOf(NOTES to "01234", TIMER to "t"), crashes.latest.value)
     }
 
     @Test
     fun `a crash survives a restart of the process`() {
-        crashes().accept(NOTES, "boom")
+        crashes().acceptFromCheckedCaller(NOTES, "boom")
         assertEquals(mapOf(NOTES to "boom"), crashes().latest.value)
         assertFalse(File(directory, "crashes.json.tmp").exists())
     }
@@ -73,29 +70,16 @@ class AppCrashesTest {
         val keys = RecordingKeys()
         val signer = AppSigner(keys)
         val crashes = AppCrashes(signer::existingCertificate, { mine }, PREFIX, 100, file)
-        assertFalse(crashes.accept(NOTES, "boom"))
+        assertFalse(crashes.acceptFromCheckedCaller(NOTES, "boom"))
         assertEquals(listOf("existing:$NOTES"), keys.calls)
         assertTrue(keys.created.isEmpty())
     }
 
     @Test
-    fun `a report must name the caller, the same package, and carry a stack`() {
-        val crashes = crashes()
-        assertTrue(crashes.report(NOTES, listOf(NOTES), NOTES, "boom"))
-        assertFalse(crashes.report(NOTES, listOf(TIMER), NOTES, "again"), "the caller must belong to the calling uid")
-        assertFalse(crashes.report(NOTES, listOf(NOTES), TIMER, "again"), "the package column must match")
-        assertFalse(crashes.report(NOTES, listOf(NOTES), null, "again"))
-        assertFalse(crashes.report(NOTES, listOf(NOTES), NOTES, null))
-        assertFalse(crashes.report(NOTES, listOf(NOTES), NOTES, ""))
-        assertFalse(crashes.report(NOTES, null, NOTES, "again"))
-        assertEquals(mapOf(NOTES to "boom"), crashes.latest.value)
-    }
-
-    @Test
     fun `a newer install clears its app's crash, on disk too`() {
         val crashes = crashes()
-        crashes.accept(NOTES, "boom")
-        crashes.accept(TIMER, "tick")
+        crashes.acceptFromCheckedCaller(NOTES, "boom")
+        crashes.acceptFromCheckedCaller(TIMER, "tick")
         crashes.clear(NOTES)
         assertEquals(mapOf(TIMER to "tick"), crashes.latest.value)
         assertEquals(mapOf(TIMER to "tick"), crashes().latest.value)
@@ -103,12 +87,15 @@ class AppCrashesTest {
         assertEquals(mapOf(TIMER to "tick"), crashes.latest.value)
     }
 
+    /** The one caller gate: the provider runs it before it reaches the app graph, and nothing else repeats it. */
     @Test
     fun `a caller is checked by uid, column and prefix before any key is looked at`() {
         assertTrue(isWhittleCaller(NOTES, listOf(NOTES), NOTES, PREFIX))
-        assertFalse(isWhittleCaller("com.evil", listOf("com.evil"), "com.evil", PREFIX))
-        assertFalse(isWhittleCaller(NOTES, listOf(TIMER), NOTES, PREFIX))
-        assertFalse(isWhittleCaller(NOTES, listOf(NOTES), TIMER, PREFIX))
+        assertFalse(isWhittleCaller("com.evil", listOf("com.evil"), "com.evil", PREFIX), "outside the prefix")
+        assertFalse(isWhittleCaller("app.whittle.madeup", listOf("app.whittle.madeup"), "app.whittle.madeup", PREFIX), "the prefix ends with its dot")
+        assertFalse(isWhittleCaller(NOTES, listOf(TIMER), NOTES, PREFIX), "the caller must belong to the calling uid")
+        assertFalse(isWhittleCaller(NOTES, listOf(NOTES), TIMER, PREFIX), "the package column must match")
+        assertFalse(isWhittleCaller(NOTES, listOf(NOTES), null, PREFIX))
         assertFalse(isWhittleCaller(null, listOf(NOTES), NOTES, PREFIX))
         assertFalse(isWhittleCaller(NOTES, null, NOTES, PREFIX))
     }
