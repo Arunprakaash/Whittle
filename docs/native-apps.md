@@ -1,7 +1,8 @@
 # Native apps
 
-Status: design, not built. A spike on 2026-10-23 on a real phone (vivo V2558, Android 16, arm64) built, signed,
-installed and ran a Kotlin app made entirely inside Whittle's Ubuntu. The numbers below come from it.
+Status: built on `feat/native-apps`, with the check on a real phone still to do (see Open). A spike on 2026-10-23 on
+a real phone (vivo V2558, Android 16, arm64) built, signed, installed and ran a Kotlin app made entirely inside
+Whittle's Ubuntu. The numbers below come from it.
 
 ## Why
 
@@ -96,9 +97,10 @@ counter/
 - **Package:** `app.whittle.made.<slug>`, made unique on the phone by `create_app`. The prefix tells Whittle's
   own apps apart (see Crashes).
 - **Versions:** `build_app` raises the version code on every build, so Update always works.
-- **Icon:** a vector drawable from the template (the first letter on a colour from the name), which the agent may
-  replace.
-- **API level:** compiled against API 34 (above), `minSdkVersion 26`, `targetSdkVersion` from config.
+- **Icon:** a vector drawable from the template, a rounded square in a colour picked from the name (no letter), which
+  the agent may replace.
+- **API level:** compiled against API 34 (above), `minSdkVersion` and `targetSdkVersion` from config. The build sets
+  them and the version, so the manifest doesn't.
 - **Template:** includes the crash reporter (below), so the agent doesn't have to remember it.
 
 ### The toolchain
@@ -107,7 +109,9 @@ Installed in Ubuntu once per phone, from a new `native-apps.json`, pinned like `
 model can't start the download: the first `build_app` without a toolchain answers "not set up", and the chat shows
 a **Set up app building** card (size, what it downloads). The user's tap starts it in a foreground service, as Linux
 setup does, and the agent's run waits on it like a capability (`requiredCapabilities` / `missingCapability`), with
-no change to the policy engine. *(My call: fixed, pinned URLs make a one-time consent card enough.)*
+no change to the policy engine. *(My call: fixed, pinned URLs make a one-time consent card enough.)* Nothing starts
+until Linux itself is set up; the card says so. A setup that fails is told to the agent as a failure, with its
+reason, not as the user saying no.
 
 What it installs:
 
@@ -116,16 +120,23 @@ What it installs:
   (Google's Maven, `com.android.tools:r8`) and API 34's `android.jar`. Shipping them inside the APK isn't an
   option, at about 150 MB.
 - The dexed Kotlin standard library is cached next to them, keyed by the compiler's version.
-- Settings › Linux shows it, with its size, and can remove it like the caches.
+- Settings › Linux shows whether it's set up, with its size, and can remove it like the caches, except while an
+  app is building.
 
 ### Building
 
 `build_app` runs one script from config inside Linux, through `CommandRunner` and the sandbox, **with the network
 off**: a build needs nothing from outside once the toolchain is there. The script runs `aapt2 link`, then `kotlinc`,
-`d8` and zip + `zipalign`. It writes an **unsigned** APK to `<project>/build/`. Whittle signs it (below).
+`d8` and zip + `zipalign`. It writes an **unsigned** APK to `<project>/build/`. Whittle signs it (below). Two builds
+of one project wait for each other, and only the newest three signed APKs stay in `build/`.
 
-The tool result is short JSON: success with the APK's size and version, or the compiler's errors (`file:line:
-message`, capped). Long output goes to `.whittle/outputs` as other tools' output does.
+Then Android's own parser reads the signed APK, the way the installer will: the package, no `sharedUserId`, the
+version Whittle set, the SDK levels from config, and the permissions and powerful declarations (disabled components
+included, since an app can enable its own). A build that doesn't match is refused, with what to fix.
+
+The tool result is short JSON: success with the APK's size, version, permissions and powerful declarations, or the
+compiler's errors (`file:line: message`, capped). Long output goes to `.whittle/outputs` as other tools' output
+does; the card is made from the whole result.
 
 ### Signing
 
@@ -145,6 +156,9 @@ The card's buttons, never the model:
 - **Install / Update:** a `PackageInstaller` session with the signed APK. Android shows its own prompt each
   time. Whittle needs `REQUEST_INSTALL_PACKAGES`, and the user allows "Install unknown apps" for Whittle once;
   the card explains and opens that setting the first time.
+- The APK in the workspace can be replaced by anything the model runs, so Install copies it somewhere private and
+  checks the copy: first that it's signed by the key Whittle already holds for the app (never a new one), then that
+  its facts are still the ones the card shows. That same copy is what's installed.
 - **Open:** the app's launch intent.
 - **Remove:** Android's uninstall prompt.
 
@@ -156,9 +170,9 @@ dangerous ones.
 
 The template sets an uncaught-exception handler that sends the stack trace to Whittle through an exported
 `ContentProvider` (`app.whittle.apps.crashes`), then lets the app die as usual. Whittle accepts a report only
-when the calling package is one it built and its signing certificate is that app's key, which Whittle knows.
-Any other app's report is dropped. The card shows the
-last crash, and **Ask to fix** sends it to the agent.
+when the caller is verified by its uid, its package is one Whittle built, and its signing certificate is the key
+Whittle already holds for it; checking never makes a key. Any other report is dropped. The card shows the last
+crash, and **Ask to fix** sends it to the agent with the app's project folder. Installing a newer build clears it.
 
 ### What a generated app may declare
 
@@ -167,17 +181,18 @@ Any permission or service Android allows a normal app. The user decides, with th
 
 - **Powerful:** declarations that let an app watch or control the rest of the phone. These are services for
   accessibility, notification listening, device admin, VPN, autofill, input methods and wallpapers, and the
-  permissions `SYSTEM_ALERT_WINDOW`, `REQUEST_INSTALL_PACKAGES`, `MANAGE_EXTERNAL_STORAGE`, SMS and call log.
+  credential providers, and the permissions `SYSTEM_ALERT_WINDOW`, `REQUEST_INSTALL_PACKAGES`,
+  `MANAGE_EXTERNAL_STORAGE`, SMS, MMS and WAP push, call log, usage stats and background location.
   `native-apps.json` lists them, each with a plain sentence ("Can read every notification you get"). The card
   shows them under a warning. Install then asks once more in Whittle, listing them, before Android's own prompt.
   Android still makes the user switch most of them on in system settings.
 - **Ordinary:** everything else, such as internet, camera, microphone, location, contacts, calendar,
   notifications, vibration and alarms. They're listed on the card, and Android asks at runtime as usual.
-- **Refused by `build_app`:** only `sharedUserId`. It's deprecated, and with one key per app it couldn't share
-  anything anyway.
+- **Refused by `build_app`:** only `sharedUserId`, among declarations. It's deprecated, and with one key per app it
+  couldn't share anything anyway.
 - **A build from a tainted run** (one that read a web page or another outside source) gets a line on the card
   ("Made after reading content from the web; check what it does before installing"), next to any powerful
-  declarations.
+  declarations. Taint is per run: the line reflects what the run that built the app read, not the chat's earlier runs.
 
 ### Network in generated apps
 
@@ -219,9 +234,9 @@ code or XML, `Activity` lifecycle, storing data in `SharedPreferences` or files.
 
 ## Open
 
-- **To prove first, before the rest:** signing with `apksig` and an Android Keystore key (Whittle targets SDK 28),
-  and the build running under the command sandbox with sockets blocked. The spike ran the build without the
-  sandbox and signed with `apksigner` and a file key.
+- **To check on a phone:** the whole loop as built, from setup to install, update and a crash report, with signing
+  by `apksig` and an Android Keystore key (Whittle targets SDK 28) and the build under the command sandbox with
+  sockets blocked. The spike ran the build without the sandbox and signed with `apksigner` and a file key.
 
 - **Updates without a prompt:** `PackageInstaller.SessionParams.setRequireUserAction(USER_ACTION_NOT_REQUIRED)`
   (Android 12+) may let Update skip Android's prompt for apps Whittle installed. Whether it works when the
