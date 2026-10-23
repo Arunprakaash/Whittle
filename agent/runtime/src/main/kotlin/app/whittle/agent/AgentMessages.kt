@@ -80,6 +80,13 @@ data class AgentMessages(
     val appCreated: String,
     val appNameEmpty: String,
     val appNoWorkspace: String,
+    val appNoProject: String,
+    val appSharedUserId: String,
+    val appPackageMismatch: String,
+    val appBuildFailed: String,
+    val appBuildLogSaved: String,
+    val appBuildNoApk: String,
+    val appBuildTimedOut: String,
 ) : VersionedConfig {
     init {
         requirePlaceholders(attachments, FILES)
@@ -133,6 +140,13 @@ data class AgentMessages(
         requirePlaceholders(appCreated, NAME, PROJECT, PACKAGE)
         requirePlaceholders(appNameEmpty)
         requirePlaceholders(appNoWorkspace)
+        requirePlaceholders(appNoProject, PROJECT)
+        requirePlaceholders(appSharedUserId)
+        requirePlaceholders(appPackageMismatch, EXPECTED)
+        requirePlaceholders(appBuildFailed, ERRORS)
+        requirePlaceholders(appBuildLogSaved, PATH)
+        requirePlaceholders(appBuildNoApk)
+        requirePlaceholders(appBuildTimedOut, SECONDS)
     }
 
     fun unknownTool(tool: String): String = render(unknownTool, TOOL to tool)
@@ -219,6 +233,16 @@ data class AgentMessages(
     fun appCreated(name: String, project: String, packageName: String): String =
         render(appCreated, NAME to name, PROJECT to project, PACKAGE to packageName)
 
+    fun appNoProject(project: String): String = render(appNoProject, PROJECT to project)
+
+    fun appPackageMismatch(expected: String): String = render(appPackageMismatch, EXPECTED to expected)
+
+    fun appBuildFailed(errors: String): String = render(appBuildFailed, ERRORS to errors)
+
+    fun appBuildTimedOut(seconds: Int): String = render(appBuildTimedOut, SECONDS to seconds.toString())
+
+    fun appBuildLogSaved(path: String): String = render(appBuildLogSaved, PATH to path)
+
     /** The memory section of the system prompt: one line per remembered fact, as (id, text) pairs. */
     fun memories(items: List<Pair<String, String>>): String =
         if (items.isEmpty()) noMemories else items.joinToString("\n") { (id, text) -> render(memoryLine, ID to id, TEXT to text) }
@@ -229,6 +253,9 @@ data class AgentMessages(
         private const val SIZE = "size"
         private const val TOOL = "tool"
         private const val PACKAGE = "package"
+        private const val EXPECTED = "expected"
+        private const val ERRORS = "errors"
+        private const val SECONDS = "seconds"
         private const val DETAIL = "detail"
         private const val LIMIT = "limit"
         private const val OUTPUT = "output"

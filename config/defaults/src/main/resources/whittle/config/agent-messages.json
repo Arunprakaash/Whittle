@@ -50,5 +50,12 @@
   "imageUnavailable": "[An attached image, {{path}}, couldn't be read from the workspace.]",
   "appCreated": "Created the app \"{{name}}\" in the project folder {{project}} (package {{package}}) and switched this chat to it. Edit the files there, then build it with build_app, giving {{project}} as the project.",
   "appNameEmpty": "Give the app a name.",
-  "appNoWorkspace": "This chat has no workspace to make the app in."
+  "appNoWorkspace": "This chat has no workspace to make the app in.",
+  "appNoProject": "There is no app project named \"{{project}}\" in the workspace. Give the project folder that create_app made.",
+  "appSharedUserId": "The manifest sets android:sharedUserId, which apps made here can't use. Remove it and build again.",
+  "appPackageMismatch": "The manifest's package must be {{expected}}, the one this project was created with. Fix the package attribute and build again.",
+  "appBuildFailed": "The build failed. Fix these and build again:\n{{errors}}",
+  "appBuildLogSaved": "The full build output is saved at {{path}}.",
+  "appBuildNoApk": "The build script finished but produced no APK. Check that it wasn't changed and that the sources compile.",
+  "appBuildTimedOut": "The build ran out of time after {{seconds}} seconds."
 }

@@ -116,6 +116,13 @@ internal val testMessages = AgentMessages(
     appCreated = "created {{name}} in {{project}} as {{package}}",
     appNameEmpty = "no name",
     appNoWorkspace = "no workspace",
+    appNoProject = "no project {{project}}",
+    appSharedUserId = "shared user id",
+    appPackageMismatch = "package must be {{expected}}",
+    appBuildFailed = "build failed: {{errors}}",
+    appBuildLogSaved = "log at {{path}}",
+    appBuildNoApk = "no apk",
+    appBuildTimedOut = "timed out after {{seconds}}",
 )
 
 internal val testRetry = ModelRetryPolicy(
