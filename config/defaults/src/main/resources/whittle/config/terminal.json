@@ -5,6 +5,8 @@
   "maxOutputChars": 20000,
   "maxFileChars": 200000,
   "maxListedEntries": 200,
+  "maxMatches": 100,
+  "maxMatchChars": 300,
   "processes": {
     "maxPerChat": 3,
     "startWaitSeconds": 20,

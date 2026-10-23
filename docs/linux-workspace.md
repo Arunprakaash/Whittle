@@ -208,7 +208,7 @@ card for untrusted models and tainted runs.
     background while you connect a model, and a strip under that screen shows its progress. It can be skipped
     (Not now).
   - **Settings › Linux workspace,** to set it up later or manage it.
-- **Until it's set up,** Whittle still chats, searches the web and uses connections. Commands and Linux paths fail
+- **Until it's set up,** Whittle still chats, reads web pages and uses connections. Commands and Linux paths fail
   with a plain "isn't set up on this phone yet".
 - **Steps, shown as ordinary Whittle steps:**
   1. Download: checksum pinned in config, resumable.

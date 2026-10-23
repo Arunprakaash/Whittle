@@ -7,8 +7,9 @@
 <p align="center"><a href="https://github.com/Arunprakaash/Whittle/releases/latest">Download the latest APK</a></p>
 
 Whittle runs the whole agent loop on the phone: the model calls, the policy checks, the tools and the
-checkpoints. It searches the web, runs commands in a sandboxed Ubuntu on the phone, builds web apps with Vite and
-serves them to a live preview, shows every file it changed, and talks to any MCP server. There is no Whittle server.
+checkpoints. It reads web pages (and searches through a connection such as Exa), runs commands in a sandboxed
+Ubuntu on the phone, builds web apps with Vite and serves them to a live preview, shows every file it changed, and
+talks to any MCP server. There is no Whittle server.
 The phone talks straight to the model provider you pick, using your own key.
 
 <table>
@@ -93,8 +94,8 @@ rating can't use high-risk tools at all.
 
 `core:model` defines provider-neutral messages, tool calls and token usage. Adapters translate at the edge:
 `llm:adapter-openai-compatible` streams Chat Completions (OpenRouter, Groq, Together, Ollama…), and
-`llm:adapter-openai-responses` speaks the OpenAI Responses API with reasoning, hosted web search and
-`store: false`. Providers and models come from `provider-catalog.json` and `model-defaults.json`, not code.
+`llm:adapter-openai-responses` speaks the OpenAI Responses API with reasoning and `store: false`; it also supports
+OpenAI's hosted web search, which is off (it's paid per search) unless a provider lists it under `hostedTools`. Providers and models come from `provider-catalog.json` and `model-defaults.json`, not code.
 
 ### Linux on the phone
 

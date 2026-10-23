@@ -157,11 +157,56 @@ class ReadFileTool(workspaces: Workspaces, private val config: TerminalConfig) :
             return error("'$path' can't be read: ${exception.message}")
         }
         if (text.contains(NUL)) return error("'$path' is a binary file")
+        arguments.text(FIND)?.takeIf { it.isNotBlank() }?.let { return find(path, text, it) }
+        val from = arguments.int(FROM_LINE)
+        val count = arguments.int(LINES)
+        if ((from != null && from < 1) || (count != null && count < 1)) return error("$FROM_LINE and $LINES must be 1 or more")
+        if (from == null && count == null) {
+            return success(
+                buildJsonObject {
+                    put(PATH, path)
+                    put(CONTENT, text.take(config.maxFileChars))
+                    if (text.length > config.maxFileChars) put(TRUNCATED_AT, config.maxFileChars)
+                },
+                FILE_CONTENT,
+            )
+        }
+        // Part of a long file, such as a saved tool output, a line range at a time.
+        val all = text.lines()
+        val start = (from ?: 1).coerceAtMost(all.size)
+        val part = all.drop(start - 1).let { rest -> count?.let(rest::take) ?: rest }
+        val content = part.joinToString("\n")
         return success(
             buildJsonObject {
                 put(PATH, path)
-                put(CONTENT, text.take(config.maxFileChars))
-                if (text.length > config.maxFileChars) put(TRUNCATED_AT, config.maxFileChars)
+                put(FROM_LINE, start)
+                put(TO_LINE, start + part.size - 1)
+                put(TOTAL_LINES, all.size)
+                put(CONTENT, content.take(config.maxFileChars))
+                if (content.length > config.maxFileChars) put(TRUNCATED_AT, config.maxFileChars)
+            },
+            FILE_CONTENT,
+        )
+    }
+
+    /** The lines of [text] that match [pattern] (a regular expression, or plain text if it isn't one), numbered. */
+    private fun find(path: String, text: String, pattern: String): ToolOutput {
+        val regex = runCatching { Regex(pattern, RegexOption.IGNORE_CASE) }.getOrElse { Regex(Regex.escape(pattern), RegexOption.IGNORE_CASE) }
+        val all = text.lines()
+        val matching = all.withIndex().filter { (_, line) -> regex.containsMatchIn(line) }
+        return success(
+            buildJsonObject {
+                put(PATH, path)
+                put(TOTAL_LINES, all.size)
+                put(MATCH_COUNT, matching.size)
+                putJsonArray(MATCHES) {
+                    matching.take(config.maxMatches).forEach { (index, line) ->
+                        addJsonObject {
+                            put(LINE, index + 1)
+                            put(TEXT, line.trim().take(config.maxMatchChars))
+                        }
+                    }
+                }
             },
             FILE_CONTENT,
         )
@@ -171,12 +216,28 @@ class ReadFileTool(workspaces: Workspaces, private val config: TerminalConfig) :
         private const val PATH = "path"
         private const val CONTENT = "content"
         private const val TRUNCATED_AT = "truncatedAtChars"
+        private const val FROM_LINE = "fromLine"
+        private const val LINES = "lines"
+        private const val FIND = "find"
+        private const val TO_LINE = "toLine"
+        private const val TOTAL_LINES = "totalLines"
+        private const val MATCH_COUNT = "matchCount"
+        private const val MATCHES = "matches"
+        private const val LINE = "line"
+        private const val TEXT = "text"
         private const val NUL = '\u0000'
 
         val DEFINITION = ToolDefinition(
             id = ToolId("read_file"),
-            description = "Reads a text file from Linux. Paths are absolute, or relative to /workspace, the shared workspace.",
-            inputSchema = schema("""{"type":"object","properties":{"$PATH":{"type":"string","description":"Absolute, or relative to /workspace"}},"required":["$PATH"]}"""),
+            description = "Reads a text file from Linux. Paths are absolute, or relative to /workspace, the shared workspace. " +
+                "For a long file, give $FIND to list the lines that match (with their numbers), or $FROM_LINE and $LINES " +
+                "to read part of it.",
+            inputSchema = schema(
+                """{"type":"object","properties":{"$PATH":{"type":"string","description":"Absolute, or relative to /workspace"},""" +
+                    """"$FIND":{"type":"string","description":"Regular expression or text to look for, ignoring case"},""" +
+                    """"$FROM_LINE":{"type":"integer","minimum":1,"description":"First line to read, from 1"},""" +
+                    """"$LINES":{"type":"integer","minimum":1,"description":"How many lines to read"}},"required":["$PATH"]}""",
+            ),
             riskTier = RiskTier.READ,
             executionSite = ExecutionSite.DEVICE,
             requiredCapabilities = emptySet(),
