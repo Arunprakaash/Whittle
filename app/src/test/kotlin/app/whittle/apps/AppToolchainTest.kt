@@ -1,7 +1,9 @@
 package app.whittle.apps
 
+import app.whittle.agent.AgentMessages
 import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.core.common.Outcome
+import app.whittle.core.config.ConfigFiles
 import app.whittle.core.config.ConfigLoader
 import app.whittle.tools.workspace.CommandResult
 import kotlinx.coroutines.CompletableDeferred
@@ -86,7 +88,8 @@ class AppToolchainTest {
         val toolchain = AppToolchain(shell, config)
         assertIs<Outcome.Failure>(toolchain.install())
         val failed = assertIs<ToolchainState.Failed>(toolchain.state.value)
-        assertTrue(failed.reason.contains("Unable to locate package"))
+        assertEquals(ToolchainFailure.Output, failed.kind)
+        assertTrue(failed.detail.orEmpty().contains("Unable to locate package"))
         assertFalse(toolchain.isReady())
         assertIs<Outcome.Success<Unit>>(toolchain.install())
         assertEquals(2, attempts)
@@ -98,7 +101,14 @@ class AppToolchainTest {
         val shell = FakeShell { command, _, _ -> if (command.startsWith("cat ")) result(1) else result(0) }
         val toolchain = AppToolchain(shell, config)
         assertIs<Outcome.Failure>(toolchain.install())
-        assertIs<ToolchainState.Failed>(toolchain.state.value)
+        assertEquals(ToolchainState.Failed(ToolchainFailure.NotConfirmed), toolchain.state.value)
+    }
+
+    @Test
+    fun `a setup that runs out of time says so, with no detail`() = runBlocking<Unit> {
+        val toolchain = AppToolchain(FakeShell { command, _, _ -> if (command.startsWith("cat ")) result(1) else result(null) }, config)
+        assertIs<Outcome.Failure>(toolchain.install())
+        assertEquals(ToolchainState.Failed(ToolchainFailure.TimedOut), toolchain.state.value)
     }
 
     private val wait = 300.milliseconds
@@ -106,7 +116,7 @@ class AppToolchainTest {
     @Test
     fun `awaitSetup is false when starting throws`() = runBlocking<Unit> {
         val toolchain = AppToolchain(FakeShell { _, _, _ -> result(1) }, config)
-        assertEquals(SetupOutcome.Failed("not allowed"), awaitSetup(toolchain, { throw IllegalStateException("not allowed") }, wait))
+        assertEquals(SetupOutcome.Failed(ToolchainFailure.NotStarted, "not allowed"), awaitSetup(toolchain, { throw IllegalStateException("not allowed") }, wait))
     }
 
     @Test
@@ -118,7 +128,7 @@ class AppToolchainTest {
     @Test
     fun `awaitSetup is false when setup never starts and there is no marker`() = runBlocking<Unit> {
         val toolchain = AppToolchain(FakeShell { _, _, _ -> result(1) }, config)
-        assertIs<SetupOutcome.Failed>(awaitSetup(toolchain, {}, 50.milliseconds))
+        assertEquals(SetupOutcome.Failed(ToolchainFailure.NotStarted), awaitSetup(toolchain, {}, 50.milliseconds))
     }
 
     @Test
@@ -147,7 +157,7 @@ class AppToolchainTest {
             config,
         )
         val failed = assertIs<SetupOutcome.Failed>(awaitSetup(toolchain, { CoroutineScope(Dispatchers.Default).launch { toolchain.install() } }, wait))
-        assertEquals("boom", failed.reason)
+        assertEquals(SetupOutcome.Failed(ToolchainFailure.Output, "boom"), failed)
     }
 
     @Test
@@ -156,9 +166,9 @@ class AppToolchainTest {
         val scope = CoroutineScope(Dispatchers.Default)
         val install = scope.launch { toolchain.install() }
         val cancelling = scope.launch { toolchain.state.first { it is ToolchainState.Installing }; install.cancel() }
-        assertIs<SetupOutcome.Failed>(awaitSetup(toolchain, {}, wait))
+        assertEquals(ToolchainFailure.Interrupted, assertIs<SetupOutcome.Failed>(awaitSetup(toolchain, {}, wait)).kind)
         cancelling.join()
-        assertIs<ToolchainState.Failed>(toolchain.state.value)
+        assertEquals(ToolchainState.Failed(ToolchainFailure.Interrupted), toolchain.state.value)
     }
 
     @Test
@@ -200,15 +210,36 @@ class AppToolchainTest {
     fun `a failure's reason is capped`() = runBlocking<Unit> {
         val toolchain = AppToolchain(FakeShell { command, _, _ -> if (command.startsWith("cat ")) result(1) else result(2, "", "x".repeat(config.maxReasonChars * 3)) }, config)
         assertIs<Outcome.Failure>(toolchain.install())
-        assertEquals(config.maxReasonChars, assertIs<ToolchainState.Failed>(toolchain.state.value).reason.length)
+        assertEquals(config.maxReasonChars, assertIs<ToolchainState.Failed>(toolchain.state.value).detail?.length)
         val thrown = assertIs<SetupOutcome.Failed>(awaitSetup(toolchain, { throw IllegalStateException("y".repeat(config.maxReasonChars * 3)) }, wait))
-        assertEquals(config.maxReasonChars, thrown.reason.length)
+        assertEquals(config.maxReasonChars, thrown.detail?.length)
     }
 
     @Test
     fun `the card shows the last line of a reason`() {
         assertEquals("E: Unable to locate package aapt", shortReason("Reading lists...\nE: Unable to locate package aapt\n\n"))
         assertEquals("boom", shortReason("boom"))
+    }
+
+    @Test
+    fun `the agent hears each kind of failure in config words, with the raw detail after`() {
+        val messages = assertIs<Outcome.Success<AgentMessages>>(
+            ConfigLoader(BundledConfigSource()).load(ConfigFiles.agentMessages, AgentMessages.serializer(), AgentMessages.SCHEMA_VERSION),
+        ).value
+        val words = ToolchainFailure.entries.map { setupReasonForModel(messages, it, detail = null) }
+        assertEquals(ToolchainFailure.entries.size, words.toSet().size, "each kind has its own words")
+        assertTrue(words.all { it.isNotBlank() })
+        assertEquals(messages.appSetupTimedOut, setupReasonForModel(messages, ToolchainFailure.TimedOut, null))
+        assertEquals(messages.appSetupOutput + "\nE: no space", setupReasonForModel(messages, ToolchainFailure.Output, "E: no space"))
+    }
+
+    @Test
+    fun `Remove is offered for a set-up toolchain or a half-finished one, but not during setup or a build`() {
+        assertTrue(canRemoveToolchain(ready = true, size = "400M", installing = false, building = false))
+        assertTrue(canRemoveToolchain(ready = false, size = "120M", installing = false, building = false), "a broken setup can be cleared")
+        assertFalse(canRemoveToolchain(ready = false, size = null, installing = false, building = false))
+        assertFalse(canRemoveToolchain(ready = true, size = "400M", installing = true, building = false))
+        assertFalse(canRemoveToolchain(ready = true, size = "400M", installing = false, building = true))
     }
 
     @Test
@@ -221,12 +252,12 @@ class AppToolchainTest {
         val build = launch(Dispatchers.Default) { toolchain.whileReady { holding.complete(Unit); release.await() } }
         holding.await()
         assertTrue(toolchain.building.value)
-        assertIs<Outcome.Failure>(toolchain.remove())
+        assertEquals(ToolchainFailure.InUse, toolchain.remove())
         assertTrue(shell.calls.none { it.first.startsWith("rm ") })
         release.complete(Unit)
         build.join()
         assertFalse(toolchain.building.value)
-        assertIs<Outcome.Success<Unit>>(toolchain.remove())
+        assertEquals(null, toolchain.remove())
         assertTrue(shell.calls.any { it.first.startsWith("rm ") })
     }
 

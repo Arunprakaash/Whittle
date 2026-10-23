@@ -29,7 +29,7 @@ class AppToolchainService : Service() {
         scope.launch {
             try {
                 app.graph.appToolchain.install()
-                (app.graph.appToolchain.state.value as? ToolchainState.Failed)?.let { Log.w(TAG, "App building setup failed: ${it.reason}") }
+                (app.graph.appToolchain.state.value as? ToolchainState.Failed)?.let { Log.w(TAG, "App building setup failed (${it.kind}): ${it.detail}") }
             } finally {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf(startId)

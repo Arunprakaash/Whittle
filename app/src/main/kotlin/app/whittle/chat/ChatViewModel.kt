@@ -80,7 +80,8 @@ import app.whittle.apps.InstallResult
 import app.whittle.apps.PowerfulDeclaration
 import app.whittle.apps.SetupOutcome
 import app.whittle.apps.prepareAppBuilding
-import app.whittle.apps.shortReason
+import app.whittle.apps.ToolchainFailure
+import app.whittle.apps.setupReasonForModel
 import app.whittle.linux.LinuxState
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.map
@@ -429,6 +430,8 @@ class ChatViewModel(
 
     /** Called with the system permission result; either way the paused run continues and hears it. */
     fun answer(item: ThreadItem.Capability, granted: Boolean) {
+        // A card already answered (Decline while setup ran, say) keeps its answer; the run hears one answer per card.
+        if (!stillAsking(_state.value.items, item.key)) return
         val presentation = item.presentation
         replace(item.key) { ThreadItem.Resolved(item.key, if (granted) presentation.grantedOutcome else presentation.deniedOutcome, declined = !granted) }
         submit(item.runId, RunInput.CapabilityChanged(item.capability, granted))
@@ -443,9 +446,10 @@ class ChatViewModel(
     /**
      * Allow on the app-building card. Nothing starts until Linux is set up; otherwise the toolchain is set up in a
      * service. The run hears that it's ready, or that setup failed and why, never that the user said no. [needsLinux]
-     * and [failed] (given the short reason) are the card's words for the two failures. A second tap does nothing.
+     * and [failed] (given the kind and its raw detail) are the card's words for the two failures. A second tap does
+     * nothing, and a card answered meanwhile is left alone.
      */
-    fun setUpAppBuilding(item: ThreadItem.Capability, needsLinux: String, failed: (String) -> String) {
+    fun setUpAppBuilding(item: ThreadItem.Capability, needsLinux: String, failed: (ToolchainFailure, String?) -> String) {
         if (settingUpAppBuilding?.isActive == true) return
         settingUpAppBuilding = viewModelScope.launch {
             _appBuildingSetup.value = item.key
@@ -455,7 +459,11 @@ class ChatViewModel(
                 when (val outcome = prepareAppBuilding(linuxReady, graph.appToolchain, startToolchainSetup, timeout)) {
                     SetupOutcome.Ready -> answer(item, granted = true)
                     SetupOutcome.NeedsLinux -> setupFailed(item, needsLinux, graph.agentMessages.appBuildingNeedsLinux)
-                    is SetupOutcome.Failed -> setupFailed(item, failed(shortReason(outcome.reason)), outcome.reason)
+                    is SetupOutcome.Failed -> setupFailed(
+                        item,
+                        failed(outcome.kind, outcome.detail),
+                        setupReasonForModel(graph.agentMessages, outcome.kind, outcome.detail),
+                    )
                 }
             } finally {
                 _appBuildingSetup.value = null
@@ -466,6 +474,7 @@ class ChatViewModel(
 
     /** Setting up [item]'s capability failed: the card shows [outcome], and the run hears [reason] as a failure. */
     private fun setupFailed(item: ThreadItem.Capability, outcome: String, reason: String) {
+        if (!stillAsking(_state.value.items, item.key)) return
         replace(item.key) { ThreadItem.Resolved(item.key, outcome, declined = true) }
         submit(item.runId, RunInput.CapabilityChanged(item.capability, granted = false, setupFailure = reason))
     }

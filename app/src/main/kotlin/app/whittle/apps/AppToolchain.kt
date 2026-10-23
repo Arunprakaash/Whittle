@@ -1,5 +1,6 @@
 package app.whittle.apps
 
+import app.whittle.agent.AgentMessages
 import app.whittle.core.common.HarnessError
 import app.whittle.core.common.Outcome
 import app.whittle.tools.api.CapabilityId
@@ -26,6 +27,12 @@ fun interface LinuxShell {
     suspend fun run(command: String, network: Boolean, timeoutSeconds: Int): Outcome<CommandResult>
 }
 
+/**
+ * Why setup, or a removal, stopped short. The words for each are config: agent-messages.json for the agent
+ * ([setupReasonForModel]) and strings.xml for the card and Settings. Only [Output] comes with what the command printed.
+ */
+enum class ToolchainFailure { TimedOut, Interrupted, NotConfirmed, NotStarted, InUse, Output }
+
 sealed interface ToolchainState {
     data object NotInstalled : ToolchainState
 
@@ -33,7 +40,8 @@ sealed interface ToolchainState {
 
     data object Ready : ToolchainState
 
-    data class Failed(val reason: String) : ToolchainState
+    /** [detail] is raw text, a command's output or an exception's message, capped; it is data, never the words shown. */
+    data class Failed(val kind: ToolchainFailure, val detail: String? = null) : ToolchainState
 }
 
 /** What a build needs from the toolchain. */
@@ -87,7 +95,7 @@ class AppToolchain(private val shell: LinuxShell, config: NativeAppsConfig) : Bu
         if (!lock.tryLock()) {
             lock.withLock { }
             return when (val current = _state.value) {
-                is ToolchainState.Failed -> Outcome.Failure(HarnessError.Storage(current.reason))
+                is ToolchainState.Failed -> Outcome.Failure(HarnessError.Storage(current.detail ?: current.kind.name))
                 else -> Outcome.Success(Unit)
             }
         }
@@ -95,18 +103,17 @@ class AppToolchain(private val shell: LinuxShell, config: NativeAppsConfig) : Bu
             _state.value = ToolchainState.Installing
             val script = pins.setupScript.replace(PINS_HASH, hash)
             val failure = when (val ran = shell.run(script, network = true, timeoutSeconds = pins.setupTimeoutSeconds)) {
-                is Outcome.Failure -> ran.error.message
-                is Outcome.Success -> failureOf(ran.value) ?: if (isReady()) null else NOT_CONFIRMED
+                is Outcome.Failure -> failed(ToolchainFailure.Output, ran.error.message)
+                is Outcome.Success -> failureOf(ran.value) ?: if (isReady()) null else failed(ToolchainFailure.NotConfirmed)
             }
             if (failure == null) {
                 _state.value = ToolchainState.Ready
                 return Outcome.Success(Unit)
             }
-            val reason = capped(failure)
-            _state.value = ToolchainState.Failed(reason)
-            return Outcome.Failure(HarnessError.Storage(reason))
+            _state.value = failure
+            return Outcome.Failure(HarnessError.Storage(failure.detail ?: failure.kind.name))
         } catch (cancellation: kotlinx.coroutines.CancellationException) {
-            _state.value = ToolchainState.Failed(CANCELLED)
+            _state.value = failed(ToolchainFailure.Interrupted)
             throw cancellation
         } finally {
             lock.unlock()
@@ -140,37 +147,36 @@ class AppToolchain(private val shell: LinuxShell, config: NativeAppsConfig) : Bu
         }
     }
 
-    /** Deletes the toolchain; the next build asks to set it up again. Refused while a build is using it. */
-    suspend fun remove(): Outcome<Unit> = lock.withLock {
+    /**
+     * Deletes the toolchain, also one whose setup never finished; the next build asks to set it up again. Null once it's
+     * gone; [ToolchainFailure.InUse] while a build is using it, or [ToolchainFailure.Output] when deleting failed.
+     */
+    suspend fun remove(): ToolchainFailure? = lock.withLock {
         val free = holds.withLock {
             if (builds == 0) removing = true
             builds == 0
         }
-        if (!free) return@withLock Outcome.Failure(HarnessError.Storage(IN_USE))
+        if (!free) return@withLock ToolchainFailure.InUse
         try {
-            when (val ran = shell.run("rm -rf $DIRECTORY", network = false, timeoutSeconds = REMOVE_TIMEOUT_SECONDS)) {
-                is Outcome.Failure -> ran
-                is Outcome.Success -> {
-                    val exit = ran.value.exitCode
-                    if (exit == 0) {
-                        _state.value = ToolchainState.NotInstalled
-                        Outcome.Success(Unit)
-                    } else {
-                        Outcome.Failure(HarnessError.Storage(capped(ran.value.stderr.trim()).ifBlank { "Couldn't remove (exit $exit)" }))
-                    }
-                }
+            val ran = (shell.run("rm -rf $DIRECTORY", network = false, timeoutSeconds = REMOVE_TIMEOUT_SECONDS) as? Outcome.Success)?.value
+            if (ran?.exitCode == 0) {
+                _state.value = ToolchainState.NotInstalled
+                null
+            } else {
+                ToolchainFailure.Output
             }
         } finally {
             withContext(NonCancellable) { holds.withLock { removing = false } }
         }
     }
 
-    /** The end of [reason], which holds the error, at most [NativeAppsConfig.maxReasonChars] long. */
-    fun capped(reason: String): String = reason.takeLast(maxReasonChars)
+    /** A failure of [kind], with the end of [detail] (where the error is), at most [NativeAppsConfig.maxReasonChars] long. */
+    fun failed(kind: ToolchainFailure, detail: String? = null): ToolchainState.Failed =
+        ToolchainState.Failed(kind, detail?.trim()?.takeLast(maxReasonChars)?.ifBlank { null })
 
-    private fun failureOf(result: CommandResult): String? = when {
-        result.timedOut -> "Setup took too long"
-        result.exitCode != 0 -> (result.stderr.ifBlank { result.stdout }).trim().ifBlank { "Setup failed (exit ${result.exitCode})" }
+    private fun failureOf(result: CommandResult): ToolchainState.Failed? = when {
+        result.timedOut -> failed(ToolchainFailure.TimedOut)
+        result.exitCode != 0 -> failed(ToolchainFailure.Output, result.stderr.ifBlank { result.stdout })
         else -> null
     }
 
@@ -180,9 +186,6 @@ class AppToolchain(private val shell: LinuxShell, config: NativeAppsConfig) : Bu
         private const val PINS_HASH = "{{pinsHash}}"
         private const val CHECK_TIMEOUT_SECONDS = 30
         private const val REMOVE_TIMEOUT_SECONDS = 300
-        private const val IN_USE = "An app is building"
-        private const val CANCELLED = "Setup was interrupted"
-        private const val NOT_CONFIRMED = "Setup finished but the toolchain isn't ready"
 
         /** The lowercase hex SHA-256 of the pins as JSON; covers the setup script too. */
         fun pinsHash(config: NativeAppsConfig): String {
@@ -192,6 +195,13 @@ class AppToolchain(private val shell: LinuxShell, config: NativeAppsConfig) : Bu
     }
 }
 
+/**
+ * Whether Settings offers Remove: for a toolchain that is set up, or for files a setup left without finishing ([size]
+ * is what's on disk), but not while setup runs or an app is building.
+ */
+fun canRemoveToolchain(ready: Boolean, size: String?, installing: Boolean, building: Boolean): Boolean =
+    (ready || size != null) && !installing && !building
+
 /** How the user's Allow on the app-building card ended. */
 sealed interface SetupOutcome {
     data object Ready : SetupOutcome
@@ -199,7 +209,7 @@ sealed interface SetupOutcome {
     /** Linux isn't set up, so app building's setup didn't start. */
     data object NeedsLinux : SetupOutcome
 
-    data class Failed(val reason: String) : SetupOutcome
+    data class Failed(val kind: ToolchainFailure, val detail: String? = null) : SetupOutcome
 }
 
 /**
@@ -221,21 +231,32 @@ suspend fun awaitSetup(toolchain: AppToolchain, start: () -> Unit, startTimeout:
     try {
         start()
     } catch (exception: RuntimeException) {
-        return SetupOutcome.Failed(toolchain.capped(exception.message ?: NOT_STARTED))
+        return toolchain.failed(ToolchainFailure.NotStarted, exception.message).let { SetupOutcome.Failed(it.kind, it.detail) }
     }
     // A Failed left from an earlier try isn't this run's outcome: wait for the run to start over first.
     val before = toolchain.state.value
     val begun = withTimeoutOrNull(startTimeout) {
         toolchain.state.first { if (before is ToolchainState.Failed) it is ToolchainState.Installing || it is ToolchainState.Ready else it !is ToolchainState.NotInstalled }
-    } ?: return if (toolchain.isReady()) SetupOutcome.Ready else SetupOutcome.Failed(NOT_STARTED)
+    } ?: return if (toolchain.isReady()) SetupOutcome.Ready else SetupOutcome.Failed(ToolchainFailure.NotStarted)
     if (begun is ToolchainState.Ready) return SetupOutcome.Ready
     return when (val ended = toolchain.state.first { it is ToolchainState.Ready || it is ToolchainState.Failed }) {
-        is ToolchainState.Failed -> SetupOutcome.Failed(ended.reason)
+        is ToolchainState.Failed -> SetupOutcome.Failed(ended.kind, ended.detail)
         else -> SetupOutcome.Ready
     }
 }
 
-/** The line of a setup failure the card shows: its last one, where the error usually is. */
+/** The line of a failure's detail the card shows: its last one, where the error usually is. */
 fun shortReason(reason: String): String = reason.lines().lastOrNull { it.isNotBlank() }?.trim() ?: reason.trim()
 
-private const val NOT_STARTED = "Setup didn't start"
+/** What the agent is told about a failed setup: the config words for [kind], then the raw [detail] on its own line. */
+fun setupReasonForModel(messages: AgentMessages, kind: ToolchainFailure, detail: String?): String {
+    val words = when (kind) {
+        ToolchainFailure.TimedOut -> messages.appSetupTimedOut
+        ToolchainFailure.Interrupted -> messages.appSetupInterrupted
+        ToolchainFailure.NotConfirmed -> messages.appSetupNotConfirmed
+        ToolchainFailure.NotStarted -> messages.appSetupNotStarted
+        ToolchainFailure.InUse -> messages.appSetupInUse
+        ToolchainFailure.Output -> messages.appSetupOutput
+    }
+    return if (detail.isNullOrBlank()) words else words + "\n" + detail
+}

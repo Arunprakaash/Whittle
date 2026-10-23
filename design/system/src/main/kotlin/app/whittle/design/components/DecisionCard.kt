@@ -58,7 +58,7 @@ data class DecisionUi(
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun DecisionCard(decision: DecisionUi, onApprove: () -> Unit, onDecline: () -> Unit, modifier: Modifier = Modifier) {
+fun DecisionCard(decision: DecisionUi, onApprove: () -> Unit, onDecline: () -> Unit, modifier: Modifier = Modifier, declineEnabled: Boolean = true) {
     val colors = MaterialTheme.colorScheme
     val haptics = WhittleTheme.haptics
     Column(
@@ -106,7 +106,7 @@ fun DecisionCard(decision: DecisionUi, onApprove: () -> Unit, onDecline: () -> U
                 WhittleIcon(decision.approveIcon, size = WhittleSize.Icon.m)
                 Text(decision.approveLabel, Modifier.padding(start = WhittleSpace.s))
             }
-            TextButton(onClick = { haptics.perform(WhittleHaptic.Reject); onDecline() }, shapes = ButtonDefaults.shapes()) {
+            TextButton(onClick = { haptics.perform(WhittleHaptic.Reject); onDecline() }, enabled = declineEnabled, shapes = ButtonDefaults.shapes()) {
                 Text(decision.declineLabel)
             }
         }

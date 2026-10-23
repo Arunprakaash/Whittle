@@ -63,8 +63,9 @@ import app.whittle.design.components.segmentedShape
 import app.whittle.design.tokens.WhittleRadius
 import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
+import app.whittle.apps.ToolchainFailure
 import app.whittle.apps.ToolchainState
-import app.whittle.core.common.Outcome
+import app.whittle.apps.canRemoveToolchain
 import app.whittle.onboarding.ONBOARDING_STEPS
 import app.whittle.onboarding.OnboardingSteps
 import kotlinx.coroutines.launch
@@ -220,7 +221,7 @@ fun LinuxWorkspaceScreen(graph: AppGraph, onBack: () -> Unit) {
 
 /**
  * The app-building toolchain: whether it's set up (the ready marker, not just files on disk) and its size, with Remove
- * confirmed in its own dialog. Remove waits while an app is building.
+ * confirmed in its own dialog. A setup that never finished can be removed too; nothing can while an app is building.
  */
 @Composable
 private fun AppBuildingRow(graph: AppGraph) {
@@ -229,21 +230,23 @@ private fun AppBuildingRow(graph: AppGraph) {
     val building by toolchain.building.collectAsStateWithLifecycle()
     var confirming by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
-    var removeFailed by remember { mutableStateOf(false) }
-    LaunchedEffect(state) { removeFailed = false }
+    var removeFailed by remember { mutableStateOf<ToolchainFailure?>(null) }
+    LaunchedEffect(state) { removeFailed = null }
     val installed by produceState<Installed?>(null, state, refresh) {
         value = if (state is ToolchainState.Installing) null else Installed(toolchain.isReady(), toolchain.size())
     }
     val ready = installed?.ready == true
-    val removable = ready && state !is ToolchainState.Installing && !building
+    val size = installed?.size
+    val removable = canRemoveToolchain(ready, size, installing = state is ToolchainState.Installing, building = building)
     SettingsRow(
         icon = "build",
         title = stringResource(R.string.app_toolchain_row_title),
         subtitle = when {
             state is ToolchainState.Installing -> stringResource(R.string.app_toolchain_row_installing)
-            ready && building -> stringResource(R.string.app_toolchain_row_building)
-            removeFailed -> stringResource(R.string.app_toolchain_remove_failed)
-            ready -> installed?.size?.let { stringResource(R.string.app_toolchain_row_installed, it) } ?: stringResource(R.string.app_toolchain_row_ready)
+            building || removeFailed == ToolchainFailure.InUse -> stringResource(R.string.app_toolchain_row_building)
+            removeFailed != null -> stringResource(R.string.app_toolchain_remove_failed)
+            ready -> size?.let { stringResource(R.string.app_toolchain_row_installed, it) } ?: stringResource(R.string.app_toolchain_row_ready)
+            size != null -> stringResource(R.string.app_toolchain_row_partial, size)
             else -> stringResource(R.string.app_toolchain_row_missing)
         },
         shape = RoundedCornerShape(WhittleRadius.l),
@@ -259,7 +262,7 @@ private fun AppBuildingRow(graph: AppGraph) {
                 TextButton(onClick = {
                     confirming = false
                     graph.appScope.launch {
-                        removeFailed = toolchain.remove() is Outcome.Failure
+                        removeFailed = toolchain.remove()
                         refresh++
                     }
                 }) { Text(stringResource(R.string.app_toolchain_remove), color = MaterialTheme.colorScheme.error) }

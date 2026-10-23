@@ -14,6 +14,8 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.content.ContextCompat
 import app.whittle.apps.APP_BUILDING
+import app.whittle.apps.ToolchainFailure
+import app.whittle.apps.shortReason
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.rememberUpdatedState
@@ -466,6 +468,8 @@ private fun ThreadRow(
                     item.presentation.toUi(item.key),
                     onApprove = { requestCapability(item) },
                     onDecline = { viewModel.answer(item, granted = false) },
+                    // Setup is under way; its end answers the card.
+                    declineEnabled = settingUp != item.key,
                 )
                 if (settingUp == item.key) {
                     Text(
@@ -775,7 +779,10 @@ private fun rememberCapabilityRequest(items: List<ThreadItem>, viewModel: ChatVi
             item.capability == APP_BUILDING -> viewModel.setUpAppBuilding(
                 item,
                 needsLinux = resources.getString(R.string.app_building_needs_linux),
-                failed = { reason -> resources.getString(R.string.app_building_setup_failed, reason) },
+                failed = { kind, detail ->
+                    val why = if (kind == ToolchainFailure.Output && detail != null) shortReason(detail) else resources.getString(setupFailureWords(kind))
+                    resources.getString(R.string.app_building_setup_failed, why)
+                },
             )
             permission == null || AndroidCapabilities.isGranted(context, item.capability) -> viewModel.answer(item, granted = true)
             else -> {
@@ -784,6 +791,16 @@ private fun rememberCapabilityRequest(items: List<ThreadItem>, viewModel: ChatVi
             }
         }
     }
+}
+
+/** The card's words for why app building's setup failed. */
+private fun setupFailureWords(kind: ToolchainFailure): Int = when (kind) {
+    ToolchainFailure.TimedOut -> R.string.app_setup_timed_out
+    ToolchainFailure.Interrupted -> R.string.app_setup_interrupted
+    ToolchainFailure.NotConfirmed -> R.string.app_setup_not_confirmed
+    ToolchainFailure.NotStarted -> R.string.app_setup_not_started
+    ToolchainFailure.InUse -> R.string.app_setup_in_use
+    ToolchainFailure.Output -> R.string.app_setup_output
 }
 
 /** Ticks while the status line is visible. */

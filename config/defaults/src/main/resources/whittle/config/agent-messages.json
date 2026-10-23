@@ -61,5 +61,11 @@
   "appBuildTimedOut": "The build ran out of time after {{seconds}} seconds.",
   "appVersionMismatch": "The built app's version isn't the one Whittle set. Remove android:versionCode and android:versionName from AndroidManifest.xml, because Whittle sets them, and build again.",
   "appSdkMismatch": "The built app's minimum or target SDK isn't the one Whittle sets. Remove the <uses-sdk> element from AndroidManifest.xml, because Whittle sets the SDK versions, and build again.",
-  "appBuildingNeedsLinux": "Linux isn't set up on this phone yet, and building apps runs in it. The user can set it up in Settings › Linux workspace, then ask again."
+  "appBuildingNeedsLinux": "Linux isn't set up on this phone yet, and building apps runs in it. The user can set it up in Settings › Linux workspace, then ask again.",
+  "appSetupTimedOut": "Setup ran out of time, perhaps on a slow connection.",
+  "appSetupInterrupted": "Setup was interrupted before it finished, for example because Android stopped it.",
+  "appSetupNotConfirmed": "Setup finished, but the build tools didn't check out as ready.",
+  "appSetupNotStarted": "Setup didn't start.",
+  "appSetupInUse": "An app was building, so the build tools couldn't be changed.",
+  "appSetupOutput": "Setup stopped with an error."
 }

@@ -95,6 +95,13 @@ data class AgentMessages(
     val appSdkMismatch: String,
     /** The reason given with [capabilitySetupFailed] when app building can't be set up because Linux isn't. */
     val appBuildingNeedsLinux: String,
+    /** Why app building's setup failed, one per kind; any raw output follows on its own line. */
+    val appSetupTimedOut: String,
+    val appSetupInterrupted: String,
+    val appSetupNotConfirmed: String,
+    val appSetupNotStarted: String,
+    val appSetupInUse: String,
+    val appSetupOutput: String,
 ) : VersionedConfig {
     init {
         requirePlaceholders(attachments, FILES)
@@ -159,6 +166,12 @@ data class AgentMessages(
         requirePlaceholders(appVersionMismatch)
         requirePlaceholders(appSdkMismatch)
         requirePlaceholders(appBuildingNeedsLinux)
+        requirePlaceholders(appSetupTimedOut)
+        requirePlaceholders(appSetupInterrupted)
+        requirePlaceholders(appSetupNotConfirmed)
+        requirePlaceholders(appSetupNotStarted)
+        requirePlaceholders(appSetupInUse)
+        requirePlaceholders(appSetupOutput)
     }
 
     fun unknownTool(tool: String): String = render(unknownTool, TOOL to tool)

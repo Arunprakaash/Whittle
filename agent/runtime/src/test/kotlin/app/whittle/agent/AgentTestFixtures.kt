@@ -127,6 +127,12 @@ internal val testMessages = AgentMessages(
     appVersionMismatch = "version is Whittle's",
     appSdkMismatch = "sdks are Whittle's",
     appBuildingNeedsLinux = "needs linux",
+    appSetupTimedOut = "setup timed out",
+    appSetupInterrupted = "setup interrupted",
+    appSetupNotConfirmed = "setup not confirmed",
+    appSetupNotStarted = "setup not started",
+    appSetupInUse = "toolchain in use",
+    appSetupOutput = "setup printed an error",
 )
 
 internal val testRetry = ModelRetryPolicy(

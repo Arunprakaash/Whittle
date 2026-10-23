@@ -89,6 +89,18 @@ class AppCardStateTest {
     }
 
     @Test
+    fun `a capability card is answered only while it is still asking`() {
+        val asking = ThreadItem.Capability(
+            "c1", app.whittle.core.model.RunId("run"), app.whittle.tools.api.CapabilityId("app_building"),
+            app.whittle.tools.presentation.CapabilityPresentation("build", "Set up?", "", "Allow", "Not now", "Allowed", "Not allowed"),
+        )
+        assertEquals(true, stillAsking(listOf(card, asking), "c1"))
+        // Declined while setup ran: the card is a chip now, and setup's end must leave it alone.
+        assertEquals(false, stillAsking(listOf(card, ThreadItem.Resolved("c1", "Not allowed", declined = true)), "c1"))
+        assertEquals(false, stillAsking(emptyList(), "c1"))
+    }
+
+    @Test
     fun `the project folder comes from the card's APK path`() {
         assertEquals("notes", projectOf(card))
     }

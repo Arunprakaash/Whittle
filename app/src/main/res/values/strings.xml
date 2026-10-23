@@ -445,6 +445,13 @@
     <string name="app_building_setting_up">Setting up app building…</string>
     <string name="app_building_needs_linux">Set up Linux first, in Settings › Linux</string>
     <string name="app_building_setup_failed">Couldn\'t set up app building: %1$s</string>
+    <string name="app_setup_timed_out">it took too long</string>
+    <string name="app_setup_interrupted">it was interrupted</string>
+    <string name="app_setup_not_confirmed">the tools weren\'t ready afterwards</string>
+    <string name="app_setup_not_started">it didn\'t start</string>
+    <string name="app_setup_in_use">an app is building</string>
+    <string name="app_setup_output">it stopped with an error</string>
+    <string name="app_toolchain_row_partial">Setup didn\'t finish, %1$s on disk. Tap to remove it.</string>
     <string name="app_toolchain_remove_body">The compiler and tools go. Your apps\' projects stay, and Whittle asks again before it builds one.</string>
     <string name="notify_linux_title">Setting up Linux</string>
     <string name="notify_linux_public">Whittle is setting up Linux</string>
