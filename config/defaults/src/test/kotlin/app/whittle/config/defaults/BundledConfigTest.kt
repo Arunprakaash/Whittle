@@ -84,6 +84,7 @@ class BundledConfigTest {
         listOf("babbage-002", "chatgpt-image-latest", "computer-use-preview", "text-embedding-3-small", "gpt-3.5-turbo-instruct")
             .forEach { assertEquals(false, openai.capabilitiesFor(app.whittle.core.model.ModelId(it))?.toolCalling, it) }
         assertEquals(true, openai.capabilitiesFor(app.whittle.core.model.ModelId("gpt-5.6-terra"))?.toolCalling)
+        assertEquals(true, openai.capabilitiesFor(app.whittle.core.model.ModelId("o3"))?.vision)
         assertEquals(null, openai.capabilitiesFor(app.whittle.core.model.ModelId("gpt-4o")), "unlisted chat models use the fallback")
     }
 
@@ -93,9 +94,16 @@ class BundledConfigTest {
             loader.load(ConfigFiles.providerCatalog, ProviderCatalog.serializer(), ProviderCatalog.SCHEMA_VERSION),
         ).value
         val openai = catalog.providers.single { it.id.value == "openai" }
-        listOf("gpt-6-luna", "gpt-5.6-luna", "gpt-5.6-terra")
-            .forEach { assertEquals(true, openai.lists(app.whittle.core.model.ModelId(it)), it) }
-        listOf("gpt-4o", "gpt-5.6-terra-mini", "gpt-5.6-luna-2026-09-01", "o3")
+        // Current chat models that take function tools, streaming and reasoning effort through the Responses API.
+        listOf(
+            "gpt-6-astra", "gpt-6.1-sol", "gpt-6-luna", "gpt-6-sol", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
+            "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.2", "gpt-5", "gpt-5-mini", "gpt-5-nano", "o3",
+        ).forEach { assertEquals(true, openai.lists(app.whittle.core.model.ModelId(it)), it) }
+        // Pro models (slow, and not all stream), deprecated ones, dated snapshots, and models that can't chat.
+        listOf(
+            "gpt-5.5-pro", "o3-pro", "gpt-5.4-nano", "gpt-4-turbo", "gpt-4", "gpt-4o", "gpt-live-1", "chat-latest",
+            "gpt-5.6-cyber", "gpt-5.5-2026-04-23", "gpt-5.6-terra-mini", "gpt-image-2",
+        )
             .forEach { assertEquals(false, openai.lists(app.whittle.core.model.ModelId(it)), it) }
         val openrouter = catalog.providers.single { it.id.value == "openrouter" }
         assertEquals(true, openrouter.lists(app.whittle.core.model.ModelId("anthropic/claude-opus-5.5")))

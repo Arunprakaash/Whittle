@@ -39,9 +39,21 @@
       "generationPath": "responses",
       "modelsPath": "models",
       "listedModelIdPatterns": [
+        "gpt-6-astra",
+        "gpt-6.1-sol",
         "gpt-6-luna",
+        "gpt-6-sol",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
         "gpt-5.6-luna",
-        "gpt-5.6-terra"
+        "gpt-5.5",
+        "gpt-5.4",
+        "gpt-5.4-mini",
+        "gpt-5.2",
+        "gpt-5",
+        "gpt-5-mini",
+        "gpt-5-nano",
+        "o3"
       ],
       "keyCheckPath": "models",
       "auth": {
@@ -220,6 +232,16 @@
             "vision": false,
             "promptCaching": false,
             "reasoning": false
+          }
+        },
+        {
+          "modelIdPattern": "o3",
+          "capabilities": {
+            "toolCalling": true,
+            "parallelToolCalls": true,
+            "vision": true,
+            "promptCaching": true,
+            "reasoning": true
           }
         },
         {
