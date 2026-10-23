@@ -119,5 +119,6 @@
       "sentence": "Can change your call history"
     }
   ],
-  "crashAuthoritySuffix": ".apps.crashes"
+  "crashAuthoritySuffix": ".apps.crashes",
+  "palette": ["#2E7D32", "#1565C0", "#6A1B9A", "#C62828", "#EF6C00", "#00838F", "#AD1457", "#4E342E"]
 }

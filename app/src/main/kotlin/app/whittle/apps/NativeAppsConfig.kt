@@ -26,6 +26,8 @@ data class NativeAppsConfig(
     val powerful: List<PowerfulDeclaration>,
     /** Added to Whittle's application id to make the authority crash reports go to. */
     val crashAuthoritySuffix: String,
+    /** The launcher icon colours (`#RRGGBB`) `create_app` picks from, by a hash of the app's name. */
+    val palette: List<String>,
 ) : VersionedConfig {
     init {
         require(packagePrefix.endsWith(".")) { "packagePrefix must end with a dot" }
@@ -34,10 +36,12 @@ data class NativeAppsConfig(
         require(maxErrors > 0 && maxErrorChars > 0) { "Error limits must be positive" }
         require(template.isNotEmpty()) { "template must name at least one file" }
         require(crashAuthoritySuffix.startsWith(".")) { "crashAuthoritySuffix must start with a dot" }
+        require(palette.isNotEmpty() && palette.all { COLOUR.matches(it) }) { "palette must hold #RRGGBB colours" }
     }
 
     companion object {
         const val SCHEMA_VERSION = 1
+        private val COLOUR = Regex("^#[0-9A-F]{6}$")
         val FILE = ConfigName("native-apps.json")
     }
 }

@@ -113,6 +113,9 @@ internal val testMessages = AgentMessages(
     attachmentLine = "- {{path}} ({{size}})",
     attachmentImagesUnseen = "images unseen",
     imageUnavailable = "no image {{path}}",
+    appCreated = "created {{name}} in {{project}} as {{package}}",
+    appNameEmpty = "no name",
+    appNoWorkspace = "no workspace",
 )
 
 internal val testRetry = ModelRetryPolicy(

@@ -220,6 +220,7 @@ class BundledAppConfigTest {
         val buildAllowed = setOf("project", "slug", "versionCode", "minSdk", "targetSdk")
         assertTrue(placeholder.findAll(config.buildScript).map { it.groupValues[1] }.toSet().all { it in buildAllowed })
         assertEquals(setOf("pinsHash"), placeholder.findAll(toolchain.setupScript).map { it.groupValues[1] }.toSet())
+        assertTrue(config.palette.size >= 4)
         val named = config.powerful.map { it.name }
         listOf("BIND_ACCESSIBILITY_SERVICE", "BIND_NOTIFICATION_LISTENER_SERVICE", "SYSTEM_ALERT_WINDOW", "READ_SMS").forEach {
             assertTrue("android.permission.$it" in named, it)

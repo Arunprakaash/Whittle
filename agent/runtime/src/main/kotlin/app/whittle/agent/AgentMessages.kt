@@ -76,6 +76,10 @@ data class AgentMessages(
     val attachmentImagesUnseen: String,
     /** Stands in for an attached image that can no longer be read from the workspace. */
     val imageUnavailable: String,
+    /** create_app made a project; [NAME], [PROJECT] (its folder) and [PACKAGE] say which. */
+    val appCreated: String,
+    val appNameEmpty: String,
+    val appNoWorkspace: String,
 ) : VersionedConfig {
     init {
         requirePlaceholders(attachments, FILES)
@@ -126,6 +130,9 @@ data class AgentMessages(
         requirePlaceholders(automationTimeInvalid)
         requirePlaceholders(automationDaysInvalid)
         requirePlaceholders(automationSaveFailed, DETAIL)
+        requirePlaceholders(appCreated, NAME, PROJECT, PACKAGE)
+        requirePlaceholders(appNameEmpty)
+        requirePlaceholders(appNoWorkspace)
     }
 
     fun unknownTool(tool: String): String = render(unknownTool, TOOL to tool)
@@ -209,15 +216,19 @@ data class AgentMessages(
 
     fun imageUnavailable(path: String): String = render(imageUnavailable, PATH to path)
 
+    fun appCreated(name: String, project: String, packageName: String): String =
+        render(appCreated, NAME to name, PROJECT to project, PACKAGE to packageName)
+
     /** The memory section of the system prompt: one line per remembered fact, as (id, text) pairs. */
     fun memories(items: List<Pair<String, String>>): String =
         if (items.isEmpty()) noMemories else items.joinToString("\n") { (id, text) -> render(memoryLine, ID to id, TEXT to text) }
 
     companion object {
-        const val SCHEMA_VERSION = 11
+        const val SCHEMA_VERSION = 12
         private const val FILES = "files"
         private const val SIZE = "size"
         private const val TOOL = "tool"
+        private const val PACKAGE = "package"
         private const val DETAIL = "detail"
         private const val LIMIT = "limit"
         private const val OUTPUT = "output"
