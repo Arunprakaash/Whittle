@@ -14,8 +14,8 @@ android {
         // there only while it targets this SDK or lower, so Whittle ships on GitHub, not Play (docs/linux-workspace.md).
         targetSdk = libs.versions.androidLinuxTargetSdk.get().toInt()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionCode = 15
-        versionName = "0.13.0"
+        versionCode = 16
+        versionName = "0.14.0"
         // PostHog's public project key comes from your Gradle properties, never from the repo.
         // Without it, telemetry stays on the device.
         val postHogProjectKey = providers.gradleProperty("whittle.posthogProjectKey").orElse("").get()
