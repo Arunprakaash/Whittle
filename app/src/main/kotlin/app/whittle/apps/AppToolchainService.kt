@@ -45,7 +45,7 @@ class AppToolchainService : Service() {
     }
 
     companion object {
-        private const val TAG = "LinuxWorkspace"
+        private const val TAG = "AppToolchain"
 
         fun start(context: Context) {
             context.startForegroundService(Intent(context, AppToolchainService::class.java))
