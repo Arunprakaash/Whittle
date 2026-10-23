@@ -23,6 +23,18 @@
     "rate_limit",
     "billing_error"
   ],
+  "limitNames": {
+    "five_hour": "5-hour",
+    "seven_day": "weekly",
+    "seven_day_opus": "weekly Opus",
+    "seven_day_sonnet": "weekly Sonnet"
+  },
+  "planNames": {
+    "pro": "Pro",
+    "max": "Max",
+    "team": "Team",
+    "enterprise": "Enterprise"
+  },
   "declinedMessage": "The user didn't allow this step. Don't try it again; carry on without it or ask the user.",
   "outputChars": 20000,
   "models": [

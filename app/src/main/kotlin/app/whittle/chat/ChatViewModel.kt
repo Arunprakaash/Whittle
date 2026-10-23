@@ -30,6 +30,7 @@ import app.whittle.core.model.ContentBlock
 import app.whittle.core.model.Role
 import android.net.Uri
 import app.whittle.attachments.Attachment
+import app.whittle.claudecode.ClaudeCodeLimit
 import app.whittle.attachments.AttachmentNames
 import app.whittle.attachments.AttachmentProblem
 import app.whittle.attachments.Imported
@@ -861,16 +862,19 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         _state.update { it.copy(status = null) }
     }
 
-    private fun end(notice: NoticeKind, statusCode: Int? = null, detail: String? = null) {
+    private fun end(notice: NoticeKind, statusCode: Int? = null, detail: String? = null, limit: ClaudeCodeLimit? = null) {
         _events.tryEmit(ChatEvent.Finished(failed = notice.isFailure))
         finishNarration()
-        _state.update { it.copy(status = null, items = it.items + ThreadItem.Notice(key(), notice, statusCode, detail)) }
+        val window = limit?.window?.let(graph.claudeCode.config.limitNames::get)
+        val item = ThreadItem.Notice(key(), notice, statusCode, detail, window, limit?.resetsAtMillis)
+        _state.update { it.copy(status = null, items = it.items + item) }
     }
 
     /** Claude Code's failures in its own words: signed out, the Claude plan used up, or what it reported. */
     private fun endClaudeCode(error: HarnessError) = when {
         error is HarnessError.Authentication -> end(NoticeKind.ClaudeCodeSignedOut)
-        error is HarnessError.Provider && error.statusCode == TOO_MANY_REQUESTS -> end(NoticeKind.ClaudeCodeLimit, detail = error.message)
+        error is HarnessError.Provider && error.statusCode == TOO_MANY_REQUESTS ->
+            end(NoticeKind.ClaudeCodeLimit, detail = error.message, limit = graph.claudeCode.limit.value)
         else -> end(NoticeKind.ClaudeCodeFailed, detail = error.message)
     }
 

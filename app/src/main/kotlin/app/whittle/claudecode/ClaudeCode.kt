@@ -20,6 +20,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.io.File
 
 /** Where Claude Code stands on this phone. */
@@ -33,10 +37,38 @@ sealed interface ClaudeCodeState {
 
     data object Installing : ClaudeCodeState
 
-    data class Ready(val signedIn: Boolean) : ClaudeCodeState
+    /** [account] is who's signed in, when Claude Code says. */
+    data class Ready(val signedIn: Boolean, val account: ClaudeCodeAccount? = null) : ClaudeCodeState
 
     /** Installing or removing failed; [detail] is the command's last line. */
     data class Failed(val detail: String) : ClaudeCodeState
+}
+
+/** The Claude account Claude Code is signed in with; either part may be unknown. */
+data class ClaudeCodeAccount(val email: String?, val plan: String?)
+
+/** A Claude plan limit Claude Code reported: which window ([window], Claude Code's name), and when it reopens. */
+data class ClaudeCodeLimit(val window: String?, val resetsAtMillis: Long?)
+
+/** Reads `claude auth status`; pure, so it's tested on the JVM. */
+internal object ClaudeCodeStatus {
+    private val json = Json { ignoreUnknownKeys = true }
+
+    /** The account in the status JSON, with the plan by [planNames]; null when it names neither. */
+    fun account(output: String, planNames: Map<String, String>): ClaudeCodeAccount? {
+        val status = try {
+            json.parseToJsonElement(output.trim()) as? JsonObject
+        } catch (exception: SerializationException) {
+            null
+        } ?: return null
+        val email = (status[EMAIL] as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() }
+        val plan = (status[SUBSCRIPTION] as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() }
+            ?.let { raw -> planNames[raw.lowercase()] ?: raw.replaceFirstChar(Char::uppercaseChar) }
+        return if (email == null && plan == null) null else ClaudeCodeAccount(email, plan)
+    }
+
+    private const val EMAIL = "email"
+    private const val SUBSCRIPTION = "subscriptionType"
 }
 
 /**
@@ -57,7 +89,12 @@ class ClaudeCode(
 
     val sessions = ClaudeCodeSessions(sessionsFile)
 
-    val runner = ClaudeCodeRunner(config, environment, sessions, inbox) { chat -> folder(chat) }
+    private val mutableLimit = MutableStateFlow<ClaudeCodeLimit?>(null)
+
+    /** The last Claude plan limit a task ran into, for the chat to say which one and when it reopens. */
+    val limit: StateFlow<ClaudeCodeLimit?> = mutableLimit.asStateFlow()
+
+    val runner = ClaudeCodeRunner(config, environment, sessions, inbox, onLimit = { mutableLimit.value = it }) { chat -> folder(chat) }
 
     /** Whether [model] is one Claude Code runs. */
     fun runs(model: ModelDescriptor?): Boolean = config.enabled && model?.providerId?.value == config.providerId
@@ -113,7 +150,8 @@ class ClaudeCode(
         val version = run(config.versionCommand, config.commandTimeoutSeconds, network = false) ?: return ClaudeCodeState.NoLinux
         if (version.exitCode != 0) return ClaudeCodeState.NotInstalled
         val status = run(config.statusCommand, config.commandTimeoutSeconds, network = false) ?: return ClaudeCodeState.NoLinux
-        return ClaudeCodeState.Ready(signedIn = status.exitCode == 0)
+        val signedIn = status.exitCode == 0
+        return ClaudeCodeState.Ready(signedIn, if (signedIn) ClaudeCodeStatus.account(status.stdout, config.planNames) else null)
     }
 
     /** Null when commands can't run here yet, e.g. before Linux is set up. */

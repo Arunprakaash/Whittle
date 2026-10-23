@@ -45,6 +45,8 @@ class ClaudeCodeRunner(
     private val environment: ShellEnvironment,
     private val sessions: ClaudeCodeSessions,
     private val inbox: RunInbox,
+    /** Told when a task runs into a Claude plan limit. */
+    private val onLimit: (ClaudeCodeLimit) -> Unit,
     /** The folder a chat's task works in: its project, or the whole workspace. */
     private val directory: (WorkspaceId?) -> File?,
 ) {
@@ -109,6 +111,12 @@ class ClaudeCodeRunner(
                         is ClaudeCodeEvent.OtherRequest -> process.write(ClaudeCodeStream.unsupported(event.requestId))
                         is ClaudeCodeEvent.ApiError -> apiError = event.kind
                         is ClaudeCodeEvent.Retrying -> send(RunEvent.ModelRetrying(event.attempt, event.delayMillis))
+                        is ClaudeCodeEvent.RateLimit -> if (event.status == REJECTED) {
+                            val resetsAt = event.resetsAtSeconds?.let { it * MILLIS_PER_SECOND }
+                            onLimit(ClaudeCodeLimit(event.window, resetsAt))
+                            // Claude Code holds the task until the window reopens; the line says it's waiting.
+                            send(RunEvent.ModelRetrying(attempt = 1, delayMillis = resetsAt?.let { (it - System.currentTimeMillis()).coerceAtLeast(0) } ?: 0))
+                        }
                         is ClaudeCodeEvent.Finished -> {
                             results++
                             event.sessionId?.let { session -> chat?.let { sessions.put(it, session) } }
@@ -167,6 +175,8 @@ class ClaudeCodeRunner(
         /** Claude Code's tools read files and the web; what they return informs, never authorizes. */
         val OUTPUT = Provenance.Untrusted("Claude Code")
         const val PARAGRAPH = "\n\n"
+        const val REJECTED = "rejected"
+        const val MILLIS_PER_SECOND = 1000L
         const val LIMIT_STATUS = 429
         const val UNKNOWN_STATUS = 0
         const val NO_WORKSPACE = "The workspace isn't available"

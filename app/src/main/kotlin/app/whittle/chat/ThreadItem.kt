@@ -119,6 +119,9 @@ sealed interface ThreadItem {
         val statusCode: Int? = null,
         /** What the model's own tool said, for notices that show it, such as when a Claude plan resets. */
         val detail: String? = null,
+        /** For a Claude plan limit: which one, as the notice says it ("5-hour"), and when it reopens. */
+        val limit: String? = null,
+        val resetsAtMillis: Long? = null,
     ) : ThreadItem
 
     /** A run that was still working when the app closed. Continuing it is the user's call. */

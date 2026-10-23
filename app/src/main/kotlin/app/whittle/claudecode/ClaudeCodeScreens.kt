@@ -139,6 +139,7 @@ fun ClaudeCodeSetupScreen(claudeCode: ClaudeCode, onBack: () -> Unit, onSignIn: 
                 SupportingNote("swap_horiz", stringResource(R.string.claude_code_term_switch))
             }
             when (val current = state) {
+                is ClaudeCodeState.Ready -> if (current.signedIn) SupportingNote("person", accountLine(current.account, signedIn = true))
                 ClaudeCodeState.NoLinux -> Problem(stringResource(R.string.claude_code_no_linux))
                 is ClaudeCodeState.Failed -> Problem(stringResource(R.string.claude_code_failed, current.detail))
                 else -> Unit
@@ -311,7 +312,7 @@ fun ClaudeCodePickerScreen(
                     Column(Modifier.weight(1f)) {
                         Text(claudeCode.config.displayName, style = MaterialTheme.typography.titleSmall)
                         Text(
-                            stringResource(if (signedIn) R.string.claude_code_signed_in else R.string.claude_code_signed_out),
+                            accountLine((state as? ClaudeCodeState.Ready)?.takeIf { it.signedIn }?.account, signedIn),
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.onSurfaceVariant,
                         )
@@ -471,6 +472,16 @@ private fun NumberedRow(number: Int, title: String, detail: String, shape: Round
             Text(detail, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         }
     }
+}
+
+/** Who's signed in, as far as Claude Code says: "you@example.com · Max plan", or the plan, or just signed in. */
+@Composable
+private fun accountLine(account: ClaudeCodeAccount?, signedIn: Boolean): String = when {
+    !signedIn -> stringResource(R.string.claude_code_signed_out)
+    account?.email != null && account.plan != null -> stringResource(R.string.claude_code_account, account.email, account.plan)
+    account?.email != null -> stringResource(R.string.claude_code_signed_in_as, account.email)
+    account?.plan != null -> stringResource(R.string.claude_code_account_plan, account.plan)
+    else -> stringResource(R.string.claude_code_signed_in)
 }
 
 @Composable

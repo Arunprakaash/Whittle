@@ -41,6 +41,10 @@ data class ClaudeCodeConfig(
     val signedOutErrors: Set<String>,
     /** Error kinds that mean the Claude plan is used up for now. */
     val limitErrors: Set<String>,
+    /** Claude Code's usage windows by its name for them, as the notice says them ("your 5-hour limit"). */
+    val limitNames: Map<String, String>,
+    /** Claude plans by Claude Code's name for them, as the picker shows them. */
+    val planNames: Map<String, String>,
     /** What Claude Code is told when the user declines a step on an approval card. */
     val declinedMessage: String,
     /** How much of a setup command's output is kept. */

@@ -75,6 +75,16 @@ class ClaudeCodeStreamTest {
     }
 
     @Test
+    fun `the plan's usage says which limit and when it reopens`() {
+        val line = """{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","resetsAt":1779846000,"rateLimitType":"five_hour"},"session_id":"s"}"""
+        assertEquals(listOf(ClaudeCodeEvent.RateLimit("rejected", "five_hour", 1779846000)), ClaudeCodeStream.parse(line))
+        assertEquals(
+            listOf(ClaudeCodeEvent.RateLimit("allowed", null, null)),
+            ClaudeCodeStream.parse("""{"type":"rate_limit_event","rate_limit_info":{"status":"allowed"}}"""),
+        )
+    }
+
+    @Test
     fun `a message to Claude Code is one line of JSON with the user's words`() {
         val line = ClaudeCodeStream.userMessage("Fix the test\nplease")
         assertTrue('\n' !in line)
@@ -88,7 +98,7 @@ class ClaudeCodeStreamTest {
             schemaVersion = 1, enabled = true, providerId = "claude-code", displayName = "Claude Code", sessionsFileName = "s.json",
             installCommand = "i", removeCommand = "r", versionCommand = "v", statusCommand = "s", signInCommand = "in", signOutCommand = "out",
             runCommand = "claude -p --model {{model}}", resumeArguments = "--resume {{session}}",
-            installTimeoutSeconds = 1, commandTimeoutSeconds = 1, inboxPollMillis = 1, signedOutErrors = emptySet(), limitErrors = emptySet(), declinedMessage = "No", outputChars = 1,
+            installTimeoutSeconds = 1, commandTimeoutSeconds = 1, inboxPollMillis = 1, signedOutErrors = emptySet(), limitErrors = emptySet(), limitNames = emptyMap(), planNames = emptyMap(), declinedMessage = "No", outputChars = 1,
             models = listOf(ClaudeCodeModel("opus", "Opus", "")),
         )
         assertEquals("claude -p --model 'opus'", config.run("opus", null))

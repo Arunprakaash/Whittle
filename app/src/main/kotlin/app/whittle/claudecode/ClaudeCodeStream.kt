@@ -40,6 +40,12 @@ sealed interface ClaudeCodeEvent {
     /** A model call failed; [kind] is Claude Code's error kind, such as `authentication_failed` or `rate_limit`. */
     data class ApiError(val kind: String) : ClaudeCodeEvent
 
+    /**
+     * Where the Claude plan's usage stands: [status] is `allowed`, `allowed_warning` or `rejected`; [window] is
+     * Claude Code's name for the limit, such as `five_hour`, and [resetsAtSeconds] when it reopens.
+     */
+    data class RateLimit(val status: String, val window: String?, val resetsAtSeconds: Long?) : ClaudeCodeEvent
+
     /** A model call failed for a passing reason and is tried again. */
     data class Retrying(val attempt: Int, val delayMillis: Long) : ClaudeCodeEvent
 
@@ -69,6 +75,7 @@ object ClaudeCodeStream {
                 message.obj(MESSAGE)?.array(CONTENT).orEmpty().mapNotNull(::toolUse)
             USER -> message.obj(MESSAGE)?.array(CONTENT).orEmpty().mapNotNull(::toolResult)
             CONTROL_REQUEST -> listOfNotNull(request(message))
+            RATE_LIMIT_EVENT -> listOfNotNull(rateLimit(message.obj(RATE_LIMIT_INFO)))
             RESULT -> listOf(finished(message))
             else -> emptyList()
         }
@@ -152,6 +159,11 @@ object ClaudeCodeStream {
         return ClaudeCodeEvent.ToolResult(id, text, (content[IS_ERROR] as? JsonPrimitive)?.booleanOrNull == true)
     }
 
+    private fun rateLimit(info: JsonObject?): ClaudeCodeEvent? {
+        val status = info?.string(STATUS) ?: return null
+        return ClaudeCodeEvent.RateLimit(status, info.string(RATE_LIMIT_TYPE), info.long(RESETS_AT))
+    }
+
     private fun request(message: JsonObject): ClaudeCodeEvent? {
         val id = message.string(REQUEST_ID) ?: return null
         val request = message.obj(REQUEST) ?: return ClaudeCodeEvent.OtherRequest(id)
@@ -186,6 +198,11 @@ object ClaudeCodeStream {
     private fun JsonObject.array(key: String): JsonArray? = this[key] as? JsonArray
 
     private const val TYPE = "type"
+    private const val RATE_LIMIT_EVENT = "rate_limit_event"
+    private const val RATE_LIMIT_INFO = "rate_limit_info"
+    private const val STATUS = "status"
+    private const val RATE_LIMIT_TYPE = "rateLimitType"
+    private const val RESETS_AT = "resetsAt"
     private const val SUBTYPE = "subtype"
     private const val SYSTEM = "system"
     private const val INIT = "init"
