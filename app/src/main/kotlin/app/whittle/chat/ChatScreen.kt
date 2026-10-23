@@ -4,6 +4,8 @@ import app.whittle.settings.VoiceDefaults
 import app.whittle.design.components.ComposerVoice
 import android.Manifest
 import android.content.pm.PackageManager
+import android.content.Context
+import android.text.format.DateUtils
 import android.widget.Toast
 import app.whittle.attachments.Attachment
 import app.whittle.design.components.ComposerAttach
@@ -839,6 +841,22 @@ private fun noticeText(notice: ThreadItem.Notice): String = when (notice.kind) {
     NoticeKind.FailedNetwork -> stringResource(R.string.notice_failed_network)
     NoticeKind.FailedProvider -> stringResource(R.string.notice_failed_provider, notice.statusCode ?: 0)
     NoticeKind.FailedGeneric -> stringResource(R.string.notice_failed_generic)
+    NoticeKind.ClaudeCodeSignedOut -> stringResource(R.string.notice_claude_code_signed_out)
+    NoticeKind.ClaudeCodeLimit -> {
+        val reopens = notice.resetsAtMillis?.let { reopensAt(LocalContext.current, it) }
+        when {
+            reopens != null && notice.limit != null -> stringResource(R.string.notice_claude_code_limit_window, notice.limit, reopens)
+            reopens != null -> stringResource(R.string.notice_claude_code_limit_reset, reopens)
+            else -> stringResource(R.string.notice_claude_code_limit, notice.detail.orEmpty())
+        }
+    }
+    NoticeKind.ClaudeCodeFailed -> stringResource(R.string.notice_claude_code_failed, notice.detail.orEmpty())
+}
+
+/** When a Claude plan limit reopens: "2:00 PM" today, with the day when it's later than that. */
+private fun reopensAt(context: Context, millis: Long): String {
+    val flags = DateUtils.FORMAT_SHOW_TIME or if (DateUtils.isToday(millis)) 0 else DateUtils.FORMAT_SHOW_WEEKDAY
+    return DateUtils.formatDateTime(context, millis, flags)
 }
 
 /** Permission cards always confirm with a check; their words come from config. */

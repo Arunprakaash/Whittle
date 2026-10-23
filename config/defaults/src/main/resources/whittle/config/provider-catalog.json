@@ -4,6 +4,7 @@
     {
       "id": "openrouter",
       "displayName": "OpenRouter",
+      "tagline": "Your API key, for hundreds of models",
       "keysUrl": "https://openrouter.ai/keys",
       "apiFormat": "OPENAI_CHAT_COMPLETIONS",
       "baseUrl": "https://openrouter.ai/api/v1/",
@@ -33,6 +34,7 @@
     {
       "id": "openai",
       "displayName": "OpenAI",
+      "tagline": "Your API key",
       "keysUrl": "https://platform.openai.com/api-keys",
       "apiFormat": "OPENAI_RESPONSES",
       "baseUrl": "https://api.openai.com/v1/",

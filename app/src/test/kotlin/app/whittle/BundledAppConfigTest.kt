@@ -1,6 +1,7 @@
 package app.whittle
 
 import app.whittle.automations.AutomationsConfig
+import app.whittle.claudecode.ClaudeCodeConfig
 import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.llm.api.HostedTool
 import app.whittle.tools.api.RiskTier
@@ -49,6 +50,14 @@ class BundledAppConfigTest {
         assertTrue(defaults.files.isPdf("receipts.PDF"))
         val missingIcons = defaults.files.fileIcons.values.toSet() + defaults.files.defaultFileIcon + defaults.files.folderIcon - MaterialSymbols.names
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
+    }
+
+    @Test
+    fun `Claude Code installs from Anthropic's repository and offers its models by alias`() {
+        val config = assertIs<Outcome.Success<ClaudeCodeConfig>>(loader.load(ClaudeCodeConfig.FILE, ClaudeCodeConfig.serializer(), ClaudeCodeConfig.SCHEMA_VERSION)).value
+        assertTrue("https://downloads.claude.ai/" in config.installCommand)
+        assertTrue(config.models.map { it.id }.containsAll(listOf("opus", "sonnet", "haiku")))
+        assertTrue("--permission-prompt-tool" in config.runCommand && "stream-json" in config.runCommand)
     }
 
     @Test

@@ -15,6 +15,10 @@ import androidx.activity.SystemBarStyle
 import androidx.compose.runtime.mutableIntStateOf
 import app.whittle.connect.ModelPickerScreen
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.res.stringResource
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
 import app.whittle.background.rememberNotificationPermissionRequest
 import app.whittle.settings.SettingsScreen
 import app.whittle.design.theme.WhittleAppearance
@@ -63,6 +67,14 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import android.content.Intent
 import app.whittle.attachments.SharedItems
+import app.whittle.core.common.getOrNull
+import app.whittle.core.model.ProviderId
+import app.whittle.storage.secrets.SecretKey
+import app.whittle.connect.BringModelScreen
+import app.whittle.connect.ClaudeCodeChoice
+import app.whittle.claudecode.ClaudeCodePickerScreen
+import app.whittle.claudecode.ClaudeCodeSetupScreen
+import app.whittle.claudecode.ClaudeCodeSignInScreen
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -122,10 +134,31 @@ class MainActivity : ComponentActivity() {
                         }
                         Gate.Linux -> LinuxSetupScreen(graph, step = null)
                         Gate.Connect -> {
-                            val connect = viewModel(key = "connect$connectOpenings") { ConnectViewModel(graph) }
-                            ConnectScreen(connect.state.collectAsStateWithLifecycle().value, connect) {
-                                LinuxProgressStrip(graph, compact = false, Modifier.padding(top = WhittleSpace.s))
-                                OnboardingSteps(ONBOARDING_STEP_MODEL, ONBOARDING_STEPS, Modifier.padding(vertical = WhittleSpace.xl))
+                            var claudeCodeStep by rememberSaveable { mutableStateOf(ClaudeCodeStep.None) }
+                            val connectScope = rememberCoroutineScope()
+                            // Signed in: Claude Code's first model is chosen, and the chat opens.
+                            val useClaudeCode = { connectScope.launch { graph.connections.save(graph.claudeCode.models.first()) }; Unit }
+                            when (claudeCodeStep) {
+                                ClaudeCodeStep.SignIn -> ClaudeCodeSignInScreen(graph.claudeCode, onClose = { claudeCodeStep = ClaudeCodeStep.Setup }, onSignedIn = useClaudeCode)
+                                ClaudeCodeStep.Setup -> ClaudeCodeSetupScreen(
+                                    graph.claudeCode,
+                                    onBack = { claudeCodeStep = ClaudeCodeStep.None },
+                                    onSignIn = { claudeCodeStep = ClaudeCodeStep.SignIn },
+                                    onReady = useClaudeCode,
+                                )
+                                ClaudeCodeStep.None -> {
+                                    val connect = viewModel(key = "connect$connectOpenings") { ConnectViewModel(graph) }
+                                    ConnectScreen(
+                                        connect.state.collectAsStateWithLifecycle().value,
+                                        connect,
+                                        header = {
+                                            LinuxProgressStrip(graph, compact = false, Modifier.padding(top = WhittleSpace.s))
+                                            OnboardingSteps(ONBOARDING_STEP_MODEL, ONBOARDING_STEPS, Modifier.padding(vertical = WhittleSpace.xl))
+                                        },
+                                        claudeCode = graph.claudeCode.config.displayName.takeIf { graph.claudeCode.config.enabled },
+                                        onClaudeCode = { claudeCodeStep = ClaudeCodeStep.Setup },
+                                    )
+                                }
                             }
                         }
                         Gate.Chat -> {
@@ -154,6 +187,11 @@ class MainActivity : ComponentActivity() {
                             var files by rememberSaveable(stateSaver = filesOpeningSaver) { mutableStateOf<FilesOpening?>(null) }
                             val connections by graph.connectors.all.collectAsStateWithLifecycle()
                             var pickerFromChat by rememberSaveable { mutableStateOf(false) }
+                            // The provider the model picker shows when it isn't the current model's (back from Claude Code).
+                            var pickerProvider by remember { mutableStateOf<ProviderId?>(null) }
+                            var choosingProvider by rememberSaveable { mutableStateOf(false) }
+                            var switchingTo by remember { mutableStateOf<ProviderId?>(null) }
+                            var claudeCodeStep by rememberSaveable { mutableStateOf(ClaudeCodeStep.None) }
                             val incoming by shared.collectAsStateWithLifecycle()
                             LaunchedEffect(incoming) {
                                 val items = incoming ?: return@LaunchedEffect
@@ -194,14 +232,101 @@ class MainActivity : ComponentActivity() {
                                 ConnectionLibraryScreen(graph, onBack = { showingConnectionLibrary = false; showingSettings = true })
                             } else if (toolsConnection != null) {
                                 ConnectionToolsScreen(graph, toolsConnection, onBack = { toolsOf = null; showingSettings = true })
+                            } else if (showingModelPicker && choosingProvider) {
+                                val claudeCodeInUse = graph.claudeCode.runs(state.model) && pickerProvider == null
+                                val shownProvider = pickerProvider ?: state.model?.providerId?.takeUnless { claudeCodeInUse }
+                                BringModelScreen(
+                                    providers = graph.providers.providers,
+                                    selected = shownProvider,
+                                    claudeCode = ClaudeCodeChoice(graph.claudeCode.config.displayName, claudeCodeInUse).takeIf { graph.claudeCode.config.enabled },
+                                    onProvider = { id ->
+                                        scope.launch {
+                                            // A provider whose key is still saved lists its models; another one is connected with its key.
+                                            if (graph.secrets.get(SecretKey.providerApiKey(id)).getOrNull() != null) {
+                                                pickerProvider = id.takeUnless { it == state.model?.providerId }
+                                                pickerOpenings += 1
+                                                choosingProvider = false
+                                            } else {
+                                                switchingTo = id
+                                            }
+                                        }
+                                    },
+                                    onClaudeCode = {
+                                        choosingProvider = false
+                                        if (!claudeCodeInUse) claudeCodeStep = ClaudeCodeStep.Setup
+                                    },
+                                    onBack = { choosingProvider = false },
+                                )
+                                switchingTo?.let { target ->
+                                    val leaving = graph.providers.providers.firstOrNull { it.id == state.model?.providerId }
+                                    if (leaving == null) {
+                                        // Nothing to forget (Claude Code is in use): connect the new provider.
+                                        LaunchedEffect(target) {
+                                            switchingTo = null
+                                            choosingProvider = false
+                                            showingModelPicker = false
+                                            pickerFromChat = false
+                                            pickerProvider = null
+                                            connectOpenings += 1
+                                            chat.switchProvider()
+                                        }
+                                    } else {
+                                        AlertDialog(
+                                            onDismissRequest = { switchingTo = null },
+                                            title = { Text(stringResource(R.string.model_picker_switch_title)) },
+                                            text = { Text(stringResource(R.string.model_picker_switch_body, leaving.displayName)) },
+                                            confirmButton = {
+                                                TextButton(onClick = {
+                                                    switchingTo = null
+                                                    choosingProvider = false
+                                                    showingModelPicker = false
+                                                    pickerFromChat = false
+                                                    pickerProvider = null
+                                                    connectOpenings += 1
+                                                    chat.switchProvider()
+                                                }) { Text(stringResource(R.string.model_picker_switch_confirm)) }
+                                            },
+                                            dismissButton = { TextButton(onClick = { switchingTo = null }) { Text(stringResource(R.string.model_picker_cancel)) } },
+                                        )
+                                    }
+                                }
+                            } else if (showingModelPicker && claudeCodeStep != ClaudeCodeStep.None) {
+                                // Bringing Claude Code from the model picker: the API key stays saved for switching back.
+                                val useClaudeCode = {
+                                    scope.launch { graph.connections.save(graph.claudeCode.models.first()) }
+                                    claudeCodeStep = ClaudeCodeStep.None
+                                    pickerProvider = null
+                                }
+                                if (claudeCodeStep == ClaudeCodeStep.SignIn) {
+                                    ClaudeCodeSignInScreen(graph.claudeCode, onClose = { claudeCodeStep = ClaudeCodeStep.Setup }, onSignedIn = useClaudeCode)
+                                } else {
+                                    ClaudeCodeSetupScreen(
+                                        graph.claudeCode,
+                                        onBack = { claudeCodeStep = ClaudeCodeStep.None },
+                                        onSignIn = { claudeCodeStep = ClaudeCodeStep.SignIn },
+                                        onReady = useClaudeCode,
+                                    )
+                                }
+                            } else if (showingModelPicker && pickerProvider == null && graph.claudeCode.runs(state.model)) {
+                                val closePicker = { showingModelPicker = false; showingSettings = !pickerFromChat; pickerFromChat = false }
+                                ClaudeCodePickerScreen(
+                                    graph.claudeCode,
+                                    current = state.model,
+                                    onChoose = { model -> scope.launch { graph.connections.save(model) }; closePicker() },
+                                    onSignIn = { claudeCodeStep = ClaudeCodeStep.SignIn },
+                                    onUseAnother = { choosingProvider = true },
+                                    onClose = closePicker,
+                                )
                             } else if (showingModelPicker) {
                                 // A fresh picker each time it opens, so its models are listed again.
-                                val picker = viewModel(key = "modelPicker$pickerOpenings") { ConnectViewModel(graph, current = state.model) }
+                                val picker = viewModel(key = "modelPicker$pickerOpenings") {
+                                    ConnectViewModel(graph, current = state.model, provider = pickerProvider ?: state.model?.providerId)
+                                }
                                 ModelPickerScreen(
                                     state = picker.state.collectAsStateWithLifecycle().value,
                                     viewModel = picker,
-                                    onClose = { showingModelPicker = false; showingSettings = !pickerFromChat; pickerFromChat = false },
-                                    onSwitchProvider = { showingModelPicker = false; pickerFromChat = false; connectOpenings += 1; chat.switchProvider() },
+                                    onClose = { showingModelPicker = false; showingSettings = !pickerFromChat; pickerFromChat = false; pickerProvider = null },
+                                    onUseAnother = { choosingProvider = true },
                                 )
                             } else if (showingSettings) {
                                 SettingsScreen(
@@ -252,6 +377,9 @@ class MainActivity : ComponentActivity() {
 
     /** Whether a model is connected and Linux was offered yet; Loading avoids flashing a first-run screen at launch. */
     private enum class Gate { Loading, Welcome, Linux, Connect, Chat }
+
+    /** Bringing Claude Code instead of an API key: its setup, then its own sign-in. */
+    private enum class ClaudeCodeStep { None, Setup, SignIn }
 }
 
 /**

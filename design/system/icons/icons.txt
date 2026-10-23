@@ -110,3 +110,8 @@ picture_as_pdf
 photo_library
 photo_camera
 attach_file
+login
+logout
+account_balance_wallet
+swap_horiz
+content_paste

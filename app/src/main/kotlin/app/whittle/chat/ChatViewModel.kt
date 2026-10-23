@@ -30,6 +30,7 @@ import app.whittle.core.model.ContentBlock
 import app.whittle.core.model.Role
 import android.net.Uri
 import app.whittle.attachments.Attachment
+import app.whittle.claudecode.ClaudeCodeLimit
 import app.whittle.attachments.AttachmentNames
 import app.whittle.attachments.AttachmentProblem
 import app.whittle.attachments.Imported
@@ -200,6 +201,9 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
 
     /** Set in a chat an automation started: the chat is titled after it, not after its first message. */
     private var automationName: String? = null
+
+    /** The task running now is Claude Code's, not Whittle's own loop. */
+    private var claudeCodeRun = false
 
     init {
         viewModelScope.launch { graph.connections.model.collect { model -> _state.update { it.copy(model = model) } } }
@@ -386,7 +390,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
                 SystemPromptVariables.PROJECT to graph.projectDefaults.prompt(graph.workspaces.projectOf(WorkspaceId(chat.value)), graph.linux.workspaceMount),
             ),
         )
-        collect(runId, graph.runner.start(request))
+        claudeCodeRun = graph.claudeCode.runs(model)
+        collect(runId, if (claudeCodeRun) graph.claudeCode.runner.start(request) else graph.runner.start(request))
     }
 
     /** The user's choice on a card. Applied at the run's next step, or continues a finished run. */
@@ -417,7 +422,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     private fun submit(runId: RunId, input: RunInput) {
         graph.inbox.submit(runId, input)
         when {
-            activeJob?.isActive != true -> collect(runId, graph.runner.resume(runId))
+            activeJob?.isActive != true -> collect(runId, resume(runId))
             activeRunId != runId && runId !in waitingToContinue -> waitingToContinue.addLast(runId)
         }
     }
@@ -425,7 +430,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     /** Picks up a run the app closed in the middle of. Nothing re-runs: an interrupted tool is reported. */
     fun continueRun(item: ThreadItem.Interrupted) {
         _state.update { state -> state.copy(items = state.items.filterNot { it.key == item.key }) }
-        collect(item.runId, graph.runner.resume(item.runId))
+        collect(item.runId, resume(item.runId))
     }
 
     fun stop() {
@@ -452,7 +457,15 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     private suspend fun carryForward(runId: RunId) {
+        // Claude Code keeps its own conversation; the chat's next task resumes its session instead.
+        if (claudeCodeRun) return
         graph.runner.conversationAfter(runId)?.let { history = it }
+    }
+
+    /** Picks up [runId] with the runner of the model in use. */
+    private fun resume(runId: RunId): Flow<RunEvent> {
+        claudeCodeRun = graph.claudeCode.runs(_state.value.model)
+        return if (claudeCodeRun) graph.claudeCode.runner.resume(runId) else graph.runner.resume(runId)
     }
 
     fun toggleSources(key: String) = replace(key) { (it as ThreadItem.Sources).let { sources -> sources.copy(expanded = !sources.expanded) } }
@@ -505,6 +518,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         // The workspace is shared, so its files stay; only this chat's record of what it changed goes.
         graph.fileChanges.forget(WorkspaceId(id.value))
         graph.chatProjects.forget(WorkspaceId(id.value))
+        graph.claudeCode.sessions.forget(WorkspaceId(id.value))
     }
 
     fun setPinned(id: ChatId, pinned: Boolean) {
@@ -588,7 +602,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             activeJob = null
             activeRunId = null
             save()
-            waitingToContinue.removeFirstOrNull()?.let { next -> collect(next, graph.runner.resume(next)) }
+            waitingToContinue.removeFirstOrNull()?.let { next -> collect(next, resume(next)) }
         }
     }
 
@@ -624,7 +638,11 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
                 PauseReason.TOKEN_BUDGET -> end(NoticeKind.PausedBudget)
                 PauseReason.STEP_LIMIT -> end(NoticeKind.PausedSteps)
             }
-            is RunEvent.Failed -> end(event.error.toNotice(), statusCode = (event.error as? HarnessError.Provider)?.statusCode)
+            is RunEvent.Failed -> if (claudeCodeRun) {
+                endClaudeCode(event.error)
+            } else {
+                end(event.error.toNotice(), statusCode = (event.error as? HarnessError.Provider)?.statusCode)
+            }
             is RunEvent.ModelRetrying -> setStatus(AgentState.Thinking, verb = null, phase = StatusPhase.Retrying)
         }
     }
@@ -844,10 +862,20 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         _state.update { it.copy(status = null) }
     }
 
-    private fun end(notice: NoticeKind, statusCode: Int? = null) {
+    private fun end(notice: NoticeKind, statusCode: Int? = null, detail: String? = null, limit: ClaudeCodeLimit? = null) {
         _events.tryEmit(ChatEvent.Finished(failed = notice.isFailure))
         finishNarration()
-        _state.update { it.copy(status = null, items = it.items + ThreadItem.Notice(key(), notice, statusCode)) }
+        val window = limit?.window?.let(graph.claudeCode.config.limitNames::get)
+        val item = ThreadItem.Notice(key(), notice, statusCode, detail, window, limit?.resetsAtMillis)
+        _state.update { it.copy(status = null, items = it.items + item) }
+    }
+
+    /** Claude Code's failures in its own words: signed out, the Claude plan used up, or what it reported. */
+    private fun endClaudeCode(error: HarnessError) = when {
+        error is HarnessError.Authentication -> end(NoticeKind.ClaudeCodeSignedOut)
+        error is HarnessError.Provider && error.statusCode == TOO_MANY_REQUESTS ->
+            end(NoticeKind.ClaudeCodeLimit, detail = error.message, limit = graph.claudeCode.limit.value)
+        else -> end(NoticeKind.ClaudeCodeFailed, detail = error.message)
     }
 
     /**
@@ -1051,5 +1079,6 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         const val INSPECTION_MAX_CHARS = 4_000
         const val TITLE_MAX_CHARS = 80
         const val PARAGRAPH = "\n\n"
+        const val TOO_MANY_REQUESTS = 429
     }
 }

@@ -4,6 +4,13 @@ import android.content.ActivityNotFoundException
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.foundation.layout.Box
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -73,7 +80,14 @@ import app.whittle.llm.api.ModelDescriptor
 
 /** Connecting the first model. [header] sits above it: on first run, Linux's setup and the step bar. */
 @Composable
-fun ConnectScreen(state: ConnectState, viewModel: ConnectViewModel, header: @Composable ColumnScope.() -> Unit = {}) {
+fun ConnectScreen(
+    state: ConnectState,
+    viewModel: ConnectViewModel,
+    header: @Composable ColumnScope.() -> Unit = {},
+    /** Claude Code's name when it's offered as a way to bring a model; [onClaudeCode] opens its setup. */
+    claudeCode: String? = null,
+    onClaudeCode: () -> Unit = {},
+) {
     Column(
         Modifier
             .fillMaxSize()
@@ -91,20 +105,21 @@ fun ConnectScreen(state: ConnectState, viewModel: ConnectViewModel, header: @Com
                 PickerTitle(viewModel::backToKey)
                 ChooseModel(phase, viewModel, onChoose = { viewModel.choose(it) })
             }
-            else -> EnterKey(state, phase, viewModel)
+            else -> EnterKey(state, phase, viewModel, claudeCode, onClaudeCode)
         }
     }
 }
 
-/**
- * Changing the model: the connected provider's models, listed with its saved key. Using another provider
- * forgets this one's key, after asking.
- */
+/** Changing the model: the connected provider's models, listed with its saved key; Use another opens the choices. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun ModelPickerScreen(state: ConnectState, viewModel: ConnectViewModel, onClose: () -> Unit, onSwitchProvider: () -> Unit) {
+fun ModelPickerScreen(
+    state: ConnectState,
+    viewModel: ConnectViewModel,
+    onClose: () -> Unit,
+    onUseAnother: () -> Unit,
+) {
     BackHandler(onBack = onClose)
-    var confirming by remember { mutableStateOf(false) }
     val haptics = WhittleTheme.haptics
     Column(
         Modifier
@@ -122,7 +137,7 @@ fun ModelPickerScreen(state: ConnectState, viewModel: ConnectViewModel, onClose:
             val switchProvider: @Composable () -> Unit = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(state.provider.displayName, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { confirming = true }) { Text(stringResource(R.string.model_picker_other_provider)) }
+                    TextButton(onClick = onUseAnother) { Text(stringResource(R.string.model_picker_other_provider)) }
                 }
             }
             when (val phase = state.phase) {
@@ -146,17 +161,6 @@ fun ModelPickerScreen(state: ConnectState, viewModel: ConnectViewModel, onClose:
             }
         }
     }
-    if (confirming) {
-        AlertDialog(
-            onDismissRequest = { confirming = false },
-            title = { Text(stringResource(R.string.model_picker_switch_title)) },
-            text = { Text(stringResource(R.string.model_picker_switch_body, state.provider.displayName)) },
-            confirmButton = {
-                TextButton(onClick = { confirming = false; onSwitchProvider() }) { Text(stringResource(R.string.model_picker_switch_confirm)) }
-            },
-            dismissButton = { TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.model_picker_cancel)) } },
-        )
-    }
 }
 
 /** Back on its own disc, then the title, as on Settings. */
@@ -175,7 +179,13 @@ private fun PickerTitle(onBack: () -> Unit, modifier: Modifier = Modifier) {
 /** Provider and key: a connected pair to pick the provider, a filled field for the key, Connect at the bottom. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ColumnScope.EnterKey(state: ConnectState, phase: ConnectPhase, viewModel: ConnectViewModel) {
+private fun ColumnScope.EnterKey(
+    state: ConnectState,
+    phase: ConnectPhase,
+    viewModel: ConnectViewModel,
+    claudeCode: String? = null,
+    onClaudeCode: () -> Unit = {},
+) {
     val haptics = WhittleTheme.haptics
     val colors = MaterialTheme.colorScheme
     val uriHandler = LocalUriHandler.current
@@ -187,31 +197,14 @@ private fun ColumnScope.EnterKey(state: ConnectState, phase: ConnectPhase, viewM
         }
         Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
             Text(stringResource(R.string.connect_provider), style = MaterialTheme.typography.labelLarge)
-            Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
-                state.providers.forEachIndexed { index, provider ->
-                    val checked = provider.id == state.providerId
-                    val content = if (checked) colors.onSecondaryContainer else colors.onSurface
-                    Row(
-                        Modifier
-                            .weight(1f)
-                            .height(WhittleSize.Button.default)
-                            .clip(connectedShape(index, state.providers.size))
-                            .background(if (checked) colors.secondaryContainer else colors.surfaceContainerHigh)
-                            .selectable(selected = checked, enabled = !checking, role = Role.RadioButton) {
-                                haptics.perform(WhittleHaptic.Select)
-                                viewModel.selectProvider(provider.id)
-                            },
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (checked) {
-                            WhittleIcon("check", size = WhittleSize.Icon.l, tint = content)
-                            Spacer(Modifier.size(WhittleSpace.s))
-                        }
-                        Text(provider.displayName, style = MaterialTheme.typography.labelLarge, color = content, maxLines = 1)
-                    }
-                }
-            }
+            ProviderChoices(
+                providers = state.providers,
+                selected = state.providerId,
+                claudeCode = claudeCode?.let { ClaudeCodeChoice(it, selected = false) },
+                onProvider = viewModel::selectProvider,
+                onClaudeCode = onClaudeCode,
+                enabled = !checking,
+            )
         }
         Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
             KeyField(state, phase, viewModel)
@@ -263,6 +256,10 @@ private fun KeyField(state: ConnectState, phase: ConnectPhase, viewModel: Connec
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val error = (phase as? ConnectPhase.EnterKey)?.error
+    val context = LocalContext.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
+    val pasteLabel = stringResource(R.string.connect_key_paste)
     val accent = when {
         error != null -> colors.error
         focused -> colors.primary
@@ -281,18 +278,34 @@ private fun KeyField(state: ConnectState, phase: ConnectPhase, viewModel: Connec
         interactionSource = interaction,
         // The key never appears in a session recording, even when shown or when recordings show content.
         modifier = Modifier.fillMaxWidth().hiddenFromReplay(),
+        // As the sign-in code: a pill with paste at the start, the words inside, and show or hide at the end.
         decorationBox = { input ->
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .height(WhittleSize.composerMin)
-                    .clip(RoundedCornerShape(WhittleRadius.l))
+                    .height(WhittleSize.Button.default)
+                    .clip(CircleShape)
                     .background(colors.surfaceContainerHigh)
-                    .padding(start = WhittleSpace.l, end = WhittleSpace.xs),
+                    .padding(horizontal = WhittleSpace.xs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.connect_key_label), style = MaterialTheme.typography.labelMedium, color = accent)
+                Box(
+                    Modifier
+                        .size(WhittleSize.Tile.m)
+                        .clip(CircleShape)
+                        .clickable(enabled = phase != ConnectPhase.Checking, role = Role.Button) {
+                            scope.launch {
+                                clipboard.getClipEntry()?.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()?.trim()
+                                    ?.let(viewModel::updateKey)
+                            }
+                        }
+                        .semantics { contentDescription = pasteLabel },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    WhittleIcon("content_paste", size = WhittleSize.Icon.l, tint = accent)
+                }
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    if (state.key.isEmpty()) Text(stringResource(R.string.connect_key_label), style = MaterialTheme.typography.bodyLarge, color = accent, maxLines = 1)
                     input()
                 }
                 IconButton(onClick = { keyVisible = !keyVisible }) {
@@ -306,7 +319,7 @@ private fun KeyField(state: ConnectState, phase: ConnectPhase, viewModel: Connec
         },
     )
     error?.let {
-        Text(errorText(it, state.provider.displayName), style = MaterialTheme.typography.bodySmall, color = colors.error, modifier = Modifier.padding(start = WhittleSpace.l))
+        Text(errorText(it, state.provider.displayName), style = MaterialTheme.typography.bodySmall, color = colors.error, modifier = Modifier.padding(start = WhittleSpace.xl))
     }
 }
 

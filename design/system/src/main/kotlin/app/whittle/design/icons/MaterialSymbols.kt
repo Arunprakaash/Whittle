@@ -117,6 +117,11 @@ object MaterialSymbols {
         "photo_library" to R.drawable.ms_photo_library,
         "photo_camera" to R.drawable.ms_photo_camera,
         "attach_file" to R.drawable.ms_attach_file,
+        "login" to R.drawable.ms_login,
+        "logout" to R.drawable.ms_logout,
+        "account_balance_wallet" to R.drawable.ms_account_balance_wallet,
+        "swap_horiz" to R.drawable.ms_swap_horiz,
+        "content_paste" to R.drawable.ms_content_paste,
     )
 
     private val filled: Map<String, Int> = mapOf(

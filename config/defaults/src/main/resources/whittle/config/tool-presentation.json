@@ -419,6 +419,108 @@
         "approvedOutcome": "Forgotten",
         "declinedOutcome": "Kept"
       }
+    },
+    "Bash": {
+      "icon": "terminal",
+      "running": "Running a command",
+      "done": "Ran a command",
+      "decision": {
+        "icon": "terminal",
+        "title": "Run this command?",
+        "body": "Claude Code runs this in your workspace on your phone.",
+        "payloadArgument": "command",
+        "approve": "Run",
+        "approveIcon": "terminal",
+        "decline": "Not now",
+        "approvedOutcome": "Ran the command",
+        "declinedOutcome": "Didn't run"
+      }
+    },
+    "Read": {
+      "icon": "description",
+      "running": "Reading {{file_path}}",
+      "done": "Read {{file_path}}"
+    },
+    "Write": {
+      "icon": "edit_document",
+      "running": "Writing {{file_path}}",
+      "done": "Wrote {{file_path}}",
+      "decision": {
+        "icon": "edit_document",
+        "title": "Save {{file_path}}?",
+        "body": "Claude Code writes this file in your workspace on your phone.",
+        "payloadArgument": "content",
+        "payloadLabelArgument": "file_path",
+        "approve": "Save",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Saved {{file_path}}",
+        "declinedOutcome": "Not saved"
+      }
+    },
+    "Edit": {
+      "icon": "edit",
+      "running": "Editing {{file_path}}",
+      "done": "Edited {{file_path}}",
+      "decision": {
+        "icon": "edit",
+        "title": "Change {{file_path}}?",
+        "body": "Claude Code edits this file in your workspace on your phone.",
+        "payloadArgument": "new_string",
+        "payloadLabelArgument": "file_path",
+        "approve": "Change",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Changed {{file_path}}",
+        "declinedOutcome": "Not changed"
+      }
+    },
+    "MultiEdit": {
+      "icon": "edit",
+      "running": "Editing {{file_path}}",
+      "done": "Edited {{file_path}}"
+    },
+    "Glob": {
+      "icon": "folder",
+      "running": "Looking for files",
+      "done": "Looked for files"
+    },
+    "Grep": {
+      "icon": "search",
+      "running": "Searching the files",
+      "done": "Searched the files"
+    },
+    "WebFetch": {
+      "icon": "language",
+      "siteArgument": "url",
+      "running": "Reading {{url_host}}",
+      "done": "Read {{url_host}}",
+      "decision": {
+        "icon": "language",
+        "title": "Read {{url_host}}?",
+        "body": "Claude Code downloads this page to read it.",
+        "payloadArgument": "url",
+        "approve": "Read page",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Read {{url_host}}",
+        "declinedOutcome": "Not read"
+      }
+    },
+    "WebSearch": {
+      "icon": "search",
+      "running": "Searching the web",
+      "done": "Searched the web"
+    },
+    "TodoWrite": {
+      "icon": "checklist",
+      "running": "Updating its to-do list",
+      "done": "Updated its to-do list"
+    },
+    "Task": {
+      "icon": "smart_toy",
+      "running": "Handing part of it to a helper",
+      "done": "A helper finished its part"
     }
   },
   "capabilities": {

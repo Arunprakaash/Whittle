@@ -118,8 +118,17 @@ class CommandRunner(private val environment: ShellEnvironment, private val maxOu
  * process group.
  */
 class CommandStarter(private val environment: ShellEnvironment) {
-    /** [mergeOutput] sends stderr into stdout, for output read as one stream. */
-    suspend fun start(command: String, directory: File, network: Boolean, mergeOutput: Boolean): Outcome<Process> = withContext(Dispatchers.IO) {
+    /**
+     * [mergeOutput] sends stderr into stdout, for output read as one stream. [keepInput] leaves the command's input
+     * open, for a program that reads what to do from it; otherwise it reads end-of-input at once.
+     */
+    suspend fun start(
+        command: String,
+        directory: File,
+        network: Boolean,
+        mergeOutput: Boolean,
+        keepInput: Boolean = false,
+    ): Outcome<Process> = withContext(Dispatchers.IO) {
         val start = environment.launcher?.command(directory, network) ?: Outcome.Success(listOf(environment.shell, SHELL_COMMAND))
         val commandLine = when (start) {
             is Outcome.Failure -> return@withContext start
@@ -141,7 +150,7 @@ class CommandStarter(private val environment: ShellEnvironment) {
                 environment()[COMMAND_VARIABLE] = script
             }
             .start()
-        process.outputStream.close()
+        if (!keepInput) process.outputStream.close()
         Outcome.Success(process)
     }
 
