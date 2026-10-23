@@ -30,7 +30,7 @@ fun interface FileChanges {
 }
 
 /** What [file] holds now, as [FileChanges.Before], keeping text up to [maxChars]. */
-internal suspend fun previousText(file: File, maxChars: Int): FileChanges.Before = withContext(Dispatchers.IO) {
+suspend fun previousText(file: File, maxChars: Int): FileChanges.Before = withContext(Dispatchers.IO) {
     when {
         !file.isFile -> FileChanges.Before.Nothing
         file.length() > maxChars.toLong() * MAX_BYTES_PER_CHAR -> FileChanges.Before.Unreadable

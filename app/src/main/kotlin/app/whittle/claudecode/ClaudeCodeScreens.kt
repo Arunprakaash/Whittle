@@ -309,6 +309,7 @@ fun ClaudeCodePickerScreen(
     BackHandler(onBack = onClose)
     val colors = MaterialTheme.colorScheme
     val state by claudeCode.state.collectAsStateWithLifecycle()
+    val update by claudeCode.update.collectAsStateWithLifecycle()
     var removing by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { claudeCode.refresh() }
     val signedIn = (state as? ClaudeCodeState.Ready)?.signedIn == true
@@ -325,6 +326,18 @@ fun ClaudeCodePickerScreen(
             }
         },
     ) { padding ->
+        val version = (state as? ClaudeCodeState.Ready)?.version
+        val actions = listOf(
+            PickAction("refresh", R.string.claude_code_update, updateDetail(update, version)) {
+                if (update != ClaudeCodeUpdate.Running) claudeCode.update()
+            },
+            if (signedIn) {
+                PickAction("logout", R.string.claude_code_sign_out, stringResource(R.string.claude_code_sign_out_detail)) { claudeCode.signOut() }
+            } else {
+                PickAction("login", R.string.claude_code_sign_in_action, stringResource(R.string.claude_code_step_sign_in_detail), onSignIn)
+            },
+            PickAction("delete", R.string.claude_code_remove, stringResource(R.string.claude_code_remove_detail)) { removing = true },
+        )
         LazyColumn(
             Modifier.padding(padding).fillMaxSize(),
             contentPadding = PaddingValues(WhittleSpace.l),
@@ -356,25 +369,14 @@ fun ClaudeCodePickerScreen(
                 }
             }
             item { Spacer(Modifier.height(WhittleSpace.xl)) }
-            val actions = if (signedIn) {
-                listOf(
-                    Triple("logout", R.string.claude_code_sign_out to R.string.claude_code_sign_out_detail) { claudeCode.signOut(); Unit },
-                    Triple("delete", R.string.claude_code_remove to R.string.claude_code_remove_detail) { removing = true },
-                )
-            } else {
-                listOf(
-                    Triple("login", R.string.claude_code_sign_in_action to R.string.claude_code_step_sign_in_detail, onSignIn),
-                    Triple("delete", R.string.claude_code_remove to R.string.claude_code_remove_detail) { removing = true },
-                )
-            }
-            actions.forEachIndexed { index, (icon, words, action) ->
+            actions.forEachIndexed { index, action ->
                 item {
                     PickRow(
-                        title = stringResource(words.first),
-                        detail = stringResource(words.second),
-                        leading = icon,
+                        title = stringResource(action.title),
+                        detail = action.detail,
+                        leading = action.icon,
                         shape = segmentedShape(index, actions.size),
-                        onClick = action,
+                        onClick = action.onClick,
                     )
                 }
             }
@@ -391,6 +393,20 @@ fun ClaudeCodePickerScreen(
             dismissButton = { TextButton(onClick = { removing = false }) { Text(stringResource(R.string.claude_code_cancel)) } },
         )
     }
+}
+
+/** A row under the models that does something to Claude Code itself. */
+private class PickAction(val icon: String, val title: Int, val detail: String, val onClick: () -> Unit)
+
+/** What the update row says: the installed version, or how the update the user asked for is going. */
+@Composable
+private fun updateDetail(update: ClaudeCodeUpdate, version: String?): String = when (update) {
+    ClaudeCodeUpdate.Running -> stringResource(R.string.claude_code_updating)
+    is ClaudeCodeUpdate.Failed -> stringResource(R.string.claude_code_update_failed, update.detail)
+    is ClaudeCodeUpdate.Done -> version?.let {
+        stringResource(if (update.updated) R.string.claude_code_updated else R.string.claude_code_up_to_date, it)
+    } ?: stringResource(R.string.claude_code_update_detail)
+    ClaudeCodeUpdate.Idle -> version?.let { stringResource(R.string.claude_code_version, it) } ?: stringResource(R.string.claude_code_update_detail)
 }
 
 @Composable

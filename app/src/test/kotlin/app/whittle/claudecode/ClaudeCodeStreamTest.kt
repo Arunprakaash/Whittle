@@ -1,5 +1,7 @@
 package app.whittle.claudecode
 
+import app.whittle.connectors.mcp.McpAccess
+import app.whittle.connectors.mcp.McpTransportKind
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -10,6 +12,19 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class ClaudeCodeStreamTest {
+    private val config = ClaudeCodeConfig(
+        schemaVersion = 1, enabled = true, providerId = "claude-code", displayName = "Claude Code", sessionsFileName = "s.json", updatedStampFileName = "u.txt",
+        installCommand = "i", removeCommand = "r", updateCommand = "u", versionCommand = "v", statusCommand = "s", signInCommand = "in", signOutCommand = "out",
+        runCommand = "claude -p --model {{model}}", resumeArguments = "--resume {{session}}",
+        allowedToolsArguments = "--allowedTools {{tools}}",
+        preApprovedTools = mapOf("read_file" to listOf("Read"), "edit_file" to listOf("Edit", "MultiEdit")), fileArguments = emptyMap(),
+        mcpConfigArguments = "--mcp-config {{file}}", disallowedToolsArguments = "--disallowedTools {{tools}}",
+        mcpToolName = "mcp__{{server}}__{{tool}}", mcpTransports = mapOf(McpTransportKind.STREAMABLE_HTTP to "http", McpTransportKind.SSE to "sse"),
+        mcpConfigDirectory = "/root/.whittle",
+        installTimeoutSeconds = 1, updateEveryHours = 1, commandTimeoutSeconds = 1, inboxPollMillis = 1, signedOutErrors = emptySet(), limitErrors = emptySet(), limitNames = emptyMap(), planNames = emptyMap(), declinedMessage = "No", outputChars = 1,
+        models = listOf(ClaudeCodeModel("opus", "Opus", "")),
+    )
+
     @Test
     fun `the session id, streamed words, tool calls and results come through`() {
         assertEquals(
@@ -94,14 +109,38 @@ class ClaudeCodeStreamTest {
 
     @Test
     fun `the run command quotes the model and session, and resumes only with a session`() {
-        val config = ClaudeCodeConfig(
-            schemaVersion = 1, enabled = true, providerId = "claude-code", displayName = "Claude Code", sessionsFileName = "s.json",
-            installCommand = "i", removeCommand = "r", versionCommand = "v", statusCommand = "s", signInCommand = "in", signOutCommand = "out",
-            runCommand = "claude -p --model {{model}}", resumeArguments = "--resume {{session}}",
-            installTimeoutSeconds = 1, commandTimeoutSeconds = 1, inboxPollMillis = 1, signedOutErrors = emptySet(), limitErrors = emptySet(), limitNames = emptyMap(), planNames = emptyMap(), declinedMessage = "No", outputChars = 1,
-            models = listOf(ClaudeCodeModel("opus", "Opus", "")),
-        )
         assertEquals("claude -p --model 'opus'", config.run("opus", null))
         assertEquals("claude -p --model 'op'\\''us' --resume 's-1'", config.run("op'us", "s-1"))
+        // What an automation pre-approved runs without asking; anything else still asks.
+        assertEquals(
+            "claude -p --model 'opus' --allowedTools 'Read,Edit,MultiEdit'",
+            config.run("opus", null, preApproved = setOf("read_file", "edit_file", "device_clock_now")),
+        )
+    }
+
+    @Test
+    fun `connections reach Claude Code by a config file, with the tools the user switched off kept from it`() {
+        val servers = listOf(
+            McpAccess("deepwiki", "deepwiki_", "https://mcp.deepwiki.com/mcp", McpTransportKind.STREAMABLE_HTTP, emptyMap(), emptySet()),
+            McpAccess("my notes.v2", "notes_", "https://notes.example/sse", McpTransportKind.SSE, mapOf("Authorization" to "Bearer t0k3n"), setOf("delete_note")),
+        )
+        val written = Json.parseToJsonElement(ClaudeCodeMcp.config(servers, config)).jsonObject.getValue("mcpServers").jsonObject
+        assertEquals(setOf("deepwiki", "my_notes_v2"), written.keys)
+        assertEquals("http", (written.getValue("deepwiki").jsonObject["type"] as JsonPrimitive).content)
+        assertEquals(null, written.getValue("deepwiki").jsonObject["headers"])
+        val notes = written.getValue("my_notes_v2").jsonObject
+        assertEquals("sse", (notes["type"] as JsonPrimitive).content)
+        assertEquals("Bearer t0k3n", (notes.getValue("headers").jsonObject["Authorization"] as JsonPrimitive).content)
+        val blocked = ClaudeCodeMcp.blocked(servers, config)
+        assertEquals(listOf("mcp__my_notes_v2__delete_note"), blocked)
+        // Only the file's path goes on the command line, never what's in it.
+        assertEquals(
+            "claude -p --model 'opus' --mcp-config '/root/.whittle/mcp-1.json' --disallowedTools 'mcp__my_notes_v2__delete_note'",
+            config.run("opus", null, mcpConfig = "/root/.whittle/mcp-1.json", blocked = blocked),
+        )
+        assertTrue(servers.none { "t0k3n" in it.toString() })
+        // A connection's tools show under Whittle's ids for them.
+        val prefixes = ClaudeCodeMcp.prefixes(servers, config)
+        assertEquals(mapOf("mcp__deepwiki__" to "deepwiki_", "mcp__my_notes_v2__" to "notes_"), prefixes)
     }
 }

@@ -19,4 +19,10 @@ class ClaudeCodeStatusTest {
         assertNull(ClaudeCodeStatus.account("""{"loggedIn":true,"authMethod":"claude.ai"}""", plans))
         assertNull(ClaudeCodeStatus.account("Logged in", plans))
     }
+
+    @Test
+    fun `the installed version is read from claude --version`() {
+        assertEquals("2.1.3", ClaudeCodeStatus.version("2.1.3 (Claude Code)\n"))
+        assertNull(ClaudeCodeStatus.version("command not found"))
+    }
 }

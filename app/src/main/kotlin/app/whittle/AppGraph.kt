@@ -265,7 +265,19 @@ class AppGraph(context: Context) {
     /** Claude Code, run in Linux with the user's own Claude plan, as another way to bring a model. */
     val claudeCode = ClaudeCodeConfig.FILE.let { file ->
         val config = load(file, ClaudeCodeConfig.serializer(), ClaudeCodeConfig.SCHEMA_VERSION)
-        ClaudeCode(config, linux.environment, workspaces, appScope, File(context.filesDir, config.sessionsFileName), inbox)
+        ClaudeCode(
+            config = config,
+            environment = linux.environment,
+            workspaces = workspaces,
+            scope = appScope,
+            sessionsFile = File(context.filesDir, config.sessionsFileName),
+            updatedStamp = File(context.filesDir, config.updatedStampFileName),
+            inbox = inbox,
+            changes = fileChanges,
+            maxFileChars = terminalLimits.maxFileChars,
+            connections = connectors::access,
+            linuxFile = { path -> linux.root()?.let { File(it, path.removePrefix("/")) } },
+        )
     }
 
     val runner = AgentRunner(

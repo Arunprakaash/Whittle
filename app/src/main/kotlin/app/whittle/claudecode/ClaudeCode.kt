@@ -1,6 +1,7 @@
 package app.whittle.claudecode
 
 import app.whittle.agent.RunInbox
+import app.whittle.connectors.mcp.McpAccess
 import app.whittle.core.common.Outcome
 import app.whittle.core.common.getOrNull
 import app.whittle.core.model.ModelId
@@ -11,20 +12,25 @@ import app.whittle.llm.api.TrustTier
 import app.whittle.tools.api.WorkspaceId
 import app.whittle.tools.workspace.CommandResult
 import app.whittle.tools.workspace.CommandRunner
+import app.whittle.tools.workspace.FileChanges
 import app.whittle.tools.workspace.InteractiveCommand
 import app.whittle.tools.workspace.ShellEnvironment
 import app.whittle.tools.workspace.Workspaces
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 /** Where Claude Code stands on this phone. */
 sealed interface ClaudeCodeState {
@@ -37,11 +43,24 @@ sealed interface ClaudeCodeState {
 
     data object Installing : ClaudeCodeState
 
-    /** [account] is who's signed in, when Claude Code says. */
-    data class Ready(val signedIn: Boolean, val account: ClaudeCodeAccount? = null) : ClaudeCodeState
+    /** [account] is who's signed in, when Claude Code says; [version] is the one installed, when it says. */
+    data class Ready(val signedIn: Boolean, val account: ClaudeCodeAccount? = null, val version: String? = null) : ClaudeCodeState
 
     /** Installing or removing failed; [detail] is the command's last line. */
     data class Failed(val detail: String) : ClaudeCodeState
+}
+
+/** How the last update of Claude Code went. */
+sealed interface ClaudeCodeUpdate {
+    data object Idle : ClaudeCodeUpdate
+
+    data object Running : ClaudeCodeUpdate
+
+    /** [updated] when a newer version came; otherwise it was already the latest. */
+    data class Done(val updated: Boolean) : ClaudeCodeUpdate
+
+    /** [detail] is the command's last line. */
+    data class Failed(val detail: String) : ClaudeCodeUpdate
 }
 
 /** The Claude account Claude Code is signed in with; either part may be unknown. */
@@ -67,6 +86,10 @@ internal object ClaudeCodeStatus {
         return if (email == null && plan == null) null else ClaudeCodeAccount(email, plan)
     }
 
+    /** The version in `claude --version`, e.g. 2.1.3 from "2.1.3 (Claude Code)"; null when there's none. */
+    fun version(output: String): String? = VERSION.find(output)?.value
+
+    private val VERSION = Regex("""\d+(\.\d+)+""")
     private const val EMAIL = "email"
     private const val SUBSCRIPTION = "subscriptionType"
 }
@@ -81,7 +104,15 @@ class ClaudeCode(
     private val workspaces: Workspaces,
     private val scope: CoroutineScope,
     sessionsFile: File,
+    /** Touched after each update, so the quiet one runs at most every [ClaudeCodeConfig.updateEveryHours]. */
+    private val updatedStamp: File,
     inbox: RunInbox,
+    changes: FileChanges,
+    maxFileChars: Int,
+    /** The user's connections, handed to each task. */
+    connections: suspend () -> List<McpAccess>,
+    /** The host file at a Linux path; null before Linux is set up. */
+    linuxFile: (String) -> File?,
 ) {
     private val commands = CommandRunner(environment, config.outputChars)
     private val mutableState = MutableStateFlow<ClaudeCodeState>(ClaudeCodeState.Checking)
@@ -94,7 +125,24 @@ class ClaudeCode(
     /** The last Claude plan limit a task ran into, for the chat to say which one and when it reopens. */
     val limit: StateFlow<ClaudeCodeLimit?> = mutableLimit.asStateFlow()
 
-    val runner = ClaudeCodeRunner(config, environment, sessions, inbox, onLimit = { mutableLimit.value = it }) { chat -> folder(chat) }
+    val runner = ClaudeCodeRunner(
+        config = config,
+        environment = environment,
+        sessions = sessions,
+        inbox = inbox,
+        onLimit = { mutableLimit.value = it },
+        directory = ::folder,
+        locate = { chat, path -> workspaces.locate(chat, path).getOrNull() },
+        changes = changes,
+        maxFileChars = maxFileChars,
+        connections = ClaudeCodeConnections(config, connections, linuxFile),
+    )
+
+    private val updating = Mutex()
+    private val mutableUpdate = MutableStateFlow<ClaudeCodeUpdate>(ClaudeCodeUpdate.Idle)
+
+    /** The update the user asked for, for its row to say how it went. */
+    val update: StateFlow<ClaudeCodeUpdate> = mutableUpdate.asStateFlow()
 
     /** Whether [model] is one Claude Code runs. */
     fun runs(model: ModelDescriptor?): Boolean = config.enabled && model?.providerId?.value == config.providerId
@@ -126,6 +174,40 @@ class ClaudeCode(
         }
     }
 
+    /** Updates Claude Code from Anthropic's repository; how it went shows in [update]. */
+    fun update(): Job = scope.launch {
+        mutableUpdate.value = ClaudeCodeUpdate.Running
+        mutableUpdate.value = updateNow() ?: ClaudeCodeUpdate.Idle
+    }
+
+    /**
+     * At launch: updates Claude Code quietly when the last update is older than [ClaudeCodeConfig.updateEveryHours],
+     * as its own installer keeps it current. A failure (no network, say) leaves it for the next launch.
+     */
+    suspend fun updateIfDue() {
+        if (!config.enabled) return
+        val age = System.currentTimeMillis() - updatedStamp.lastModified()
+        if (age in 0 until TimeUnit.HOURS.toMillis(config.updateEveryHours.toLong())) return
+        updateNow()
+    }
+
+    /** Null when there was nothing to update: Linux or Claude Code isn't there, or an update is already running. */
+    private suspend fun updateNow(): ClaudeCodeUpdate? {
+        if (!updating.tryLock()) return null
+        try {
+            val installed = run(config.versionCommand, config.commandTimeoutSeconds, network = false)
+            if (installed == null || installed.exitCode != 0) return null
+            val ran = run(config.updateCommand, config.installTimeoutSeconds, network = true) ?: return null
+            if (ran.exitCode != 0) return ClaudeCodeUpdate.Failed(lastLine(ran))
+            withContext(Dispatchers.IO) { if (!updatedStamp.setLastModified(System.currentTimeMillis())) updatedStamp.writeText("") }
+            val now = check()
+            mutableState.value = now
+            return ClaudeCodeUpdate.Done(updated = (now as? ClaudeCodeState.Ready)?.version != ClaudeCodeStatus.version(installed.stdout))
+        } finally {
+            updating.unlock()
+        }
+    }
+
     /** Runs Claude Code's own sign-out. */
     fun signOut(): Job = scope.launch {
         run(config.signOutCommand, config.commandTimeoutSeconds, network = true)
@@ -151,7 +233,11 @@ class ClaudeCode(
         if (version.exitCode != 0) return ClaudeCodeState.NotInstalled
         val status = run(config.statusCommand, config.commandTimeoutSeconds, network = false) ?: return ClaudeCodeState.NoLinux
         val signedIn = status.exitCode == 0
-        return ClaudeCodeState.Ready(signedIn, if (signedIn) ClaudeCodeStatus.account(status.stdout, config.planNames) else null)
+        return ClaudeCodeState.Ready(
+            signedIn = signedIn,
+            account = if (signedIn) ClaudeCodeStatus.account(status.stdout, config.planNames) else null,
+            version = ClaudeCodeStatus.version(version.stdout),
+        )
     }
 
     /** Null when commands can't run here yet, e.g. before Linux is set up. */
