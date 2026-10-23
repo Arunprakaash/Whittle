@@ -332,6 +332,36 @@
         "declinedOutcome": "Kept the workspace"
       }
     },
+    "create_app": {
+      "icon": "install_mobile",
+      "running": "Starting {{name}}",
+      "done": "Started {{name}}",
+      "decision": {
+        "icon": "install_mobile",
+        "title": "Start {{name}}?",
+        "body": "Makes a new app project in its own folder of your workspace.",
+        "approve": "Start it",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Started {{name}}",
+        "declinedOutcome": "Didn't start the app"
+      }
+    },
+    "build_app": {
+      "icon": "build",
+      "running": "Building {{project}}",
+      "done": "Built {{project}}",
+      "decision": {
+        "icon": "build",
+        "title": "Build {{project}}?",
+        "body": "Builds the app in your workspace on your phone, with no internet. Nothing is installed until you tap Install.",
+        "approve": "Build",
+        "approveIcon": "build",
+        "decline": "Not now",
+        "approvedOutcome": "Built {{project}}",
+        "declinedOutcome": "Didn't build"
+      }
+    },
     "list_processes": {
       "icon": "terminal",
       "running": "Checking what's running",

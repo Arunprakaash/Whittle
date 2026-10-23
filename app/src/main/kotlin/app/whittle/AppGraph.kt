@@ -20,7 +20,12 @@ import app.whittle.settings.VoiceDefaults
 import app.whittle.connectors.CustomConnectorStore
 import app.whittle.connectors.mcp.ConnectorsConfig
 import app.whittle.connectors.Connectors
+import app.whittle.apps.AndroidApkInspector
+import app.whittle.apps.AndroidKeystoreKeys
+import app.whittle.apps.AppSigner
 import app.whittle.apps.AppToolchain
+import app.whittle.apps.BuildAppTool
+import app.whittle.apps.CreateAppTool
 import app.whittle.apps.LinuxShell
 import app.whittle.apps.NativeAppsConfig
 import app.whittle.linux.LinuxConfig
@@ -203,19 +208,29 @@ class AppGraph(context: Context) {
     /** How apps are built (docs/native-apps.md). */
     val nativeApps = load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION)
 
-    /** The app-building toolchain in Linux; one instance, shared by its service, the chat and Settings. */
-    val appToolchain: AppToolchain = run {
+    private val appShell = run {
         val runner = CommandRunner(linux.environment, terminalLimits.maxOutputChars)
-        AppToolchain(
-            LinuxShell { command, network, timeoutSeconds ->
-                when (val folder = workspaces.folder()) {
-                    is Outcome.Failure -> folder
-                    is Outcome.Success -> runner.run(command, folder.value, timeoutSeconds, network)
-                }
-            },
-            nativeApps,
-        )
+        LinuxShell { command, network, timeoutSeconds ->
+            when (val folder = workspaces.folder()) {
+                is Outcome.Failure -> folder
+                is Outcome.Success -> runner.run(command, folder.value, timeoutSeconds, network)
+            }
+        }
     }
+
+    /** The app-building toolchain in Linux; one instance, shared by its service, the chat and Settings. */
+    val appToolchain: AppToolchain = AppToolchain(appShell, nativeApps)
+
+    /** The agent's `create_app` and `build_app`; the package is Whittle's own, so a debug build gives app.whittle.debug. */
+    private fun appTools(context: Context): Pair<CreateAppTool, BuildAppTool> = CreateAppTool(
+        workspaces, chatProjects, nativeApps, context.packageName, agentMessages,
+        { packageName -> runCatching { context.packageManager.getPackageInfo(packageName, 0) }.isSuccess },
+        { path -> (configSource.read(ConfigName("native-app-template/$path")) as Outcome.Success).value },
+    ) to BuildAppTool(
+        workspaces, nativeApps, agentMessages, appToolchain::isReady, appShell,
+        AppSigner(AndroidKeystoreKeys()), AndroidApkInspector(context.packageManager),
+        WorkspaceOutputs(workspaces, harness.agent.toolOutput.directory)::save,
+    )
 
     /** How a chat's project is put to the agent, and how many recent ones a new chat offers. */
     val projectDefaults: ProjectDefaults get() = appDefaults.projects
@@ -299,13 +314,17 @@ class AppGraph(context: Context) {
     )
 
     /** Every tool a task can use: the built-in ones and those of the user's connections. */
-    val tools = ToolRegistry(
-        ToolCatalog.create(
-            context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, agentMessages, scheduleTask(),
-            PhoneTools(phoneActions, reminders, workspaces) { id -> currentSettings.value?.phoneOff?.contains(id) != true },
-        ),
-        connectors::tools,
-    )
+    val tools = appTools(context).let { (createApp, buildApp) ->
+        ToolRegistry(
+            ToolCatalog.create(
+                context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, agentMessages, scheduleTask(),
+                PhoneTools(phoneActions, reminders, workspaces) { id -> currentSettings.value?.phoneOff?.contains(id) != true },
+                createApp,
+                buildApp,
+            ),
+            connectors::tools,
+        )
+    }
 
     /** Claude Code, run in Linux with the user's own Claude plan, as another way to bring a model. */
     val claudeCode = ClaudeCodeConfig.FILE.let { file ->

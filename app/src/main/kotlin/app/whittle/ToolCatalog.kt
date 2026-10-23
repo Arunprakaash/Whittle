@@ -9,6 +9,8 @@ import app.whittle.agent.RememberTool
 import app.whittle.connectors.Connectors
 import app.whittle.connectors.AddConnectionTool
 import app.whittle.agent.PlanTool
+import app.whittle.apps.BuildAppTool
+import app.whittle.apps.CreateAppTool
 import android.content.Context
 import app.whittle.agent.AskUserTool
 import app.whittle.core.common.EpochClock
@@ -61,6 +63,8 @@ object ToolCatalog {
         RememberTool.DEFINITION,
         ForgetTool.DEFINITION,
         ScheduleTaskTool.DEFINITION,
+        CreateAppTool.DEFINITION,
+        BuildAppTool.DEFINITION,
     ) + WorkspaceToolSet.DEFINITIONS
 
     fun create(
@@ -74,6 +78,8 @@ object ToolCatalog {
         messages: AgentMessages,
         scheduleTask: ScheduleTaskTool,
         phone: PhoneTools,
+        createApp: CreateAppTool,
+        buildApp: BuildAppTool,
     ): Set<Tool> = switched(
         setOf(
             AskUserTool(),
@@ -99,6 +105,8 @@ object ToolCatalog {
             RememberTool(memory, messages),
             ForgetTool(memory, messages),
             scheduleTask,
+            createApp,
+            buildApp,
         ) + workspaceTools,
         phone.config,
         phone.isOn,
