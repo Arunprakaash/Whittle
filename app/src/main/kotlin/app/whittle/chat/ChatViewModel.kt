@@ -26,6 +26,17 @@ import app.whittle.agent.SystemPromptVariables
 import app.whittle.core.common.HarnessError
 import app.whittle.core.common.getOrNull
 import app.whittle.core.model.Message
+import app.whittle.core.model.ContentBlock
+import app.whittle.core.model.Role
+import android.net.Uri
+import app.whittle.attachments.Attachment
+import app.whittle.attachments.AttachmentNames
+import app.whittle.attachments.AttachmentProblem
+import app.whittle.attachments.Imported
+import app.whittle.attachments.SharedItems
+import app.whittle.attachments.WorkspaceImages
+import app.whittle.settings.AttachmentDefaults
+import app.whittle.settings.FilesDefaults
 import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.design.components.AgentState
@@ -93,8 +104,15 @@ data class ChatState(
     val project: String? = null,
     /** The workspace's projects, most recently changed first, to pick from. */
     val projects: List<ProjectFolder> = emptyList(),
+    /** Photos and files added to the next message, already saved in the workspace. */
+    val attachments: List<Attachment> = emptyList(),
+    /** How many picked items are still being saved. */
+    val attaching: Int = 0,
 ) {
     val running: Boolean get() = status != null
+
+    /** An attached photo the current model would only see as a file. */
+    val imagesUnseen: Boolean get() = model?.capabilities?.vision == false && attachments.any { it.isImage }
 }
 
 /** What happened in a chat that the user may want to hear about while away from the screen. */
@@ -147,6 +165,11 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
 
     /** Moments worth telling the user about when they aren't looking, e.g. as a notification. */
     val events: SharedFlow<ChatEvent> = _events.asSharedFlow()
+
+    private val _attachmentProblems = MutableSharedFlow<AttachmentProblem>(extraBufferCapacity = EVENT_BUFFER)
+
+    /** Why something the user picked wasn't added. */
+    val attachmentProblems: SharedFlow<AttachmentProblem> = _attachmentProblems.asSharedFlow()
 
     private var activeJob: Job? = null
     private var activeRunId: RunId? = null
@@ -210,9 +233,10 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         viewModelScope.launch {
             val projects = withContext(Dispatchers.IO) {
                 val root = graph.workspaces.folder().getOrNull()
-                val hidden = graph.filesDefaults.hiddenNames
+                // Whittle's own folders and hidden ones, such as a tool's scratch space, aren't projects.
+                val hidden = graph.filesDefaults.hiddenNames + graph.attachmentDefaults.directoryName
                 root?.listFiles().orEmpty()
-                    .filter { it.isDirectory && it.name !in hidden }
+                    .filter { it.isDirectory && it.name !in hidden && !it.name.startsWith('.') }
                     .map { ProjectFolder(it.name, it.lastModified()) }
                     .sortedByDescending { it.changedAtMillis }
             }
@@ -231,19 +255,81 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
 
     fun updateInput(text: String) = _state.update { it.copy(input = text) }
 
+    /**
+     * Saves what the user picked, shot or shared in the workspace and adds it to the next message, up to the limit
+     * per message. Whatever can't be added is reported on [attachmentProblems].
+     */
+    fun attach(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        val room = graph.attachmentDefaults.maxPerMessage - _state.value.attachments.size - _state.value.attaching
+        if (uris.size > room) _attachmentProblems.tryEmit(AttachmentProblem.TOO_MANY)
+        val taken = uris.take(room.coerceAtLeast(0))
+        if (taken.isEmpty()) return
+        val project = _state.value.project
+        _state.update { it.copy(attaching = it.attaching + taken.size) }
+        viewModelScope.launch {
+            taken.forEach { uri ->
+                val imported = graph.attachments.import(uri, project)
+                _state.update { state ->
+                    val added = (imported as? Imported.Added)?.attachment
+                    state.copy(attachments = state.attachments + listOfNotNull(added), attaching = state.attaching - 1)
+                }
+                if (imported is Imported.Refused) _attachmentProblems.tryEmit(imported.problem)
+            }
+        }
+    }
+
+    /** A share from another app: a new chat with what was shared attached and any words in the composer. */
+    fun startShared(shared: SharedItems) {
+        leaveCurrentChat()
+        viewModelScope.launch {
+            show(id = null, document = null)
+            shared.text?.let(::updateInput)
+            attach(shared.uris)
+        }
+    }
+
+    /** Attached photos, for thumbnails and the viewer. */
+    val images: WorkspaceImages get() = graph.images
+
+    val filesDefaults: FilesDefaults get() = graph.filesDefaults
+
+    val attachmentDefaults: AttachmentDefaults get() = graph.attachmentDefaults
+
+    /** Where the next message's attachments are saved, as the agent sees the workspace. */
+    fun uploadsPath(): String = "${graph.linux.workspaceMount}/${AttachmentNames.folder(_state.value.project, graph.attachmentDefaults.directoryName)}"
+
+    /** Takes an attachment off the next message; it was never sent, so its saved copy goes too. */
+    fun removeAttachment(attachment: Attachment) {
+        _state.update { state -> state.copy(attachments = state.attachments - attachment) }
+        graph.appScope.launch { graph.attachments.discard(attachment) }
+    }
+
     /** Starts a task, or adds to the one that's running without stopping it. */
     fun send() {
-        val text = _state.value.input.trim()
-        if (_state.value.model == null) return
-        if (text.isEmpty()) return
-        _state.update { it.copy(input = "") }
+        val state = _state.value
+        val text = state.input.trim()
+        val attachments = state.attachments
+        val model = state.model ?: return
+        if (state.attaching > 0 || (text.isEmpty() && attachments.isEmpty())) return
+        _state.update { it.copy(input = "", attachments = emptyList()) }
+        val forModel = listOf(text, attachmentNote(attachments, model.capabilities.vision)).filter { it.isNotEmpty() }.joinToString(PARAGRAPH)
+        // A model that can't see gets the photos only as files, through the note.
+        val images = attachments.filter { it.isImage && model.capabilities.vision }.map { it.path }
         val running = activeRunId
         if (activeJob?.isActive == true && running != null) {
-            graph.inbox.submit(running, RunInput.Steer(text))
-            append(ThreadItem.User(key(), text, steer = true))
+            graph.inbox.submit(running, RunInput.Steer(forModel, images))
+            append(ThreadItem.User(key(), text, steer = true, attachments = attachments))
             return
         }
-        start(text, RunMode.LIVE, preApprovedTools = emptySet())
+        start(text, RunMode.LIVE, preApprovedTools = emptySet(), forModel = forModel, images = images, attachments = attachments)
+    }
+
+    /** Tells the model where the attached files are saved, so it can open them with its tools. */
+    private fun attachmentNote(attachments: List<Attachment>, vision: Boolean): String {
+        if (attachments.isEmpty()) return ""
+        val files = attachments.map { "${graph.linux.workspaceMount}/${it.path}" to AttachmentNames.size(it.sizeBytes) }
+        return graph.agentMessages.attachments(files, imagesUnseen = !vision && attachments.any { it.isImage })
     }
 
     /**
@@ -263,7 +349,18 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         return chat
     }
 
-    private fun start(text: String, mode: RunMode, preApprovedTools: Set<ToolId>) {
+    /**
+     * Runs [text], as the user wrote it; the model gets [forModel], which adds the attachment note, with the
+     * [images] (workspace paths) it can see.
+     */
+    private fun start(
+        text: String,
+        mode: RunMode,
+        preApprovedTools: Set<ToolId>,
+        forModel: String = text,
+        images: List<String> = emptyList(),
+        attachments: List<Attachment> = emptyList(),
+    ) {
         val model = _state.value.model ?: return
         val runId = RunId(graph.idGenerator.newId())
         val chat = chatId ?: ChatId(graph.idGenerator.newId()).also { chatId = it }
@@ -271,11 +368,11 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         pendingProject?.let { graph.chatProjects.choose(WorkspaceId(chat.value), it) }
         pendingProject = null
         runIds = runIds + runId
-        append(ThreadItem.User(key(), text, steer = false))
+        append(ThreadItem.User(key(), text, steer = false, attachments = attachments))
         val request = RunRequest(
             runId = runId,
             model = model,
-            userMessage = Message.userText(text),
+            userMessage = Message(Role.USER, listOf(ContentBlock.Text(forModel)) + images.map(ContentBlock::ImageFile)),
             priorMessages = history,
             // The workspace is shared; this id ties the run's processes, outputs and changes to this chat.
             workspace = WorkspaceId(chat.value),
@@ -458,7 +555,9 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val items = restored.map(::settle) + listOfNotNull(interrupted)
         savedItems = items
         pendingProject = null
-        _state.update { it.copy(items = items, status = null, input = "") }
+        // A draft's attachments were never sent; leaving it lets their saved copies go.
+        _state.value.attachments.forEach { attachment -> graph.appScope.launch { graph.attachments.discard(attachment) } }
+        _state.update { it.copy(items = items, status = null, input = "", attachments = emptyList()) }
         syncProject()
         refreshProjects()
     }
@@ -900,7 +999,9 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         if (items.isEmpty() || items == savedItems) return
         savedItems = items
         val id = chatId ?: ChatId(graph.idGenerator.newId()).also { chatId = it }
-        val title = (automationName ?: items.filterIsInstance<ThreadItem.User>().firstOrNull()?.text.orEmpty()).take(TITLE_MAX_CHARS)
+        val first = items.filterIsInstance<ThreadItem.User>().firstOrNull()
+        val opening = first?.text?.takeIf { it.isNotEmpty() } ?: first?.attachments?.firstOrNull()?.name
+        val title = (automationName ?: opening.orEmpty()).take(TITLE_MAX_CHARS)
         val document = ChatDocument(
             schemaVersion = ChatDocument.SCHEMA_VERSION,
             title = title,
@@ -949,5 +1050,6 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         const val SAVE_DEBOUNCE_MILLIS = 400L
         const val INSPECTION_MAX_CHARS = 4_000
         const val TITLE_MAX_CHARS = 80
+        const val PARAGRAPH = "\n\n"
     }
 }

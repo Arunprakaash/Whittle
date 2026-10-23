@@ -5,6 +5,8 @@ import app.whittle.design.components.ComposerVoice
 import android.Manifest
 import android.content.pm.PackageManager
 import android.widget.Toast
+import app.whittle.attachments.Attachment
+import app.whittle.design.components.ComposerAttach
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.core.content.ContextCompat
@@ -139,6 +141,8 @@ fun ChatScreen(
     onOpenFiles: (FilesOpening) -> Unit,
     /** How many recent projects a new chat offers to carry on. */
     recentProjects: Int,
+    /** Opens the model picker, from the note that the model can't see an attached photo. */
+    onChangeModel: () -> Unit,
     /** Shown just above the composer, such as Linux finishing its setup. */
     aboveComposer: @Composable () -> Unit = {},
 ) {
@@ -149,17 +153,37 @@ fun ChatScreen(
         LivePreviewSheet(current, viewModel, previewHeight, onDismiss = { previewing = null })
     }
     val chat = state.currentChat?.value
+    val openFile = { path: String -> onOpenFiles(FilesOpening(FilesPlace.Document(path), chat)) }
+    // A photo opens in the viewer beside the others it came with; any other file in the file viewer.
+    var viewing by remember { mutableStateOf<Pair<List<Attachment>, Attachment>?>(null) }
+    viewing?.let { (photos, start) ->
+        PhotoViewer(
+            photos = photos,
+            start = start,
+            images = viewModel.images,
+            maxSidePx = viewModel.filesDefaults.maxImageSidePx,
+            onShowInFiles = { photo -> viewing = null; openFile(photo.path) },
+            onDismiss = { viewing = null },
+        )
+    }
     CompositionLocalProvider(
         LocalOpenPreview provides { item -> previewing = item },
-        LocalOpenFile provides { path -> onOpenFiles(FilesOpening(FilesPlace.Document(path), chat)) },
+        LocalOpenFile provides openFile,
+        LocalOpenAttachment provides { group, attachment ->
+            if (attachment.isImage) viewing = group.filter { it.isImage } to attachment else openFile(attachment.path)
+        },
     ) {
         ChatLayout(
             state, viewModel, sidebarMaxChats, voiceDefaults, onViewAllChats, onOpenSettings, avatarSeed, onOpenProjects, aboveComposer,
             onOpenWorkspace = { onOpenFiles(FilesOpening(FilesPlace.Folder(state.project.orEmpty()), chat)) },
             recentProjects = recentProjects,
+            onChangeModel = onChangeModel,
         )
     }
 }
+
+/** Opens one of a message's attachments, given all of them; provided by [ChatScreen]. */
+private val LocalOpenAttachment = staticCompositionLocalOf<(List<Attachment>, Attachment) -> Unit> { { _, _ -> } }
 
 /** Opens a process card's live preview; provided by [ChatScreen] so any thread row can use it. */
 private val LocalOpenPreview = staticCompositionLocalOf<(ThreadItem.Process) -> Unit> { {} }
@@ -180,9 +204,27 @@ private fun ChatLayout(
     aboveComposer: @Composable () -> Unit,
     onOpenWorkspace: () -> Unit,
     recentProjects: Int,
+    onChangeModel: () -> Unit,
 ) {
     val haptics = WhittleTheme.haptics
     LaunchedEffect(viewModel) { viewModel.haptics.collect { haptics.perform(it) } }
+    val context = LocalContext.current
+    val problems = attachmentProblemMessages(viewModel.attachmentDefaults)
+    LaunchedEffect(viewModel) {
+        viewModel.attachmentProblems.collect { problem -> Toast.makeText(context, problems.getValue(problem), Toast.LENGTH_SHORT).show() }
+    }
+    var attaching by rememberSaveable { mutableStateOf(false) }
+    val pickers = rememberAttachmentPickers(viewModel)
+    if (attaching) {
+        AttachSheet(
+            uploadsPath = viewModel.uploadsPath(),
+            defaults = viewModel.attachmentDefaults,
+            onPhotos = pickers.photos,
+            onCamera = pickers.camera,
+            onFiles = pickers.files,
+            onDismiss = { attaching = false },
+        )
+    }
     var choosingProject by rememberSaveable { mutableStateOf(false) }
     if (choosingProject) {
         ProjectSheet(
@@ -282,11 +324,18 @@ private fun ChatLayout(
         var dockHeight by remember { mutableIntStateOf(0) }
         val dockSpace = with(LocalDensity.current) { dockHeight.toDp() }
         Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
+            val unseen: (@Composable (Modifier) -> Unit)? = if (state.imagesUnseen) {
+                { modifier -> ImagesUnseenNote(state.model?.displayName.orEmpty(), onChangeModel, modifier) }
+            } else {
+                null
+            }
             when {
                 state.restoring -> Unit
+                // Before the first message, the note stands where the welcome would.
+                state.items.isEmpty() && unseen != null -> Box(Modifier.fillMaxSize().padding(bottom = dockSpace), contentAlignment = Alignment.Center) { unseen(Modifier) }
                 state.items.isEmpty() -> EmptyThread(state, recentProjects, viewModel::chooseProject, Modifier.padding(bottom = dockSpace))
                 // One list per chat: switching replaces the thread instead of animating one chat into another.
-                else -> key(state.currentChat) { Thread(state.items, state.running, viewModel, requestCapability, dockSpace) }
+                else -> key(state.currentChat) { Thread(state.items, state.running, viewModel, requestCapability, dockSpace, unseen) }
             }
             Dock(
                 state,
@@ -294,6 +343,7 @@ private fun ChatLayout(
                 voiceDefaults,
                 aboveComposer,
                 onChooseProject = { viewModel.refreshProjects(); choosingProject = true },
+                onAttach = { attaching = true },
                 modifier = Modifier.align(Alignment.BottomCenter).onSizeChanged { dockHeight = it.height },
             )
         }
@@ -313,6 +363,8 @@ private fun Thread(
     requestCapability: (ThreadItem.Capability) -> Unit,
     /** The height of the dock floating over the thread's end, kept clear below the last item. */
     dockSpace: Dp,
+    /** A note centred at the thread's end, such as the model not seeing an attached photo. */
+    footer: (@Composable (Modifier) -> Unit)? = null,
 ) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -325,8 +377,8 @@ private fun Thread(
     // Changes whenever anything new appears or the last item changes at all: streaming text, a step
     // added to a group, a card resolving. While following, each change keeps the bottom in view.
     // The dock growing (a status card appearing) also moves the bottom, so it keeps it in view too.
-    LaunchedEffect(items.size, items.lastOrNull(), dockSpace) {
-        if (following && items.isNotEmpty()) listState.scrollToItem(items.lastIndex, scrollOffset = Int.MAX_VALUE)
+    LaunchedEffect(items.size, items.lastOrNull(), dockSpace, footer != null) {
+        if (following && items.isNotEmpty()) listState.scrollToItem(items.lastIndex + if (footer != null) 1 else 0, scrollOffset = Int.MAX_VALUE)
     }
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
@@ -340,6 +392,11 @@ private fun Thread(
             val plan = AnswerFooters.plan(items)
             items(items.filterNot { it.key in plan.folded || it is ThreadItem.Plan }, key = { it.key }) { item ->
                 ThreadRow(item, viewModel, requestCapability, Modifier.animateItem(), plan.footers[item.key])
+            }
+            footer?.let { note ->
+                item(key = FOOTER_KEY) {
+                    Box(Modifier.fillMaxWidth().animateItem().padding(vertical = WhittleSpace.xxl), contentAlignment = Alignment.Center) { note(Modifier) }
+                }
             }
         }
         AnimatedVisibility(
@@ -368,7 +425,17 @@ private fun ThreadRow(
     // What the user and the agent wrote, did and made stays out of session recordings; notices don't.
     val content = modifier.userContent()
     when (item) {
-        is ThreadItem.User -> UserMessage(item.text, content, steerLabel = if (item.steer) stringResource(R.string.steer_label) else null)
+        is ThreadItem.User -> if (item.attachments.isEmpty()) {
+            UserMessage(item.text, content, steerLabel = if (item.steer) stringResource(R.string.steer_label) else null)
+        } else {
+            val open = LocalOpenAttachment.current
+            Column(content, verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+                MessageAttachments(item.attachments, viewModel.images, viewModel.filesDefaults, onOpen = { open(item.attachments, it) })
+                if (item.text.isNotEmpty() || item.steer) {
+                    UserMessage(item.text, steerLabel = if (item.steer) stringResource(R.string.steer_label) else null)
+                }
+            }
+        }
         is ThreadItem.Narration -> if (footer != null) {
             Answer(item, footer, viewModel, content)
         } else {
@@ -452,9 +519,11 @@ private fun Dock(
     voiceDefaults: VoiceDefaults,
     aboveComposer: @Composable () -> Unit,
     onChooseProject: () -> Unit,
+    onAttach: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val voice = rememberVoice(voiceDefaults, state.input, viewModel::updateInput)
+    val openAttachment = LocalOpenAttachment.current
     // No background of its own: only the cards, the chip and the composer cover the thread behind them.
     Column(
         modifier.fillMaxWidth().padding(start = WhittleSpace.m, end = WhittleSpace.m, bottom = WhittleSpace.s),
@@ -492,6 +561,22 @@ private fun Dock(
         AnimatedVisibility(!state.running, enter = WhittleTransitions.riseInPlace(), exit = WhittleTransitions.sinkOutPlace()) {
             ProjectChip(state.project, onClick = onChooseProject, modifier = Modifier.padding(start = WhittleSpace.xs))
         }
+        AnimatedVisibility(
+            state.attachments.isNotEmpty() || state.attaching > 0,
+            enter = WhittleTransitions.riseInPlace(),
+            exit = WhittleTransitions.sinkOutPlace(),
+        ) {
+            AttachmentTray(
+                attachments = state.attachments,
+                attaching = state.attaching,
+                images = viewModel.images,
+                files = viewModel.filesDefaults,
+                onOpen = { openAttachment(state.attachments, it) },
+                onRemove = viewModel::removeAttachment,
+                modifier = Modifier.userContent(),
+                imagesUnseen = state.imagesUnseen,
+            )
+        }
         Composer(
             value = state.input,
             onValueChange = viewModel::updateInput,
@@ -501,6 +586,8 @@ private fun Dock(
             enabled = state.model != null,
             modifier = Modifier.userContent(),
             voice = voice,
+            attach = ComposerAttach(stringResource(R.string.composer_attach), onAttach),
+            hasAttachments = state.attachments.isNotEmpty(),
         )
     }
 }
@@ -762,6 +849,7 @@ private const val SECONDS_PER_MINUTE = 60L
 
 /** Files, new chat and the overflow menu share one connected group. */
 private const val TOP_BAR_ACTIONS = 3
+private const val FOOTER_KEY = "thread-footer"
 
 private fun PlanItem.toUi(): PlanStepUi = PlanStepUi(
     text = content,

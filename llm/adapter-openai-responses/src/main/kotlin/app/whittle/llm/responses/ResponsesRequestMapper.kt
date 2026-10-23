@@ -83,7 +83,8 @@ internal class ResponsesRequestMapper {
             put(Field.TYPE, ContentType.INPUT_IMAGE)
             put(Field.IMAGE_URL, "data:${block.mediaType};base64,${block.base64Data}")
         }
-        is ContentBlock.ToolCall, is ContentBlock.ToolResult, is ContentBlock.Reasoning, is ContentBlock.HostedToolUse -> null
+        // The runner turns an attached image file into an Image before the request reaches an adapter.
+        is ContentBlock.ImageFile, is ContentBlock.ToolCall, is ContentBlock.ToolResult, is ContentBlock.Reasoning, is ContentBlock.HostedToolUse -> null
     }
 
     /**
@@ -109,7 +110,7 @@ internal class ResponsesRequestMapper {
                 put(Field.NAME, block.toolName)
                 put(Field.ARGUMENTS, block.argumentsJson)
             }
-            is ContentBlock.Image, is ContentBlock.ToolResult, is ContentBlock.HostedToolUse -> null
+            is ContentBlock.Image, is ContentBlock.ImageFile, is ContentBlock.ToolResult, is ContentBlock.HostedToolUse -> null
         }
     }
 }

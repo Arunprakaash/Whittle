@@ -1,6 +1,9 @@
 package app.whittle
 
 import app.whittle.agent.MemoryStore
+import app.whittle.attachments.AttachmentImporter
+import app.whittle.attachments.WorkspaceImages
+import app.whittle.settings.AttachmentDefaults
 import app.whittle.memory.EncryptedFileMemory
 import app.whittle.tools.workspace.WorkspaceOutputs
 import app.whittle.settings.MemoryIdea
@@ -190,6 +193,14 @@ class AppGraph(context: Context) {
     /** The file browser's settings. */
     val filesDefaults: FilesDefaults get() = appDefaults.files
 
+    val attachmentDefaults: AttachmentDefaults get() = appDefaults.attachments
+
+    /** Photos and files the user adds to a message, copied into the workspace. */
+    val attachments = AttachmentImporter(context.contentResolver, workspaces, appDefaults.attachments)
+
+    /** Attached photos, for the model and for the screen. */
+    val images = WorkspaceImages(workspaces, appDefaults.attachments)
+
     /** What each chat's agent changed in the workspace, for the file browser's Changes. */
     val fileChanges = FileChangeLog(File(context.filesDir, appDefaults.files.changesDirectoryName), workspaces)
 
@@ -264,6 +275,7 @@ class AppGraph(context: Context) {
         clock = clock,
         outputs = WorkspaceOutputs(workspaces, harness.agent.toolOutput.directory)::save,
         memory = memory,
+        images = images,
     )
 
     /** schedule_task: an automation takes the chat's project unless the model names another that exists. */

@@ -13,6 +13,7 @@ import app.whittle.core.config.PromptTemplate
 import app.whittle.core.model.ContentBlock
 import app.whittle.core.model.Conversation
 import app.whittle.core.model.Message
+import app.whittle.tools.api.WorkspaceId
 import app.whittle.core.model.Provenance
 import app.whittle.core.model.Role
 import app.whittle.core.model.RunId
@@ -84,6 +85,8 @@ class AgentRunner(
     private val outputs: ToolOutputStore? = null,
     /** What the agent remembers about the user; every task's system prompt shows it. */
     private val memory: MemoryStore? = null,
+    /** Reads attached images from the workspace for each model call; without one they're named in words. */
+    private val images: ImageSource? = null,
     private val argumentParser: ToolArgumentParser = ToolArgumentParser(),
     private val random: Random = Random.Default,
 ) {
@@ -270,6 +273,24 @@ class AgentRunner(
         return (capped * (1 - policy.jitter * random.nextDouble())).toLong()
     }
 
+    /**
+     * Attached images go to the model as images, read from the workspace now. One that can't be read (deleted,
+     * or no workspace) is named in words instead, so the model knows something was there.
+     */
+    private suspend fun withImages(messages: List<Message>, workspace: WorkspaceId?): List<Message> {
+        if (messages.none { message -> message.content.any { it is ContentBlock.ImageFile } }) return messages
+        return messages.map { message ->
+            if (message.content.none { it is ContentBlock.ImageFile }) return@map message
+            message.copy(
+                content = message.content.map { block ->
+                    if (block !is ContentBlock.ImageFile) return@map block
+                    val loaded = workspace?.let { images?.load(it, block.path) }
+                    (loaded as? Outcome.Success)?.value ?: ContentBlock.Text(this.messages.imageUnavailable(block.path))
+                },
+            )
+        }
+    }
+
     private suspend fun FlowCollector<RunEvent>.callModel(
         checkpoint: RunCheckpoint,
         connection: ModelConnection,
@@ -278,7 +299,7 @@ class AgentRunner(
         val request = ModelRequest(
             model = checkpoint.model,
             systemPrompt = checkpoint.conversation.systemPrompt,
-            messages = checkpoint.conversation.messages,
+            messages = withImages(checkpoint.conversation.messages, checkpoint.workspace),
             tools = tools.definitions.map { ToolSpec(it.id.value, it.description, it.inputSchema) },
             maxOutputTokens = limits.maxOutputTokensPerStep,
             reasoningEffort = checkpoint.reasoningEffort,
@@ -416,7 +437,7 @@ class AgentRunner(
         var checkpoint = start
         for (input in inbox.drain(start.runId)) {
             checkpoint = when (input) {
-                is RunInput.Steer -> steer(checkpoint, input.text)
+                is RunInput.Steer -> steer(checkpoint, input)
                 is RunInput.Decision -> resolveDecision(checkpoint, input, parent)
                 is RunInput.Answer -> resolveQuestion(checkpoint, input)
                 is RunInput.CapabilityChanged -> capabilityChanged(checkpoint, input)
@@ -425,9 +446,10 @@ class AgentRunner(
         return Outcome.Success(checkpoint)
     }
 
-    private suspend fun steer(checkpoint: RunCheckpoint, text: String): Outcome<RunCheckpoint> {
+    private suspend fun steer(checkpoint: RunCheckpoint, input: RunInput.Steer): Outcome<RunCheckpoint> {
         telemetry.event(TelemetryEvent.RUN_STEERED, runAttributes(checkpoint))
-        return persist(checkpoint.copy(conversation = checkpoint.conversation.withUserContent(ContentBlock.Text(text))))
+        val blocks = listOf(ContentBlock.Text(input.text)) + input.images.map(ContentBlock::ImageFile)
+        return persist(checkpoint.copy(conversation = checkpoint.conversation.withUserContent(*blocks.toTypedArray())))
     }
 
     /**
@@ -558,12 +580,12 @@ class AgentRunner(
     }
 
     /** Adds harness or user text to the latest user turn, keeping user and assistant turns alternating. */
-    private fun Conversation.withUserContent(block: ContentBlock): Conversation {
+    private fun Conversation.withUserContent(vararg blocks: ContentBlock): Conversation {
         val last = messages.lastOrNull()
         return if (last?.role == Role.USER) {
-            copy(messages = messages.dropLast(1) + last.copy(content = last.content + block))
+            copy(messages = messages.dropLast(1) + last.copy(content = last.content + blocks))
         } else {
-            append(Message(Role.USER, listOf(block)))
+            append(Message(Role.USER, blocks.toList()))
         }
     }
 

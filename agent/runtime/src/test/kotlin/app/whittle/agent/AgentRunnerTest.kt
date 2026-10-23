@@ -65,6 +65,22 @@ class AgentRunnerTest {
     }
 
     @Test
+    fun `an attached image reaches the model as an image, while the checkpoint keeps only its path`() = runTest {
+        val adapter = ScriptedAdapter(listOf(textTurn("A receipt.")))
+        val loaded = ContentBlock.Image("image/jpeg", "AAAA")
+        val images = ImageSource { _, path -> if (path == "uploads/receipt.jpg") Outcome.Success(loaded) else Outcome.Failure(HarnessError.NotFound(path)) }
+        val message = Message(Role.USER, listOf(ContentBlock.Text("What is this?"), ContentBlock.ImageFile("uploads/receipt.jpg"), ContentBlock.ImageFile("uploads/gone.jpg")))
+
+        runner(adapter, images = images).start(request().copy(userMessage = message, workspace = WorkspaceId("chat-1"))).toList()
+
+        val sent = adapter.requests.single().messages.last().content
+        assertEquals(loaded, sent[1])
+        assertEquals("no image uploads/gone.jpg", (sent[2] as ContentBlock.Text).text)
+        val kept = savedCheckpoint().conversation.messages.first { it.role == Role.USER }.content
+        assertEquals(ContentBlock.ImageFile("uploads/receipt.jpg"), kept[1])
+    }
+
+    @Test
     fun `allowed tool runs and its result goes back to the model`() = runTest {
         val clock = FakeTool("time.now", RiskTier.READ)
         val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "time.now")), textTurn("It is noon.")))
@@ -255,6 +271,24 @@ class AgentRunnerTest {
         assertEquals(Role.USER, lastUserTurn.role)
         assertIs<ContentBlock.ToolResult>(lastUserTurn.content.first())
         assertEquals("Also say I'll order the starters", lastUserText(adapter))
+    }
+
+    @Test
+    fun `a photo sent mid-run reaches the model as an image with its words`() = runTest {
+        val clock = FakeTool("time.now", RiskTier.READ) {
+            inbox.submit(runId, RunInput.Steer("What is this?", images = listOf("uploads/receipt.jpg")))
+            "noon"
+        }
+        val loaded = ContentBlock.Image("image/jpeg", "AAAA")
+        val images = ImageSource { _, _ -> Outcome.Success(loaded) }
+        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "time.now")), textTurn("A receipt.")))
+
+        runner(adapter, setOf(clock), images = images).start(request().copy(workspace = WorkspaceId("chat-1"))).toList()
+
+        val sent = adapter.requests[1].messages.last().content
+        assertIs<ContentBlock.ToolResult>(sent[0])
+        assertEquals(ContentBlock.Text("What is this?"), sent[1])
+        assertEquals(loaded, sent[2])
     }
 
     @Test
@@ -531,6 +565,7 @@ class AgentRunnerTest {
         limits: AgentLimits = testLimits(),
         outputs: ToolOutputStore? = null,
         memory: MemoryStore? = null,
+        images: ImageSource? = null,
         prompt: PromptTemplate = PromptTemplate(ConfigName("system.md"), "System for {{user}}"),
     ) = AgentRunner(
         adapters = adapterRegistry,
@@ -547,6 +582,7 @@ class AgentRunnerTest {
         clock = EpochClock { 0L },
         outputs = outputs,
         memory = memory,
+        images = images,
     )
 
     private fun request() = RunRequest(

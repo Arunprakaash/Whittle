@@ -109,6 +109,10 @@ internal val testMessages = AgentMessages(
     automationTimeInvalid = "bad time",
     automationDaysInvalid = "bad days",
     automationSaveFailed = "failed {{detail}}",
+    attachments = "attached:\n{{files}}",
+    attachmentLine = "- {{path}} ({{size}})",
+    attachmentImagesUnseen = "images unseen",
+    imageUnavailable = "no image {{path}}",
 )
 
 internal val testRetry = ModelRetryPolicy(

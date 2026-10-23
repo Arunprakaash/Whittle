@@ -106,3 +106,7 @@ task_alt
 toggle_off
 toggle_on
 pause_circle
+picture_as_pdf
+photo_library
+photo_camera
+attach_file

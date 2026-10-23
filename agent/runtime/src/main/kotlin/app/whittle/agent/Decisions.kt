@@ -39,8 +39,11 @@ enum class DecisionAnswer { APPROVED, DECLINED }
 
 /** What the user can send to a run while it works or while it waits. */
 sealed interface RunInput {
-    /** Extra instructions typed into the composer mid-run. Applied at the next step boundary. */
-    data class Steer(val text: String) : RunInput
+    /**
+     * Extra instructions typed into the composer mid-run, with the workspace paths of any photos attached to them.
+     * Applied at the next step boundary.
+     */
+    data class Steer(val text: String, val images: List<String> = emptyList()) : RunInput
 
     /** The user's choice on a decision card. */
     data class Decision(val toolCallId: ToolCallId, val answer: DecisionAnswer) : RunInput

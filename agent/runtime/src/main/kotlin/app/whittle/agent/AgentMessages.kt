@@ -69,8 +69,19 @@ data class AgentMessages(
     val automationTimeInvalid: String,
     val automationDaysInvalid: String,
     val automationSaveFailed: String,
+    /** Added to the user's message when they attach files: [FILES] is one [attachmentLine] each. */
+    val attachments: String,
+    val attachmentLine: String,
+    /** Added after [attachments] when the model can't see images, so it only gets them as files. */
+    val attachmentImagesUnseen: String,
+    /** Stands in for an attached image that can no longer be read from the workspace. */
+    val imageUnavailable: String,
 ) : VersionedConfig {
     init {
+        requirePlaceholders(attachments, FILES)
+        requirePlaceholders(attachmentLine, PATH, SIZE)
+        requirePlaceholders(attachmentImagesUnseen)
+        requirePlaceholders(imageUnavailable, PATH)
         requirePlaceholders(unknownTool, TOOL)
         requirePlaceholders(invalidArguments, TOOL, DETAIL)
         requirePlaceholders(policyDenied, TOOL)
@@ -190,12 +201,22 @@ data class AgentMessages(
 
     fun automationSaveFailed(detail: String): String = render(automationSaveFailed, DETAIL to detail)
 
+    /** The note on a message with attachments, from (path, size) pairs; [imagesUnseen] when the model can't see them. */
+    fun attachments(files: List<Pair<String, String>>, imagesUnseen: Boolean): String {
+        val list = files.joinToString("\n") { (path, size) -> render(attachmentLine, PATH to path, SIZE to size) }
+        return listOfNotNull(render(attachments, FILES to list), attachmentImagesUnseen.takeIf { imagesUnseen }).joinToString("\n")
+    }
+
+    fun imageUnavailable(path: String): String = render(imageUnavailable, PATH to path)
+
     /** The memory section of the system prompt: one line per remembered fact, as (id, text) pairs. */
     fun memories(items: List<Pair<String, String>>): String =
         if (items.isEmpty()) noMemories else items.joinToString("\n") { (id, text) -> render(memoryLine, ID to id, TEXT to text) }
 
     companion object {
-        const val SCHEMA_VERSION = 10
+        const val SCHEMA_VERSION = 11
+        private const val FILES = "files"
+        private const val SIZE = "size"
         private const val TOOL = "tool"
         private const val DETAIL = "detail"
         private const val LIMIT = "limit"

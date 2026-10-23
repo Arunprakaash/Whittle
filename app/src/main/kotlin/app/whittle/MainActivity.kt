@@ -60,11 +60,24 @@ import app.whittle.onboarding.OnboardingSteps
 import app.whittle.onboarding.WelcomeScreen
 import app.whittle.linux.LinuxWorkspaceScreen
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.MutableStateFlow
+import android.content.Intent
+import app.whittle.attachments.SharedItems
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    /** What another app shared, until the chat takes it. */
+    private val shared = MutableStateFlow<SharedItems?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        SharedItems.from(intent)?.let { shared.value = it }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        // A share is taken once: a screen rebuilt after rotating mustn't add it again.
+        if (savedInstanceState == null) shared.value = SharedItems.from(intent)
         drawBehindSystemBars(dark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES)
         super.onCreate(savedInstanceState)
         val graph = (application as WhittleApplication).graph
@@ -140,6 +153,17 @@ class MainActivity : ComponentActivity() {
                             var toolsOf by rememberSaveable { mutableStateOf<String?>(null) }
                             var files by rememberSaveable(stateSaver = filesOpeningSaver) { mutableStateOf<FilesOpening?>(null) }
                             val connections by graph.connectors.all.collectAsStateWithLifecycle()
+                            var pickerFromChat by rememberSaveable { mutableStateOf(false) }
+                            val incoming by shared.collectAsStateWithLifecycle()
+                            LaunchedEffect(incoming) {
+                                val items = incoming ?: return@LaunchedEffect
+                                shared.value = null
+                                // A share lands in a new chat, whatever screen was open.
+                                files = null
+                                showingSettings = false; showingAllChats = false; showingModelPicker = false; showingAutomations = false
+                                showingMemory = false; showingLinux = false; showingConnectionLibrary = false; toolsOf = null
+                                chat.startShared(items)
+                            }
                             val toolsConnection = toolsOf?.let { id -> connections.firstOrNull { it.server.id == id } }
                             val opening = files
                             if (opening != null) {
@@ -176,8 +200,8 @@ class MainActivity : ComponentActivity() {
                                 ModelPickerScreen(
                                     state = picker.state.collectAsStateWithLifecycle().value,
                                     viewModel = picker,
-                                    onClose = { showingModelPicker = false; showingSettings = true },
-                                    onSwitchProvider = { showingModelPicker = false; connectOpenings += 1; chat.switchProvider() },
+                                    onClose = { showingModelPicker = false; showingSettings = !pickerFromChat; pickerFromChat = false },
+                                    onSwitchProvider = { showingModelPicker = false; pickerFromChat = false; connectOpenings += 1; chat.switchProvider() },
                                 )
                             } else if (showingSettings) {
                                 SettingsScreen(
@@ -215,6 +239,7 @@ class MainActivity : ComponentActivity() {
                                     onOpenProjects = { files = FilesOpening(FilesPlace.Folder("")) },
                                     onOpenFiles = { files = it },
                                     recentProjects = graph.projectDefaults.recentCount,
+                                    onChangeModel = { pickerFromChat = true; pickerOpenings += 1; showingModelPicker = true },
                                 )
                             }
                         }
