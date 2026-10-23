@@ -42,6 +42,8 @@ data class ModelCapabilityOverride(
 data class ProviderDescriptor(
     val id: ProviderId,
     val displayName: String,
+    /** A line under the name where the user picks a provider, such as what its key gives them. */
+    val tagline: String? = null,
     /** Where the user makes a key; linked from the connect screen. */
     val keysUrl: String? = null,
     val apiFormat: ApiFormat,

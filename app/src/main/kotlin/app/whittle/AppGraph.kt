@@ -1,6 +1,8 @@
 package app.whittle
 
 import app.whittle.agent.MemoryStore
+import app.whittle.claudecode.ClaudeCode
+import app.whittle.claudecode.ClaudeCodeConfig
 import app.whittle.attachments.AttachmentImporter
 import app.whittle.attachments.WorkspaceImages
 import app.whittle.settings.AttachmentDefaults
@@ -259,6 +261,12 @@ class AppGraph(context: Context) {
         ToolCatalog.create(context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, agentMessages, scheduleTask()),
         connectors::tools,
     )
+
+    /** Claude Code, run in Linux with the user's own Claude plan, as another way to bring a model. */
+    val claudeCode = ClaudeCodeConfig.FILE.let { file ->
+        val config = load(file, ClaudeCodeConfig.serializer(), ClaudeCodeConfig.SCHEMA_VERSION)
+        ClaudeCode(config, linux.environment, workspaces, appScope, File(context.filesDir, config.sessionsFileName), inbox)
+    }
 
     val runner = AgentRunner(
         adapters = ModelAdapterRegistry(setOf(OpenAiCompatibleAdapter(httpClient, idGenerator), OpenAiResponsesAdapter(httpClient))),

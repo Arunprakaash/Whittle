@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "enabled": true,
+  "providerId": "claude-code",
+  "displayName": "Claude Code",
+  "sessionsFileName": "claude-code-sessions.json",
+  "installCommand": "install -d -m 0755 /etc/apt/keyrings && curl -fsSL https://downloads.claude.ai/keys/claude-code.asc -o /etc/apt/keyrings/claude-code.asc && echo 'deb [signed-by=/etc/apt/keyrings/claude-code.asc] https://downloads.claude.ai/claude-code/apt/stable stable main' > /etc/apt/sources.list.d/claude-code.list && apt-get update -q && apt-get install -y -q claude-code && apt-get clean",
+  "removeCommand": "apt-get remove -y -q claude-code && rm -f /etc/apt/sources.list.d/claude-code.list /etc/apt/keyrings/claude-code.asc",
+  "versionCommand": "claude --version",
+  "statusCommand": "claude auth status",
+  "signInCommand": "claude auth login",
+  "signOutCommand": "claude auth logout",
+  "runCommand": "claude -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --permission-prompt-tool stdio --model {{model}}",
+  "resumeArguments": "--resume {{session}}",
+  "installTimeoutSeconds": 900,
+  "commandTimeoutSeconds": 60,
+  "inboxPollMillis": 200,
+  "signedOutErrors": [
+    "authentication_failed",
+    "oauth_org_not_allowed"
+  ],
+  "limitErrors": [
+    "rate_limit",
+    "billing_error"
+  ],
+  "declinedMessage": "The user didn't allow this step. Don't try it again; carry on without it or ask the user.",
+  "outputChars": 20000,
+  "models": [
+    {
+      "id": "opus",
+      "name": "Opus",
+      "detail": "Most capable"
+    },
+    {
+      "id": "sonnet",
+      "name": "Sonnet",
+      "detail": "Fast and capable"
+    },
+    {
+      "id": "haiku",
+      "name": "Haiku",
+      "detail": "Fastest"
+    }
+  ]
+}

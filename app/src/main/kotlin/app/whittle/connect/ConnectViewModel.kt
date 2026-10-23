@@ -66,16 +66,23 @@ sealed interface ConnectError {
  * Connects a provider: the key is checked against the provider, the models are listed, and only then
  * is the key stored (encrypted, on this phone). Picking a model finishes the connection.
  *
- * Given the [current] model, it changes the model instead: the provider's saved key lists its models
- * and is never asked for again. Only a key that's missing is asked for.
+ * Given a [provider] already connected (the current model's, by default), it changes the model instead: the
+ * provider's saved key lists its models and is never asked for again. Only a key that's missing is asked for.
+ * A provider outside the catalog (Claude Code) is treated as none.
  */
-class ConnectViewModel(private val graph: AppGraph, private val current: ModelDescriptor? = null) : ViewModel() {
+class ConnectViewModel(
+    private val graph: AppGraph,
+    current: ModelDescriptor? = null,
+    provider: ProviderId? = current?.providerId,
+) : ViewModel() {
+    private val connected: ProviderId? = provider?.takeIf { id -> graph.providers.providers.any { it.id == id } }
+
     private val _state = MutableStateFlow(
         ConnectState(
             providers = graph.providers.providers,
-            providerId = current?.providerId ?: graph.providers.providers.first().id,
-            phase = if (current != null) ConnectPhase.Checking else ConnectPhase.EnterKey(error = null),
-            switching = current != null,
+            providerId = connected ?: graph.providers.providers.first().id,
+            phase = if (connected != null) ConnectPhase.Checking else ConnectPhase.EnterKey(error = null),
+            switching = connected != null,
         ),
     )
     val state: StateFlow<ConnectState> = _state.asStateFlow()
@@ -86,7 +93,7 @@ class ConnectViewModel(private val graph: AppGraph, private val current: ModelDe
 
     /** Lists the current provider's models again with its saved key. */
     fun retry() {
-        val provider = current?.providerId ?: return
+        val provider = connected ?: return
         _state.update { it.copy(phase = ConnectPhase.Checking) }
         viewModelScope.launch {
             val key = graph.secrets.get(SecretKey.providerApiKey(provider)).getOrNull()
@@ -102,7 +109,20 @@ class ConnectViewModel(private val graph: AppGraph, private val current: ModelDe
         }
     }
 
-    fun selectProvider(id: ProviderId) = _state.update { it.copy(providerId = id, phase = ConnectPhase.EnterKey(error = null)) }
+    /** Picks the provider; one whose key is still saved on this phone lists its models without asking for it again. */
+    fun selectProvider(id: ProviderId) {
+        _state.update { it.copy(providerId = id, phase = ConnectPhase.EnterKey(error = null)) }
+        viewModelScope.launch {
+            val key = graph.secrets.get(SecretKey.providerApiKey(id)).getOrNull() ?: return@launch
+            if (_state.value.providerId != id) return@launch
+            _state.update { it.copy(phase = ConnectPhase.Checking) }
+            val phase = when (val listed = graph.modelLister.listModels(_state.value.provider, key)) {
+                is Outcome.Success -> ConnectPhase.ChooseModel(usable(listed.value))
+                is Outcome.Failure -> ConnectPhase.EnterKey(listed.error.toConnectError())
+            }
+            _state.update { if (it.providerId == id) it.copy(phase = phase) else it }
+        }
+    }
 
     fun updateKey(key: String) = _state.update { it.copy(key = key, phase = ConnectPhase.EnterKey(error = null)) }
 

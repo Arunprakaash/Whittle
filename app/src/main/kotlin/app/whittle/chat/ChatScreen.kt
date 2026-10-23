@@ -839,6 +839,9 @@ private fun noticeText(notice: ThreadItem.Notice): String = when (notice.kind) {
     NoticeKind.FailedNetwork -> stringResource(R.string.notice_failed_network)
     NoticeKind.FailedProvider -> stringResource(R.string.notice_failed_provider, notice.statusCode ?: 0)
     NoticeKind.FailedGeneric -> stringResource(R.string.notice_failed_generic)
+    NoticeKind.ClaudeCodeSignedOut -> stringResource(R.string.notice_claude_code_signed_out)
+    NoticeKind.ClaudeCodeLimit -> stringResource(R.string.notice_claude_code_limit, notice.detail.orEmpty())
+    NoticeKind.ClaudeCodeFailed -> stringResource(R.string.notice_claude_code_failed, notice.detail.orEmpty())
 }
 
 /** Permission cards always confirm with a check; their words come from config. */

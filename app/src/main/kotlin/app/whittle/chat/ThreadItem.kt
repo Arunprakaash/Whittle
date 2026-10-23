@@ -113,7 +113,13 @@ sealed interface ThreadItem {
 
     @Serializable
     @SerialName("notice")
-    data class Notice(override val key: String, val kind: NoticeKind, val statusCode: Int? = null) : ThreadItem
+    data class Notice(
+        override val key: String,
+        val kind: NoticeKind,
+        val statusCode: Int? = null,
+        /** What the model's own tool said, for notices that show it, such as when a Claude plan resets. */
+        val detail: String? = null,
+    ) : ThreadItem
 
     /** A run that was still working when the app closed. Continuing it is the user's call. */
     @Serializable
@@ -139,8 +145,11 @@ data class StepModel(
 enum class StepState { Running, Done, Failed, Blocked, NeedsAccess, Stopped }
 
 @Serializable
-enum class NoticeKind { Stopped, PausedBudget, PausedSteps, FailedKey, FailedNetwork, FailedProvider, FailedGeneric }
+enum class NoticeKind {
+    Stopped, PausedBudget, PausedSteps, FailedKey, FailedNetwork, FailedProvider, FailedGeneric,
+    ClaudeCodeSignedOut, ClaudeCodeLimit, ClaudeCodeFailed,
+}
 
 /** The task stopped because something went wrong, not because the user or a limit stopped it. */
 val NoticeKind.isFailure: Boolean
-    get() = this == NoticeKind.FailedKey || this == NoticeKind.FailedNetwork || this == NoticeKind.FailedProvider || this == NoticeKind.FailedGeneric
+    get() = this != NoticeKind.Stopped && this != NoticeKind.PausedBudget && this != NoticeKind.PausedSteps
