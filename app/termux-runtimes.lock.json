@@ -2,9 +2,9 @@
     "arm64-v8a": [
         {
             "name": "proot",
-            "version": "5.1.107.98",
-            "filename": "pool/main/p/proot/proot_5.1.107.98_aarch64.deb",
-            "sha256": "29de40efea4daa2a6168b617915206511c63e8d46bf5f4b07d48723441ef7f3b"
+            "version": "5.1.107.100",
+            "filename": "pool/main/p/proot/proot_5.1.107.100_aarch64.deb",
+            "sha256": "06082d4425523a9a618ed2a096c344518c33bc05029395a4ad44ea526d1612b6"
         },
         {
             "name": "libandroid-shmem",
