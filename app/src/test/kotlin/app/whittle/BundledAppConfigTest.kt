@@ -58,6 +58,11 @@ class BundledAppConfigTest {
         assertTrue("https://downloads.claude.ai/" in config.installCommand)
         assertTrue(config.models.map { it.id }.containsAll(listOf("opus", "sonnet", "haiku")))
         assertTrue("--permission-prompt-tool" in config.runCommand && "stream-json" in config.runCommand)
+        // Every sign-in Claude Code offers is offered here too, and their icons are bundled.
+        assertEquals(setOf("--claudeai", "--console"), config.signInMethods.map { it.arguments }.toSet())
+        val missingIcons = (config.signInMethods.map { it.icon } + config.apiKey.icon).toSet() - MaterialSymbols.names
+        assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
+        assertTrue(config.apiKey.checkUrl.startsWith("https://"))
         // Updates come from Claude Code's own list only, so nothing else in Linux changes under the user.
         assertTrue("claude-code.list" in config.updateCommand && "--only-upgrade claude-code" in config.updateCommand)
         // An automation can't let Claude Code run what it couldn't let Whittle's own tools run.

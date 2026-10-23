@@ -22,6 +22,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -63,6 +66,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.whittle.R
+import app.whittle.connect.ChoiceRow
+import app.whittle.connect.SecretField
 import app.whittle.design.components.BottomActionButton
 import app.whittle.design.components.ScreenHeading
 import app.whittle.design.components.SupportingNote
@@ -79,6 +84,160 @@ import app.whittle.llm.api.ModelDescriptor
 import app.whittle.tools.workspace.InteractiveCommand
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/** Where Claude Code's setup starts: its first screen, or straight at how to sign in (from its model picker). */
+enum class ClaudeCodeEntry { SETUP, SIGN_IN }
+
+/**
+ * Claude Code from its first screen to signed in: setup, then how to sign in, then Claude Code's own sign-in or the
+ * user's API key. [onReady] once it's installed and signed in; [onBack] leaves it.
+ */
+@Composable
+fun ClaudeCodeFlow(claudeCode: ClaudeCode, entry: ClaudeCodeEntry, onBack: () -> Unit, onReady: () -> Unit) {
+    var step by rememberSaveable(entry) { mutableStateOf(if (entry == ClaudeCodeEntry.SETUP) FlowStep.SETUP else FlowStep.CHOOSE) }
+    var methodId by rememberSaveable { mutableStateOf<String?>(null) }
+    val method = claudeCode.config.signInMethods.firstOrNull { it.id == methodId }
+    val choose = { step = FlowStep.CHOOSE }
+    when (step) {
+        FlowStep.SETUP -> ClaudeCodeSetupScreen(claudeCode, onBack = onBack, onSignIn = choose, onReady = onReady)
+        FlowStep.CHOOSE -> ClaudeCodeSignInChoiceScreen(
+            claudeCode.config,
+            onBack = { if (entry == ClaudeCodeEntry.SETUP) step = FlowStep.SETUP else onBack() },
+            onMethod = { chosen -> methodId = chosen.id; step = FlowStep.SIGN_IN },
+            onApiKey = { step = FlowStep.API_KEY },
+        )
+        FlowStep.SIGN_IN -> method?.let { ClaudeCodeSignInScreen(claudeCode, it, onClose = choose, onSignedIn = onReady) }
+        FlowStep.API_KEY -> ClaudeCodeApiKeyScreen(claudeCode, onBack = choose, onSaved = onReady)
+    }
+}
+
+private enum class FlowStep { SETUP, CHOOSE, SIGN_IN, API_KEY }
+
+/** How to sign in, as Claude Code offers it: each account on Anthropic's own page, or the user's own API key. */
+@Composable
+fun ClaudeCodeSignInChoiceScreen(
+    config: ClaudeCodeConfig,
+    onBack: () -> Unit,
+    onMethod: (ClaudeCodeSignInMethod) -> Unit,
+    onApiKey: () -> Unit,
+) {
+    BackHandler(onBack = onBack)
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.surface,
+        topBar = {
+            Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = WhittleSpace.m, vertical = WhittleSpace.s)) {
+                TopBarButton("arrow_back", stringResource(R.string.claude_code_back), onBack)
+            }
+        },
+    ) { padding ->
+        Column(
+            Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = WhittleSpace.l),
+            verticalArrangement = Arrangement.spacedBy(WhittleSpace.xxl),
+        ) {
+            ScreenHeading(
+                stringResource(R.string.claude_code_choose_title),
+                stringResource(R.string.claude_code_choose_body),
+                Modifier.padding(horizontal = WhittleSpace.s),
+            )
+            val count = config.signInMethods.size + 1
+            Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
+                config.signInMethods.forEachIndexed { index, method ->
+                    ChoiceRow(method.icon, method.name, method.detail, selected = false, trailing = CHEVRON, index = index, count = count, enabled = true) {
+                        onMethod(method)
+                    }
+                }
+                ChoiceRow(
+                    config.apiKey.icon,
+                    config.apiKey.name,
+                    config.apiKey.detail,
+                    selected = false,
+                    trailing = CHEVRON,
+                    index = count - 1,
+                    count = count,
+                    enabled = true,
+                    onClick = onApiKey,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The user's own Anthropic API key: pasted as other keys are, checked once with Anthropic, then kept encrypted, and
+ * Claude Code uses it for their tasks.
+ */
+@Composable
+fun ClaudeCodeApiKeyScreen(claudeCode: ClaudeCode, onBack: () -> Unit, onSaved: () -> Unit) {
+    BackHandler(onBack = onBack)
+    val colors = MaterialTheme.colorScheme
+    val uriHandler = LocalUriHandler.current
+    val scope = rememberCoroutineScope()
+    var key by remember { mutableStateOf("") }
+    var checking by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<ApiKeyCheck?>(null) }
+    val use = {
+        if (key.isNotBlank() && !checking) {
+            checking = true
+            result = null
+            scope.launch {
+                val checked = claudeCode.useApiKey(key)
+                checking = false
+                if (checked == ApiKeyCheck.SAVED) onSaved() else result = checked
+            }
+        }
+    }
+    Scaffold(
+        containerColor = colors.surface,
+        topBar = {
+            Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = WhittleSpace.m, vertical = WhittleSpace.s)) {
+                TopBarButton("arrow_back", stringResource(R.string.claude_code_back), onBack)
+            }
+        },
+        bottomBar = {
+            if (checking) {
+                Busy(stringResource(R.string.claude_code_api_key_checking))
+            } else {
+                BottomActionButton("check", stringResource(R.string.claude_code_api_key_use), { use() })
+            }
+        },
+    ) { padding ->
+        Column(
+            Modifier.padding(padding).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = WhittleSpace.xxl),
+            verticalArrangement = Arrangement.spacedBy(WhittleSpace.xxl),
+        ) {
+            ScreenHeading(stringResource(R.string.claude_code_api_key_title), stringResource(R.string.claude_code_api_key_body))
+            Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+                SecretField(
+                    value = key,
+                    onValueChange = { key = it; result = null },
+                    label = claudeCode.config.apiKey.name,
+                    enabled = !checking,
+                    isError = result != null,
+                    onDone = { use() },
+                )
+                result?.let { failed ->
+                    Text(
+                        stringResource(if (failed == ApiKeyCheck.REFUSED) R.string.claude_code_api_key_refused else R.string.claude_code_api_key_unreachable),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.error,
+                        modifier = Modifier.padding(start = WhittleSpace.xl),
+                    )
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
+                SupportingNote("lock", stringResource(R.string.claude_code_api_key_note))
+                SupportingNote("payments", stringResource(R.string.claude_code_api_key_billing))
+            }
+            TextButton(onClick = {
+                try {
+                    uriHandler.openUri(claudeCode.config.apiKey.keysUrl)
+                } catch (exception: ActivityNotFoundException) {
+                    // No browser; the user creates a key elsewhere.
+                }
+            }) { Text(stringResource(R.string.claude_code_api_key_create)) }
+        }
+    }
+}
 
 /**
  * Before Claude Code is used: what happens and whose terms apply, then it's installed from Anthropic and its own
@@ -140,7 +299,7 @@ fun ClaudeCodeSetupScreen(claudeCode: ClaudeCode, onBack: () -> Unit, onSignIn: 
                 SupportingNote("swap_horiz", stringResource(R.string.claude_code_term_switch))
             }
             when (val current = state) {
-                is ClaudeCodeState.Ready -> if (current.signedIn) SupportingNote("person", accountLine(current.account, signedIn = true))
+                is ClaudeCodeState.Ready -> if (current.signedIn) SupportingNote("person", accountLine(current))
                 ClaudeCodeState.NoLinux -> Problem(stringResource(R.string.claude_code_no_linux))
                 is ClaudeCodeState.Failed -> Problem(stringResource(R.string.claude_code_failed, current.detail))
                 else -> Unit
@@ -155,7 +314,7 @@ fun ClaudeCodeSetupScreen(claudeCode: ClaudeCode, onBack: () -> Unit, onSignIn: 
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun ClaudeCodeSignInScreen(claudeCode: ClaudeCode, onClose: () -> Unit, onSignedIn: () -> Unit) {
+fun ClaudeCodeSignInScreen(claudeCode: ClaudeCode, method: ClaudeCodeSignInMethod, onClose: () -> Unit, onSignedIn: () -> Unit) {
     BackHandler(onBack = onClose)
     val colors = MaterialTheme.colorScheme
     val haptics = WhittleTheme.haptics
@@ -172,7 +331,7 @@ fun ClaudeCodeSignInScreen(claudeCode: ClaudeCode, onClose: () -> Unit, onSigned
         lines.clear()
         failed = false
         signingIn = false
-        val started = claudeCode.signIn()
+        val started = claudeCode.signIn(method)
         if (started == null) {
             failed = true
             return@LaunchedEffect
@@ -210,7 +369,7 @@ fun ClaudeCodeSignInScreen(claudeCode: ClaudeCode, onClose: () -> Unit, onSigned
                 TopBarButton("close", stringResource(R.string.claude_code_back), onClose)
                 Column {
                     Text(stringResource(R.string.claude_code_sign_in_title), style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.claude_code_sign_in_subtitle), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                    Text(stringResource(R.string.claude_code_sign_in_subtitle, method.name), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                 }
             }
         },
@@ -327,14 +486,21 @@ fun ClaudeCodePickerScreen(
         },
     ) { padding ->
         val version = (state as? ClaudeCodeState.Ready)?.version
-        val actions = listOf(
+        val usesKey = (state as? ClaudeCodeState.Ready)?.apiKey == true
+        val actions = listOfNotNull(
             PickAction("refresh", R.string.claude_code_update, updateDetail(update, version)) {
                 if (update != ClaudeCodeUpdate.Running) claudeCode.update()
             },
             if (signedIn) {
-                PickAction("logout", R.string.claude_code_sign_out, stringResource(R.string.claude_code_sign_out_detail)) { claudeCode.signOut() }
+                PickAction("swap_horiz", R.string.claude_code_change_sign_in, signInNames(claudeCode.config), onSignIn)
             } else {
-                PickAction("login", R.string.claude_code_sign_in_action, stringResource(R.string.claude_code_step_sign_in_detail), onSignIn)
+                PickAction("login", R.string.claude_code_sign_in_action, signInNames(claudeCode.config), onSignIn)
+            },
+            if (signedIn) {
+                val detail = if (usesKey) R.string.claude_code_sign_out_key_detail else R.string.claude_code_sign_out_detail
+                PickAction("logout", R.string.claude_code_sign_out, stringResource(detail)) { claudeCode.signOut() }
+            } else {
+                null
             },
             PickAction("delete", R.string.claude_code_remove, stringResource(R.string.claude_code_remove_detail)) { removing = true },
         )
@@ -348,7 +514,7 @@ fun ClaudeCodePickerScreen(
                     Column(Modifier.weight(1f)) {
                         Text(claudeCode.config.displayName, style = MaterialTheme.typography.titleSmall)
                         Text(
-                            accountLine((state as? ClaudeCodeState.Ready)?.takeIf { it.signedIn }?.account, signedIn),
+                            accountLine(state as? ClaudeCodeState.Ready),
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.onSurfaceVariant,
                         )
@@ -394,6 +560,11 @@ fun ClaudeCodePickerScreen(
         )
     }
 }
+
+/** The ways to sign in, as one line: "Claude plan, Anthropic Console or Anthropic API key". */
+@Composable
+private fun signInNames(config: ClaudeCodeConfig): String =
+    stringResource(R.string.claude_code_sign_in_names, config.signInMethods.joinToString(LIST_SEPARATOR) { it.name }, config.apiKey.name)
 
 /** A row under the models that does something to Claude Code itself. */
 private class PickAction(val icon: String, val title: Int, val detail: String, val onClick: () -> Unit)
@@ -515,12 +686,16 @@ private fun NumberedRow(number: Int, title: String, detail: String, shape: Round
 
 /** Who's signed in, as far as Claude Code says: "you@example.com · Max plan", or the plan, or just signed in. */
 @Composable
-private fun accountLine(account: ClaudeCodeAccount?, signedIn: Boolean): String = when {
-    !signedIn -> stringResource(R.string.claude_code_signed_out)
-    account?.email != null && account.plan != null -> stringResource(R.string.claude_code_account, account.email, account.plan)
-    account?.email != null -> stringResource(R.string.claude_code_signed_in_as, account.email)
-    account?.plan != null -> stringResource(R.string.claude_code_account_plan, account.plan)
-    else -> stringResource(R.string.claude_code_signed_in)
+private fun accountLine(ready: ClaudeCodeState.Ready?): String {
+    val account = ready?.account
+    return when {
+        ready?.signedIn != true -> stringResource(R.string.claude_code_signed_out)
+        ready.apiKey -> stringResource(R.string.claude_code_signed_in_api_key)
+        account?.email != null && account.plan != null -> stringResource(R.string.claude_code_account, account.email, account.plan)
+        account?.email != null -> stringResource(R.string.claude_code_signed_in_as, account.email)
+        account?.plan != null -> stringResource(R.string.claude_code_account_plan, account.plan)
+        else -> stringResource(R.string.claude_code_signed_in)
+    }
 }
 
 @Composable
@@ -543,6 +718,8 @@ private fun Problem(text: String) {
 
 /** How long after Claude Code's reply to a code it must still be running to count as asking again. */
 private const val ANSWER_SETTLE_MILLIS = 1500L
+private const val CHEVRON = "chevron_right"
+private const val LIST_SEPARATOR = ", "
 
 /** Claude Code's sign-in output, cleaned of terminal colour codes, and the link it prints. */
 internal object SignInOutput {

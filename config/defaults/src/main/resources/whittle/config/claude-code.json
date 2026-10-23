@@ -12,6 +12,35 @@
   "statusCommand": "claude auth status",
   "signInCommand": "claude auth login",
   "signOutCommand": "claude auth logout",
+  "signInMethods": [
+    {
+      "id": "plan",
+      "name": "Claude plan",
+      "detail": "Pro, Max, Team or Enterprise",
+      "icon": "person",
+      "arguments": "--claudeai"
+    },
+    {
+      "id": "console",
+      "name": "Anthropic Console",
+      "detail": "Billed to your API usage",
+      "icon": "payments",
+      "arguments": "--console"
+    }
+  ],
+  "apiKey": {
+    "name": "Anthropic API key",
+    "detail": "Kept encrypted on this phone",
+    "icon": "key",
+    "secretName": "claude_code_api_key",
+    "checkUrl": "https://api.anthropic.com/v1/models",
+    "keyHeader": "x-api-key",
+    "checkHeaders": {
+      "anthropic-version": "2023-06-01"
+    },
+    "keysUrl": "https://console.anthropic.com/settings/keys",
+    "runPrefix": "export ANTHROPIC_API_KEY=\"$(cat {{file}})\" && rm -f {{file}} &&"
+  },
   "runCommand": "claude -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --permission-prompt-tool stdio --model {{model}}",
   "resumeArguments": "--resume {{session}}",
   "allowedToolsArguments": "--allowedTools {{tools}}",
@@ -47,7 +76,7 @@
     "STREAMABLE_HTTP": "http",
     "SSE": "sse"
   },
-  "mcpConfigDirectory": "/root/.whittle",
+  "taskFilesDirectory": "/root/.whittle",
   "installTimeoutSeconds": 900,
   "updateEveryHours": 24,
   "commandTimeoutSeconds": 60,

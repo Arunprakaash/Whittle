@@ -251,34 +251,63 @@ private fun ColumnScope.EnterKey(
 /** The key: a filled, rounded field like the search bar, its label on top (green while typing, red when refused), the key in mono. */
 @Composable
 private fun KeyField(state: ConnectState, phase: ConnectPhase, viewModel: ConnectViewModel) {
+    val error = (phase as? ConnectPhase.EnterKey)?.error
+    SecretField(
+        value = state.key,
+        onValueChange = viewModel::updateKey,
+        label = stringResource(R.string.connect_key_label),
+        enabled = phase != ConnectPhase.Checking,
+        isError = error != null,
+        onDone = viewModel::connect,
+    )
+    error?.let {
+        Text(
+            errorText(it, state.provider.displayName),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(start = WhittleSpace.xl),
+        )
+    }
+}
+
+/**
+ * A key the user pastes, as the sign-in code: a pill with paste at the start, the words inside, and show or hide at
+ * the end. It never appears in a session recording, even when shown or when recordings show content.
+ */
+@Composable
+fun SecretField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    enabled: Boolean,
+    isError: Boolean,
+    onDone: () -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     var keyVisible by remember { mutableStateOf(false) }
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    val error = (phase as? ConnectPhase.EnterKey)?.error
     val context = LocalContext.current
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val pasteLabel = stringResource(R.string.connect_key_paste)
     val accent = when {
-        error != null -> colors.error
+        isError -> colors.error
         focused -> colors.primary
         else -> colors.onSurfaceVariant
     }
     BasicTextField(
-        value = state.key,
-        onValueChange = viewModel::updateKey,
-        enabled = phase != ConnectPhase.Checking,
+        value = value,
+        onValueChange = onValueChange,
+        enabled = enabled,
         singleLine = true,
         textStyle = MaterialTheme.typography.bodyLarge.copy(fontFamily = WhittleFonts.mono, color = colors.onSurface),
         cursorBrush = SolidColor(colors.primary),
         visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done, autoCorrectEnabled = false),
-        keyboardActions = KeyboardActions(onDone = { viewModel.connect() }),
+        keyboardActions = KeyboardActions(onDone = { onDone() }),
         interactionSource = interaction,
-        // The key never appears in a session recording, even when shown or when recordings show content.
         modifier = Modifier.fillMaxWidth().hiddenFromReplay(),
-        // As the sign-in code: a pill with paste at the start, the words inside, and show or hide at the end.
         decorationBox = { input ->
             Row(
                 Modifier
@@ -293,10 +322,10 @@ private fun KeyField(state: ConnectState, phase: ConnectPhase, viewModel: Connec
                     Modifier
                         .size(WhittleSize.Tile.m)
                         .clip(CircleShape)
-                        .clickable(enabled = phase != ConnectPhase.Checking, role = Role.Button) {
+                        .clickable(enabled = enabled, role = Role.Button) {
                             scope.launch {
                                 clipboard.getClipEntry()?.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()?.trim()
-                                    ?.let(viewModel::updateKey)
+                                    ?.let(onValueChange)
                             }
                         }
                         .semantics { contentDescription = pasteLabel },
@@ -305,7 +334,7 @@ private fun KeyField(state: ConnectState, phase: ConnectPhase, viewModel: Connec
                     WhittleIcon("content_paste", size = WhittleSize.Icon.l, tint = accent)
                 }
                 Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                    if (state.key.isEmpty()) Text(stringResource(R.string.connect_key_label), style = MaterialTheme.typography.bodyLarge, color = accent, maxLines = 1)
+                    if (value.isEmpty()) Text(label, style = MaterialTheme.typography.bodyLarge, color = accent, maxLines = 1)
                     input()
                 }
                 IconButton(onClick = { keyVisible = !keyVisible }) {
@@ -318,9 +347,6 @@ private fun KeyField(state: ConnectState, phase: ConnectPhase, viewModel: Connec
             }
         },
     )
-    error?.let {
-        Text(errorText(it, state.provider.displayName), style = MaterialTheme.typography.bodySmall, color = colors.error, modifier = Modifier.padding(start = WhittleSpace.xl))
-    }
 }
 
 @Composable

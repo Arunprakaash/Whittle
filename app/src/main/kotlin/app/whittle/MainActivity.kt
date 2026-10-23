@@ -72,9 +72,9 @@ import app.whittle.core.model.ProviderId
 import app.whittle.storage.secrets.SecretKey
 import app.whittle.connect.BringModelScreen
 import app.whittle.connect.ClaudeCodeChoice
+import app.whittle.claudecode.ClaudeCodeEntry
+import app.whittle.claudecode.ClaudeCodeFlow
 import app.whittle.claudecode.ClaudeCodePickerScreen
-import app.whittle.claudecode.ClaudeCodeSetupScreen
-import app.whittle.claudecode.ClaudeCodeSignInScreen
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -139,11 +139,10 @@ class MainActivity : ComponentActivity() {
                             // Signed in: Claude Code's first model is chosen, and the chat opens.
                             val useClaudeCode = { connectScope.launch { graph.connections.save(graph.claudeCode.models.first()) }; Unit }
                             when (claudeCodeStep) {
-                                ClaudeCodeStep.SignIn -> ClaudeCodeSignInScreen(graph.claudeCode, onClose = { claudeCodeStep = ClaudeCodeStep.Setup }, onSignedIn = useClaudeCode)
-                                ClaudeCodeStep.Setup -> ClaudeCodeSetupScreen(
+                                ClaudeCodeStep.Setup, ClaudeCodeStep.SignIn -> ClaudeCodeFlow(
                                     graph.claudeCode,
+                                    entry = claudeCodeStep.entry,
                                     onBack = { claudeCodeStep = ClaudeCodeStep.None },
-                                    onSignIn = { claudeCodeStep = ClaudeCodeStep.SignIn },
                                     onReady = useClaudeCode,
                                 )
                                 ClaudeCodeStep.None -> {
@@ -297,16 +296,12 @@ class MainActivity : ComponentActivity() {
                                     claudeCodeStep = ClaudeCodeStep.None
                                     pickerProvider = null
                                 }
-                                if (claudeCodeStep == ClaudeCodeStep.SignIn) {
-                                    ClaudeCodeSignInScreen(graph.claudeCode, onClose = { claudeCodeStep = ClaudeCodeStep.Setup }, onSignedIn = useClaudeCode)
-                                } else {
-                                    ClaudeCodeSetupScreen(
-                                        graph.claudeCode,
-                                        onBack = { claudeCodeStep = ClaudeCodeStep.None },
-                                        onSignIn = { claudeCodeStep = ClaudeCodeStep.SignIn },
-                                        onReady = useClaudeCode,
-                                    )
-                                }
+                                ClaudeCodeFlow(
+                                    graph.claudeCode,
+                                    entry = claudeCodeStep.entry,
+                                    onBack = { claudeCodeStep = ClaudeCodeStep.None },
+                                    onReady = useClaudeCode,
+                                )
                             } else if (showingModelPicker && pickerProvider == null && graph.claudeCode.runs(state.model)) {
                                 val closePicker = { showingModelPicker = false; showingSettings = !pickerFromChat; pickerFromChat = false }
                                 ClaudeCodePickerScreen(
@@ -379,7 +374,8 @@ class MainActivity : ComponentActivity() {
     private enum class Gate { Loading, Welcome, Linux, Connect, Chat }
 
     /** Bringing Claude Code instead of an API key: its setup, then its own sign-in. */
-    private enum class ClaudeCodeStep { None, Setup, SignIn }
+    /** Which part of Claude Code's setup is open: from its first screen, or straight at how to sign in. */
+    private enum class ClaudeCodeStep(val entry: ClaudeCodeEntry) { None(ClaudeCodeEntry.SETUP), Setup(ClaudeCodeEntry.SETUP), SignIn(ClaudeCodeEntry.SIGN_IN) }
 }
 
 /**
