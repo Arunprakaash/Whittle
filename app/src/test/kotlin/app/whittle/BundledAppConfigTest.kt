@@ -1,5 +1,6 @@
 package app.whittle
 
+import app.whittle.apps.NativeAppsConfig
 import app.whittle.automations.AutomationsConfig
 import app.whittle.claudecode.ClaudeCodeConfig
 import app.whittle.config.defaults.BundledConfigSource
@@ -9,6 +10,7 @@ import app.whittle.connectors.matches
 import app.whittle.connectors.mcp.ConnectorsConfig
 import app.whittle.core.common.Outcome
 import app.whittle.core.config.ConfigFiles
+import app.whittle.core.config.ConfigName
 import app.whittle.core.config.ConfigLoader
 import app.whittle.design.icons.MaterialSymbols
 import app.whittle.linux.LinuxBaseSetup
@@ -194,6 +196,37 @@ class BundledAppConfigTest {
         config.servers.forEach { server ->
             assertTrue(server.category in groups, "${server.name} needs a library category, or it shows nowhere until connected")
             assertFalse(server.description.isNullOrBlank(), "${server.name} needs a description for the library")
+        }
+    }
+
+    @Test
+    fun `native apps config loads with pinned downloads and a powerful list`() {
+        val config = assertIs<Outcome.Success<NativeAppsConfig>>(
+            loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),
+        ).value
+        val toolchain = config.toolchain
+        toolchain.downloads.forEach {
+            assertTrue(Regex("^[0-9a-f]{64}$").matches(it.sha256), "${it.url} must be pinned by its SHA-256")
+            assertTrue(it.url.startsWith("https://"))
+            val file = it.saveAs.substringAfterLast('/')
+            assertTrue(it.saveAs.startsWith("/opt/whittle-apps/downloads/"), "the script saves downloads in that folder")
+            assertTrue("curl -fsSL -o $file ${it.url}\n" in toolchain.setupScript, "the setup script must fetch ${it.url} as $file")
+            assertTrue("'${it.sha256}  $file'" in toolchain.setupScript, "the setup script must check $file against its pin")
+        }
+        val aptLine = toolchain.setupScript.lines().single { it.startsWith("apt-get install") }
+        toolchain.aptPackages.forEach { assertTrue(Regex("(^| )${Regex.escape(it)}( |$)").containsMatchIn(aptLine), "apt line lacks $it") }
+        assertEquals(toolchain.aptPackages.size, aptLine.split(" ").count { !it.startsWith("-") } - 2)
+        val placeholder = Regex("\\{\\{(\\w+)}}")
+        val buildAllowed = setOf("project", "slug", "versionCode", "minSdk", "targetSdk")
+        assertTrue(placeholder.findAll(config.buildScript).map { it.groupValues[1] }.toSet().all { it in buildAllowed })
+        assertEquals(setOf("pinsHash"), placeholder.findAll(toolchain.setupScript).map { it.groupValues[1] }.toSet())
+        val named = config.powerful.map { it.name }
+        listOf("BIND_ACCESSIBILITY_SERVICE", "BIND_NOTIFICATION_LISTENER_SERVICE", "SYSTEM_ALERT_WINDOW", "READ_SMS").forEach {
+            assertTrue("android.permission.$it" in named, it)
+        }
+        val source = BundledConfigSource()
+        config.template.forEach { path ->
+            assertIs<Outcome.Success<String>>(source.read(ConfigName("native-app-template/$path")), path)
         }
     }
 }
