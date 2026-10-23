@@ -82,6 +82,8 @@ data class AgentMessages(
     val appCreated: String,
     val appNameEmpty: String,
     val appNoWorkspace: String,
+    /** create_app or build_app in a chat confined to [PROJECT], reaching outside it; worded like use_project's refusal. */
+    val appConfined: String,
     val appNoProject: String,
     val appSharedUserId: String,
     val appPackageMismatch: String,
@@ -156,6 +158,7 @@ data class AgentMessages(
         requirePlaceholders(appCreated, NAME, PROJECT, PACKAGE)
         requirePlaceholders(appNameEmpty)
         requirePlaceholders(appNoWorkspace)
+        requirePlaceholders(appConfined, PROJECT)
         requirePlaceholders(appNoProject, PROJECT)
         requirePlaceholders(appSharedUserId)
         requirePlaceholders(appPackageMismatch, EXPECTED)
@@ -260,6 +263,8 @@ data class AgentMessages(
 
     fun appCreated(name: String, project: String, packageName: String): String =
         render(appCreated, NAME to name, PROJECT to project, PACKAGE to packageName)
+
+    fun appConfined(project: String): String = render(appConfined, PROJECT to project)
 
     fun appNoProject(project: String): String = render(appNoProject, PROJECT to project)
 

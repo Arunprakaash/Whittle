@@ -39,10 +39,12 @@ typealias OutputSaver = suspend (WorkspaceId, RunId, ToolCallId, String) -> Outc
 
 /**
  * Builds a project's app: runs the build script from config in Linux with the network off, signs the unsigned APK here with the app's own key, checks what the built APK declares and returns a short JSON result. The version code goes up
- * (and into whittle-app.json) only when the build succeeds, and only the newest few APKs stay in build/.
+ * (and into whittle-app.json) only when the build succeeds, and only the newest few APKs stay in build/. A chat confined to a
+ * project builds only that project.
  */
 class BuildAppTool(
     private val workspaces: Workspaces,
+    private val projects: ChatProjects,
     private val config: NativeAppsConfig,
     private val messages: AgentMessages,
     private val toolchain: BuildToolchain,
@@ -59,6 +61,11 @@ class BuildAppTool(
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
         val chat = context.workspace ?: return reply(messages.appNoWorkspace, error = true)
         val name = (arguments[PROJECT] as? JsonPrimitive)?.contentOrNull.orEmpty().trim()
+        // A confined chat's file tools reach only its project, so its builds do too: nothing of another project is read or run.
+        if (projects.isConfined(chat)) {
+            val own = projects.projectOf(chat)
+            if (name != own) return reply(messages.appConfined(own.orEmpty()), error = true)
+        }
         if (!ChatProjects.isValidName(name)) return reply(messages.appNoProject(name), error = true)
         val root = when (val folder = workspaces.folder()) {
             is Outcome.Failure -> return failed(folder.error.message)

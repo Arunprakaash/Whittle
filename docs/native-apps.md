@@ -212,6 +212,9 @@ the user wants it on the phone, and to a website when they want it in the browse
 
 Installing and the toolchain download aren't tools, so the model can do neither; both are the user's taps.
 
+A chat confined to a project (an automation's) can't call `create_app`, which would make a new project and move
+the chat to it, and can call `build_app` only for its own project; both refuse in `use_project`'s words.
+
 ### Websites and the system prompt
 
 `agent-system.md` changes from "any app is a Vite project" to two cases:

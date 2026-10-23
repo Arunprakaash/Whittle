@@ -52,6 +52,7 @@
   "appCreated": "Created the app \"{{name}}\" in the project folder {{project}} (package {{package}}) and switched this chat to it. Edit the files there, then build it with build_app, giving {{project}} as the project.",
   "appNameEmpty": "Give the app a name.",
   "appNoWorkspace": "This chat has no workspace to make the app in.",
+  "appConfined": "This chat is limited to the project '{{project}}'; only the user can change that.",
   "appNoProject": "There is no app project named \"{{project}}\" in the workspace. Give the project folder that create_app made.",
   "appSharedUserId": "The manifest sets android:sharedUserId, which apps made here can't use. Remove it and build again.",
   "appPackageMismatch": "The manifest's package must be {{expected}}, the one this project was created with. Fix the package attribute and build again.",

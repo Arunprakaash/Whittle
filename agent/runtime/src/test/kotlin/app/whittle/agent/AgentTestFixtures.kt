@@ -117,6 +117,7 @@ internal val testMessages = AgentMessages(
     appCreated = "created {{name}} in {{project}} as {{package}}",
     appNameEmpty = "no name",
     appNoWorkspace = "no workspace",
+    appConfined = "confined to {{project}}",
     appNoProject = "no project {{project}}",
     appSharedUserId = "shared user id",
     appPackageMismatch = "package must be {{expected}}",

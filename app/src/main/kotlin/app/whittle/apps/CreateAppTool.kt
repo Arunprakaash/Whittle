@@ -26,7 +26,8 @@ import java.text.Normalizer
 
 /**
  * Starts a new app: writes a project from the template into the workspace, in a folder named for the app, and
- * focuses the chat on it. The folder and the package get the same number when a name is taken (counter, counter2).
+ * focuses the chat on it. The folder and the package get the same number when a name is taken (counter, counter2). A chat
+ * confined to a project (an automation's) is refused before anything is written.
  * [template] gives the text of a template file by its path; [isInstalled] says whether a package is on the phone.
  */
 class CreateAppTool(
@@ -42,6 +43,8 @@ class CreateAppTool(
 
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
         val chat = context.workspace ?: return reply(messages.appNoWorkspace, error = true)
+        // A new app is a new project at the top of the workspace, and a confined chat can't move off its own (use_project refuses too).
+        if (projects.isConfined(chat)) return reply(messages.appConfined(projects.projectOf(chat).orEmpty()), error = true)
         val name = (arguments[NAME] as? JsonPrimitive)?.contentOrNull.orEmpty().trim().replace(WHITESPACE, " ")
         if (name.isEmpty()) return reply(messages.appNameEmpty, error = true)
         val root = when (val folder = workspaces.folder()) {

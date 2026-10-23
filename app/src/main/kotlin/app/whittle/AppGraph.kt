@@ -246,7 +246,7 @@ class AppGraph(context: Context) {
         { packageName -> runCatching { context.packageManager.getPackageInfo(packageName, 0) }.isSuccess },
         { path -> (configSource.read(ConfigName("native-app-template/$path")) as Outcome.Success).value },
     ) to BuildAppTool(
-        workspaces, nativeApps, agentMessages, appToolchain, appShell,
+        workspaces, chatProjects, nativeApps, agentMessages, appToolchain, appShell,
         appSigner, apkInspector,
         WorkspaceOutputs(workspaces, harness.agent.toolOutput.directory)::save,
     )

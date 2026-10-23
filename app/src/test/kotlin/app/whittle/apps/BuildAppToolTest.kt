@@ -10,6 +10,7 @@ import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.tools.api.ToolExecutionContext
 import app.whittle.tools.api.WorkspaceId
+import app.whittle.tools.workspace.ChatProjects
 import app.whittle.tools.workspace.CommandResult
 import app.whittle.tools.workspace.Workspaces
 import kotlinx.coroutines.Dispatchers
@@ -86,8 +87,15 @@ class BuildAppToolTest {
         override suspend fun <T> whileReady(build: suspend () -> T): T? = if (ready) build() else null
     }
 
+    private var confinedTo: String? = null
+    private val projects = object : ChatProjects {
+        override fun projectOf(chat: WorkspaceId): String? = confinedTo
+        override fun choose(chat: WorkspaceId, project: String?) = error("build_app never changes the chat's project")
+        override fun isConfined(chat: WorkspaceId): Boolean = confinedTo != null
+    }
+
     private fun tool() = BuildAppTool(
-        Workspaces(root), config, messages, toolchain, shell, AppSigner(FakeKeys { signing }), { facts(it) },
+        Workspaces(root), projects, config, messages, toolchain, shell, AppSigner(FakeKeys { signing }), { facts(it) },
         { _, _, _, content -> saved += content; Outcome.Success(".whittle/outputs/run-call.txt") },
     )
 
@@ -301,6 +309,33 @@ class BuildAppToolTest {
     private fun assertNoApk(folder: File) {
         assertEquals(0, AppProjects.read(folder)!!.versionCode)
         assertEquals(emptyList<String>(), File(folder, "build").listFiles().orEmpty().map { it.name })
+    }
+
+    @Test
+    fun `a chat confined to one project can't build another, and nothing of the other is touched`() {
+        project(name = "notes")
+        val other = project(name = "other", versionCode = 4, stored = "app.whittle.made.other")
+        File(other, "build").mkdirs()
+        File(other, "build/other-4.apk").writeText("kept")
+        val before = File(other, "whittle-app.json").readText()
+        confinedTo = "notes"
+        val output = build("other")
+        assertTrue(output.isError)
+        assertEquals(messages.appConfined("notes"), output.content)
+        assertTrue(commands.isEmpty())
+        assertEquals(before, File(other, "whittle-app.json").readText())
+        assertEquals(listOf("other-4.apk"), File(other, "build").list().orEmpty().toList())
+        assertEquals("kept", File(other, "build/other-4.apk").readText())
+        assertTrue(runCatching { Json.parseToJsonElement(output.content).jsonObject }.isFailure, "no card JSON")
+    }
+
+    @Test
+    fun `a confined chat builds its own project as before`() {
+        project(name = "notes")
+        confinedTo = "notes"
+        val output = build("notes")
+        assertFalse(output.isError, output.content)
+        assertEquals(1, Json.parseToJsonElement(output.content).jsonObject["versionCode"]!!.jsonPrimitive.int)
     }
 
     @Test

@@ -38,11 +38,13 @@ class CreateAppToolTest {
     private val chat = WorkspaceId("chat-1")
     private val context = ToolExecutionContext(RunId("run"), ToolCallId("call"), chat)
     private val chosen = mutableListOf<String?>()
+    private var confinedTo: String? = null
     private val projects = object : ChatProjects {
-        override fun projectOf(chat: WorkspaceId): String? = chosen.lastOrNull()
+        override fun projectOf(chat: WorkspaceId): String? = confinedTo ?: chosen.lastOrNull()
         override fun choose(chat: WorkspaceId, project: String?) {
             chosen += project
         }
+        override fun isConfined(chat: WorkspaceId): Boolean = confinedTo != null
     }
     private val installed = mutableSetOf<String>()
 
@@ -119,6 +121,18 @@ class CreateAppToolTest {
         File(root, "stable").deleteRecursively()
         create("Stable")
         assertEquals(first, File(root, "stable/res/drawable/ic_launcher.xml").readText())
+    }
+
+    @Test
+    fun `a chat confined to a project is refused before anything is written, and stays on its project`() {
+        File(root, "notes").mkdirs()
+        confinedTo = "notes"
+        val output = create("Counter")
+        assertTrue(output.isError)
+        assertEquals(messages.appConfined("notes"), output.content)
+        assertEquals(listOf("notes"), root.list().orEmpty().toList())
+        assertTrue(File(root, "notes").list().orEmpty().isEmpty())
+        assertTrue(chosen.isEmpty())
     }
 
     @Test
