@@ -203,6 +203,9 @@
     <string name="notify_failed_public">A Whittle task stopped</string>
     <string name="notify_needs_you_title">Whittle needs your answer</string>
     <string name="notify_needs_you_public">Whittle is waiting for you</string>
+    <string name="notify_install_prompt_title">Tap to finish installing %1$s</string>
+    <string name="notify_install_prompt_title_unnamed">Tap to finish installing your app</string>
+    <string name="notify_install_prompt_public">Tap to finish installing an app</string>
     <!-- Settings -->
     <string name="settings_title">Settings</string>
     <string name="settings_back">Back</string>

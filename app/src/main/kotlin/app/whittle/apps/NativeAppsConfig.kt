@@ -38,6 +38,10 @@ data class NativeAppsConfig(
     val maxCrashChars: Int,
     /** The launcher icon colours (`#RRGGBB`) `create_app` picks from, by a hash of the app's name. */
     val palette: List<String>,
+    /** How long an install waits for the user to answer Android's prompt before it is cancelled and its session abandoned. */
+    val installPromptTimeoutMinutes: Int,
+    /** How old an open install session must be before a launch abandons it; longer than [installPromptTimeoutMinutes]. */
+    val staleInstallSessionMinutes: Int,
 ) : VersionedConfig {
     init {
         require(packagePrefix.endsWith(".")) { "packagePrefix must end with a dot" }
@@ -54,6 +58,10 @@ data class NativeAppsConfig(
         require(crashAuthoritySuffix.startsWith(".")) { "crashAuthoritySuffix must start with a dot" }
         require(maxCrashChars > 0) { "maxCrashChars must be positive" }
         require(palette.isNotEmpty() && palette.all { COLOUR.matches(it) }) { "palette must hold #RRGGBB colours" }
+        require(installPromptTimeoutMinutes > 0) { "installPromptTimeoutMinutes must be positive" }
+        require(staleInstallSessionMinutes > installPromptTimeoutMinutes) {
+            "staleInstallSessionMinutes must exceed installPromptTimeoutMinutes, so a launch never abandons a prompt still on screen"
+        }
     }
 
     companion object {

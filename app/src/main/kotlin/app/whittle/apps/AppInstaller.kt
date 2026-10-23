@@ -7,14 +7,15 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.os.Build
+import app.whittle.WhittleApplication
 import app.whittle.chat.ThreadItem
+import app.whittle.core.common.EpochClock
 import app.whittle.core.common.Outcome
 import com.android.apksig.ApkVerifier
 import com.android.apksig.apk.ApkFormatException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlin.coroutines.cancellation.CancellationException
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -22,7 +23,7 @@ import java.security.GeneralSecurityException
 import java.security.cert.X509Certificate
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.coroutines.resume
+import kotlin.time.Duration.Companion.minutes
 
 /** How an install ended, in the terms the card speaks. [CHANGED] means the APK no longer matched what the card showed, so nothing was installed. */
 enum class InstallResult { INSTALLED, CANCELLED, KEY_CHANGED, BLOCKED, FAILED, CHANGED }
@@ -101,14 +102,34 @@ private const val MIN_CHECKED_SDK = 26
 /**
  * Installs, updates and reads the state of the apps Whittle built. The user's tap is the only way anything reaches here.
  * The APK in the workspace can be replaced by processes the model started, so [install] works on a private copy that it
- * has verified itself.
+ * has verified itself. An install whose prompt gets no answer in [NativeAppsConfig.installPromptTimeoutMinutes] is cancelled;
+ * [clearPrompt] takes down the prompt's notification when an install ends.
  */
 class AppInstaller(
     private val context: Context,
     private val signer: AppSigner,
     private val inspector: ApkInspector,
-    private val configured: List<PowerfulDeclaration>,
+    private val config: NativeAppsConfig,
+    clock: EpochClock,
+    private val clearPrompt: (Int) -> Unit,
 ) {
+    private val configured = config.powerful
+
+    private val sessions = InstallSessions(
+        File(context.filesDir, InstallSessions.FILE_NAME),
+        clock,
+        config.staleInstallSessionMinutes.minutes.inWholeMilliseconds,
+        object : SessionLister {
+            private val installer get() = context.packageManager.packageInstaller
+
+            override fun live(): Set<Int> = liveSessions()
+
+            override fun abandon(id: Int) {
+                runCatching { installer.abandonSession(id) }
+            }
+        },
+    )
+
     /** Asks PackageManager, so call it off the main thread. */
     fun canInstall(): Boolean = context.packageManager.canRequestPackageInstalls()
 
@@ -122,11 +143,14 @@ class AppInstaller(
         installedInfo(packageName, FACT_FLAGS)?.let { AppManifest.classify(apkFactsOf(it), configured).powerful }
     }
 
-    /** Clears what a crash mid-install left behind: private APK copies and open install sessions. Safe to call at start. */
+    /**
+     * Clears what a crash mid-install left behind: stale or unknown install sessions ([InstallSessions]) and private APK copies.
+     * A young session is kept, since the user may be confirming it. No session uses a copy (each session holds its own once
+     * written), so every copy goes. Call it at start, before any install.
+     */
     fun cleanUp() {
         File(context.cacheDir, CACHE_DIRECTORY).listFiles()?.forEach { it.delete() }
-        val installer = context.packageManager.packageInstaller
-        installer.mySessions.forEach { runCatching { installer.abandonSession(it.sessionId) } }
+        sessions.cleanUp()
     }
 
     /** The ids of this app's install sessions that are still open. */
@@ -159,6 +183,7 @@ class AppInstaller(
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply { setAppPackageName(card.packageName) }
         val id = installer.createSession(params)
+        sessions.started(id)
         onSession(id)
         return try {
             installer.openSession(id).use { session ->
@@ -170,17 +195,21 @@ class AppInstaller(
                 }
                 // The session holds its own copy now.
                 copy.delete()
-                suspendCancellableCoroutine { continuation ->
-                    waiting[id] = { continuation.resume(it) }
-                    continuation.invokeOnCancellation {
+                awaitInstallResult(
+                    config.installPromptTimeoutMinutes.minutes,
+                    start = { deliver ->
+                        waiting[id] = Waiting(card.name, deliver)
+                        // The system fills in the status and the confirmation prompt, so the intent must stay mutable on 31+.
+                        val flags = PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
+                        val receiver = Intent(context, InstallResultReceiver::class.java).setPackage(context.packageName)
+                        session.commit(PendingIntent.getBroadcast(context, id, receiver, flags).intentSender)
+                    },
+                    // Timed out or cancelled: nobody waits for the result any more, and the session goes.
+                    stop = {
                         waiting.remove(id)
                         runCatching { installer.abandonSession(id) }
-                    }
-                    // The system fills in the status and the confirmation prompt, so the intent must stay mutable on 31+.
-                    val flags = PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
-                    val receiver = Intent(context, InstallResultReceiver::class.java).setPackage(context.packageName)
-                    session.commit(PendingIntent.getBroadcast(context, id, receiver, flags).intentSender)
-                }
+                    },
+                )
             }
         } catch (e: CancellationException) {
             runCatching { installer.abandonSession(id) }
@@ -189,40 +218,61 @@ class AppInstaller(
             waiting.remove(id)
             runCatching { installer.abandonSession(id) }
             InstallResult.FAILED
+        } finally {
+            sessions.ended(id)
+            clearPrompt(id)
         }
     }
 
     companion object {
         private const val CACHE_DIRECTORY = "app-installs"
         private const val SESSION_FILE = "app.apk"
-        private val waiting = ConcurrentHashMap<Int, (InstallResult) -> Unit>()
+        private val waiting = ConcurrentHashMap<Int, Waiting>()
 
         internal fun deliver(sessionId: Int, result: InstallResult) {
-            waiting.remove(sessionId)?.invoke(result)
+            waiting.remove(sessionId)?.deliver?.invoke(result)
         }
+
+        /** The name of the app session [sessionId] installs, while an install waits for it; for the prompt's notification. */
+        internal fun appName(sessionId: Int): String? = waiting[sessionId]?.appName
     }
+
+    /** An install waiting for its session's result. */
+    private class Waiting(val appName: String, val deliver: (InstallResult) -> Unit)
 }
 
-/** Receives the installer's progress. Not exported: only the system, through the PendingIntent Whittle gave it, reaches it. */
+/**
+ * Receives the installer's progress. Not exported: only the system, through the PendingIntent Whittle gave it, reaches it. The
+ * prompt opens at once while Whittle is on screen, and otherwise waits in a notification ([showInstallPrompt]); an install
+ * the user never answers is cancelled after its timeout.
+ */
 class InstallResultReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
         val session = intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1)
+        val application = context.applicationContext as? WhittleApplication
         if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
             val prompt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
             } else {
                 @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_INTENT)
-            }
-            try {
-                prompt?.let { context.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            } catch (_: Exception) {
-                // Android may refuse to open the prompt from here; the user can tap again.
-                runCatching { context.packageManager.packageInstaller.abandonSession(session) }
-                AppInstaller.deliver(session, InstallResult.FAILED)
-            }
+            } ?: return
+            prompt.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            showInstallPrompt(
+                inForeground = application?.inForeground == true,
+                open = {
+                    try {
+                        context.startActivity(prompt)
+                        true
+                    } catch (_: Exception) {
+                        false
+                    }
+                },
+                notify = { application?.notifications?.installPrompt(session, AppInstaller.appName(session), prompt) },
+            )
             return
         }
+        application?.notifications?.clearInstallPrompt(session)
         AppInstaller.deliver(session, installResult(status, intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)))
     }
 }

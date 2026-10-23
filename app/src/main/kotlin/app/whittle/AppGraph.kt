@@ -238,7 +238,7 @@ class AppGraph(context: Context) {
     )
 
     /** Installs, updates and reads the state of the apps the agent built; only the user's tap calls it. */
-    val appInstaller = AppInstaller(context, appSigner, apkInspector, nativeApps.powerful)
+    val appInstaller = AppInstaller(context, appSigner, apkInspector, nativeApps, clock) { session -> RunNotifications(context).clearInstallPrompt(session) }
 
     /** The agent's `create_app` and `build_app`; the package is Whittle's own, so a debug build gives app.whittle.debug. */
     private fun appTools(context: Context): Pair<CreateAppTool, BuildAppTool> = CreateAppTool(

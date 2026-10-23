@@ -215,6 +215,18 @@ class BundledAppConfigTest {
     }
 
     @Test
+    fun `an install session is stale only well after its prompt has timed out`() {
+        val config = assertIs<Outcome.Success<NativeAppsConfig>>(
+            loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),
+        ).value
+        assertTrue(config.installPromptTimeoutMinutes > 0)
+        assertTrue(config.staleInstallSessionMinutes > config.installPromptTimeoutMinutes)
+        assertFailsWith<IllegalArgumentException> { config.copy(installPromptTimeoutMinutes = 0) }
+        // A launch must never abandon a session whose prompt may still be on screen.
+        assertFailsWith<IllegalArgumentException> { config.copy(staleInstallSessionMinutes = config.installPromptTimeoutMinutes) }
+    }
+
+    @Test
     fun `native apps config lists the newer powerful declarations, each with a sentence`() {
         val config = assertIs<Outcome.Success<NativeAppsConfig>>(
             loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),

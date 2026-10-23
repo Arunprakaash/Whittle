@@ -134,6 +134,31 @@ class RunNotifications(private val context: Context) {
         manager.notify(id, notification)
     }
 
+    /**
+     * Android's prompt to finish installing [appName] (null when it isn't known), when Whittle couldn't open it itself: Android
+     * blocks it while Whittle isn't on screen. Tapping opens [prompt]. One per install session.
+     */
+    fun installPrompt(sessionId: Int, appName: String?, prompt: Intent) {
+        if (!manager.areNotificationsEnabled()) return
+        val title = appName?.let { context.getString(R.string.notify_install_prompt_title, it) }
+            ?: context.getString(R.string.notify_install_prompt_title_unnamed)
+        val open = PendingIntent.getActivity(context, sessionId, prompt, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val notification = Notification.Builder(context, CHANNEL_UPDATES)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicVersion(CHANNEL_UPDATES, R.string.notify_install_prompt_public))
+            .build()
+        manager.notify(TAG_INSTALL_PROMPT, sessionId, notification)
+    }
+
+    /** The install session ended, so its prompt's notification has nothing left to open. */
+    fun clearInstallPrompt(sessionId: Int) {
+        manager.cancel(TAG_INSTALL_PROMPT, sessionId)
+    }
+
     /** Servers the agent started, one line each, with Stop all; the notification that keeps them running. */
     fun processes(live: List<ProcessInfo>): Notification {
         val lines = live.map { info ->
@@ -225,6 +250,7 @@ class RunNotifications(private val context: Context) {
         private const val CHANNEL_REMINDERS = "reminders"
         /** Reminders are told apart by tag, so their ids never meet the fixed ones above. */
         private const val TAG_REMINDER = "reminder"
+        private const val TAG_INSTALL_PROMPT = "install_prompt"
         private const val REQUEST_OPEN = 1
         private const val REQUEST_STOP = 2
         private const val REQUEST_STOP_ALL = 3

@@ -161,6 +161,13 @@ The card's buttons, never the model:
 - The APK in the workspace can be replaced by anything the model runs, so Install copies it somewhere private and
   checks the copy: first that it's signed by the key Whittle already holds for the app (never a new one), then that
   its facts are still the ones the card shows. That same copy is what's installed.
+- Android 10 and later silently block the prompt if Whittle has left the screen while the copy is checked. Then the
+  prompt waits in a notification ("Tap to finish installing Counter"); on screen it opens at once, with the
+  notification as the fallback. An install with no answer in `installPromptTimeoutMinutes` is cancelled and its
+  session abandoned, so the card offers Install again. Any result clears the notification.
+- Whittle notes when each install session began. At launch it abandons only sessions older than
+  `staleInstallSessionMinutes` (longer than the prompt's timeout) and ones with no note, so a prompt the user is
+  answering survives Android restarting Whittle's process.
 - **Open:** the app's launch intent.
 - **Remove:** Android's uninstall prompt.
 
