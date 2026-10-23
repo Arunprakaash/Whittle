@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import app.whittle.design.theme.ThemeMode
@@ -28,6 +29,8 @@ data class UserSettings(
     val avatarSeed: Long? = null,
     /** Onboarding offered Linux's setup once; it isn't offered there again, set up or not. */
     val linuxOffered: Boolean = false,
+    /** The phone features (ids from phone-actions.json) the user switched off; Whittle doesn't use them. */
+    val phoneOff: Set<String> = emptySet(),
 )
 
 /** Settings saved on the phone. Only choices the user made are stored, so changed defaults still reach them. */
@@ -44,6 +47,7 @@ class SettingsStore(context: Context, name: String, private val defaults: UserSe
             themeMode = stored[THEME_MODE]?.let { saved -> ThemeMode.entries.firstOrNull { it.name == saved } } ?: defaults.themeMode,
             avatarSeed = stored[AVATAR_SEED],
             linuxOffered = stored[LINUX_OFFERED] ?: false,
+            phoneOff = stored[PHONE_OFF].orEmpty(),
         )
     }
 
@@ -58,6 +62,11 @@ class SettingsStore(context: Context, name: String, private val defaults: UserSe
     suspend fun setKeepRunningInBackground(on: Boolean) = set(KEEP_RUNNING, on)
 
     suspend fun setLinuxOffered() = set(LINUX_OFFERED, true)
+
+    /** Lets Whittle use the phone feature [id] again, or stops it. */
+    suspend fun setPhoneFeature(id: String, on: Boolean) {
+        dataStore.edit { it[PHONE_OFF] = if (on) it[PHONE_OFF].orEmpty() - id else it[PHONE_OFF].orEmpty() + id }
+    }
 
     /** Gives this phone its avatar the first time; it stays the same after that. */
     suspend fun ensureAvatarSeed() {
@@ -81,5 +90,6 @@ class SettingsStore(context: Context, name: String, private val defaults: UserSe
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val AVATAR_SEED = longPreferencesKey("avatar_seed")
         val LINUX_OFFERED = booleanPreferencesKey("linux_offered")
+        val PHONE_OFF = stringSetPreferencesKey("phone_off")
     }
 }

@@ -186,18 +186,21 @@ fun Composer(
     val haptics = WhittleTheme.haptics
     val canSend = enabled && (value.isNotBlank() || hasAttachments) && voice?.listening != true
     val send = { if (canSend) { haptics.perform(WhittleHaptic.Send); onSend() } }
+    // The buttons keep to the bottom line, so a longer message grows the composer upward, like a chat app's.
+    val edge = (WhittleSize.composerMin - COMPOSER_BUTTON) / 2
     Row(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = WhittleSize.composerMin)
             .background(colors.surfaceContainerHigh, RoundedCornerShape(WhittleRadius.xl))
-            .padding(start = if (attach != null) WhittleSpace.xs else WhittleSpace.l, end = WhittleSpace.xs, top = WhittleSpace.xs, bottom = WhittleSpace.xs),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(start = if (attach != null) WhittleSpace.xs else WhittleSpace.l, end = WhittleSpace.xs, top = edge, bottom = edge),
+        verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.spacedBy(if (attach != null) WhittleSpace.s else 0.dp),
     ) {
         attach?.let { AttachButton(it, enabled) }
         val listening = voice?.listening == true
-        Box(Modifier.weight(1f).padding(vertical = WhittleSpace.s), contentAlignment = Alignment.CenterStart) {
+        // At least a button's height, so one line of text sits level with the buttons.
+        Box(Modifier.weight(1f).heightIn(min = COMPOSER_BUTTON).padding(vertical = WhittleSpace.s), contentAlignment = Alignment.CenterStart) {
             when {
                 value.isNotEmpty() -> Unit
                 // Nothing heard yet: the wave stands in for the placeholder.
@@ -246,7 +249,7 @@ fun Composer(
             enabled = canSend,
             shape = CircleShape,
             colors = IconButtonDefaults.filledIconButtonColors(containerColor = colors.primary, contentColor = colors.onPrimary),
-            modifier = Modifier.size(WhittleSize.touchTarget - WhittleSpace.xs).semantics { contentDescription = sendLabel },
+            modifier = Modifier.size(COMPOSER_BUTTON).semantics { contentDescription = sendLabel },
         ) {
             WhittleIcon("arrow_upward", size = WhittleSize.Icon.xl)
         }
@@ -255,6 +258,9 @@ fun Composer(
 
 private const val QUARTER_TURN = 90f
 private const val COMPOSER_MAX_LINES = 6
+
+/** The composer's round buttons: a touch target, less the composer's inner margin. */
+private val COMPOSER_BUTTON = WhittleSize.touchTarget - WhittleSpace.xs
 
 @Composable
 private fun AttachButton(attach: ComposerAttach, enabled: Boolean) {
@@ -265,7 +271,7 @@ private fun AttachButton(attach: ComposerAttach, enabled: Boolean) {
         enabled = enabled,
         shape = CircleShape,
         colors = IconButtonDefaults.filledIconButtonColors(containerColor = colors.surface, contentColor = colors.onSurface),
-        modifier = Modifier.size(WhittleSize.touchTarget - WhittleSpace.xs).semantics { contentDescription = attach.label },
+        modifier = Modifier.size(COMPOSER_BUTTON).semantics { contentDescription = attach.label },
     ) {
         WhittleIcon("add", size = WhittleSize.Icon.xl)
     }
@@ -285,7 +291,7 @@ private fun VoiceButton(voice: ComposerVoice, enabled: Boolean) {
         } else {
             IconButtonDefaults.filledIconButtonColors(containerColor = colors.secondaryContainer, contentColor = colors.onSecondaryContainer)
         },
-        modifier = Modifier.size(WhittleSize.touchTarget - WhittleSpace.xs).semantics { contentDescription = if (voice.listening) voice.stopLabel else voice.startLabel },
+        modifier = Modifier.size(COMPOSER_BUTTON).semantics { contentDescription = if (voice.listening) voice.stopLabel else voice.startLabel },
     ) {
         WhittleIcon(if (voice.listening) "stop" else "mic", fill = voice.listening, size = WhittleSize.Icon.xl)
     }

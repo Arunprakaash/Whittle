@@ -122,6 +122,13 @@ object MaterialSymbols {
         "account_balance_wallet" to R.drawable.ms_account_balance_wallet,
         "swap_horiz" to R.drawable.ms_swap_horiz,
         "content_paste" to R.drawable.ms_content_paste,
+        "alarm" to R.drawable.ms_alarm,
+        "timer" to R.drawable.ms_timer,
+        "notifications_off" to R.drawable.ms_notifications_off,
+        "event" to R.drawable.ms_event,
+        "directions" to R.drawable.ms_directions,
+        "apps" to R.drawable.ms_apps,
+        "call" to R.drawable.ms_call,
     )
 
     private val filled: Map<String, Int> = mapOf(

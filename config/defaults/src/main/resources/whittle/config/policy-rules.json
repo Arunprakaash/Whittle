@@ -16,6 +16,13 @@
       }
     },
     {
+      "id": "calls-always-confirm",
+      "effect": "ASK",
+      "matcher": {
+        "toolIdPattern": "call"
+      }
+    },
+    {
       "id": "connections-always-confirm",
       "effect": "ASK",
       "matcher": {

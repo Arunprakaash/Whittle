@@ -107,6 +107,7 @@ fun SettingsScreen(
                 }
             }
             item { ConnectionsSection(graph, onBrowse = onBrowseConnections, onChooseTools = onConnectionTools) }
+            item { PhoneSection(graph, settings) }
             item {
                 val linux by graph.linux.state.collectAsState()
                 val imageName = graph.linux.image?.name.orEmpty()

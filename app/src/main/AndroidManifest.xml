@@ -88,6 +88,10 @@
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
         </receiver>
+        <!-- Shows a reminder when its alarm goes off; only Whittle's own alarms reach it. -->
+        <receiver
+            android:name=".reminders.ReminderReceiver"
+            android:exported="false" />
         <!-- Connector sign-in pages send the user back here; the address matches redirectUri in connectors.json. -->
         <activity
             android:name=".connectors.ConnectorRedirectActivity"

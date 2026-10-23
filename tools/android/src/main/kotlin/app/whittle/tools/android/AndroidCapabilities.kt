@@ -10,9 +10,13 @@ object AndroidCapabilities {
     val CONTACTS = CapabilityId("contacts")
     val CALENDAR = CapabilityId("calendar")
 
+    /** Adding events; reading them is [CALENDAR], asked for on its own. */
+    val CALENDAR_WRITE = CapabilityId("calendar_write")
+
     private val permissions = mapOf(
         CONTACTS to Manifest.permission.READ_CONTACTS,
         CALENDAR to Manifest.permission.READ_CALENDAR,
+        CALENDAR_WRITE to Manifest.permission.WRITE_CALENDAR,
     )
 
     /** The Android permission to request for [capability], or null when it needs none. */

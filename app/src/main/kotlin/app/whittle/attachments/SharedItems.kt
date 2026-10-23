@@ -33,12 +33,16 @@ object CameraFiles {
         directory.listFiles()?.forEach { it.delete() }
         directory.mkdirs()
         val file = File(directory, SimpleDateFormat(NAME_PATTERN, Locale.ROOT).format(Date()))
-        return FileProvider.getUriForFile(context, authority(context), file)
+        return CacheFiles.uriFor(context, file)
     }
 
-    private fun authority(context: Context) = "${context.packageName}$AUTHORITY_SUFFIX"
+    private const val NAME_PATTERN = "'IMG_'yyyyMMdd_HHmmss'.jpg'"
+}
+
+/** Hands a file in the app's cache to another app by a content address, the only files the provider serves. */
+object CacheFiles {
+    fun uriFor(context: Context, file: File): Uri = FileProvider.getUriForFile(context, "${context.packageName}$AUTHORITY_SUFFIX", file)
 
     /** Matches the provider's authority in the manifest. */
     private const val AUTHORITY_SUFFIX = ".attachments"
-    private const val NAME_PATTERN = "'IMG_'yyyyMMdd_HHmmss'.jpg'"
 }

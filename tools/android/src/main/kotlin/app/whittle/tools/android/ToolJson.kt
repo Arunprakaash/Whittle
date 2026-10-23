@@ -8,7 +8,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 /** Phone tools answer the model in compact JSON; user-facing words live in config, not here. */
-internal object ToolJson {
+object ToolJson {
     fun success(provenance: Provenance, body: JsonObject): ToolOutput = ToolOutput(body.toString(), isError = false, provenance = provenance)
 
     fun error(reason: String): ToolOutput =

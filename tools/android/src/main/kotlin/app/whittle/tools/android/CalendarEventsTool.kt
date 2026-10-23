@@ -17,17 +17,12 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import java.time.Instant
-import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.OffsetDateTime
 import java.time.ZoneId
-import java.time.format.DateTimeParseException
 
 /**
  * Reads calendar events in a time range. Invites can be written by anyone, so event text is untrusted
@@ -39,8 +34,8 @@ class CalendarEventsTool(private val context: Context, private val clock: EpochC
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
         if (!AndroidCapabilities.isGranted(this.context, AndroidCapabilities.CALENDAR)) return ToolJson.missing(AndroidCapabilities.CALENDAR)
         val zone = ZoneId.systemDefault()
-        val from = parse(arguments[FROM]?.jsonPrimitive?.contentOrNull, zone) ?: Instant.ofEpochMilli(clock.nowMillis())
-        val to = parse(arguments[TO]?.jsonPrimitive?.contentOrNull, zone) ?: from.plusSeconds(DEFAULT_RANGE_SECONDS)
+        val from = parseTime(arguments.text(FROM), zone) ?: Instant.ofEpochMilli(clock.nowMillis())
+        val to = parseTime(arguments.text(TO), zone) ?: from.plusSeconds(DEFAULT_RANGE_SECONDS)
         if (!to.isAfter(from)) return ToolJson.error("'to' must be after 'from'")
         val events = withContext(Dispatchers.IO) { query(from, to) }
         return ToolJson.success(
@@ -85,22 +80,6 @@ class CalendarEventsTool(private val context: Context, private val clock: EpochC
             }.sortedBy { it.start }
         }
         return emptyList()
-    }
-
-    /** Accepts a date ("2026-10-20"), a local date-time, or a date-time with an offset. */
-    private fun parse(value: String?, zone: ZoneId): Instant? {
-        val text = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        return listOf<(String) -> Instant>(
-            { OffsetDateTime.parse(it).toInstant() },
-            { LocalDateTime.parse(it).atZone(zone).toInstant() },
-            { LocalDate.parse(it).atStartOfDay(zone).toInstant() },
-        ).firstNotNullOfOrNull { parser ->
-            try {
-                parser(text)
-            } catch (exception: DateTimeParseException) {
-                null
-            }
-        }
     }
 
     private data class Event(val title: String, val start: Instant, val end: Instant, val allDay: Boolean, val location: String?)

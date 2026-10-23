@@ -1,5 +1,12 @@
 package app.whittle
 
+import app.whittle.phone.PhoneActionsConfig
+import app.whittle.phone.PhoneTools
+import app.whittle.reminders.AndroidReminderAlarms
+import app.whittle.reminders.Reminder
+import app.whittle.reminders.Reminders
+import app.whittle.storage.EncryptedListFile
+import app.whittle.background.RunNotifications
 import app.whittle.agent.MemoryStore
 import app.whittle.claudecode.ClaudeCode
 import app.whittle.claudecode.ClaudeCodeConfig
@@ -256,9 +263,26 @@ class AppGraph(context: Context) {
         scope = appScope,
     )
 
+    /** The phone tools' settings: where maps open, reminders and sharing. */
+    val phoneActions = load(PhoneActionsConfig.FILE, PhoneActionsConfig.serializer(), PhoneActionsConfig.SCHEMA_VERSION)
+
+    /** Whittle's own reminders, each a notification at its time. */
+    val reminders = Reminders(
+        store = EncryptedListFile(File(context.filesDir, phoneActions.reminders.fileName), cipher, Reminder.serializer(), REMINDERS_DATA, REMINDERS_LABEL),
+        alarms = AndroidReminderAlarms(context),
+        clock = clock,
+        ids = idGenerator,
+        maxReminders = phoneActions.reminders.maxReminders,
+        maxTextChars = phoneActions.reminders.maxTextChars,
+        show = { reminder -> RunNotifications(context).reminder(reminder.id, reminder.text) },
+    )
+
     /** Every tool a task can use: the built-in ones and those of the user's connections. */
     val tools = ToolRegistry(
-        ToolCatalog.create(context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, agentMessages, scheduleTask()),
+        ToolCatalog.create(
+            context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, agentMessages, scheduleTask(),
+            PhoneTools(phoneActions, reminders, workspaces) { id -> currentSettings.value?.phoneOff?.contains(id) != true },
+        ),
         connectors::tools,
     )
 
@@ -344,4 +368,9 @@ class AppGraph(context: Context) {
         configLoader.load(name, serializer, version).orThrow(name)
 
     private fun <T> Outcome<T>.orThrow(name: ConfigName): T = getOrElse { error("Bundled ${name.path} failed to load: ${it.message}") }
+
+    private companion object {
+        val REMINDERS_DATA = "whittle-reminders".encodeToByteArray()
+        const val REMINDERS_LABEL = "reminders"
+    }
 }

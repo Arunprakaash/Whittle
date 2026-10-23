@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "maps": {
+    "searchUri": "geo:0,0?q={{query}}",
+    "directionsUri": "https://www.google.com/maps/dir/?api=1&destination={{destination}}&travelmode={{mode}}"
+  },
+  "reminders": {
+    "fileName": "reminders.bin",
+    "maxReminders": 100,
+    "maxTextChars": 300
+  },
+  "share": {
+    "directoryName": "share",
+    "maxFileBytes": 52428800
+  },
+  "switches": [
+    {
+      "id": "contacts",
+      "icon": "contacts",
+      "title": "Contacts",
+      "detail": "Finds who you mean",
+      "capabilities": [
+        "contacts"
+      ],
+      "tools": [
+        "contacts_search"
+      ]
+    },
+    {
+      "id": "calendar",
+      "icon": "calendar_month",
+      "title": "Calendar",
+      "detail": "Reads your events",
+      "capabilities": [
+        "calendar"
+      ],
+      "tools": [
+        "calendar_events"
+      ]
+    },
+    {
+      "id": "calendar_write",
+      "icon": "event",
+      "title": "Adding to your calendar",
+      "detail": "Puts events in your calendar for you",
+      "capabilities": [
+        "calendar",
+        "calendar_write"
+      ],
+      "tools": [
+        "add_calendar_event"
+      ]
+    },
+    {
+      "id": "alarms",
+      "icon": "alarm",
+      "title": "Alarms and timers",
+      "detail": "Set in your clock app; change them there",
+      "capabilities": [],
+      "tools": [
+        "set_alarm",
+        "set_timer"
+      ]
+    },
+    {
+      "id": "reminders",
+      "icon": "notifications",
+      "title": "Reminders",
+      "detail": "Whittle's own notifications at a time",
+      "capabilities": [],
+      "tools": [
+        "remind_me",
+        "list_reminders",
+        "cancel_reminder"
+      ]
+    }
+  ],
+  "offMessage": "The user turned {{feature}} off in Settings › On this phone, so Whittle can't use it. Tell them, and that they can turn it back on there."
+}

@@ -112,6 +112,171 @@
         "declinedOutcome": "Not sent"
       }
     },
+    "call": {
+      "icon": "call",
+      "running": "Opening the dialer",
+      "done": "Opened the dialer",
+      "decision": {
+        "icon": "call",
+        "title": "Call {{name}}?",
+        "body": "Opens your phone app with the number ready. Nothing happens until you tap call there.",
+        "payloadArgument": "phoneNumber",
+        "payloadLabelArgument": "name",
+        "approve": "Open dialer",
+        "approveIcon": "open_in_new",
+        "decline": "Not now",
+        "approvedOutcome": "Opened the dialer",
+        "declinedOutcome": "Not called"
+      }
+    },
+    "set_alarm": {
+      "icon": "alarm",
+      "running": "Setting an alarm for {{time}}",
+      "done": "Alarm set for {{time}}",
+      "decision": {
+        "icon": "alarm",
+        "title": "Set an alarm for {{time}}?",
+        "body": "Sets it in your clock app. Change or remove it there.",
+        "payloadArgument": "label",
+        "approve": "Set alarm",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Alarm set for {{time}}",
+        "declinedOutcome": "No alarm set"
+      }
+    },
+    "set_timer": {
+      "icon": "timer",
+      "running": "Starting a timer",
+      "done": "Timer started",
+      "decision": {
+        "icon": "timer",
+        "title": "Start a timer?",
+        "body": "Starts it in your clock app.",
+        "payloadArgument": "label",
+        "approve": "Start",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Timer started",
+        "declinedOutcome": "No timer"
+      }
+    },
+    "remind_me": {
+      "icon": "notifications",
+      "running": "Setting a reminder",
+      "done": "Reminder at {{at}}",
+      "decision": {
+        "icon": "notifications",
+        "title": "Remind you at {{at}}?",
+        "body": "Whittle shows this as a notification then.",
+        "payloadArgument": "text",
+        "approve": "Remind me",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Reminder set",
+        "declinedOutcome": "No reminder"
+      }
+    },
+    "list_reminders": {
+      "icon": "notifications",
+      "running": "Checking your reminders",
+      "done": "Checked your reminders"
+    },
+    "cancel_reminder": {
+      "icon": "notifications_off",
+      "running": "Cancelling a reminder",
+      "done": "Cancelled a reminder",
+      "decision": {
+        "icon": "notifications_off",
+        "title": "Cancel this reminder?",
+        "body": "It won't show.",
+        "approve": "Cancel it",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Reminder cancelled",
+        "declinedOutcome": "Reminder kept"
+      }
+    },
+    "add_calendar_event": {
+      "icon": "event",
+      "running": "Adding {{title}} to your calendar",
+      "done": "Added {{title}}",
+      "decision": {
+        "icon": "event",
+        "title": "Add {{title}} to your calendar?",
+        "body": "Adds it to your calendar on this phone at {{start}}.",
+        "payloadArgument": "location",
+        "approve": "Add",
+        "approveIcon": "check",
+        "decline": "Not now",
+        "approvedOutcome": "Added {{title}}",
+        "declinedOutcome": "Not added"
+      }
+    },
+    "open_map": {
+      "icon": "directions",
+      "running": "Opening {{place}} in Maps",
+      "done": "Opened {{place}} in Maps",
+      "decision": {
+        "icon": "directions",
+        "title": "Open {{place}} in Maps?",
+        "body": "Opens your maps app. You start navigation there.",
+        "approve": "Open Maps",
+        "approveIcon": "open_in_new",
+        "decline": "Not now",
+        "approvedOutcome": "Opened in Maps",
+        "declinedOutcome": "Not opened"
+      }
+    },
+    "open_app": {
+      "icon": "apps",
+      "running": "Opening {{app}}",
+      "done": "Opened {{app}}",
+      "decision": {
+        "icon": "apps",
+        "title": "Open {{app}}?",
+        "body": "Opens the app on your phone.",
+        "approve": "Open",
+        "approveIcon": "open_in_new",
+        "decline": "Not now",
+        "approvedOutcome": "Opened {{app}}",
+        "declinedOutcome": "Not opened"
+      }
+    },
+    "open_link": {
+      "icon": "open_in_new",
+      "siteArgument": "url",
+      "running": "Opening {{url_host}}",
+      "done": "Opened {{url_host}}",
+      "decision": {
+        "icon": "open_in_new",
+        "title": "Open {{url_host}}?",
+        "body": "Opens this page in your browser.",
+        "payloadArgument": "url",
+        "approve": "Open page",
+        "approveIcon": "open_in_new",
+        "decline": "Not now",
+        "approvedOutcome": "Opened {{url_host}}",
+        "declinedOutcome": "Not opened"
+      }
+    },
+    "share": {
+      "icon": "share",
+      "running": "Opening the share sheet",
+      "done": "Opened the share sheet",
+      "decision": {
+        "icon": "share",
+        "title": "Share this?",
+        "body": "Opens your share sheet. You pick the app and send it there.",
+        "payloadArgument": "text",
+        "payloadLabelArgument": "file",
+        "approve": "Share",
+        "approveIcon": "share",
+        "decline": "Not now",
+        "approvedOutcome": "Opened the share sheet",
+        "declinedOutcome": "Not shared"
+      }
+    },
     "run_command": {
       "icon": "terminal",
       "running": "Running a command",
@@ -541,6 +706,15 @@
       "decline": "Not now",
       "grantedOutcome": "Calendar allowed",
       "deniedOutcome": "Calendar not allowed"
+    },
+    "calendar_write": {
+      "icon": "event",
+      "title": "Let Whittle add to your calendar?",
+      "body": "So it can put events in your calendar for you. You can turn this off in Android's settings.",
+      "approve": "Allow",
+      "decline": "Not now",
+      "grantedOutcome": "Adding events allowed",
+      "deniedOutcome": "Adding events not allowed"
     }
   },
   "toolPrefixes": {
