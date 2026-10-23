@@ -113,6 +113,10 @@ object MaterialSymbols {
         "toggle_off" to R.drawable.ms_toggle_off,
         "toggle_on" to R.drawable.ms_toggle_on,
         "pause_circle" to R.drawable.ms_pause_circle,
+        "picture_as_pdf" to R.drawable.ms_picture_as_pdf,
+        "photo_library" to R.drawable.ms_photo_library,
+        "photo_camera" to R.drawable.ms_photo_camera,
+        "attach_file" to R.drawable.ms_attach_file,
     )
 
     private val filled: Map<String, Int> = mapOf(

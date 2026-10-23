@@ -162,6 +162,9 @@ data class ComposerVoice(
     val onTyped: () -> Unit,
 )
 
+/** The composer's plus: adds photos and files to the message. */
+data class ComposerAttach(val label: String, val onClick: () -> Unit)
+
 /** Where the user types. While a run works, what they send is added to it rather than starting over. */
 @Composable
 fun Composer(
@@ -174,19 +177,25 @@ fun Composer(
     enabled: Boolean = true,
     /** When set, an empty composer offers a mic instead of send. */
     voice: ComposerVoice? = null,
+    /** When set, a plus at the start adds photos and files. */
+    attach: ComposerAttach? = null,
+    /** Photos or files are attached, so the message can go without words. */
+    hasAttachments: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
     val haptics = WhittleTheme.haptics
-    val canSend = enabled && value.isNotBlank() && voice?.listening != true
+    val canSend = enabled && (value.isNotBlank() || hasAttachments) && voice?.listening != true
     val send = { if (canSend) { haptics.perform(WhittleHaptic.Send); onSend() } }
     Row(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = WhittleSize.composerMin)
             .background(colors.surfaceContainerHigh, RoundedCornerShape(WhittleRadius.xl))
-            .padding(start = WhittleSpace.l, end = WhittleSpace.xs, top = WhittleSpace.xs, bottom = WhittleSpace.xs),
+            .padding(start = if (attach != null) WhittleSpace.xs else WhittleSpace.l, end = WhittleSpace.xs, top = WhittleSpace.xs, bottom = WhittleSpace.xs),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(if (attach != null) WhittleSpace.s else 0.dp),
     ) {
+        attach?.let { AttachButton(it, enabled) }
         val listening = voice?.listening == true
         Box(Modifier.weight(1f).padding(vertical = WhittleSpace.s), contentAlignment = Alignment.CenterStart) {
             when {
@@ -224,7 +233,7 @@ fun Composer(
                     },
             )
         }
-        if (voice != null && (value.isBlank() || voice.listening)) {
+        if (voice != null && ((value.isBlank() && !hasAttachments) || voice.listening)) {
             // Words are coming in: the wave moves beside the stop button, out of their way.
             if (listening && value.isNotEmpty()) {
                 VoiceWaveform(voice.level, colors.primary, Modifier.padding(horizontal = WhittleSpace.s).width(WAVE_COMPACT_WIDTH).height(WAVE_HEIGHT))
@@ -246,6 +255,21 @@ fun Composer(
 
 private const val QUARTER_TURN = 90f
 private const val COMPOSER_MAX_LINES = 6
+
+@Composable
+private fun AttachButton(attach: ComposerAttach, enabled: Boolean) {
+    val colors = MaterialTheme.colorScheme
+    val haptics = WhittleTheme.haptics
+    FilledIconButton(
+        onClick = { haptics.perform(WhittleHaptic.Tap); attach.onClick() },
+        enabled = enabled,
+        shape = CircleShape,
+        colors = IconButtonDefaults.filledIconButtonColors(containerColor = colors.surface, contentColor = colors.onSurface),
+        modifier = Modifier.size(WhittleSize.touchTarget - WhittleSpace.xs).semantics { contentDescription = attach.label },
+    ) {
+        WhittleIcon("add", size = WhittleSize.Icon.xl)
+    }
+}
 
 /** The mic: tonal while idle, a filled stop button while listening. */
 @Composable

@@ -3,6 +3,7 @@ package app.whittle.files
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
@@ -70,6 +71,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.whittle.AppGraph
+import app.whittle.MainActivity
 import app.whittle.R
 import app.whittle.core.common.getOrNull
 import app.whittle.design.components.TopBarAction
@@ -268,7 +270,7 @@ private fun DocumentScreen(
             Actions(
                 listOfNotNull(
                     text?.let { Triple("content_copy", R.string.files_copy) { copy(context, name, it.lines.joinToString("\n")) } },
-                    Triple("share", R.string.files_share) { share(context, place.path, name) },
+                    Triple("share", R.string.files_share) { shareFile(context, place.path, name) },
                 ),
             )
         }
@@ -295,7 +297,8 @@ private fun DocumentScreen(
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize().padding(WhittleSpace.l),
             )
-            Content.NotText -> Empty(R.string.files_not_text)
+            is Content.Pdf -> PdfPages(shown.file, name, defaults.maxImageSidePx, Modifier.fillMaxSize()) { shareFile(context, place.path, name) }
+            Content.NotText -> NotShown(name, { shareFile(context, place.path, name) }, Modifier.fillMaxSize())
         }
     }
 }
@@ -543,6 +546,36 @@ private fun Empty(text: Int) {
     )
 }
 
+/** A file Whittle can't show, such as a zip or a spreadsheet: what it is, and Share to open it in another app. */
+@Composable
+internal fun NotShown(name: String, onShare: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    Column(
+        modifier.padding(WhittleSpace.xxl),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(WhittleSpace.m, Alignment.CenterVertically),
+    ) {
+        Box(
+            Modifier.size(WhittleSize.Tile.xl).background(colors.secondaryContainer, RoundedCornerShape(WhittleRadius.l)),
+            contentAlignment = Alignment.Center,
+        ) {
+            WhittleIcon("description", size = WhittleSize.Icon.xl, tint = colors.onSecondaryContainer)
+        }
+        Text(name, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(
+            stringResource(R.string.files_not_text),
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        FilledTonalButton(onClick = onShare) {
+            WhittleIcon("share", size = WhittleSize.Icon.m)
+            Spacer(Modifier.width(WhittleSpace.s))
+            Text(stringResource(R.string.files_share))
+        }
+    }
+}
+
 /** One thing in a folder. */
 private data class Entry(val name: String, val path: String, val directory: Boolean, val size: Long, val items: Int)
 
@@ -551,6 +584,8 @@ private sealed interface Content {
     data class Text(val lines: List<String>, val truncated: Boolean) : Content
 
     data class Picture(val bitmap: ImageBitmap) : Content
+
+    data class Pdf(val file: File) : Content
 
     data object NotText : Content
 }
@@ -578,6 +613,7 @@ private fun list(graph: AppGraph, path: String): List<Entry> {
 private fun load(graph: AppGraph, path: String, defaults: FilesDefaults): Content {
     val file = graph.workspaces.resolve(path).getOrNull()?.takeIf { it.isFile } ?: return Content.NotText
     if (defaults.isImage(file.name)) return picture(file, defaults.maxImageSidePx) ?: Content.NotText
+    if (defaults.isPdf(file.name)) return Content.Pdf(file)
     return try {
         val buffer = CharArray(defaults.maxPreviewChars + 1)
         val read = file.bufferedReader().use { reader ->
@@ -614,14 +650,18 @@ private fun copy(context: Context, name: String, text: String) {
     context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(name, text))
 }
 
-private fun share(context: Context, path: String, name: String) {
+/** Offers a workspace file to other apps through Android's share sheet. */
+fun shareFile(context: Context, path: String, name: String) {
     val type = MimeTypeMap.getSingleton().getMimeTypeFromExtension(name.substringAfterLast('.', "").lowercase()) ?: FALLBACK_TYPE
     val send = Intent(Intent.ACTION_SEND)
         .setType(type)
         .putExtra(Intent.EXTRA_STREAM, WorkspaceDocumentsProvider.documentUri(context, path))
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     try {
-        context.startActivity(Intent.createChooser(send, name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        // Whittle takes shares too; sharing a file back into it would only copy it into uploads again.
+        val chooser = Intent.createChooser(send, name)
+            .putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS, arrayOf(ComponentName(context, MainActivity::class.java)))
+        context.startActivity(chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     } catch (exception: ActivityNotFoundException) {
         Toast.makeText(context, R.string.files_unavailable, Toast.LENGTH_SHORT).show()
     }

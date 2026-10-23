@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 10,
+  "schemaVersion": 11,
   "unknownTool": "There is no tool named \"{{tool}}\". Use only the tools you were given.",
   "invalidArguments": "The arguments for \"{{tool}}\" were not valid: {{detail}}. Fix them and try again.",
   "policyDenied": "\"{{tool}}\" is not allowed by the user's safety settings. Do not retry it; tell the user what you could not do.",
@@ -43,5 +43,9 @@
   "automationProjectMissing": "There's no project '{{project}}' in the workspace. Start it first with use_project, or leave project out for the whole workspace.",
   "automationTimeInvalid": "Give the time as 24-hour HH:mm, e.g. 07:30.",
   "automationDaysInvalid": "Give days as a list of mon, tue, wed, thu, fri, sat or sun, e.g. [\"mon\", \"fri\"].",
-  "automationSaveFailed": "Couldn't save it: {{detail}}"
+  "automationSaveFailed": "Couldn't save it: {{detail}}",
+  "attachments": "The user attached these files. They're saved in the workspace, so open them with your tools when the task needs their contents:\n{{files}}",
+  "attachmentLine": "- {{path}} ({{size}})",
+  "attachmentImagesUnseen": "This model can't see images, so treat the attached images only as files.",
+  "imageUnavailable": "[An attached image, {{path}}, couldn't be read from the workspace.]"
 }

@@ -7,6 +7,7 @@ import app.whittle.tools.api.CapabilityId
 import app.whittle.tools.presentation.CapabilityPresentation
 import app.whittle.tools.presentation.DecisionText
 import app.whittle.tools.presentation.QuestionText
+import app.whittle.attachments.Attachment
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -20,7 +21,13 @@ sealed interface ThreadItem {
 
     @Serializable
     @SerialName("user")
-    data class User(override val key: String, val text: String, val steer: Boolean) : ThreadItem
+    data class User(
+        override val key: String,
+        val text: String,
+        val steer: Boolean,
+        /** Photos and files sent with it, saved in the workspace. */
+        val attachments: List<Attachment> = emptyList(),
+    ) : ThreadItem
 
     /** The agent's words: narration between steps while streaming; the last one in a run is its answer. */
     @Serializable

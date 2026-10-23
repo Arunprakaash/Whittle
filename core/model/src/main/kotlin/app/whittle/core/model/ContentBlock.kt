@@ -21,6 +21,14 @@ sealed interface ContentBlock {
     @SerialName("image")
     data class Image(val mediaType: String, val base64Data: String) : ContentBlock
 
+    /**
+     * An image the user attached, kept as a file in the chat's workspace at [path]. The runner reads it into an
+     * [Image] just before each model call, so stored chats and checkpoints never hold its bytes.
+     */
+    @Serializable
+    @SerialName("image_file")
+    data class ImageFile(val path: String) : ContentBlock
+
     /** A tool call proposed by the model. Arguments stay raw so malformed JSON can be reported back to it. */
     @Serializable
     @SerialName("tool_call")

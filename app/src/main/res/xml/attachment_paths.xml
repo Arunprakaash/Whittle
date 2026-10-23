@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The camera saves a photo here (attachments.cameraDirectoryName under the cache) before it's added to a message.
+     Only the one photo's address is ever handed to the camera app. -->
+<paths>
+    <cache-path name="cache" path="." />
+</paths>

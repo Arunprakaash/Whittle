@@ -21,6 +21,7 @@ data class AppDefaults(
     val voice: VoiceDefaults,
     val toolRuntime: ToolRuntimeDefaults,
     val memory: MemoryDefaults,
+    val attachments: AttachmentDefaults,
 ) : VersionedConfig {
     companion object {
         const val SCHEMA_VERSION = 1
@@ -152,6 +153,31 @@ data class MemoryDefaults(
 @Serializable
 data class MemoryIdea(val icon: String, val title: String, val example: String, val start: String)
 
+/**
+ * Photos and files the user adds to a message: where in the workspace they're saved (inside the chat's project when
+ * it has one), how many and how big, and how photos are sized for the model and for the composer's thumbnails.
+ */
+@Serializable
+data class AttachmentDefaults(
+    val directoryName: String,
+    val maxPerMessage: Int,
+    val maxFileBytes: Long,
+    /** A photo's longer side when sent to a model; larger photos are scaled down, smaller ones kept as they are. */
+    val imageMaxSidePx: Int,
+    val imageJpegQuality: Int,
+    val thumbnailSidePx: Int,
+    /** Prepared photos and thumbnails kept in memory, so scrolling and each model call don't decode them again. */
+    val memoryEntries: Int,
+    /** Under the app's cache: where the camera saves a photo before it's added. */
+    val cameraDirectoryName: String,
+) {
+    init {
+        require(directoryName.isNotBlank() && '/' !in directoryName && cameraDirectoryName.isNotBlank()) { "attachments directories must be plain names" }
+        require(maxPerMessage > 1 && maxFileBytes > 0) { "attachments.maxPerMessage must be at least 2 and maxFileBytes positive" }
+        require(imageMaxSidePx > 0 && thumbnailSidePx > 0 && memoryEntries > 0 && imageJpegQuality in 1..100) { "attachments image sizes must be positive" }
+    }
+}
+
 /** The file browser: what it hides, how much it shows, how it marks changes and colours code. */
 @Serializable
 data class FilesDefaults(
@@ -173,6 +199,8 @@ data class FilesDefaults(
     val imageExtensions: List<String>,
     /** Prose, and files without an extension, show without code colours. */
     val proseExtensions: List<String>,
+    /** Shown as their pages. */
+    val pdfExtensions: List<String>,
     /** Coloured as keywords in code. */
     val keywords: List<String>,
     /** Line comment marker to the extensions that use it. */
@@ -191,6 +219,8 @@ data class FilesDefaults(
     }
 
     fun isImage(name: String): Boolean = name.substringAfterLast('.', "").lowercase() in imageExtensions
+
+    fun isPdf(name: String): Boolean = name.substringAfterLast('.', "").lowercase() in pdfExtensions
 
     fun isCode(name: String): Boolean = name.substringAfterLast('.', "").lowercase().let { it.isNotEmpty() && it !in proseExtensions }
 }

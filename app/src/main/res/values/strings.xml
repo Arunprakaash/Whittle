@@ -77,6 +77,31 @@
     <string name="composer_speak">Speak</string>
     <string name="composer_stop_listening">Stop listening</string>
     <string name="composer_listening">Listening…</string>
+    <string name="composer_attach">Add photos or files</string>
+    <string name="attach_title">Add to your message</string>
+    <string name="attach_body">Saved in %1$s, where Whittle can open them.</string>
+    <string name="attach_photos">Photos</string>
+    <string name="attach_camera">Camera</string>
+    <string name="attach_files">Files</string>
+    <plurals name="attach_limits">
+        <item quantity="one">Up to %1$d at a time, %2$s each.</item>
+        <item quantity="other">Up to %1$d at a time, %2$s each.</item>
+    </plurals>
+    <plurals name="attach_too_many">
+        <item quantity="one">You can add %d at a time.</item>
+        <item quantity="other">You can add %d at a time.</item>
+    </plurals>
+    <string name="attach_too_large">That file is over %1$s, so it wasn\'t added.</string>
+    <string name="attach_unreadable">Couldn\'t read that file, so it wasn\'t added.</string>
+    <string name="attach_no_workspace">The workspace isn\'t ready, so nothing was added.</string>
+    <string name="attach_unseen_title">%1$s can\'t see images</string>
+    <string name="attach_unseen_body">Your photo is saved in the workspace, so the agent can still use it, but it can\'t look at what\'s in it.</string>
+    <string name="attach_change_model">Change model</string>
+    <string name="attachment_open">Open</string>
+    <string name="attachment_remove">Remove %1$s</string>
+    <string name="attachment_close">Close</string>
+    <string name="attachment_position">%1$d of %2$d · %3$s</string>
+    <string name="attachment_show_in_files">Show in files</string>
     <string name="voice_no_permission">Whittle needs the microphone to hear you. You can allow it in Android settings.</string>
     <string name="voice_unavailable">Speech recognition isn\'t available for your language on this phone.</string>
     <string name="voice_network">Couldn\'t reach speech recognition. Check your connection.</string>
@@ -404,7 +429,8 @@
     <string name="files_view_added">Changes · +%1$d</string>
     <string name="files_undo">Ask Whittle to undo this</string>
     <string name="files_undo_request">Undo your changes to %1$s.</string>
-    <string name="files_not_text">This file isn\'t text. Share it to open it in another app.</string>
+    <string name="files_not_text">Whittle can\'t show this kind of file. Share it to open it in another app.</string>
+    <string name="files_pdf_page">Page %1$d of %2$d</string>
     <string name="files_truncated">That\'s as much as fits here. Share the file to see the rest.</string>
     <plurals name="files_lines">
         <item quantity="one">%d line</item>

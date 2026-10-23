@@ -62,11 +62,13 @@
       "cpp": "code", "swift": "code", "sql": "code", "sh": "terminal", "bash": "terminal",
       "css": "palette", "scss": "palette", "less": "palette", "html": "html", "htm": "html",
       "json": "data_object", "md": "description", "txt": "description", "csv": "description",
-      "png": "image", "jpg": "image", "jpeg": "image", "gif": "image", "webp": "image", "svg": "image", "bmp": "image",
+      "png": "image", "jpg": "image", "jpeg": "image", "gif": "image", "webp": "image", "svg": "image", "bmp": "image", "pdf": "picture_as_pdf",
+      "zip": "folder_zip", "gz": "folder_zip", "tgz": "folder_zip", "tar": "folder_zip", "7z": "folder_zip", "rar": "folder_zip",
       "toml": "settings", "yaml": "settings", "yml": "settings", "ini": "settings", "conf": "settings", "lock": "settings", "env": "settings"
     },
     "imageExtensions": ["png", "jpg", "jpeg", "gif", "webp", "bmp"],
     "proseExtensions": ["md", "markdown", "txt", "csv", "log", "rst"],
+    "pdfExtensions": ["pdf"],
     "keywords": [
       "import", "export", "from", "default", "const", "let", "var", "function", "return", "if", "else", "for", "while",
       "class", "extends", "new", "async", "await", "try", "catch", "throw", "true", "false", "null", "undefined",
@@ -93,5 +95,15 @@
       { "icon": "language", "title": "Units and language", "example": "“Use metric units and British English.”", "start": "Use " },
       { "icon": "short_text", "title": "How you like answers", "example": "“Short, main point first.”", "start": "I like answers that are " }
     ]
+  },
+  "attachments": {
+    "directoryName": "uploads",
+    "maxPerMessage": 5,
+    "maxFileBytes": 20971520,
+    "imageMaxSidePx": 1568,
+    "imageJpegQuality": 85,
+    "thumbnailSidePx": 256,
+    "memoryEntries": 24,
+    "cameraDirectoryName": "camera"
   }
 }

@@ -41,6 +41,15 @@ class BundledAppConfigTest {
     }
 
     @Test
+    fun `attachments go to a plain uploads folder, and every file icon is bundled`() {
+        val defaults = assertIs<Outcome.Success<AppDefaults>>(loader.load(AppDefaults.FILE, AppDefaults.serializer(), AppDefaults.SCHEMA_VERSION)).value
+        assertEquals("uploads", defaults.attachments.directoryName)
+        assertTrue(defaults.files.isPdf("receipts.PDF"))
+        val missingIcons = defaults.files.fileIcons.values.toSet() + defaults.files.defaultFileIcon + defaults.files.folderIcon - MaterialSymbols.names
+        assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
+    }
+
+    @Test
     fun `the Linux config loads with a checked image for arm64`() {
         val linux = assertIs<Outcome.Success<LinuxConfig>>(loader.load(LinuxConfig.FILE, LinuxConfig.serializer(), LinuxConfig.SCHEMA_VERSION)).value
         val image = assertNotNull(linux.images["arm64-v8a"])
