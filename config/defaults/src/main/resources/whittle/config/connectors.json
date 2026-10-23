@@ -31,6 +31,8 @@
       ],
       "toolPrefix": "supabase_",
       "sourceLabel": "Supabase",
+      "category": "websites",
+      "description": "Your Supabase projects: databases, edge functions and logs.",
       "defaultRiskTier": "NETWORK_OUT",
       "riskTiers": {
         "search_docs": "WEB_READ",

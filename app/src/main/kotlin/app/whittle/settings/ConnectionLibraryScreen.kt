@@ -41,6 +41,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import app.whittle.AppGraph
 import app.whittle.R
 import app.whittle.connectors.mcp.LibraryServer
+import app.whittle.connectors.mcp.ConnectorState
+import app.whittle.connectors.mcp.McpAuthMode
 import app.whittle.connectors.mcp.McpConnection
 import app.whittle.core.common.Outcome
 import app.whittle.design.components.SiteIcon
@@ -87,7 +89,10 @@ fun ConnectionLibraryScreen(graph: AppGraph, onBack: () -> Unit) {
         }
     }
     val groups = connectors.categories.mapNotNull { category ->
-        connectors.library.filter { it.category == category.id && it.matches(query) }.takeIf { it.isNotEmpty() }?.let { category to it }
+        // Connections Whittle comes with sit in their group until they're connected, then live in Settings.
+        val ours = connections.filter { !connectors.isCustom(it) && it.server.category == category.id && it.server.matches(query) }
+        val catalog = connectors.library.filter { it.category == category.id && it.matches(query) }
+        LibraryGroup(category.id, category.title, ours, catalog).takeIf { ours.isNotEmpty() || catalog.isNotEmpty() }
     }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
@@ -110,12 +115,41 @@ fun ConnectionLibraryScreen(graph: AppGraph, onBack: () -> Unit) {
             item(key = "search") {
                 WhittleSearchBar(search, placeholder = stringResource(R.string.connector_library_search), clearLabel = stringResource(R.string.search_clear))
             }
-            groups.forEach { (category, servers) ->
-                item(key = "category:" + category.id) { SectionLabel(category.title) }
-                itemsIndexed(servers, key = { _, it -> "server:" + it.url }) { index, server ->
+            groups.forEach { group ->
+                val size = group.ours.size + group.catalog.size
+                item(key = "category:" + group.id) { SectionLabel(group.title) }
+                itemsIndexed(group.ours, key = { _, it -> "ours:" + it.server.id }) { index, connection ->
+                    val state by connection.state.collectAsState()
+                    LibraryRow(
+                        title = connection.server.name,
+                        description = connection.server.description.orEmpty(),
+                        url = connection.server.url,
+                        websiteUrl = connection.server.websiteUrl,
+                        status = when (state) {
+                            is ConnectorState.Connected -> RowStatus.Done(stringResource(R.string.connector_connected))
+                            ConnectorState.Connecting -> RowStatus.Busy
+                            ConnectorState.Disconnected -> RowStatus.Action(stringResource(R.string.connector_connect))
+                        },
+                        shape = segmentedShape(index, size),
+                    ) {
+                        if (connection.server.auth == McpAuthMode.TOKEN) askingKeys = connection else connectors.connect(context, connection)
+                    }
+                }
+                itemsIndexed(group.catalog, key = { _, it -> "server:" + it.url }) { index, server ->
                     // Reading the connections keeps Added current as services come and go.
                     val added = connections.isNotEmpty() && connectors.added(server.url) != null
-                    LibraryRow(server, added, adding == server.url, segmentedShape(index, servers.size)) { add(server) }
+                    LibraryRow(
+                        title = server.title,
+                        description = server.description,
+                        url = server.url,
+                        websiteUrl = server.websiteUrl,
+                        status = when {
+                            adding == server.url -> RowStatus.Busy
+                            added -> RowStatus.Done(stringResource(R.string.connector_library_added_short))
+                            else -> RowStatus.Action(stringResource(R.string.connector_add_action))
+                        },
+                        shape = segmentedShape(group.ours.size + index, size),
+                    ) { add(server) }
                 }
             }
             item(key = "custom") {
@@ -156,16 +190,28 @@ private fun SectionLabel(text: String) {
     )
 }
 
-/** One server: its site's icon, name, what it does, its address, and Add (or Added). */
+/** A group of the library: the connections Whittle comes with first, then the ones it can add. */
+private data class LibraryGroup(val id: String, val title: String, val ours: List<McpConnection>, val catalog: List<LibraryServer>)
+
+/** What a library row ends with: working on it, done (Added, Connected), or the action to take. */
+private sealed interface RowStatus {
+    data object Busy : RowStatus
+
+    data class Done(val label: String) : RowStatus
+
+    data class Action(val label: String) : RowStatus
+}
+
+/** One server: its site's icon, name, what it does, its address, and its [status]. */
 @Composable
-private fun LibraryRow(server: LibraryServer, added: Boolean, adding: Boolean, shape: Shape, onAdd: () -> Unit) {
+private fun LibraryRow(title: String, description: String, url: String, websiteUrl: String?, status: RowStatus, shape: Shape, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
-    val host = (server.websiteUrl ?: server.url).toHttpUrlOrNull()?.host.orEmpty()
+    val host = (websiteUrl ?: url).toHttpUrlOrNull()?.host.orEmpty()
     Row(
         Modifier
             .fillMaxWidth()
             .background(colors.surfaceContainerLow, shape)
-            .clickable(enabled = !added && !adding, onClick = onAdd)
+            .clickable(enabled = status is RowStatus.Action, onClick = onClick)
             .padding(WhittleSpace.m),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m),
@@ -177,16 +223,16 @@ private fun LibraryRow(server: LibraryServer, added: Boolean, adding: Boolean, s
             }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(WhittleSpace.xs)) {
-            Text(server.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (server.description.isNotBlank()) {
-                Text(server.description, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (description.isNotBlank()) {
+                Text(description, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-            Text(server.url.toHttpUrlOrNull()?.host.orEmpty(), style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, maxLines = 1)
+            Text(url.toHttpUrlOrNull()?.host.orEmpty(), style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, maxLines = 1)
         }
-        when {
-            adding -> CircularProgressIndicator(Modifier.size(WhittleSize.Icon.m), strokeWidth = WhittleSpace.hairline)
-            added -> Text(stringResource(R.string.connector_library_added_short), style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
-            else -> Text(stringResource(R.string.connector_add_action), style = MaterialTheme.typography.labelLarge, color = colors.primary)
+        when (status) {
+            RowStatus.Busy -> CircularProgressIndicator(Modifier.size(WhittleSize.Icon.m), strokeWidth = WhittleSpace.hairline)
+            is RowStatus.Done -> Text(status.label, style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
+            is RowStatus.Action -> Text(status.label, style = MaterialTheme.typography.labelLarge, color = colors.primary)
         }
     }
 }

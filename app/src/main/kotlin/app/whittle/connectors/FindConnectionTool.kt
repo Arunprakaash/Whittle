@@ -1,6 +1,7 @@
 package app.whittle.connectors
 
 import app.whittle.connectors.mcp.LibraryServer
+import app.whittle.connectors.mcp.McpServerConfig
 import app.whittle.core.common.Outcome
 import app.whittle.core.model.Provenance
 import app.whittle.tools.api.ExecutionSite
@@ -76,4 +77,10 @@ class FindConnectionTool(private val connectors: Connectors) : Tool {
 fun LibraryServer.matches(query: String): Boolean {
     val words = query.trim().lowercase()
     return words.isEmpty() || (listOf(title, description) + keywords).any { words in it.lowercase() }
+}
+
+/** The same for a connection Whittle comes with, by its name and what it does. */
+fun McpServerConfig.matches(query: String): Boolean {
+    val words = query.trim().lowercase()
+    return words.isEmpty() || listOfNotNull(name, description).any { words in it.lowercase() }
 }
