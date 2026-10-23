@@ -67,6 +67,15 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Downloads and sets up the Linux environment the user asked for, with a notification showing its progress." />
         </service>
+        <!-- Keeps the one-time app-building setup (compiler and tools, about 400 MB) going while the user is in another app. -->
+        <service
+            android:name=".apps.AppToolchainService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Downloads and installs the tools for building apps that the user asked for, with a notification showing that it is working." />
+        </service>
         <!-- Keeps servers the agent started running while the user is elsewhere, with Stop all; ends with them. -->
         <service
             android:name=".background.ProcessesService"

@@ -170,6 +170,21 @@ class RunNotifications(private val context: Context) {
             .setProgress(PERCENT, LinuxSteps.percent(state), state.totalBytes <= 0)
             .build()
 
+    /** The app-building toolchain's one-time setup: a quiet line with a moving bar, as it has no count to show. */
+    fun appToolchainSetup(): Notification =
+        Notification.Builder(context, CHANNEL_RUNNING)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.notify_app_toolchain_title))
+            .setContentText(context.getString(R.string.notify_app_toolchain_text))
+            .setContentIntent(openApp())
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setCategory(Notification.CATEGORY_PROGRESS)
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicVersion(CHANNEL_RUNNING, R.string.notify_app_toolchain_public))
+            .setProgress(0, 0, true)
+            .build()
+
     private fun publicVersion(channel: String, text: Int): Notification =
         Notification.Builder(context, channel)
             .setSmallIcon(R.drawable.ic_notification)
@@ -201,6 +216,7 @@ class RunNotifications(private val context: Context) {
         const val ID_RUNNING = 1
         const val ID_LINUX_SETUP = 4
         const val ID_PROCESSES = 5
+        const val ID_APP_TOOLCHAIN = 6
         private const val PERCENT = 100
         private const val ID_FINISHED = 2
         private const val ID_NEEDS_YOU = 3

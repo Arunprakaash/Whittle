@@ -63,6 +63,8 @@ import app.whittle.design.components.segmentedShape
 import app.whittle.design.tokens.WhittleRadius
 import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
+import app.whittle.apps.ToolchainState
+import app.whittle.core.common.Outcome
 import app.whittle.onboarding.ONBOARDING_STEPS
 import app.whittle.onboarding.OnboardingSteps
 import kotlinx.coroutines.launch
@@ -207,12 +209,56 @@ fun LinuxWorkspaceScreen(graph: AppGraph, onBack: () -> Unit) {
                     if (live.isNotEmpty()) item {
                         RunningRow(live.map { it.name }) { graph.appScope.launch { graph.processes.stopAll() } }
                     }
+                    item { AppBuildingRow(graph) }
                     item { ManageRows(graph, used) { confirming = it } }
                 }
             }
         }
     }
     confirming?.let { confirm -> ConfirmDialog(confirm, graph, onDone = { confirming = null }) }
+}
+
+/** The app-building toolchain's size, with Remove confirmed in its own dialog. */
+@Composable
+private fun AppBuildingRow(graph: AppGraph) {
+    val toolchain = graph.appToolchain
+    val state by toolchain.state.collectAsStateWithLifecycle()
+    var confirming by remember { mutableStateOf(false) }
+    var refresh by remember { mutableIntStateOf(0) }
+    var removeFailed by remember { mutableStateOf(false) }
+    LaunchedEffect(state) { removeFailed = false }
+    val size by produceState<String?>(null, state, refresh) { value = if (state is ToolchainState.Installing) null else toolchain.size() }
+    val installed = size != null
+    SettingsRow(
+        icon = "build",
+        title = stringResource(R.string.app_toolchain_row_title),
+        subtitle = when {
+            state is ToolchainState.Installing -> stringResource(R.string.app_toolchain_row_installing)
+            removeFailed -> stringResource(R.string.app_toolchain_remove_failed)
+            installed -> stringResource(R.string.app_toolchain_row_installed, size.orEmpty())
+            else -> stringResource(R.string.app_toolchain_row_missing)
+        },
+        shape = RoundedCornerShape(WhittleRadius.l),
+        destructive = installed && state !is ToolchainState.Installing,
+        onClick = { if (installed && state !is ToolchainState.Installing) confirming = true },
+    )
+    if (confirming) {
+        AlertDialog(
+            onDismissRequest = { confirming = false },
+            title = { Text(stringResource(R.string.app_toolchain_remove_title)) },
+            text = { Text(stringResource(R.string.app_toolchain_remove_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirming = false
+                    graph.appScope.launch {
+                        removeFailed = toolchain.remove() is Outcome.Failure
+                        refresh++
+                    }
+                }) { Text(stringResource(R.string.app_toolchain_remove), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.connector_cancel)) } },
+        )
+    }
 }
 
 /** Repair, reset and remove, from least to most drastic. */

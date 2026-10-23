@@ -20,6 +20,9 @@ import app.whittle.settings.VoiceDefaults
 import app.whittle.connectors.CustomConnectorStore
 import app.whittle.connectors.mcp.ConnectorsConfig
 import app.whittle.connectors.Connectors
+import app.whittle.apps.AppToolchain
+import app.whittle.apps.LinuxShell
+import app.whittle.apps.NativeAppsConfig
 import app.whittle.linux.LinuxConfig
 import app.whittle.linux.LinuxWorkspace
 import app.whittle.design.theme.WhittleAppearance
@@ -90,6 +93,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import app.whittle.tools.workspace.ShellEnvironment
 import app.whittle.tools.workspace.ProcessManager
+import app.whittle.tools.workspace.CommandRunner
 import app.whittle.tools.workspace.TerminalConfig
 import app.whittle.tools.workspace.WorkspaceToolSet
 import app.whittle.files.ChatProjectStore
@@ -195,6 +199,23 @@ class AppGraph(context: Context) {
     val chatProjects = ChatProjectStore(File(context.filesDir, appDefaults.storage.chatProjectsFileName), appScope)
 
     val workspaces = Workspaces(File(context.filesDir, appDefaults.storage.workspaceDirectoryName), linux.fileSystem, chatProjects)
+
+    /** How apps are built (docs/native-apps.md). */
+    val nativeApps = load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION)
+
+    /** The app-building toolchain in Linux; one instance, shared by its service, the chat and Settings. */
+    val appToolchain: AppToolchain = run {
+        val runner = CommandRunner(linux.environment, terminalLimits.maxOutputChars)
+        AppToolchain(
+            LinuxShell { command, network, timeoutSeconds ->
+                when (val folder = workspaces.folder()) {
+                    is Outcome.Failure -> folder
+                    is Outcome.Success -> runner.run(command, folder.value, timeoutSeconds, network)
+                }
+            },
+            nativeApps,
+        )
+    }
 
     /** How a chat's project is put to the agent, and how many recent ones a new chat offers. */
     val projectDefaults: ProjectDefaults get() = appDefaults.projects

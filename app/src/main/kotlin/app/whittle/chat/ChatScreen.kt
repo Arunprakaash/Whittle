@@ -12,6 +12,7 @@ import app.whittle.design.components.ComposerAttach
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.core.content.ContextCompat
+import app.whittle.apps.APP_BUILDING
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.rememberUpdatedState
@@ -754,11 +755,13 @@ private fun rememberCapabilityRequest(items: List<ThreadItem>, viewModel: ChatVi
     }
     return { item ->
         val permission = AndroidCapabilities.permissionFor(item.capability)
-        if (permission == null || AndroidCapabilities.isGranted(context, item.capability)) {
-            viewModel.answer(item, granted = true)
-        } else {
-            requestingKey = item.key
-            launcher.launch(permission)
+        when {
+            item.capability == APP_BUILDING -> viewModel.setUpAppBuilding(item)
+            permission == null || AndroidCapabilities.isGranted(context, item.capability) -> viewModel.answer(item, granted = true)
+            else -> {
+                requestingKey = item.key
+                launcher.launch(permission)
+            }
         }
     }
 }

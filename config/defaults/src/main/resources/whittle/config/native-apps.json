@@ -33,6 +33,7 @@
   },
   "buildScript": "set -euo pipefail\nT=/opt/whittle-apps\ncd \"/workspace/{{project}}\"\nrm -rf build/tmp && mkdir -p build/tmp/classes build/tmp/dex\naapt2 compile --dir res -o build/tmp/res.zip\naapt2 link -I $T/android.jar --manifest AndroidManifest.xml --min-sdk-version {{minSdk}} --target-sdk-version {{targetSdk}} --version-code {{versionCode}} --version-name {{versionCode}} -o build/tmp/base.apk build/tmp/res.zip\n$T/kotlinc/bin/kotlinc src -cp $T/android.jar -d build/tmp/classes -jvm-target 11 -no-reflect -nowarn\njava -cp $T/d8.jar com.android.tools.r8.D8 --min-api {{minSdk}} --lib $T/android.jar --classpath $T/kotlinc/lib/kotlin-stdlib.jar --output build/tmp/dex $(find build/tmp/classes -name '*.class')\ncp $T/stdlib-dex/classes.dex build/tmp/dex/classes2.dex\n(cd build/tmp/dex && zip -q -u ../base.apk classes.dex classes2.dex)\nzipalign -f -p 4 build/tmp/base.apk \"build/{{slug}}-{{versionCode}}-unsigned.apk\"\nrm -rf build/tmp\n",
   "buildTimeoutSeconds": 600,
+  "setupStartTimeoutSeconds": 15,
   "maxErrors": 20,
   "maxErrorChars": 4000,
   "template": [

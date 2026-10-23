@@ -72,6 +72,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import app.whittle.apps.awaitSetup
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.update
@@ -155,7 +157,11 @@ enum class StatusPhase {
  * The chat is saved on this phone as it changes and restored at launch. A run that was still working
  * when the app closed shows as interrupted; continuing it is the user's call.
  */
-class ChatViewModel(private val graph: AppGraph) : ViewModel() {
+class ChatViewModel(
+    private val graph: AppGraph,
+    /** Starts the app-building setup as a foreground service (the app passes the real one). */
+    private val startToolchainSetup: () -> Unit = {},
+) : ViewModel() {
     private val _state = MutableStateFlow(ChatState())
     val state: StateFlow<ChatState> = _state.asStateFlow()
 
@@ -417,6 +423,26 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val presentation = item.presentation
         replace(item.key) { ThreadItem.Resolved(item.key, if (granted) presentation.grantedOutcome else presentation.deniedOutcome, declined = !granted) }
         submit(item.runId, RunInput.CapabilityChanged(item.capability, granted))
+    }
+
+    private var settingUpAppBuilding: Job? = null
+
+    /**
+     * Allow on the app-building card: sets the toolchain up in a service, then answers the capability as granted
+     * once it's ready, or as not granted if setup failed. A second tap while it runs doesn't start another.
+     */
+    fun setUpAppBuilding(item: ThreadItem.Capability) {
+        if (settingUpAppBuilding?.isActive == true) return
+        settingUpAppBuilding = viewModelScope.launch {
+            try {
+                val toolchain = graph.appToolchain
+                val ready = toolchain.isReady() ||
+                    awaitSetup(toolchain, startToolchainSetup, graph.nativeApps.setupStartTimeoutSeconds.seconds)
+                answer(item, granted = ready)
+            } finally {
+                settingUpAppBuilding = null
+            }
+        }
     }
 
     private fun submit(runId: RunId, input: RunInput) {

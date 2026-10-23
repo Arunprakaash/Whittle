@@ -16,6 +16,8 @@ data class NativeAppsConfig(
     /** Runs in Linux in the project's folder; placeholders are `{{project}}`, `{{slug}}`, `{{versionCode}}`, `{{minSdk}}` and `{{targetSdk}}`. It doesn't sign. */
     val buildScript: String,
     val buildTimeoutSeconds: Int,
+    /** How long the chat waits for the setup service to begin before it checks whether the toolchain is ready anyway. Not in the pins, so changing it doesn't trigger setup. */
+    val setupStartTimeoutSeconds: Int,
     /** How many compiler errors go back to the agent. */
     val maxErrors: Int,
     /** How much of the compiler's output goes back to the agent. */
@@ -33,6 +35,7 @@ data class NativeAppsConfig(
         require(packagePrefix.endsWith(".")) { "packagePrefix must end with a dot" }
         require(minSdk in 1..targetSdk) { "minSdk must not be above targetSdk" }
         require(buildTimeoutSeconds > 0 && toolchain.setupTimeoutSeconds > 0) { "Timeouts must be positive" }
+        require(setupStartTimeoutSeconds > 0) { "setupStartTimeoutSeconds must be positive" }
         require(maxErrors > 0 && maxErrorChars > 0) { "Error limits must be positive" }
         require(template.isNotEmpty()) { "template must name at least one file" }
         require(crashAuthoritySuffix.startsWith(".")) { "crashAuthoritySuffix must start with a dot" }

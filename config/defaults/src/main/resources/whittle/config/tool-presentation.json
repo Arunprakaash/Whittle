@@ -715,6 +715,15 @@
       "decline": "Not now",
       "grantedOutcome": "Adding events allowed",
       "deniedOutcome": "Adding events not allowed"
+    },
+    "app_building": {
+      "icon": "build",
+      "title": "Set up app building?",
+      "body": "Whittle installs a compiler and tools in its Linux, about 400 MB, once. It needs a connection and a few minutes.",
+      "approve": "Set up",
+      "decline": "Not now",
+      "grantedOutcome": "App building set up",
+      "deniedOutcome": "App building not set up"
     }
   },
   "toolPrefixes": {
