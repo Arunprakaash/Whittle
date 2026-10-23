@@ -112,6 +112,36 @@ class WorkspaceToolsTest {
     }
 
     @Test
+    fun `a long file can be read a line range at a time`() = runBlocking<Unit> {
+        WriteFileTool(workspaces, config).execute(args("""{"path":"page.txt","content":"one\ntwo\nthree\nfour\nfive"}"""), context)
+        val read = ReadFileTool(workspaces, config)
+
+        val middle = read.execute(args("""{"path":"page.txt","fromLine":2,"lines":2}"""), context)
+        assertEquals("two\nthree", middle.field("content"))
+        assertEquals("2", middle.field("fromLine"))
+        assertEquals("3", middle.field("toLine"))
+        assertEquals("5", middle.field("totalLines"))
+
+        assertEquals("four\nfive", read.execute(args("""{"path":"page.txt","fromLine":4}"""), context).field("content"))
+        assertEquals("one", read.execute(args("""{"path":"page.txt","lines":1}"""), context).field("content"))
+        assertTrue(read.execute(args("""{"path":"page.txt","fromLine":0}"""), context).isError)
+    }
+
+    @Test
+    fun `find lists the matching lines with their numbers, ignoring case`() = runBlocking<Unit> {
+        WriteFileTool(workspaces, config).execute(args("""{"path":"guide.txt","content":"Intro\nPixel 10a: best camera\nprice: 499\nGalaxy A57\n(note"}"""), context)
+        val read = ReadFileTool(workspaces, config)
+
+        val found = read.execute(args("""{"path":"guide.txt","find":"pixel|galaxy"}"""), context).json()
+        assertEquals("2", found["matchCount"]!!.jsonPrimitive.content)
+        assertEquals("""[{"line":2,"text":"Pixel 10a: best camera"},{"line":4,"text":"Galaxy A57"}]""", found["matches"].toString())
+
+        // Not a valid expression, so it's looked for as plain text.
+        val literal = read.execute(args("""{"path":"guide.txt","find":"(note"}"""), context).json()
+        assertEquals("5", literal["matches"]!!.toString().substringAfter("\"line\":").substringBefore(","))
+    }
+
+    @Test
     fun `an edit must match exactly once`() = runBlocking<Unit> {
         WriteFileTool(workspaces, config).execute(args("""{"path":"a.txt","content":"x x"}"""), context)
         val output = EditFileTool(workspaces, config).execute(args("""{"path":"a.txt","oldText":"x","newText":"y"}"""), context)

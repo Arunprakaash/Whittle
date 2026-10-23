@@ -17,10 +17,14 @@ data class TerminalConfig(
     val maxFileChars: Int,
     val maxListedEntries: Int,
     val processes: ProcessLimits,
+    /** read_file's find: at most this many matching lines, each cut to [maxMatchChars]. */
+    val maxMatches: Int = 100,
+    val maxMatchChars: Int = 300,
 ) : VersionedConfig {
     init {
         require(defaultTimeoutSeconds in 1..maxTimeoutSeconds) { "defaultTimeoutSeconds must be between 1 and maxTimeoutSeconds" }
         require(maxOutputChars > 0 && maxFileChars > 0 && maxListedEntries > 0) { "Terminal limits must be positive" }
+        require(maxMatches > 0 && maxMatchChars > 0) { "Match limits must be positive" }
     }
 
     companion object {

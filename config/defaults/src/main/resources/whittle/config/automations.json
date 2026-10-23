@@ -12,8 +12,8 @@
     {
       "key": "web",
       "icon": "travel_explore",
-      "label": "Search and read the web",
-      "toolIds": ["web_search", "web_fetch"],
+      "label": "Read web pages",
+      "toolIds": ["web_fetch"],
       "default": true
     },
     {

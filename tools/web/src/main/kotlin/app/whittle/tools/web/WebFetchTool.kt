@@ -33,7 +33,10 @@ class WebFetchTool(private val httpClient: OkHttpClient) : Tool {
             try {
                 httpClient.newCall(Request.Builder().url(url).get().build()).execute().use { response ->
                     val body = response.body?.string().orEmpty()
-                    ToolOutput(body, isError = !response.isSuccessful, provenance = definition.outputProvenance)
+                    // A page's markup is mostly noise to the model and too long to read whole; its text is what matters.
+                    val isPage = response.body?.contentType()?.subtype?.contains(HTML) == true
+                    val content = if (isPage) HtmlText.of(body, response.request.url) else body
+                    ToolOutput(content, isError = !response.isSuccessful, provenance = definition.outputProvenance)
                 }
             } catch (exception: IOException) {
                 failure(exception.message ?: exception.javaClass.simpleName)
@@ -46,7 +49,8 @@ class WebFetchTool(private val httpClient: OkHttpClient) : Tool {
     companion object {
         val DEFINITION = ToolDefinition(
             id = ToolId("web_fetch"),
-            description = "Downloads a web page over https and returns its raw text.",
+            description = "Opens a web page over https and returns its readable text, with each link's address in brackets " +
+                "after its words so you can open it next. Other files come back as they are.",
             inputSchema = Json.parseToJsonElement(
                 """{"type":"object","properties":{"url":{"type":"string","description":"https URL"}},"required":["url"]}""",
             ).jsonObject,
@@ -58,5 +62,6 @@ class WebFetchTool(private val httpClient: OkHttpClient) : Tool {
         )
 
         private const val SOURCE_LABEL = "web page"
+        private const val HTML = "html"
     }
 }
