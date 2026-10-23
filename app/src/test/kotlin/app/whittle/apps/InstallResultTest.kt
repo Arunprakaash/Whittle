@@ -13,7 +13,7 @@ class InstallResultTest {
         key = "k", name = "Notes", packageName = "app.whittle.made.notes", versionCode = 3, apkPath = "notes/build/notes-3.apk",
         permissions = listOf(camera, overlay.name), powerful = listOf(overlay), fromTaintedRun = false,
     )
-    private val facts = ApkFacts(card.packageName, 3L, listOf(camera, overlay.name), emptyList(), false, 26, 35)
+    private val facts = ApkFacts(card.packageName, 3L, listOf(camera, overlay.name), emptyList(), false, 26, 34)
 
     @Test
     fun `install results map to what the card says`() {

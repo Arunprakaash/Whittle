@@ -237,6 +237,16 @@ class BundledAppConfigTest {
     }
 
     @Test
+    fun `apps target the API level they are compiled against`() {
+        val config = assertIs<Outcome.Success<NativeAppsConfig>>(
+            loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),
+        ).value
+        // Ubuntu's arm64 aapt2 can't read a newer android.jar, so the platform is pinned and the target follows it.
+        val platform = Regex("android-(\\d+)/android\\.jar").find(config.toolchain.setupScript)!!.groupValues[1].toInt()
+        assertEquals(platform, config.targetSdk)
+    }
+
+    @Test
     fun `the app template reports whole stacks once and keeps clear of the system bars`() {
         val source = BundledConfigSource()
         val reporter = assertIs<Outcome.Success<String>>(source.read(ConfigName("native-app-template/src/CrashReporter.kt"))).value
@@ -261,9 +271,15 @@ class BundledAppConfigTest {
             assertTrue("curl -fsSL -o $file ${it.url}\n" in toolchain.setupScript, "the setup script must fetch ${it.url} as $file")
             assertTrue("'${it.sha256}  $file'" in toolchain.setupScript, "the setup script must check $file against its pin")
         }
-        val aptLine = toolchain.setupScript.lines().single { it.startsWith("apt-get install") }
+        // Other things run apt in the same Linux (top-ups at launch, Claude Code's update), so every call waits for dpkg's lock.
+        val aptLines = toolchain.setupScript.lines().filter { it.startsWith("apt-get ") }
+        assertEquals(2, aptLines.size, "setup runs apt-get update and apt-get install")
+        aptLines.forEach { assertTrue(" -o DPkg::Lock::Timeout=300 " in "$it ", "apt-get must wait for the lock: $it") }
+        val aptLine = aptLines.single { it.startsWith("apt-get install") }
         toolchain.aptPackages.forEach { assertTrue(Regex("(^| )${Regex.escape(it)}( |$)").containsMatchIn(aptLine), "apt line lacks $it") }
-        assertEquals(toolchain.aptPackages.size, aptLine.split(" ").count { !it.startsWith("-") } - 2)
+        // The words left once the options (and an -o option's value) are dropped are "apt-get install" and the packages.
+        val words = aptLine.replace(Regex(" -o \\S+"), "").split(" ").filter { !it.startsWith("-") }
+        assertEquals(listOf("apt-get", "install") + toolchain.aptPackages, words)
         val placeholder = Regex("\\{\\{(\\w+)}}")
         val buildAllowed = setOf("project", "slug", "versionCode", "minSdk", "targetSdk")
         assertTrue(placeholder.findAll(config.buildScript).map { it.groupValues[1] }.toSet().all { it in buildAllowed })

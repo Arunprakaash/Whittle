@@ -18,7 +18,7 @@ class MainActivity : Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            // Android 15 and later draw apps edge to edge: this keeps the content clear of the status and navigation bars.
+            // Keeps the content clear of the status and navigation bars, should the app draw behind them.
             fitsSystemWindows = true
             setPadding(24.dp(), 24.dp(), 24.dp(), 24.dp())
             addView(title)

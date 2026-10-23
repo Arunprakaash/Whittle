@@ -52,7 +52,7 @@ class InstallVerifyTest {
     @Test
     fun `install checks against the key Whittle already holds and never makes one`() {
         val apk = signed(keyA, "held.apk")
-        val inspector = ApkInspector { Outcome.Success(ApkFacts(card.packageName, 1L, emptyList(), emptyList(), false, 26, 35)) }
+        val inspector = ApkInspector { Outcome.Success(ApkFacts(card.packageName, 1L, emptyList(), emptyList(), false, 26, 34)) }
         val held = NoMinting(keyA.certificate)
         assertEquals(InstallCheck.OK, verifyForInstall(card, apk, File(directory, "held-copy.apk"), AppSigner(held), inspector, emptyList()))
         val none = NoMinting(null)

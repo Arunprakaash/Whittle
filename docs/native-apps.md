@@ -60,8 +60,8 @@ Ubuntu 24.04 under proot inside Whittle, driven the way `run_command` runs comma
 | **Each build, total** | **17–18 s** |
 
 - Ubuntu's `aapt` package ships an arm64 `aapt2` (Android 14). It can't read the resource table of the API 35
-  or 37 `android.jar` ("entry offsets overlap"), but links fine against **API 34**. Apps still set
-  `targetSdkVersion` higher.
+  or 37 `android.jar` ("entry offsets overlap"), but links fine against **API 34**. Apps target API 34 too:
+  targeting a higher level than the build compiles against would leave its newer behaviours unchecked.
 - Without the cached standard library, `d8` took 18–35 s per build, so that cache matters.
 - The installed app (750 KB, mostly the Kotlin standard library, minSdk 26, two dex files) opened with the
   phone's DayNight theme, and its button and text updated as expected.
@@ -99,8 +99,9 @@ counter/
 - **Versions:** `build_app` raises the version code on every build, so Update always works.
 - **Icon:** a vector drawable from the template, a rounded square in a colour picked from the name (no letter), which
   the agent may replace.
-- **API level:** compiled against API 34 (above), `minSdkVersion` and `targetSdkVersion` from config. The build sets
-  them and the version, so the manifest doesn't.
+- **API level:** compiled against and targeting API 34 (above), with `minSdkVersion` 26; both come from config and
+  a test keeps the target equal to the pinned platform. The build sets them and the version, so the manifest
+  doesn't.
 - **Template:** includes the crash reporter (below), so the agent doesn't have to remember it.
 
 ### The toolchain
@@ -115,7 +116,8 @@ reason, not as the user saying no.
 
 What it installs:
 
-- apt: `openjdk-21-jdk-headless aapt zipalign zip`.
+- apt: `openjdk-21-jdk-headless aapt zipalign zip unzip`. Both `apt-get` calls wait up to five minutes for dpkg's
+  lock (`-o DPkg::Lock::Timeout=300`), since Linux's own top-ups and Claude Code's update use apt too.
 - Downloads checked by SHA-256 into `/opt/whittle-apps`: the Kotlin compiler zip (JetBrains releases), `d8.jar`
   (Google's Maven, `com.android.tools:r8`) and API 34's `android.jar`. Shipping them inside the APK isn't an
   option, at about 150 MB.

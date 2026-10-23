@@ -12,7 +12,7 @@ class AppManifestTest {
     )
 
     private fun facts(requested: List<String> = emptyList(), components: List<String> = emptyList(), shared: Boolean = false) =
-        ApkFacts("app.whittle.made.x", 1L, requested, components, shared, 26, 35)
+        ApkFacts("app.whittle.made.x", 1L, requested, components, shared, 26, 34)
 
     @Test
     fun `a service permission gives one powerful declaration and camera is listed`() {
