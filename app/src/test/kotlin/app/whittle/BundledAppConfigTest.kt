@@ -10,11 +10,13 @@ import app.whittle.core.common.Outcome
 import app.whittle.core.config.ConfigFiles
 import app.whittle.core.config.ConfigLoader
 import app.whittle.design.icons.MaterialSymbols
+import app.whittle.linux.LinuxBaseSetup
 import app.whittle.linux.LinuxConfig
 import app.whittle.settings.AppDefaults
 import app.whittle.tools.presentation.ToolPresentationConfig
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -56,6 +58,28 @@ class BundledAppConfigTest {
         assertTrue(Regex("^[0-9a-f]{64}$").matches(image.sha256), "the image must be pinned by its SHA-256")
         assertTrue(image.url.startsWith("https://"))
         assertTrue(linux.workspaceMount !in linux.deviceMounts)
+    }
+
+    @Test
+    fun `base setup installs its packages, PDF tools among them, and a top-up installs only the missing ones`() {
+        val setup = assertIs<Outcome.Success<LinuxConfig>>(loader.load(LinuxConfig.FILE, LinuxConfig.serializer(), LinuxConfig.SCHEMA_VERSION)).value.baseSetup
+        // pdftotext and pdfinfo, so the agent can read PDF attachments.
+        assertTrue("poppler-utils" in setup.packages)
+        val all = setup.install(setup.packages)
+        assertTrue(setup.packages.all { it in all.split(" ") }, all)
+        assertFalse("{{" in all)
+        val topUp = setup.install(listOf("poppler-utils"))
+        assertTrue("poppler-utils" in topUp && "xz-utils" !in topUp, topUp)
+    }
+
+    @Test
+    fun `base setup refuses package names a shell would read as more than a name`() {
+        assertFailsWith<IllegalArgumentException> {
+            LinuxBaseSetup(packages = listOf("git; rm -rf /"), installCommand = "apt-get install {{packages}}", commands = emptyList(), timeoutSeconds = 1)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            LinuxBaseSetup(packages = listOf("git"), installCommand = "apt-get install git", commands = emptyList(), timeoutSeconds = 1)
+        }
     }
 
     @Test

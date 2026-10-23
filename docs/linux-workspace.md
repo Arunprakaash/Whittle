@@ -215,8 +215,14 @@ card for untrusted models and tainted runs.
   2. Unpack: Kotlin gunzips the download into Termux's `tar`, run under `proot --link2symlink -0` so hard links and
      root-owned files unpack as the app (the spike's method).
   3. Configure: `resolv.conf`, `APT::Sandbox::User`, locale, `/workspace`, the guest sandbox.
-  4. Base packages: `ca-certificates curl git xz-utils`, then Node.js LTS (pinned, checked by SHA-256) for web apps.
-     Python and compilers come later with apt, when a task needs them.
+  4. Base packages: `ca-certificates curl git xz-utils poppler-utils` (poppler-utils gives `pdftotext` and `pdfinfo`,
+     for reading PDF attachments), then Node.js LTS (pinned, checked by SHA-256) for web apps. Python and compilers
+     come later with apt, when a task needs them.
+- **Top-up at launch:** setup records which base packages it installed (`.base-packages` beside the markers). At each
+  launch, packages added to `baseSetup.packages` since then are installed quietly, with the network, while Linux stays
+  ready. A Linux set up before the record existed gets the whole list once; apt skips what's already there. Offline or
+  failed, it tries again next launch. Only packages top up: a change to `baseSetup.commands` (Node.js) reaches an
+  existing Linux through Repair.
 - **Runs under a foreground notification** with progress, so it survives switching apps.
 - **Manage:** see the space used, Repair (re-runs setup, keeps everything), Reset (a fresh Ubuntu, workspace kept),
   Remove (frees the space; commands are unavailable until it's set up again).
@@ -241,7 +247,7 @@ card for untrusted models and tainted runs.
 - the mounts (`deviceMounts`, `workspaceMount`, `sandboxMount`) and proot options;
 - shell and environment;
 - DNS fallback;
-- base setup (packages, Node.js);
+- base setup: `packages`, the `installCommand` that takes them as `{{packages}}`, then `commands` (Node.js);
 - caches Settings can clear.
 
 Process limits are in `terminal.json`. proot and tar are pinned in `app/termux-runtimes.lock.json`.

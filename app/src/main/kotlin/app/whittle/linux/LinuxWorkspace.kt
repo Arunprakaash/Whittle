@@ -81,6 +81,8 @@ class LinuxWorkspace(
     private val rootfs = File(home, ROOTFS)
     private val configured = File(home, CONFIGURED_MARKER)
     private val installed = File(home, INSTALLED_MARKER)
+    /** The base packages installed so far, one per line, so ones added to the config later can be topped up. */
+    private val basePackages = File(home, PACKAGES_MARKER)
     /** What setup left on the phone, so Settings can tell what was added since. */
     private val baseSize = File(home, BASE_SIZE)
     private val downloads = File(home, DOWNLOADS)
@@ -146,6 +148,32 @@ class LinuxWorkspace(
         }
     }
 
+    /**
+     * Installs base packages added to the config since Linux was set up, quietly and once: Linux stays ready meanwhile,
+     * and a failure (no network, say) leaves them for the next launch.
+     */
+    suspend fun topUpPackages(): Outcome<Unit> = lock.withLock {
+        withContext(Dispatchers.IO) {
+            if (!installed.isFile || !configured.isFile) return@withContext Outcome.Success(Unit)
+            // A Linux set up before the record existed has none, so it gets every base package; apt skips installed ones.
+            val have = basePackages.takeIf { it.isFile }?.readLines()?.filter { it.isNotBlank() }.orEmpty().toSet()
+            val missing = config.baseSetup.packages.filterNot { it in have }
+            if (missing.isEmpty()) return@withContext Outcome.Success(Unit)
+            if (!online()) return@withContext Outcome.Failure(HarnessError.Network(TOP_UP_OFFLINE))
+            setupWorkspace.mkdirs()
+            val before = sizeOf(rootfs) - cachesSize()
+            installBase(config.baseSetup.install(missing)).also { outcome ->
+                when (outcome) {
+                    is Outcome.Failure -> Log.w(TAG, "Couldn't add base packages $missing: ${outcome.error.message}")
+                    is Outcome.Success -> {
+                        basePackages.writeText((have + missing).joinToString(separator = "\n", postfix = "\n"))
+                        recordBaseGrowth(before)
+                    }
+                }
+            }
+        }
+    }
+
     /** A fresh Linux: everything added to it goes, chat folders stay. */
     suspend fun reset(): Outcome<Unit> {
         remove()
@@ -200,23 +228,37 @@ class LinuxWorkspace(
         mutableState.value = settingUp(LinuxSetupStep.BasePackages)
         setupWorkspace.mkdirs()
         val before = sizeOf(rootfs) - cachesSize()
-        config.baseSetup.commands.forEach { command ->
-            val result = when (val ran = runner.run(command, setupWorkspace, config.baseSetup.timeoutSeconds, network = true)) {
-                is Outcome.Failure -> return fail(LinuxSetupStep.BasePackages, ran.error.message)
-                is Outcome.Success -> ran.value
-            }
-            if (result.timedOut || result.exitCode != 0) {
-                return fail(LinuxSetupStep.BasePackages, (result.stderr.ifBlank { result.stdout }).lines().lastOrNull { it.isNotBlank() } ?: "exit ${result.exitCode}")
-            }
+        val setup = config.baseSetup
+        (listOf(setup.install(setup.packages)) + setup.commands).forEach { command ->
+            installBase(command).failure()?.let { return fail(LinuxSetupStep.BasePackages, it) }
         }
         installed.writeText(image.version + "\n" + image.sha256)
+        basePackages.writeText(setup.packages.joinToString(separator = "\n", postfix = "\n"))
         deleteTree(downloads)
-        // A fresh Linux starts from the unpacked image; a repair keeps what the user added out of the base and
-        // adds only what the base packages put back.
-        val after = sizeOf(rootfs) - cachesSize()
-        baseSize.writeText(((recordedBase() ?: before) + after - before).coerceAtLeast(0).toString())
+        recordBaseGrowth(before)
         mutableState.value = ready()
         return Outcome.Success(Unit)
+    }
+
+    /** Runs one base setup command, with the network; fails with its last line of output. */
+    private suspend fun installBase(command: String): Outcome<Unit> {
+        val result = when (val ran = runner.run(command, setupWorkspace, config.baseSetup.timeoutSeconds, network = true)) {
+            is Outcome.Failure -> return ran
+            is Outcome.Success -> ran.value
+        }
+        if (result.timedOut || result.exitCode != 0) {
+            return Outcome.Failure(HarnessError.Storage((result.stderr.ifBlank { result.stdout }).lines().lastOrNull { it.isNotBlank() } ?: "exit ${result.exitCode}"))
+        }
+        return Outcome.Success(Unit)
+    }
+
+    /**
+     * Counts what base setup just added as part of the base. A fresh Linux starts from the unpacked image; a repair or
+     * top-up keeps what the user added out of the base and adds only what the base packages put there.
+     */
+    private fun recordBaseGrowth(before: Long) {
+        val after = sizeOf(rootfs) - cachesSize()
+        baseSize.writeText(((recordedBase() ?: before) + after - before).coerceAtLeast(0).toString())
     }
 
     /** The image, fetched once and kept until setup finishes; an interrupted download carries on where it stopped. */
@@ -367,6 +409,8 @@ class LinuxWorkspace(
         }
     }
 
+    private fun online(): Boolean = context.getSystemService(ConnectivityManager::class.java)?.activeNetwork != null
+
     private fun dnsServers(): List<String> {
         val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return emptyList()
         val network = connectivity.activeNetwork ?: return emptyList()
@@ -456,6 +500,7 @@ class LinuxWorkspace(
         const val SETUP_WORKSPACE = "setup"
         const val CONFIGURED_MARKER = ".configured"
         const val INSTALLED_MARKER = ".installed"
+        const val PACKAGES_MARKER = ".base-packages"
         const val BASE_SIZE = ".base-size"
         const val PARTIAL = ".partial"
         const val SHA_256 = "SHA-256"
@@ -474,6 +519,7 @@ class LinuxWorkspace(
         const val PATH = "PATH"
         const val SEPARATOR = "/"
         const val SCOPE = "%"
+        const val TOP_UP_OFFLINE = "No network to add base packages; they're added at the next launch"
         const val NOT_SET_UP = "Linux isn't set up on this phone yet, so commands can't run. " +
             "The user can set it up in Settings, under Linux workspace."
     }

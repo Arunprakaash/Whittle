@@ -55,6 +55,8 @@ class WhittleApplication : Application() {
         }
         // Alarms don't survive a force stop or a restore from backup; setting them at each launch costs nothing.
         graph.appScope.launch { graph.automations.rescheduleAll() }
+        // Base packages added in an update reach a Linux set up before it.
+        graph.appScope.launch { graph.linux.topUpPackages() }
         scope.launch {
             // Servers the agent started keep running while the user is elsewhere, under their own notification.
             graph.processes.processes.map { list -> list.any { it.live } }.distinctUntilChanged().collect { live ->
