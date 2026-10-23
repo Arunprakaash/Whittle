@@ -95,13 +95,20 @@ class ClaudeCodeStreamTest {
     @Test
     fun `the run command quotes the model and session, and resumes only with a session`() {
         val config = ClaudeCodeConfig(
-            schemaVersion = 1, enabled = true, providerId = "claude-code", displayName = "Claude Code", sessionsFileName = "s.json",
-            installCommand = "i", removeCommand = "r", versionCommand = "v", statusCommand = "s", signInCommand = "in", signOutCommand = "out",
+            schemaVersion = 1, enabled = true, providerId = "claude-code", displayName = "Claude Code", sessionsFileName = "s.json", updatedStampFileName = "u.txt",
+            installCommand = "i", removeCommand = "r", updateCommand = "u", versionCommand = "v", statusCommand = "s", signInCommand = "in", signOutCommand = "out",
             runCommand = "claude -p --model {{model}}", resumeArguments = "--resume {{session}}",
-            installTimeoutSeconds = 1, commandTimeoutSeconds = 1, inboxPollMillis = 1, signedOutErrors = emptySet(), limitErrors = emptySet(), limitNames = emptyMap(), planNames = emptyMap(), declinedMessage = "No", outputChars = 1,
+            unattendedArguments = "--permission-prompts none", allowedToolsArguments = "--allowedTools {{tools}}",
+            preApprovedTools = mapOf("read_file" to listOf("Read"), "edit_file" to listOf("Edit", "MultiEdit")), fileArguments = emptyMap(),
+            installTimeoutSeconds = 1, updateEveryHours = 1, commandTimeoutSeconds = 1, inboxPollMillis = 1, signedOutErrors = emptySet(), limitErrors = emptySet(), limitNames = emptyMap(), planNames = emptyMap(), declinedMessage = "No", outputChars = 1,
             models = listOf(ClaudeCodeModel("opus", "Opus", "")),
         )
         assertEquals("claude -p --model 'opus'", config.run("opus", null))
         assertEquals("claude -p --model 'op'\\''us' --resume 's-1'", config.run("op'us", "s-1"))
+        // Nobody's watching: prompts are refused, and only what the automation pre-approved runs.
+        assertEquals(
+            "claude -p --model 'opus' --permission-prompts none --allowedTools 'Read,Edit,MultiEdit'",
+            config.run("opus", null, unattended = true, preApproved = setOf("read_file", "edit_file", "device_clock_now")),
+        )
     }
 }

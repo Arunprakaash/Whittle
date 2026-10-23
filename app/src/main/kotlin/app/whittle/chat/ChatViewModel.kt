@@ -649,8 +649,12 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
 
     /** The workspace file a write or edit touches, so its step can open it. */
     private fun writtenFile(tool: String, arguments: JsonObject): String? {
-        if (tool != WriteFileTool.DEFINITION.id.value && tool != EditFileTool.DEFINITION.id.value) return null
-        val path = (arguments[FILE_PATH] as? JsonPrimitive)?.contentOrNull ?: return null
+        val argument = when (tool) {
+            WriteFileTool.DEFINITION.id.value, EditFileTool.DEFINITION.id.value -> FILE_PATH
+            // Claude Code's own file tools, by the argument that names the file.
+            else -> graph.claudeCode.config.fileArguments[tool] ?: return null
+        }
+        val path = (arguments[argument] as? JsonPrimitive)?.contentOrNull ?: return null
         return workspacePath(path, graph.linux.workspaceMount)
     }
 

@@ -58,6 +58,14 @@ class BundledAppConfigTest {
         assertTrue("https://downloads.claude.ai/" in config.installCommand)
         assertTrue(config.models.map { it.id }.containsAll(listOf("opus", "sonnet", "haiku")))
         assertTrue("--permission-prompt-tool" in config.runCommand && "stream-json" in config.runCommand)
+        // Updates come from Claude Code's own list only, so nothing else in Linux changes under the user.
+        assertTrue("claude-code.list" in config.updateCommand && "--only-upgrade claude-code" in config.updateCommand)
+        // An automation can't let Claude Code run what it couldn't let Whittle's own tools run.
+        val automations = assertIs<Outcome.Success<AutomationsConfig>>(
+            loader.load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
+        ).value
+        val unchoosable = config.preApprovedTools.keys - automations.choosableToolIds
+        assertTrue(unchoosable.isEmpty(), "claude-code.json maps tools an automation can't pre-approve: $unchoosable")
     }
 
     @Test

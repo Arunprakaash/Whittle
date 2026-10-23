@@ -17,13 +17,16 @@ import app.whittle.core.model.ToolCallId
 import app.whittle.policy.ApprovalScope
 import app.whittle.policy.DecisionReason
 import app.whittle.policy.PolicyDecision
+import app.whittle.policy.RunMode
 import app.whittle.tools.api.ExecutionSite
 import app.whittle.tools.api.RiskTier
 import app.whittle.tools.api.ToolDefinition
 import app.whittle.tools.api.ToolId
 import app.whittle.tools.api.WorkspaceId
+import app.whittle.tools.workspace.FileChanges
 import app.whittle.tools.workspace.InteractiveCommand
 import app.whittle.tools.workspace.ShellEnvironment
+import app.whittle.tools.workspace.previousText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
@@ -31,6 +34,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
@@ -38,7 +42,8 @@ import java.util.concurrent.ConcurrentHashMap
  * Runs a chat's task with Claude Code instead of Whittle's own loop, and tells the chat what happens in the same
  * events: streamed words, steps, approval cards and the answer. Claude Code works in the chat's folder in Linux and
  * carries the chat's conversation on in its own session. When it asks permission for a step, the chat shows an
- * approval card, and the user's answer goes back to Claude Code.
+ * approval card, and the user's answer goes back to Claude Code. Files it writes are recorded like Whittle's own
+ * edits, so they show in the chat's Changes.
  */
 class ClaudeCodeRunner(
     private val config: ClaudeCodeConfig,
@@ -49,11 +54,21 @@ class ClaudeCodeRunner(
     private val onLimit: (ClaudeCodeLimit) -> Unit,
     /** The folder a chat's task works in: its project, or the whole workspace. */
     private val directory: (WorkspaceId?) -> File?,
+    /** The file a path in a chat's Linux names, when it's one the chat may change. */
+    private val locate: (WorkspaceId, String) -> File?,
+    private val changes: FileChanges,
+    /** Text kept of a file's earlier content; a longer file shows as changed without its lines. */
+    private val maxFileChars: Int,
 ) {
     fun start(request: RunRequest): Flow<RunEvent> = channelFlow {
         val chat = request.workspace
         val folder = directory(chat) ?: return@channelFlow send(RunEvent.Failed(HarnessError.Storage(NO_WORKSPACE)))
-        val command = config.run(request.model.id.value, chat?.let(sessions::get))
+        val command = config.run(
+            model = request.model.id.value,
+            session = chat?.let(sessions::get),
+            unattended = request.mode == RunMode.UNATTENDED,
+            preApproved = request.preApprovedTools.mapTo(mutableSetOf()) { it.value },
+        )
         val process = when (val started = InteractiveCommand.start(environment, command, folder, network = true)) {
             is Outcome.Failure -> return@channelFlow send(RunEvent.Failed(started.error))
             is Outcome.Success -> started.value
@@ -65,6 +80,7 @@ class ClaudeCodeRunner(
         var apiError: String? = null
         var finished = false
         val asking = ConcurrentHashMap<String, Asking>()
+        val writing = mutableMapOf<String, Writing>()
         suspend fun say(text: String) {
             if (process.write(ClaudeCodeStream.userMessage(text))) sent++
         }
@@ -98,10 +114,14 @@ class ClaudeCodeRunner(
                             send(RunEvent.StepStarted(++step))
                         }
                         is ClaudeCodeEvent.TextDelta -> send(RunEvent.AssistantTextDelta(event.text))
-                        is ClaudeCodeEvent.ToolUse -> send(RunEvent.ToolCallDecided(call(event.id, event.name, event.input), ALLOWED))
-                        is ClaudeCodeEvent.ToolResult -> send(
-                            RunEvent.ToolCallFinished(ContentBlock.ToolResult(ToolCallId(event.id), event.content, event.isError, OUTPUT)),
-                        )
+                        is ClaudeCodeEvent.ToolUse -> {
+                            chat?.let { writing(it, event.name, event.input) }?.let { writing[event.id] = it }
+                            send(RunEvent.ToolCallDecided(call(event.id, event.name, event.input), ALLOWED))
+                        }
+                        is ClaudeCodeEvent.ToolResult -> {
+                            writing.remove(event.id)?.let { write -> if (!event.isError && chat != null) changes.record(chat, write.file, write.before) }
+                            send(RunEvent.ToolCallFinished(ContentBlock.ToolResult(ToolCallId(event.id), event.content, event.isError, OUTPUT)))
+                        }
                         is ClaudeCodeEvent.PermissionRequest -> {
                             val id = event.toolUseId ?: event.requestId
                             val decision = PendingDecision(call(id, event.toolName, event.input), ToolId(event.toolName), ApprovalScope.EVERY_CALL, step)
@@ -144,6 +164,17 @@ class ClaudeCodeRunner(
     /** A Claude Code task can't be picked up after the app closed; the next message carries the conversation on. */
     fun resume(@Suppress("UNUSED_PARAMETER") runId: RunId): Flow<RunEvent> = flowOf(RunEvent.Failed(HarnessError.Cancelled(NOT_RESUMABLE)))
 
+    /**
+     * The file a [tool] call is about to write, with what it holds now, when the tool is one that writes files.
+     * Claude Code asks before writing, so this reads the file before the write.
+     */
+    private suspend fun writing(chat: WorkspaceId, tool: String, input: JsonObject): Writing? {
+        val argument = config.fileArguments[tool] ?: return null
+        val path = (input[argument] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
+        val file = locate(chat, path) ?: return null
+        return Writing(file, previousText(file, maxFileChars))
+    }
+
     /** What the user wrote; attached files are named in the text, and Claude Code opens them itself. */
     private fun text(message: Message): String = message.content.filterIsInstance<ContentBlock.Text>().joinToString(PARAGRAPH) { it.text }
 
@@ -166,6 +197,9 @@ class ClaudeCodeRunner(
         consentTextKey = "",
         outputProvenance = OUTPUT,
     )
+
+    /** A file a call is writing, and what it held before. */
+    private class Writing(val file: File, val before: FileChanges.Before)
 
     /** A permission Claude Code is waiting on, by the call it's for. */
     private class Asking(val requestId: String, val input: JsonObject, val decision: PendingDecision)

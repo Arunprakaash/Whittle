@@ -4,15 +4,45 @@
   "providerId": "claude-code",
   "displayName": "Claude Code",
   "sessionsFileName": "claude-code-sessions.json",
+  "updatedStampFileName": "claude-code-updated.txt",
   "installCommand": "install -d -m 0755 /etc/apt/keyrings && curl -fsSL https://downloads.claude.ai/keys/claude-code.asc -o /etc/apt/keyrings/claude-code.asc && echo 'deb [signed-by=/etc/apt/keyrings/claude-code.asc] https://downloads.claude.ai/claude-code/apt/stable stable main' > /etc/apt/sources.list.d/claude-code.list && apt-get update -q && apt-get install -y -q claude-code && apt-get clean",
   "removeCommand": "apt-get remove -y -q claude-code && rm -f /etc/apt/sources.list.d/claude-code.list /etc/apt/keyrings/claude-code.asc",
+  "updateCommand": "apt-get update -q -o Dir::Etc::sourcelist=sources.list.d/claude-code.list -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0 && apt-get install -y -q --only-upgrade claude-code && apt-get clean",
   "versionCommand": "claude --version",
   "statusCommand": "claude auth status",
   "signInCommand": "claude auth login",
   "signOutCommand": "claude auth logout",
   "runCommand": "claude -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --permission-prompt-tool stdio --model {{model}}",
   "resumeArguments": "--resume {{session}}",
+  "unattendedArguments": "--permission-prompts none",
+  "allowedToolsArguments": "--allowedTools {{tools}}",
+  "preApprovedTools": {
+    "web_fetch": [
+      "WebFetch"
+    ],
+    "list_files": [
+      "Glob",
+      "Grep"
+    ],
+    "read_file": [
+      "Read"
+    ],
+    "write_file": [
+      "Write"
+    ],
+    "edit_file": [
+      "Edit",
+      "MultiEdit"
+    ]
+  },
+  "fileArguments": {
+    "Write": "file_path",
+    "Edit": "file_path",
+    "MultiEdit": "file_path",
+    "NotebookEdit": "notebook_path"
+  },
   "installTimeoutSeconds": 900,
+  "updateEveryHours": 24,
   "commandTimeoutSeconds": 60,
   "inboxPollMillis": 200,
   "signedOutErrors": [

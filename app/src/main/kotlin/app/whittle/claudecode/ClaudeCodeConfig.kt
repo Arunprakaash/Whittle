@@ -19,9 +19,13 @@ data class ClaudeCodeConfig(
     val displayName: String,
     /** Under the app's files folder: which Claude Code session each chat carries on. */
     val sessionsFileName: String,
+    /** Under the app's files folder: when Claude Code was last updated. */
+    val updatedStampFileName: String,
     /** Run as root in Linux, with the network. */
     val installCommand: String,
     val removeCommand: String,
+    /** Upgrades Claude Code from its own repository only, so nothing else in Linux changes. */
+    val updateCommand: String,
     /** Exits with 0 when Claude Code is installed. */
     val versionCommand: String,
     /** Prints the sign-in status as JSON; exits with 0 when signed in. */
@@ -33,7 +37,17 @@ data class ClaudeCodeConfig(
     val runCommand: String,
     /** Added to [runCommand] to carry on a chat's conversation; `{{session}}` is Claude Code's session id. */
     val resumeArguments: String,
+    /** Added for a task nobody watches, such as an automation: what would need approval is refused, not asked. */
+    val unattendedArguments: String,
+    /** Added with the Claude Code tools an automation lets run without asking; `{{tools}}` is their list. */
+    val allowedToolsArguments: String,
+    /** Whittle's tool ids an automation can pre-approve, by the Claude Code tools that do the same. */
+    val preApprovedTools: Map<String, List<String>>,
+    /** Claude Code's tools that write a file, by the argument naming it, so its changes show in Files. */
+    val fileArguments: Map<String, String>,
     val installTimeoutSeconds: Int,
+    /** How often Claude Code is updated quietly at launch, as its own installer keeps it current. */
+    val updateEveryHours: Int,
     val commandTimeoutSeconds: Int,
     /** How often a running task looks for the user's answers and added messages. */
     val inboxPollMillis: Long,
@@ -55,13 +69,24 @@ data class ClaudeCodeConfig(
         require(models.isNotEmpty()) { "claude-code.json needs at least one model" }
         require(PromptTemplate(FILE, runCommand).placeholders == setOf(MODEL)) { "runCommand must take {{$MODEL}} and nothing else" }
         require(PromptTemplate(FILE, resumeArguments).placeholders == setOf(SESSION)) { "resumeArguments must take {{$SESSION}} and nothing else" }
+        require(PromptTemplate(FILE, allowedToolsArguments).placeholders == setOf(TOOLS)) { "allowedToolsArguments must take {{$TOOLS}} and nothing else" }
+        require(updateEveryHours > 0) { "updateEveryHours must be positive" }
         require(installTimeoutSeconds > 0 && commandTimeoutSeconds > 0 && inboxPollMillis > 0 && outputChars > 0) { "claude-code.json limits must be positive" }
     }
 
-    /** The command that runs [model], carrying on [session] when the chat has one. */
-    fun run(model: String, session: String?): String {
-        val base = runCommand.replace(placeholder(MODEL), quoted(model))
-        return session?.let { "$base " + resumeArguments.replace(placeholder(SESSION), quoted(it)) } ?: base
+    /**
+     * The command that runs [model], carrying on [session] when the chat has one. An [unattended] task refuses what
+     * would need approval, apart from the Claude Code tools that match [preApproved] (Whittle's tool ids).
+     */
+    fun run(model: String, session: String?, unattended: Boolean = false, preApproved: Set<String> = emptySet()): String {
+        val parts = mutableListOf(runCommand.replace(placeholder(MODEL), quoted(model)))
+        session?.let { parts += resumeArguments.replace(placeholder(SESSION), quoted(it)) }
+        if (unattended) {
+            parts += unattendedArguments
+            val tools = preApproved.flatMap { preApprovedTools[it].orEmpty() }.distinct()
+            if (tools.isNotEmpty()) parts += allowedToolsArguments.replace(placeholder(TOOLS), quoted(tools.joinToString(TOOL_SEPARATOR)))
+        }
+        return parts.joinToString(" ")
     }
 
     companion object {
@@ -69,6 +94,8 @@ data class ClaudeCodeConfig(
         val FILE = ConfigName("claude-code.json")
         private const val MODEL = "model"
         private const val SESSION = "session"
+        private const val TOOLS = "tools"
+        private const val TOOL_SEPARATOR = ","
 
         private fun placeholder(name: String) = "{{$name}}"
 
