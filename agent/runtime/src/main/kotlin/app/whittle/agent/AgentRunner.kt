@@ -548,7 +548,11 @@ class AgentRunner(
     private suspend fun capabilityChanged(checkpoint: RunCheckpoint, input: RunInput.CapabilityChanged): Outcome<RunCheckpoint> {
         if (input.capability !in checkpoint.requestedCapabilities) return Outcome.Success(checkpoint)
         val capability = input.capability.value
-        val note = if (input.granted) messages.capabilityGranted(capability) else messages.capabilityDenied(capability)
+        val note = when {
+            input.granted -> messages.capabilityGranted(capability)
+            input.setupFailure != null -> messages.capabilitySetupFailed(capability, input.setupFailure)
+            else -> messages.capabilityDenied(capability)
+        }
         return persist(
             checkpoint.copy(
                 requestedCapabilities = checkpoint.requestedCapabilities - input.capability,
@@ -619,7 +623,7 @@ class AgentRunner(
             provenance = output.provenance,
             personalData = !output.isError && tool.definition.exposesPersonalData,
         )
-        return recordResult(journaled.copy(inFlightToolCall = null), result)
+        return recordResult(journaled.copy(inFlightToolCall = null), result, fullContent = output.content)
     }
 
     private fun planResult(call: ContentBlock.ToolCall, output: ToolOutput) =
@@ -651,8 +655,9 @@ class AgentRunner(
     private suspend fun FlowCollector<RunEvent>.recordResult(
         checkpoint: RunCheckpoint,
         result: ContentBlock.ToolResult,
+        fullContent: String = result.content,
     ): Outcome<RunCheckpoint> {
-        emit(RunEvent.ToolCallFinished(result))
+        emit(RunEvent.ToolCallFinished(result, fullContent))
         return persist(
             checkpoint.copy(
                 stepResults = checkpoint.stepResults + result,

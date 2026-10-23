@@ -31,6 +31,8 @@ data class AgentMessages(
     val capabilityMissing: String,
     val capabilityGranted: String,
     val capabilityDenied: String,
+    /** The user allowed a capability but setting it up failed; [REASON] says why. Not a refusal: they may ask again. */
+    val capabilitySetupFailed: String,
     val interruptedToolCall: String,
     val toolFailed: String,
     val outputTruncated: String,
@@ -87,6 +89,12 @@ data class AgentMessages(
     val appBuildLogSaved: String,
     val appBuildNoApk: String,
     val appBuildTimedOut: String,
+    /** build_app's APK carries a version other than the one Whittle set. */
+    val appVersionMismatch: String,
+    /** build_app's APK carries a minimum or target SDK other than the ones Whittle sets. */
+    val appSdkMismatch: String,
+    /** The reason given with [capabilitySetupFailed] when app building can't be set up because Linux isn't. */
+    val appBuildingNeedsLinux: String,
 ) : VersionedConfig {
     init {
         requirePlaceholders(attachments, FILES)
@@ -106,6 +114,7 @@ data class AgentMessages(
         requirePlaceholders(capabilityMissing, TOOL, CAPABILITY)
         requirePlaceholders(capabilityGranted, CAPABILITY)
         requirePlaceholders(capabilityDenied, CAPABILITY)
+        requirePlaceholders(capabilitySetupFailed, CAPABILITY, REASON)
         requirePlaceholders(interruptedToolCall, TOOL)
         requirePlaceholders(toolFailed, TOOL, DETAIL)
         requirePlaceholders(outputTruncated, LIMIT)
@@ -147,6 +156,9 @@ data class AgentMessages(
         requirePlaceholders(appBuildLogSaved, PATH)
         requirePlaceholders(appBuildNoApk)
         requirePlaceholders(appBuildTimedOut, SECONDS)
+        requirePlaceholders(appVersionMismatch)
+        requirePlaceholders(appSdkMismatch)
+        requirePlaceholders(appBuildingNeedsLinux)
     }
 
     fun unknownTool(tool: String): String = render(unknownTool, TOOL to tool)
@@ -175,6 +187,9 @@ data class AgentMessages(
     fun capabilityGranted(capability: String): String = render(capabilityGranted, CAPABILITY to capability)
 
     fun capabilityDenied(capability: String): String = render(capabilityDenied, CAPABILITY to capability)
+
+    fun capabilitySetupFailed(capability: String, reason: String): String =
+        render(capabilitySetupFailed, CAPABILITY to capability, REASON to reason)
 
     fun interruptedToolCall(tool: String): String = render(interruptedToolCall, TOOL to tool)
 
@@ -263,6 +278,7 @@ data class AgentMessages(
         private const val QUESTION = "question"
         private const val ANSWER = "answer"
         private const val CAPABILITY = "capability"
+        private const val REASON = "reason"
         private const val STEPS = "steps"
         private const val HEAD = "head"
         private const val TAIL = "tail"

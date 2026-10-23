@@ -20,7 +20,8 @@ sealed interface RunEvent {
 
     data class ToolCallDecided(val toolCall: ContentBlock.ToolCall, val decision: PolicyDecision) : RunEvent
 
-    data class ToolCallFinished(val result: ContentBlock.ToolResult) : RunEvent
+    /** [fullContent] is the tool's whole output; [result] holds what the model gets, which may be shortened. */
+    data class ToolCallFinished(val result: ContentBlock.ToolResult, val fullContent: String = result.content) : RunEvent
 
     /** The provider started one of its own tools, such as a web search. Policy already allowed it. */
     data class HostedToolStarted(val callId: String, val tool: HostedTool) : RunEvent

@@ -13,6 +13,7 @@
   "capabilityMissing": "\"{{tool}}\" could not run: the user has not allowed Whittle to use {{capability}} yet. A card asking for access is in the chat. Do not retry now; continue without it. You will be told if access is granted.",
   "capabilityGranted": "The user allowed Whittle to use {{capability}}. You can use the tools that need it now.",
   "capabilityDenied": "The user did not allow Whittle to use {{capability}}. Do not ask for it again; continue without it.",
+  "capabilitySetupFailed": "The user allowed {{capability}}, but setting it up failed: {{reason}}\nThe user did not refuse it. Tell them in plain words what went wrong and what they can do; when they ask again, try the tool again.",
   "interruptedToolCall": "\"{{tool}}\" was interrupted before it finished and its outcome is unknown. It was not retried automatically.",
   "toolFailed": "\"{{tool}}\" failed: {{detail}}",
   "outputTruncated": "[Output truncated to {{limit}} characters.]",
@@ -57,5 +58,8 @@
   "appBuildFailed": "The build failed. Fix these and build again:\n{{errors}}",
   "appBuildLogSaved": "The full build output is saved at {{path}}.",
   "appBuildNoApk": "The build script finished but produced no APK. Check that it wasn't changed and that the sources compile.",
-  "appBuildTimedOut": "The build ran out of time after {{seconds}} seconds."
+  "appBuildTimedOut": "The build ran out of time after {{seconds}} seconds.",
+  "appVersionMismatch": "The built app's version isn't the one Whittle set. Remove android:versionCode and android:versionName from AndroidManifest.xml, because Whittle sets them, and build again.",
+  "appSdkMismatch": "The built app's minimum or target SDK isn't the one Whittle sets. Remove the <uses-sdk> element from AndroidManifest.xml, because Whittle sets the SDK versions, and build again.",
+  "appBuildingNeedsLinux": "Linux isn't set up on this phone yet, and building apps runs in it. The user can set it up in Settings › Linux workspace, then ask again."
 }

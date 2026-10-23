@@ -78,6 +78,7 @@ internal val testMessages = AgentMessages(
     capabilityMissing = "{{tool}} needs {{capability}}",
     capabilityGranted = "granted {{capability}}",
     capabilityDenied = "denied {{capability}}",
+    capabilitySetupFailed = "setting up {{capability}} failed: {{reason}}",
     interruptedToolCall = "interrupted {{tool}}",
     toolFailed = "failed {{tool}}: {{detail}}",
     outputTruncated = "[truncated at {{limit}}]",
@@ -123,6 +124,9 @@ internal val testMessages = AgentMessages(
     appBuildLogSaved = "log at {{path}}",
     appBuildNoApk = "no apk",
     appBuildTimedOut = "timed out after {{seconds}}",
+    appVersionMismatch = "version is Whittle's",
+    appSdkMismatch = "sdks are Whittle's",
+    appBuildingNeedsLinux = "needs linux",
 )
 
 internal val testRetry = ModelRetryPolicy(

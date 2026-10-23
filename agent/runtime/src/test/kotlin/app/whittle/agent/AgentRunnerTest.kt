@@ -373,6 +373,21 @@ class AgentRunnerTest {
     }
 
     @Test
+    fun `a capability whose setup failed reaches the model as a failure with its reason, not a refusal`() = runTest {
+        val building = PermissionedTool("app.build", CapabilityId("app_building"))
+        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "app.build")), textTurn("Setup failed.")))
+        val runner = runner(adapter, setOf(building))
+        runner.start(request()).toList()
+
+        inbox.submit(runId, RunInput.CapabilityChanged(CapabilityId("app_building"), granted = false, setupFailure = "no space left"))
+        val second = runner.resume(runId).toList()
+
+        assertEquals("setting up app_building failed: no space left", lastUserText(adapter))
+        assertIs<RunEvent.Completed>(second.last())
+        assertTrue(savedCheckpoint().requestedCapabilities.isEmpty())
+    }
+
+    @Test
     fun `unknown tool is reported to the model and the run continues`() = runTest {
         val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "does.not.exist")), textTurn("sorry")))
 
@@ -521,6 +536,21 @@ class AgentRunnerTest {
 
         assertEquals(listOf(output), saved)
         assertEquals("A".repeat(20) + "…" + "B".repeat(10) + " [700 saved at .whittle/outputs/c1.txt]", lastToolResult(adapter).content)
+    }
+
+    @Test
+    fun `a finished call carries the tool's whole output for the screen while the model gets it shortened`() = runTest {
+        val output = "A".repeat(400) + "B".repeat(300)
+        val store = ToolOutputStore { _, _, callId, _ -> Outcome.Success(".whittle/outputs/${callId.value}.txt") }
+        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "big")), textTurn("Done.")))
+        val tool = FakeTool("big", RiskTier.READ) { output }
+
+        val events = runner(adapter, setOf(tool), outputs = store).start(request().copy(workspace = WorkspaceId("chat1"))).toList()
+
+        val finished = events.filterIsInstance<RunEvent.ToolCallFinished>().single()
+        assertEquals(output, finished.fullContent)
+        assertEquals(lastToolResult(adapter).content, finished.result.content)
+        assertTrue(finished.result.content.length < output.length)
     }
 
     @Test

@@ -51,8 +51,11 @@ sealed interface RunInput {
     /** The option the user picked on a question card. */
     data class Answer(val toolCallId: ToolCallId, val choice: String) : RunInput
 
-    /** The user granted or refused a capability a tool asked for, such as reading contacts. */
-    data class CapabilityChanged(val capability: CapabilityId, val granted: Boolean) : RunInput
+    /**
+     * The user granted or refused a capability a tool asked for, such as reading contacts. [setupFailure] is set, with
+     * [granted] false, when the user allowed it but setting it up failed; it says why.
+     */
+    data class CapabilityChanged(val capability: CapabilityId, val granted: Boolean, val setupFailure: String? = null) : RunInput
 }
 
 /**
