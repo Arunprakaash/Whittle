@@ -184,4 +184,7 @@ data class McpServerConfig(
     val excludedTools: Set<String> = emptySet(),
     /** The service's own website, where Settings gets its logo. */
     val websiteUrl: String? = null,
+    /** Where the connections library lists it until it's connected: a [LibraryCategory] id, and a line about it. */
+    val category: String? = null,
+    val description: String? = null,
 )

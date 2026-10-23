@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,7 +54,10 @@ import kotlinx.coroutines.launch
 @Composable
 fun ConnectionsSection(graph: AppGraph, onBrowse: () -> Unit, onChooseTools: (McpConnection) -> Unit) {
     val connectors = graph.connectors
-    val connections by connectors.all.collectAsState()
+    val all by connectors.all.collectAsState()
+    val states = all.map { connection -> key(connection.server.id) { connection.state.collectAsState().value } }
+    // Ones the user added, and ones Whittle comes with once they're connected; the rest wait in the library.
+    val connections = all.zip(states).filter { (connection, state) -> connectors.isCustom(connection) || state != ConnectorState.Disconnected }.map { it.first }
     val context = LocalContext.current
     var managing by remember { mutableStateOf<McpConnection?>(null) }
     var askingKeys by remember { mutableStateOf<McpConnection?>(null) }

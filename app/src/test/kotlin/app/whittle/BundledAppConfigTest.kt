@@ -111,4 +111,16 @@ class BundledAppConfigTest {
             assertEquals(listOf("Zapier"), library.servers.filter { it.matches(app) }.map { it.title }, app)
         }
     }
+
+    @Test
+    fun `connections Whittle comes with are listed in a library group, with a line about them`() {
+        val config = assertIs<Outcome.Success<ConnectorsConfig>>(
+            loader.load(ConnectorsConfig.FILE, ConnectorsConfig.serializer(), ConnectorsConfig.SCHEMA_VERSION),
+        ).value
+        val groups = config.library.categories.map { it.id }.toSet()
+        config.servers.forEach { server ->
+            assertTrue(server.category in groups, "${server.name} needs a library category, or it shows nowhere until connected")
+            assertFalse(server.description.isNullOrBlank(), "${server.name} needs a description for the library")
+        }
+    }
 }
