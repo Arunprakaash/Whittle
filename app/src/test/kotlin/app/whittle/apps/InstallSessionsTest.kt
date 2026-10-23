@@ -24,7 +24,9 @@ class InstallSessionsTest {
         }
     }
 
-    private fun sessions() = InstallSessions(file, clock, STALE_MILLIS, lister)
+    private val cleared = mutableListOf<Int>()
+
+    private fun sessions() = InstallSessions(file, clock, STALE_MILLIS, lister) { cleared += it }
 
     @AfterTest
     fun cleanUp() {
@@ -47,6 +49,7 @@ class InstallSessionsTest {
         now += STALE_MILLIS + 1
         assertEquals(emptySet(), sessions().cleanUp())
         assertEquals(listOf(2), lister.abandoned)
+        assertEquals(listOf(2), cleared, "an abandoned session's prompt notification goes too")
     }
 
     @Test
@@ -55,6 +58,7 @@ class InstallSessionsTest {
         lister.live += setOf(1, 3)
         assertEquals(setOf(1), sessions().cleanUp())
         assertEquals(listOf(3), lister.abandoned)
+        assertEquals(listOf(3), cleared, "only the abandoned session's notification is cleared")
     }
 
     @Test

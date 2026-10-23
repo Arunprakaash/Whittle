@@ -70,7 +70,8 @@ fun ProcessCard(item: ThreadItem.Process, viewModel: ChatViewModel, onPreview: (
         }
     }
     val tail = remember(now, info) { info?.let { viewModel.processOutput(item, TAIL_LINES) }.orEmpty() }
-    val fixRequest = stringResource(R.string.process_fix_message, item.name)
+    val askReady by viewModel.askToFixReady.collectAsStateWithLifecycle()
+    val fixRequest = stringResource(R.string.process_fix_message, viewModel.fixName(item.name))
     var showingOutput by remember { mutableStateOf(false) }
     val look = look(info, now)
     val colors = MaterialTheme.colorScheme
@@ -111,7 +112,7 @@ fun ProcessCard(item: ThreadItem.Process, viewModel: ChatViewModel, onPreview: (
                     Action("stop", R.string.process_stop) { viewModel.stopProcess(item) }
                 }
                 look.failed -> {
-                    Action("build", R.string.process_ask_fix, primary = true) {
+                    Action("build", R.string.process_ask_fix, primary = true, enabled = askReady) {
                         viewModel.askToFix(fixRequest, PastedKind.PROCESS_OUTPUT, item.name, viewModel.processOutput(item, FIX_LINES))
                     }
                     Action("restart_alt", R.string.process_restart) { viewModel.restartProcess(item) }
@@ -178,15 +179,15 @@ private fun LiveDot(color: Color, pulsing: Boolean) {
 }
 
 @Composable
-private fun Action(icon: String, label: Int, primary: Boolean = false, onClick: () -> Unit) {
+private fun Action(icon: String, label: Int, primary: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
     val content: @Composable () -> Unit = {
         WhittleIcon(icon, size = WhittleSize.Icon.m)
         Text(stringResource(label), modifier = Modifier.padding(start = WhittleSpace.s))
     }
     if (primary) {
-        Button(onClick = onClick, modifier = Modifier.height(WhittleSize.Button.small)) { content() }
+        Button(onClick = onClick, enabled = enabled, modifier = Modifier.height(WhittleSize.Button.small)) { content() }
     } else {
-        FilledTonalButton(onClick = onClick, modifier = Modifier.height(WhittleSize.Button.small)) { content() }
+        FilledTonalButton(onClick = onClick, enabled = enabled, modifier = Modifier.height(WhittleSize.Button.small)) { content() }
     }
 }
 

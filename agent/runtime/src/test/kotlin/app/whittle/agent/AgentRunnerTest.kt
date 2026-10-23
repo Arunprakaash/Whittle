@@ -349,7 +349,7 @@ class AgentRunnerTest {
     fun `pasted output is wrapped as data from its source and cut to the limit, keeping its end`() {
         val block = pastedOutput(testMessages, PastedKind.PROCESS_OUTPUT, "server", "0123456789", maxChars = 4)
         assertEquals(Provenance.Untrusted("process server"), block.provenance)
-        assertEquals("pasted from process server: 6789", block.text)
+        assertEquals("pasted from process server: <<<6789>>>", block.text)
         assertEquals("crash of Counter", (pastedOutput(testMessages, PastedKind.APP_CRASH, "Counter", "x", 10).provenance as Provenance.Untrusted).sourceLabel)
         assertEquals("preview of site", (pastedOutput(testMessages, PastedKind.PREVIEW_CONSOLE, "site", "x", 10).provenance as Provenance.Untrusted).sourceLabel)
     }

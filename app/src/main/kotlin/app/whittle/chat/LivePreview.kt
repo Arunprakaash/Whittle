@@ -84,7 +84,8 @@ fun LivePreviewSheet(item: ThreadItem.Process, viewModel: ChatViewModel, heightF
     val errors = console.count { it.error }
     val colors = MaterialTheme.colorScheme
     val noBrowser = stringResource(R.string.preview_no_browser)
-    val fixRequest = stringResource(R.string.preview_fix_message, item.name)
+    val askReady by viewModel.askToFixReady.collectAsStateWithLifecycle()
+    val fixRequest = stringResource(R.string.preview_fix_message, viewModel.fixName(item.name))
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -133,6 +134,7 @@ fun LivePreviewSheet(item: ThreadItem.Process, viewModel: ChatViewModel, heightF
                 ConsolePanel(
                     console,
                     errors,
+                    askEnabled = askReady,
                     onAskToFix = {
                         onDismiss()
                         val shown = console.filter { it.error }.takeLast(FIX_LINES).joinToString("\n") { it.text }
@@ -243,7 +245,7 @@ private fun ConsolePill(errors: Int, modifier: Modifier, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ConsolePanel(console: List<ConsoleLine>, errors: Int, onAskToFix: () -> Unit, onClear: () -> Unit, onClose: () -> Unit) {
+private fun ConsolePanel(console: List<ConsoleLine>, errors: Int, askEnabled: Boolean, onAskToFix: () -> Unit, onClear: () -> Unit, onClose: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     Column(
         Modifier.fillMaxWidth().fillMaxHeight(CONSOLE_FRACTION).background(colors.surfaceContainerHigh).padding(WhittleSpace.m),
@@ -264,7 +266,7 @@ private fun ConsolePanel(console: List<ConsoleLine>, errors: Int, onAskToFix: ()
         }
         Row(horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
             if (errors > 0) {
-                Button(onClick = onAskToFix) {
+                Button(onClick = onAskToFix, enabled = askEnabled) {
                     WhittleIcon("build", size = WhittleSize.Icon.m)
                     Text(stringResource(R.string.preview_ask_fix), modifier = Modifier.padding(start = WhittleSpace.s))
                 }

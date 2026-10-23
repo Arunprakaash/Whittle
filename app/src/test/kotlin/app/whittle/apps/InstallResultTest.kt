@@ -29,37 +29,37 @@ class InstallResultTest {
 
     @Test
     fun `the unchanged build is installable`() {
-        assertEquals(InstallCheck.OK, checkInstallable(card, facts, signerMatches = true, configured))
+        assertEquals(InstallCheck.OK, checkInstallable(card, facts, signerMatches = true, configured, 26, 34))
     }
 
     @Test
     fun `a signer mismatch is refused`() {
-        assertEquals(InstallCheck.CHANGED, checkInstallable(card, facts, signerMatches = false, configured))
+        assertEquals(InstallCheck.CHANGED, checkInstallable(card, facts, signerMatches = false, configured, 26, 34))
     }
 
     @Test
     fun `a different package or version is refused`() {
-        assertEquals(InstallCheck.CHANGED, checkInstallable(card, facts.copy(packageName = "com.evil"), true, configured))
-        assertEquals(InstallCheck.CHANGED, checkInstallable(card, facts.copy(versionCode = 4L), true, configured))
+        assertEquals(InstallCheck.CHANGED, checkInstallable(card, facts.copy(packageName = "com.evil"), true, configured, 26, 34))
+        assertEquals(InstallCheck.CHANGED, checkInstallable(card, facts.copy(versionCode = 4L), true, configured, 26, 34))
     }
 
     @Test
     fun `an added or removed permission is refused`() {
-        assertEquals(InstallCheck.CHANGED, checkInstallable(card, facts.copy(requestedPermissions = facts.requestedPermissions + "android.permission.READ_SMS"), true, configured))
-        assertEquals(InstallCheck.CHANGED, checkInstallable(card, facts.copy(requestedPermissions = listOf(overlay.name)), true, configured))
+        assertEquals(InstallCheck.CHANGED, checkInstallable(card, facts.copy(requestedPermissions = facts.requestedPermissions + "android.permission.READ_SMS"), true, configured, 26, 34))
+        assertEquals(InstallCheck.CHANGED, checkInstallable(card, facts.copy(requestedPermissions = listOf(overlay.name)), true, configured, 26, 34))
     }
 
     @Test
     fun `a powerful entry that the card did not show is refused`() {
         val listener = PowerfulDeclaration("android.permission.BIND_NOTIFICATION_LISTENER_SERVICE", PowerfulKind.SERVICE_PERMISSION, "Reads notifications")
         val withListener = facts.copy(componentPermissions = listOf(listener.name))
-        assertEquals(InstallCheck.CHANGED, checkInstallable(card, withListener, true, configured + listener))
+        assertEquals(InstallCheck.CHANGED, checkInstallable(card, withListener, true, configured + listener, 26, 34))
         // A powerful entry the card showed but the file no longer declares is refused too.
-        assertEquals(InstallCheck.CHANGED, checkInstallable(card, facts.copy(requestedPermissions = listOf(camera)), true, configured))
+        assertEquals(InstallCheck.CHANGED, checkInstallable(card, facts.copy(requestedPermissions = listOf(camera)), true, configured, 26, 34))
     }
 
     @Test
     fun `a shared user id is refused`() {
-        assertEquals(InstallCheck.CHANGED, checkInstallable(card, facts.copy(sharedUserId = true), true, configured))
+        assertEquals(InstallCheck.CHANGED, checkInstallable(card, facts.copy(sharedUserId = true), true, configured, 26, 34))
     }
 }

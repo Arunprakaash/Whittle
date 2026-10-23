@@ -72,6 +72,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
@@ -920,10 +922,23 @@ class ChatViewModel(
      * the model reads it as data and the run is tainted, as with web pages and files.
      */
     fun askToFix(request: String, kind: PastedKind, name: String, output: String) {
-        val pasted = pastedOutput(graph.agentMessages, kind, name, output, graph.maxPastedOutputChars)
+        val state = _state.value
+        // The button is off then ([askToFixReady]); a tap that slips through sends nothing rather than losing the output.
+        if (!canAskToFix(state.attaching, state.model != null)) return
+        val pasted = pastedOutput(graph.agentMessages, kind, fixName(name), output, graph.maxPastedOutputChars)
         _state.update { it.copy(input = request) }
         send(listOf(pasted))
     }
+
+    /** Whether Ask to fix can send now ([canAskToFix]); the cards turn the button off when it can't. */
+    val askToFixReady: StateFlow<Boolean> = _state.map { canAskToFix(it.attaching, it.model != null) }.distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, canAskToFix(_state.value.attaching, _state.value.model != null))
+
+    /** [name] (an app's or a process's, from the workspace) as an Ask to fix request may show it: one short line. */
+    fun fixName(name: String): String = requestName(name, graph.maxPastedNameChars)
+
+    /** The card's project folder for its Ask to fix request, or null when it isn't the one build_app checked. */
+    fun fixFolder(card: ThreadItem.App): String? = fixProject(card, graph.nativeApps.packagePrefix)
 
     /** The current run's plan replaces the previous one in place; the status line follows the active step. */
     private fun showPlan(steps: List<PlanItem>) = _state.update { state ->

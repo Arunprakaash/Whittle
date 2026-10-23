@@ -19,6 +19,11 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class InstallVerifyTest {
+    private companion object {
+        const val MIN = 26
+        const val TARGET = 34
+    }
+
     private val directory = Files.createTempDirectory("install-verify").toFile()
     private val keyA = softwareKey("a")
     private val keyB = softwareKey("b")
@@ -28,13 +33,13 @@ class InstallVerifyTest {
     fun `a junk file is refused, not thrown`() {
         val junk = File(directory, "junk.apk").apply { writeText("not a zip") }
         val inspector = ApkInspector { Outcome.Failure(HarnessError.Storage("unreadable")) }
-        assertEquals(InstallCheck.CHANGED, verifyCopy(card, junk, File(directory, "copy.apk"), keyA.certificate, inspector, emptyList()))
+        assertEquals(InstallCheck.CHANGED, verifyCopy(card, junk, File(directory, "copy.apk"), keyA.certificate, inspector, emptyList(), MIN, TARGET))
     }
 
     @Test
     fun `a missing file is refused, not thrown`() {
         val inspector = ApkInspector { Outcome.Failure(HarnessError.Storage("unreadable")) }
-        assertEquals(InstallCheck.CHANGED, verifyCopy(card, File(directory, "absent.apk"), File(directory, "copy2.apk"), keyA.certificate, inspector, emptyList()))
+        assertEquals(InstallCheck.CHANGED, verifyCopy(card, File(directory, "absent.apk"), File(directory, "copy2.apk"), keyA.certificate, inspector, emptyList(), MIN, TARGET))
     }
 
     @Test
@@ -52,12 +57,25 @@ class InstallVerifyTest {
     @Test
     fun `install checks against the key Whittle already holds and never makes one`() {
         val apk = signed(keyA, "held.apk")
-        val inspector = ApkInspector { Outcome.Success(ApkFacts(card.packageName, 1L, emptyList(), emptyList(), false, 26, 34)) }
+        val inspector = ApkInspector { Outcome.Success(ApkFacts(card.packageName, 1L, emptyList(), emptyList(), false, MIN, TARGET)) }
         val held = NoMinting(keyA.certificate)
-        assertEquals(InstallCheck.OK, verifyForInstall(card, apk, File(directory, "held-copy.apk"), AppSigner(held), inspector, emptyList()))
+        assertEquals(InstallCheck.OK, verifyForInstall(card, apk, File(directory, "held-copy.apk"), AppSigner(held), inspector, emptyList(), MIN, TARGET))
         val none = NoMinting(null)
-        assertEquals(InstallCheck.CHANGED, verifyForInstall(card, apk, File(directory, "none-copy.apk"), AppSigner(none), inspector, emptyList()))
+        assertEquals(InstallCheck.CHANGED, verifyForInstall(card, apk, File(directory, "none-copy.apk"), AppSigner(none), inspector, emptyList(), MIN, TARGET))
         assertEquals(0, held.minted + none.minted)
+    }
+
+    @Test
+    fun `a signed APK whose SDK levels aren't the configured ones is refused`() {
+        val apk = signed(keyA, "sdk.apk")
+        val held = AppSigner(NoMinting(keyA.certificate))
+        fun check(minSdk: Int, targetSdk: Int, name: String): InstallCheck {
+            val inspector = ApkInspector { Outcome.Success(ApkFacts(card.packageName, 1L, emptyList(), emptyList(), false, minSdk, targetSdk)) }
+            return verifyForInstall(card, apk, File(directory, name), held, inspector, emptyList(), MIN, TARGET)
+        }
+        assertEquals(InstallCheck.OK, check(MIN, TARGET, "sdk-ok.apk"))
+        assertEquals(InstallCheck.CHANGED, check(MIN + 1, TARGET, "sdk-min.apk"), "a wrong minSdk")
+        assertEquals(InstallCheck.CHANGED, check(MIN, TARGET + 1, "sdk-target.apk"), "a wrong targetSdk")
     }
 
     /** Holds [certificate], or nothing; counts any attempt to make a key. */

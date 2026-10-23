@@ -70,7 +70,9 @@ fun AppCard(item: ThreadItem.App, viewModel: ChatViewModel, modifier: Modifier =
     val crashes by viewModel.appCrashes.collectAsStateWithLifecycle()
     val crash = crashes[item.packageName]
     var crashExpanded by remember { mutableStateOf(false) }
-    val fixRequest = stringResource(R.string.app_fix_message, item.name, projectOf(item))
+    val fixFolder = viewModel.fixFolder(item)
+    val askReady by viewModel.askToFixReady.collectAsStateWithLifecycle()
+    val fixRequest = stringResource(R.string.app_fix_message, viewModel.fixName(item.name), fixFolder.orEmpty())
 
     fun begin() {
         notice = null
@@ -193,7 +195,9 @@ fun AppCard(item: ThreadItem.App, viewModel: ChatViewModel, modifier: Modifier =
                 }
             }
             // Secondary, after the card's main action, whichever it is.
-            if (crash != null) Action("build", R.string.app_card_ask_fix) { viewModel.askToFix(fixRequest, PastedKind.APP_CRASH, item.name, crash) }
+            if (crash != null && fixFolder != null) {
+                Action("build", R.string.app_card_ask_fix, enabled = askReady) { viewModel.askToFix(fixRequest, PastedKind.APP_CRASH, item.name, crash) }
+            }
         }
     }
     if (confirming.isNotEmpty()) PowerfulDialog(item, confirming, onContinue = { confirming = emptyList(); viewModel.installApp(item) }, onCancel = { confirming = emptyList() })

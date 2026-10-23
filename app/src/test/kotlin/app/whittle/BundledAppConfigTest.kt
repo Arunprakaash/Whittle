@@ -216,6 +216,27 @@ class BundledAppConfigTest {
     }
 
     @Test
+    fun `setup retries apt-get update, which takes the lists lock without waiting`() {
+        val config = assertIs<Outcome.Success<NativeAppsConfig>>(
+            loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),
+        ).value
+        val update = config.toolchain.setupScript.lines().single { "apt-get update" in it }
+        assertTrue(update.startsWith("n=0; until apt-get update "), update)
+        // Run the line under the script's own shell options, with apt-get and sleep faked: the lock is busy twice, then free.
+        val retried = bash("set -euo pipefail\ncalls=0\napt-get() { calls=${'$'}((calls+1)); [ ${'$'}calls -ge 3 ]; }\nsleep() { :; }\n$update\necho \"after ${'$'}calls\"")
+        assertEquals(0 to "after 3", retried, "a failed try doesn't end the script under set -e; the third goes through")
+        val stuck = bash("set -euo pipefail\ncalls=0\napt-get() { calls=${'$'}((calls+1)); return 100; }\nsleep() { :; }\ntrap 'echo tries ${'$'}calls' EXIT\n$update\necho after")
+        assertEquals(1 to "tries 30", stuck, "a lock that never frees fails setup after the last try")
+    }
+
+    /** Runs [script] in bash; its exit code and its output's last line. */
+    private fun bash(script: String): Pair<Int, String> {
+        val process = ProcessBuilder("bash", "-c", script).redirectErrorStream(true).start()
+        val output = process.inputStream.bufferedReader().readText().trim().lines().last()
+        return process.waitFor() to output
+    }
+
+    @Test
     fun `a kept crash fits whole in what Ask to fix passes on`() {
         val apps = assertIs<Outcome.Success<NativeAppsConfig>>(
             loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),
@@ -223,6 +244,8 @@ class BundledAppConfigTest {
         val agent = assertIs<Outcome.Success<HarnessConfig>>(loader.load(ConfigFiles.harness, HarnessConfig.serializer(), HarnessConfig.SCHEMA_VERSION)).value.agent
         assertTrue(agent.maxPastedOutputChars >= apps.maxCrashChars)
         assertFailsWith<IllegalArgumentException> { agent.copy(maxPastedOutputChars = 0) }
+        assertTrue(agent.maxPastedNameChars in 1..agent.maxPastedOutputChars)
+        assertFailsWith<IllegalArgumentException> { agent.copy(maxPastedNameChars = 0) }
     }
 
     @Test
@@ -295,10 +318,10 @@ class BundledAppConfigTest {
             assertTrue("'${it.sha256}  $file'" in toolchain.setupScript, "the setup script must check $file against its pin")
         }
         // Other things run apt in the same Linux (top-ups at launch, Claude Code's update), so every call waits for dpkg's lock.
-        val aptLines = toolchain.setupScript.lines().filter { it.startsWith("apt-get ") }
-        assertEquals(2, aptLines.size, "setup runs apt-get update and apt-get install")
-        aptLines.forEach { assertTrue(" -o DPkg::Lock::Timeout=300 " in "$it ", "apt-get must wait for the lock: $it") }
-        val aptLine = aptLines.single { it.startsWith("apt-get install") }
+        val aptCalls = Regex("apt-get [^;\n]*").findAll(toolchain.setupScript).map { it.value.trim() }.toList()
+        assertEquals(listOf("update", "install"), aptCalls.map { it.split(" ")[1] }, "setup runs apt-get update, then apt-get install")
+        aptCalls.forEach { assertTrue(" -o DPkg::Lock::Timeout=300 " in "$it ", "apt-get must wait for the lock: $it") }
+        val aptLine = aptCalls.single { it.startsWith("apt-get install") }
         toolchain.aptPackages.forEach { assertTrue(Regex("(^| )${Regex.escape(it)}( |$)").containsMatchIn(aptLine), "apt line lacks $it") }
         // The words left once the options (and an -o option's value) are dropped are "apt-get install" and the packages.
         val words = aptLine.replace(Regex(" -o \\S+"), "").split(" ").filter { !it.startsWith("-") }

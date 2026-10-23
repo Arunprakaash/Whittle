@@ -25,6 +25,8 @@ data class AgentLimits(
     val maxPlanItems: Int = DEFAULT_MAX_PLAN_ITEMS,
     /** The most of a crash or log the user passes on with Ask to fix that reaches the model; the end is kept. */
     val maxPastedOutputChars: Int,
+    /** The longest a name from the workspace (an app's, a process's) may be in an Ask to fix request, which reads as the user's words. */
+    val maxPastedNameChars: Int,
     val retry: ModelRetryPolicy,
     val toolOutput: ToolOutputPolicy,
     val memory: MemoryPolicy,
@@ -35,6 +37,7 @@ data class AgentLimits(
         require(maxToolOutputChars > 0) { "maxToolOutputChars must be positive" }
         require(maxPlanItems > 0) { "maxPlanItems must be positive" }
         require(maxPastedOutputChars > 0) { "maxPastedOutputChars must be positive" }
+        require(maxPastedNameChars > 0) { "maxPastedNameChars must be positive" }
     }
 
     private companion object {

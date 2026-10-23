@@ -301,6 +301,9 @@ class AppGraph(context: Context) {
     /** The most of a card's output that Ask to fix passes on to the model. */
     val maxPastedOutputChars: Int get() = harness.agent.maxPastedOutputChars
 
+    /** The longest a workspace name may be in an Ask to fix request. */
+    val maxPastedNameChars: Int get() = harness.agent.maxPastedNameChars
+
     /** What Whittle remembers about the user: the harness's memory, kept encrypted on the phone. */
     val memory = MemoryStore(
         EncryptedFileMemory(File(context.filesDir, appDefaults.memory.fileName), cipher),

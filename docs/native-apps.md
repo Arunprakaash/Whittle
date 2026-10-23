@@ -116,8 +116,10 @@ reason, not as the user saying no.
 
 What it installs:
 
-- apt: `openjdk-21-jdk-headless aapt zipalign zip unzip`. Both `apt-get` calls wait up to five minutes for dpkg's
-  lock (`-o DPkg::Lock::Timeout=300`), since Linux's own top-ups and Claude Code's update use apt too.
+- apt: `openjdk-21-jdk-headless aapt zipalign zip unzip`. Linux's own top-ups and Claude Code's update use apt too,
+  so both `apt-get` calls pass `-o DPkg::Lock::Timeout=300`, which makes them wait up to five minutes for dpkg's lock.
+  `apt-get update` also takes the package lists' lock, which that option doesn't wait for, so setup retries the
+  update every 10 seconds, up to 30 tries, before it fails.
 - Downloads checked by SHA-256 into `/opt/whittle-apps`: the Kotlin compiler zip (JetBrains releases), `d8.jar`
   (Google's Maven, `com.android.tools:r8`) and API 34's `android.jar`. Shipping them inside the APK isn't an
   option, at about 150 MB.
@@ -160,7 +162,8 @@ The card's buttons, never the model:
   the card explains and opens that setting the first time.
 - The APK in the workspace can be replaced by anything the model runs, so Install copies it somewhere private and
   checks the copy: first that it's signed by the key Whittle already holds for the app (never a new one), then that
-  its facts are still the ones the card shows. That same copy is what's installed.
+  its facts are still the ones the card shows, and that its SDK levels are the configured ones (build_app checks them
+  too, but only after the signed APK is in the workspace). That same copy is what's installed.
 - Android 10 and later silently block the prompt if Whittle has left the screen while the copy is checked. Then the
   prompt waits in a notification ("Tap to finish installing Counter"); on screen it opens at once, with the
   notification as the fallback. An install with no answer in `installPromptTimeoutMinutes` is cancelled and its
@@ -183,8 +186,11 @@ when the caller is verified by its uid, its package is one Whittle built, and it
 Whittle already holds for it; checking never makes a key. Any other report is dropped. The card shows the last
 crash, and **Ask to fix** sends a short request as the user's message ("Fix the crash in Counter (counter) and
 build it again"). The stack goes beside it as untrusted content, the way web pages and files do, since the app
-controls its exception messages: the model reads it as data, and the run is tainted. A process card's and a
-preview's Ask to fix work the same way. Installing a newer build clears the crash.
+controls its exception messages: the model reads it as data, between start and end markers, and the run is
+tainted. The app's and process's names in the request come from the workspace, so they're cut to one short line
+first, and the app's folder is named only when it is the one build_app checks. Ask to fix is off while a file is
+still being attached. A process card's and a preview's Ask to fix work the same way. Installing a newer build
+clears the crash.
 
 ### What a generated app may declare
 

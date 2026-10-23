@@ -649,7 +649,7 @@
         <item quantity="one">This app can do something powerful</item>
         <item quantity="other">This app can do %1$d powerful things</item>
     </plurals>
-    <string name="app_card_tainted">Made after reading content from the web; check what it does before installing</string>
+    <string name="app_card_tainted">Made after reading outside content, such as a web page, a file or an app\'s output; check what it does before installing</string>
     <string name="app_card_install">Install</string>
     <string name="app_card_update">Update</string>
     <string name="app_card_open">Open</string>

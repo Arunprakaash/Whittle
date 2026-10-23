@@ -18,7 +18,7 @@ interface SessionLister {
  * When each of Whittle's install sessions began, kept by session id in [file] in Whittle's private storage, so that a launch
  * abandons only stale sessions. Android may kill Whittle's process while its install prompt is on screen and something may
  * start it again; the session the user is about to confirm is then young and is kept. A session with no record came from a
- * build before records were kept, and is abandoned.
+ * build before records were kept, and is abandoned. [clearPrompt] takes down an abandoned session's prompt notification.
  */
 class InstallSessions(
     private val file: File,
@@ -26,6 +26,7 @@ class InstallSessions(
     /** Older than this, a session is abandoned at launch; longer than the install prompt's own timeout. */
     private val staleAfterMillis: Long,
     private val lister: SessionLister,
+    private val clearPrompt: (Int) -> Unit,
 ) {
     private val lock = Any()
 
@@ -36,14 +37,17 @@ class InstallSessions(
     fun ended(id: Int) = change { it - id }
 
     /**
-     * Abandons the open sessions that are stale or have no record, drops the records of sessions no longer open, and returns
+     * Abandons the open sessions that are stale or have no record (and clears their prompts' notifications), drops the records of sessions no longer open, and returns
      * the sessions kept.
      */
     fun cleanUp(): Set<Int> = synchronized(lock) {
         val started = read()
         val now = clock.nowMillis()
         val (kept, stale) = lister.live().partition { id -> started[id]?.let { now - it <= staleAfterMillis } ?: false }
-        stale.forEach(lister::abandon)
+        stale.forEach { id ->
+            lister.abandon(id)
+            clearPrompt(id)
+        }
         write(started.filterKeys { it in kept })
         kept.toSet()
     }

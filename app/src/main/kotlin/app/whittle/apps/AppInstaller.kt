@@ -45,15 +45,18 @@ enum class InstallCheck { OK, CHANGED }
 
 /**
  * Whether the APK that is about to be installed is still the one the card showed: same package and version, the same
- * permissions and powerful declarations, no shared user id, and signed with the app's own key. [configured] is the
- * list of powerful declarations Whittle watches for.
+ * permissions and powerful declarations, no shared user id, signed with the app's own key, and the [minSdk] and [targetSdk]
+ * from config, as build_app requires. [configured] is the list of powerful declarations Whittle watches for. The SDKs are
+ * checked again here because the signed APK sits in the workspace before build_app checks it, where a process could copy it.
  */
-fun checkInstallable(card: ThreadItem.App, facts: ApkFacts, signerMatches: Boolean, configured: List<PowerfulDeclaration>): InstallCheck {
+fun checkInstallable(card: ThreadItem.App, facts: ApkFacts, signerMatches: Boolean, configured: List<PowerfulDeclaration>, minSdk: Int, targetSdk: Int): InstallCheck {
     val report = AppManifest.classify(facts, configured)
     val same = signerMatches &&
         !facts.sharedUserId &&
         facts.packageName == card.packageName &&
         facts.versionCode == card.versionCode.toLong() &&
+        facts.minSdk == minSdk &&
+        facts.targetSdk == targetSdk &&
         report.permissions.toSet() == card.permissions.toSet() &&
         report.powerful.toSet() == card.powerful.toSet()
     return if (same) InstallCheck.OK else InstallCheck.CHANGED
@@ -68,7 +71,16 @@ fun signerMatches(result: ApkVerifier.Result, expected: X509Certificate): Boolea
  * Copies [apk] to [copy], checks the copy's signature and facts against [card] and says whether it may be installed. A file
  * that can't be read or parsed is a changed file, not a crash.
  */
-fun verifyCopy(card: ThreadItem.App, apk: File, copy: File, expected: X509Certificate?, inspector: ApkInspector, configured: List<PowerfulDeclaration>): InstallCheck =
+fun verifyCopy(
+    card: ThreadItem.App,
+    apk: File,
+    copy: File,
+    expected: X509Certificate?,
+    inspector: ApkInspector,
+    configured: List<PowerfulDeclaration>,
+    minSdk: Int,
+    targetSdk: Int,
+): InstallCheck =
     try {
         apk.copyTo(copy, overwrite = true)
         if (expected == null) {
@@ -76,7 +88,7 @@ fun verifyCopy(card: ThreadItem.App, apk: File, copy: File, expected: X509Certif
         } else {
             val verified = ApkVerifier.Builder(copy).setMinCheckedPlatformVersion(MIN_CHECKED_SDK).build().verify()
             val facts = (inspector.inspect(copy) as? Outcome.Success)?.value
-            if (facts == null) InstallCheck.CHANGED else checkInstallable(card, facts, signerMatches(verified, expected), configured)
+            if (facts == null) InstallCheck.CHANGED else checkInstallable(card, facts, signerMatches(verified, expected), configured, minSdk, targetSdk)
         }
     } catch (e: CancellationException) {
         throw e
@@ -94,8 +106,16 @@ fun verifyCopy(card: ThreadItem.App, apk: File, copy: File, expected: X509Certif
  * [verifyCopy] against the key Whittle already holds for the card's package. It never makes a key: without one the APK
  * can't be Whittle's build, so it is a changed file.
  */
-fun verifyForInstall(card: ThreadItem.App, apk: File, copy: File, signer: AppSigner, inspector: ApkInspector, configured: List<PowerfulDeclaration>): InstallCheck =
-    verifyCopy(card, apk, copy, signer.existingCertificate(card.packageName), inspector, configured)
+fun verifyForInstall(
+    card: ThreadItem.App,
+    apk: File,
+    copy: File,
+    signer: AppSigner,
+    inspector: ApkInspector,
+    configured: List<PowerfulDeclaration>,
+    minSdk: Int,
+    targetSdk: Int,
+): InstallCheck = verifyCopy(card, apk, copy, signer.existingCertificate(card.packageName), inspector, configured, minSdk, targetSdk)
 
 private const val MIN_CHECKED_SDK = 26
 
@@ -128,6 +148,7 @@ class AppInstaller(
                 runCatching { installer.abandonSession(id) }
             }
         },
+        clearPrompt,
     )
 
     /** Asks PackageManager, so call it off the main thread. */
@@ -167,7 +188,7 @@ class AppInstaller(
     suspend fun install(card: ThreadItem.App, apk: File, onSession: (Int) -> Unit = {}): InstallResult {
         val copy = File(File(context.cacheDir, CACHE_DIRECTORY).apply { mkdirs() }, "${UUID.randomUUID()}.apk")
         try {
-            val prepared = withContext(Dispatchers.IO) { verifyForInstall(card, apk, copy, signer, inspector, configured) }
+            val prepared = withContext(Dispatchers.IO) { verifyForInstall(card, apk, copy, signer, inspector, configured, config.minSdk, config.targetSdk) }
             if (prepared != InstallCheck.OK) return InstallResult.CHANGED
             return withContext(Dispatchers.IO) { commit(card, copy, onSession) }
         } catch (e: CancellationException) {
