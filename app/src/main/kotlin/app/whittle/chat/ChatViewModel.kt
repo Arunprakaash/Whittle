@@ -17,12 +17,14 @@ import androidx.lifecycle.viewModelScope
 import app.whittle.AppGraph
 import app.whittle.agent.DecisionAnswer
 import app.whittle.agent.DecisionKind
+import app.whittle.agent.PastedKind
 import app.whittle.agent.PauseReason
 import app.whittle.agent.RunEvent
 import app.whittle.agent.RunInput
 import app.whittle.agent.RunRequest
 import app.whittle.agent.RunStatus
 import app.whittle.agent.SystemPromptVariables
+import app.whittle.agent.pastedOutput
 import app.whittle.core.common.HarnessError
 import app.whittle.core.common.Outcome
 import app.whittle.core.common.getOrNull
@@ -326,7 +328,10 @@ class ChatViewModel(
     }
 
     /** Starts a task, or adds to the one that's running without stopping it. */
-    fun send() {
+    fun send() = send(pasted = emptyList())
+
+    /** [send], with output the user [pasted] from a card going beside their words as untrusted content. */
+    private fun send(pasted: List<ContentBlock.Text>) {
         val state = _state.value
         val text = state.input.trim()
         val attachments = state.attachments
@@ -338,11 +343,11 @@ class ChatViewModel(
         val images = attachments.filter { it.isImage && model.capabilities.vision }.map { it.path }
         val running = activeRunId
         if (activeJob?.isActive == true && running != null) {
-            graph.inbox.submit(running, RunInput.Steer(forModel, images))
+            graph.inbox.submit(running, RunInput.Steer(forModel, images, pasted))
             append(ThreadItem.User(key(), text, steer = true, attachments = attachments))
             return
         }
-        start(text, RunMode.LIVE, preApprovedTools = emptySet(), forModel = forModel, images = images, attachments = attachments)
+        start(text, RunMode.LIVE, preApprovedTools = emptySet(), forModel = forModel, images = images, attachments = attachments, pasted = pasted)
     }
 
     /** Tells the model where the attached files are saved, so it can open them with its tools. */
@@ -371,7 +376,7 @@ class ChatViewModel(
 
     /**
      * Runs [text], as the user wrote it; the model gets [forModel], which adds the attachment note, with the
-     * [images] (workspace paths) it can see.
+     * [images] (workspace paths) it can see and any output [pasted] from a card as untrusted content.
      */
     private fun start(
         text: String,
@@ -380,6 +385,7 @@ class ChatViewModel(
         forModel: String = text,
         images: List<String> = emptyList(),
         attachments: List<Attachment> = emptyList(),
+        pasted: List<ContentBlock.Text> = emptyList(),
     ) {
         val model = _state.value.model ?: return
         val runId = RunId(graph.idGenerator.newId())
@@ -392,7 +398,7 @@ class ChatViewModel(
         val request = RunRequest(
             runId = runId,
             model = model,
-            userMessage = Message(Role.USER, listOf(ContentBlock.Text(forModel)) + images.map(ContentBlock::ImageFile)),
+            userMessage = userMessage(forModel, pasted, images),
             priorMessages = history,
             // The workspace is shared; this id ties the run's processes, outputs and changes to this chat.
             workspace = WorkspaceId(chat.value),
@@ -902,10 +908,21 @@ class ChatViewModel(
         }
     }
 
-    /** Sends [text] as the user's message, as if typed: Ask to fix on a card that stopped. */
+    /** Sends [text] as the user's message, as if typed. */
     fun sendText(text: String) {
         _state.update { it.copy(input = text) }
         send()
+    }
+
+    /**
+     * Ask to fix on a card: sends [request] as the user's message, which is all the chat shows, with the [output] of the program
+     * called [name] (a crash, a log, a console) beside it as untrusted content. The program controls that output's words, so
+     * the model reads it as data and the run is tainted, as with web pages and files.
+     */
+    fun askToFix(request: String, kind: PastedKind, name: String, output: String) {
+        val pasted = pastedOutput(graph.agentMessages, kind, name, output, graph.maxPastedOutputChars)
+        _state.update { it.copy(input = request) }
+        send(listOf(pasted))
     }
 
     /** The current run's plan replaces the previous one in place; the status line follows the active step. */
@@ -1227,3 +1244,10 @@ class ChatViewModel(
         const val TOO_MANY_REQUESTS = 429
     }
 }
+
+/**
+ * The user's message as the model gets it: their words ([forModel], with any attachment note), then output they [pasted] from a
+ * card as untrusted content ([pastedOutput]), then their photos by workspace path.
+ */
+internal fun userMessage(forModel: String, pasted: List<ContentBlock.Text>, images: List<String>): Message =
+    Message(Role.USER, listOf(ContentBlock.Text(forModel)) + pasted + images.map(ContentBlock::ImageFile))

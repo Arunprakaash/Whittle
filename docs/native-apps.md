@@ -181,7 +181,10 @@ The template sets an uncaught-exception handler that sends the stack trace to Wh
 `ContentProvider` (`app.whittle.apps.crashes`), then lets the app die as usual. Whittle accepts a report only
 when the caller is verified by its uid, its package is one Whittle built, and its signing certificate is the key
 Whittle already holds for it; checking never makes a key. Any other report is dropped. The card shows the last
-crash, and **Ask to fix** sends it to the agent with the app's project folder. Installing a newer build clears it.
+crash, and **Ask to fix** sends a short request as the user's message ("Fix the crash in Counter (counter) and
+build it again"). The stack goes beside it as untrusted content, the way web pages and files do, since the app
+controls its exception messages: the model reads it as data, and the run is tainted. A process card's and a
+preview's Ask to fix work the same way. Installing a newer build clears the crash.
 
 ### What a generated app may declare
 

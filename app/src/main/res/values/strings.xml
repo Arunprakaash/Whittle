@@ -478,7 +478,7 @@
     <string name="process_restart">Restart</string>
     <string name="process_ask_fix">Ask to fix</string>
     <string name="process_no_output">No output yet.</string>
-    <string name="process_fix_message">%1$s stopped. Here\'s its latest output:\n\n%2$s\n\nPlease fix it and start it again.</string>
+    <string name="process_fix_message">Fix the error in %1$s and start it again</string>
     <string name="preview_reload">Reload</string>
     <string name="preview_open_browser">Open in browser</string>
     <string name="preview_stop">Stop</string>
@@ -488,7 +488,7 @@
     <string name="preview_console_empty">Nothing logged yet.</string>
     <string name="preview_clear">Clear</string>
     <string name="preview_ask_fix">Ask to fix</string>
-    <string name="preview_fix_message">The preview of %1$s shows these errors:\n\n%2$s\n\nPlease fix them.</string>
+    <string name="preview_fix_message">Fix the errors in the preview of %1$s</string>
     <string name="preview_not_running_title">%1$s isn\'t running</string>
     <string name="preview_not_running_body">The page can\'t load until it runs again.</string>
     <string name="preview_no_browser">No app on this phone can open it.</string>
@@ -668,7 +668,7 @@
     <string name="app_card_crash_more">Show more</string>
     <string name="app_card_crash_less">Show less</string>
     <string name="app_card_ask_fix">Ask to fix</string>
-    <string name="app_fix_message">%1$s, in the project folder %2$s, crashed. Here\'s the stack trace:\n\n%3$s\n\nPlease fix it and build it again.</string>
+    <string name="app_fix_message">Fix the crash in %1$s (%2$s) and build it again</string>
     <string name="app_card_open_failed">This app has nothing to open.</string>
     <string name="app_powerful_dialog_title">Before you install</string>
     <plurals name="app_powerful_dialog_body">

@@ -23,6 +23,8 @@ data class AgentLimits(
     val maxToolOutputChars: Int,
     /** Longest plan (update_plan) the agent may write. */
     val maxPlanItems: Int = DEFAULT_MAX_PLAN_ITEMS,
+    /** The most of a crash or log the user passes on with Ask to fix that reaches the model; the end is kept. */
+    val maxPastedOutputChars: Int,
     val retry: ModelRetryPolicy,
     val toolOutput: ToolOutputPolicy,
     val memory: MemoryPolicy,
@@ -32,6 +34,7 @@ data class AgentLimits(
         require(maxOutputTokensPerStep > 0) { "maxOutputTokensPerStep must be positive" }
         require(maxToolOutputChars > 0) { "maxToolOutputChars must be positive" }
         require(maxPlanItems > 0) { "maxPlanItems must be positive" }
+        require(maxPastedOutputChars > 0) { "maxPastedOutputChars must be positive" }
     }
 
     private companion object {

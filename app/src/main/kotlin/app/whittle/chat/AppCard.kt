@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.whittle.agent.PastedKind
 import app.whittle.R
 import app.whittle.apps.InstallResult
 import app.whittle.apps.PowerfulDeclaration
@@ -69,7 +70,7 @@ fun AppCard(item: ThreadItem.App, viewModel: ChatViewModel, modifier: Modifier =
     val crashes by viewModel.appCrashes.collectAsStateWithLifecycle()
     val crash = crashes[item.packageName]
     var crashExpanded by remember { mutableStateOf(false) }
-    val fixMessage = stringResource(R.string.app_fix_message, item.name, projectOf(item), crash.orEmpty())
+    val fixRequest = stringResource(R.string.app_fix_message, item.name, projectOf(item))
 
     fun begin() {
         notice = null
@@ -192,7 +193,7 @@ fun AppCard(item: ThreadItem.App, viewModel: ChatViewModel, modifier: Modifier =
                 }
             }
             // Secondary, after the card's main action, whichever it is.
-            if (crash != null) Action("build", R.string.app_card_ask_fix) { viewModel.sendText(fixMessage) }
+            if (crash != null) Action("build", R.string.app_card_ask_fix) { viewModel.askToFix(fixRequest, PastedKind.APP_CRASH, item.name, crash) }
         }
     }
     if (confirming.isNotEmpty()) PowerfulDialog(item, confirming, onContinue = { confirming = emptyList(); viewModel.installApp(item) }, onCancel = { confirming = emptyList() })

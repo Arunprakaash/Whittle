@@ -43,6 +43,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.whittle.agent.PastedKind
 import app.whittle.R
 import app.whittle.design.components.WhittleIcon
 import app.whittle.design.tokens.WhittleRadius
@@ -69,7 +70,7 @@ fun ProcessCard(item: ThreadItem.Process, viewModel: ChatViewModel, onPreview: (
         }
     }
     val tail = remember(now, info) { info?.let { viewModel.processOutput(item, TAIL_LINES) }.orEmpty() }
-    val fixMessage = stringResource(R.string.process_fix_message, item.name, info?.let { viewModel.processOutput(item, FIX_LINES) }.orEmpty())
+    val fixRequest = stringResource(R.string.process_fix_message, item.name)
     var showingOutput by remember { mutableStateOf(false) }
     val look = look(info, now)
     val colors = MaterialTheme.colorScheme
@@ -110,7 +111,9 @@ fun ProcessCard(item: ThreadItem.Process, viewModel: ChatViewModel, onPreview: (
                     Action("stop", R.string.process_stop) { viewModel.stopProcess(item) }
                 }
                 look.failed -> {
-                    Action("build", R.string.process_ask_fix, primary = true) { viewModel.sendText(fixMessage) }
+                    Action("build", R.string.process_ask_fix, primary = true) {
+                        viewModel.askToFix(fixRequest, PastedKind.PROCESS_OUTPUT, item.name, viewModel.processOutput(item, FIX_LINES))
+                    }
                     Action("restart_alt", R.string.process_restart) { viewModel.restartProcess(item) }
                     Action("notes", R.string.process_output) { showingOutput = true }
                 }

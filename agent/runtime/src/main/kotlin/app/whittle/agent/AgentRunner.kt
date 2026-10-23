@@ -105,8 +105,9 @@ class AgentRunner(
             reasoningEffort = request.reasoningEffort,
             step = 0,
             conversation = Conversation(prompt, request.priorMessages + request.userMessage),
-            // Earlier turns of the chat are still in front of the model, and so is what they brought in.
-            tainted = request.priorMessages.any(Message::carriesUntrustedContent),
+            // Earlier turns of the chat are still in front of the model, and so is what they brought in; the new message may
+            // carry output the user pasted from a card, which is untrusted too.
+            tainted = (request.priorMessages + request.userMessage).any(Message::carriesUntrustedContent),
             personalDataRead = request.priorMessages.any(Message::carriesPersonalData),
             preApprovedTools = request.preApprovedTools,
             approvedOnceTools = emptySet(),
@@ -448,8 +449,9 @@ class AgentRunner(
 
     private suspend fun steer(checkpoint: RunCheckpoint, input: RunInput.Steer): Outcome<RunCheckpoint> {
         telemetry.event(TelemetryEvent.RUN_STEERED, runAttributes(checkpoint))
-        val blocks = listOf(ContentBlock.Text(input.text)) + input.images.map(ContentBlock::ImageFile)
-        return persist(checkpoint.copy(conversation = checkpoint.conversation.withUserContent(*blocks.toTypedArray())))
+        val blocks = listOf(ContentBlock.Text(input.text)) + input.pasted + input.images.map(ContentBlock::ImageFile)
+        val tainted = checkpoint.tainted || Message(Role.USER, blocks).carriesUntrustedContent()
+        return persist(checkpoint.copy(conversation = checkpoint.conversation.withUserContent(*blocks.toTypedArray()), tainted = tainted))
     }
 
     /**

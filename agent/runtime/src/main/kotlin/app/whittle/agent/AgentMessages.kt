@@ -104,6 +104,14 @@ data class AgentMessages(
     val appSetupNotStarted: String,
     val appSetupInUse: String,
     val appSetupOutput: String,
+    /**
+     * Output the user passed on with Ask to fix (a crash, a process's output, a preview's console), sent beside their request as
+     * untrusted content; [SOURCE] is one of the three below.
+     */
+    val diagnosticsUntrusted: String,
+    val diagnosticsFromAppCrash: String,
+    val diagnosticsFromProcess: String,
+    val diagnosticsFromPreview: String,
 ) : VersionedConfig {
     init {
         requirePlaceholders(attachments, FILES)
@@ -175,6 +183,10 @@ data class AgentMessages(
         requirePlaceholders(appSetupNotStarted)
         requirePlaceholders(appSetupInUse)
         requirePlaceholders(appSetupOutput)
+        requirePlaceholders(diagnosticsUntrusted, SOURCE, TEXT)
+        requirePlaceholders(diagnosticsFromAppCrash, NAME)
+        requirePlaceholders(diagnosticsFromProcess, NAME)
+        requirePlaceholders(diagnosticsFromPreview, NAME)
     }
 
     fun unknownTool(tool: String): String = render(unknownTool, TOOL to tool)
@@ -275,6 +287,14 @@ data class AgentMessages(
     fun appBuildTimedOut(seconds: Int): String = render(appBuildTimedOut, SECONDS to seconds.toString())
 
     fun appBuildLogSaved(path: String): String = render(appBuildLogSaved, PATH to path)
+
+    fun diagnosticsUntrusted(source: String, text: String): String = render(diagnosticsUntrusted, SOURCE to source, TEXT to text)
+
+    fun diagnosticsFromAppCrash(name: String): String = render(diagnosticsFromAppCrash, NAME to name)
+
+    fun diagnosticsFromProcess(name: String): String = render(diagnosticsFromProcess, NAME to name)
+
+    fun diagnosticsFromPreview(name: String): String = render(diagnosticsFromPreview, NAME to name)
 
     /** The memory section of the system prompt: one line per remembered fact, as (id, text) pairs. */
     fun memories(items: List<Pair<String, String>>): String =

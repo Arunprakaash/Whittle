@@ -5,6 +5,7 @@
     "maxOutputTokensPerStep": 4096,
     "maxToolOutputChars": 20000,
     "maxPlanItems": 12,
+    "maxPastedOutputChars": 8000,
     "retry": {
       "maxAttempts": 4,
       "initialDelayMillis": 1000,

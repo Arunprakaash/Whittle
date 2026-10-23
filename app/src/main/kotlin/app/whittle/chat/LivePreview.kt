@@ -49,6 +49,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.whittle.agent.PastedKind
 import app.whittle.R
 import app.whittle.design.components.TopBarAction
 import app.whittle.design.components.TopBarActionGroup
@@ -83,7 +84,7 @@ fun LivePreviewSheet(item: ThreadItem.Process, viewModel: ChatViewModel, heightF
     val errors = console.count { it.error }
     val colors = MaterialTheme.colorScheme
     val noBrowser = stringResource(R.string.preview_no_browser)
-    val fixMessage = stringResource(R.string.preview_fix_message, item.name, console.filter { it.error }.takeLast(FIX_LINES).joinToString("\n") { it.text })
+    val fixRequest = stringResource(R.string.preview_fix_message, item.name)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -129,7 +130,17 @@ fun LivePreviewSheet(item: ThreadItem.Process, viewModel: ChatViewModel, heightF
                 }
             }
             if (consoleOpen) {
-                ConsolePanel(console, errors, onAskToFix = { onDismiss(); viewModel.sendText(fixMessage) }, onClear = { console.clear() }, onClose = { consoleOpen = false })
+                ConsolePanel(
+                    console,
+                    errors,
+                    onAskToFix = {
+                        onDismiss()
+                        val shown = console.filter { it.error }.takeLast(FIX_LINES).joinToString("\n") { it.text }
+                        viewModel.askToFix(fixRequest, PastedKind.PREVIEW_CONSOLE, item.name, shown)
+                    },
+                    onClear = { console.clear() },
+                    onClose = { consoleOpen = false },
+                )
             }
         }
     }

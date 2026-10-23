@@ -12,6 +12,7 @@ import app.whittle.connectors.mcp.ConnectorsConfig
 import app.whittle.core.common.Outcome
 import app.whittle.core.config.ConfigFiles
 import app.whittle.core.config.ConfigName
+import app.whittle.core.config.HarnessConfig
 import app.whittle.core.config.ConfigLoader
 import app.whittle.design.icons.MaterialSymbols
 import app.whittle.linux.LinuxBaseSetup
@@ -212,6 +213,16 @@ class BundledAppConfigTest {
         assertFailsWith<IllegalArgumentException> { config.copy(maxCrashChars = 0) }
         assertFailsWith<IllegalArgumentException> { config.copy(keptApks = 0) }
         assertFailsWith<IllegalArgumentException> { config.copy(maxReasonChars = 0) }
+    }
+
+    @Test
+    fun `a kept crash fits whole in what Ask to fix passes on`() {
+        val apps = assertIs<Outcome.Success<NativeAppsConfig>>(
+            loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),
+        ).value
+        val agent = assertIs<Outcome.Success<HarnessConfig>>(loader.load(ConfigFiles.harness, HarnessConfig.serializer(), HarnessConfig.SCHEMA_VERSION)).value.agent
+        assertTrue(agent.maxPastedOutputChars >= apps.maxCrashChars)
+        assertFailsWith<IllegalArgumentException> { agent.copy(maxPastedOutputChars = 0) }
     }
 
     @Test

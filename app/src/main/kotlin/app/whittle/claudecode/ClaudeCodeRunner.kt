@@ -126,7 +126,7 @@ class ClaudeCodeRunner(
                                 )
                                 send(RunEvent.DecisionResolved(question.decision, input.answer, output = null))
                             }
-                            is RunInput.Steer -> say(input.text)
+                            is RunInput.Steer -> say((listOf(input.text) + input.pasted.map { it.text }).joinToString(PARAGRAPH))
                             // Claude Code asks no questions or device permissions through Whittle.
                             is RunInput.Answer, is RunInput.CapabilityChanged -> Unit
                         }

@@ -298,6 +298,9 @@ class AppGraph(context: Context) {
 
     val agentMessages = load(ConfigFiles.agentMessages, AgentMessages.serializer(), AgentMessages.SCHEMA_VERSION)
 
+    /** The most of a card's output that Ask to fix passes on to the model. */
+    val maxPastedOutputChars: Int get() = harness.agent.maxPastedOutputChars
+
     /** What Whittle remembers about the user: the harness's memory, kept encrypted on the phone. */
     val memory = MemoryStore(
         EncryptedFileMemory(File(context.filesDir, appDefaults.memory.fileName), cipher),
