@@ -1,6 +1,7 @@
 package app.whittle.chat
 
 import app.whittle.agent.PlanItem
+import app.whittle.apps.PowerfulDeclaration
 import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.tools.api.CapabilityId
@@ -104,6 +105,25 @@ sealed interface ThreadItem {
         val port: Int?,
         /** The chat's project when it started, so Restart runs it from the same folder. */
         val project: String? = null,
+    ) : ThreadItem
+
+    /**
+     * An app Whittle built, with what it needs to install it. [apkPath] is relative to the workspace and [versionCode]
+     * is the build's own, so the card only ever installs what it was made for.
+     */
+    @Serializable
+    @SerialName("app")
+    data class App(
+        override val key: String,
+        val name: String,
+        val packageName: String,
+        val versionCode: Int,
+        val apkPath: String,
+        val permissions: List<String>,
+        val powerful: List<PowerfulDeclaration>,
+        /** The run read content from the web before this was built. */
+        val fromTaintedRun: Boolean,
+        val lastCrash: String? = null,
     ) : ThreadItem
 
     /** The pages the answer above cites, shown as a pill that opens into a list. */

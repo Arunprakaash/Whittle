@@ -200,6 +200,17 @@ class BundledAppConfigTest {
     }
 
     @Test
+    fun `native apps config refuses duplicate or empty entries`() {
+        val config = assertIs<Outcome.Success<NativeAppsConfig>>(
+            loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),
+        ).value
+        val word = config.permissionWords.first()
+        assertFailsWith<IllegalArgumentException> { config.copy(permissionWords = config.permissionWords + word) }
+        assertFailsWith<IllegalArgumentException> { config.copy(permissionWords = listOf(word.copy(words = " "))) }
+        assertFailsWith<IllegalArgumentException> { config.copy(powerful = config.powerful + config.powerful.first()) }
+    }
+
+    @Test
     fun `native apps config loads with pinned downloads and a powerful list`() {
         val config = assertIs<Outcome.Success<NativeAppsConfig>>(
             loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),

@@ -15,6 +15,10 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Automations: their alarms are set again after the phone restarts. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Installing the apps Whittle builds, only when the user taps Install on one; Android asks them to allow it first. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Remove on an app's card asks Android to uninstall it; without this, Android 9 refuses the request. -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
     <!-- Android 11+ only shows the speech recognizer to apps that declare they use it. -->
     <queries>
@@ -100,6 +104,10 @@
         <!-- Shows a reminder when its alarm goes off; only Whittle's own alarms reach it. -->
         <receiver
             android:name=".reminders.ReminderReceiver"
+            android:exported="false" />
+        <!-- Where the installer reports how an install went; only the system's PendingIntent reaches it. -->
+        <receiver
+            android:name=".apps.InstallResultReceiver"
             android:exported="false" />
         <!-- Connector sign-in pages send the user back here; the address matches redirectUri in connectors.json. -->
         <activity

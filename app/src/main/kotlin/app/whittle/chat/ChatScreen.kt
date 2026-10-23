@@ -490,6 +490,7 @@ private fun ThreadRow(
             }
         }
         is ThreadItem.Process -> ProcessCard(item, viewModel, onPreview = LocalOpenPreview.current, modifier = content)
+        is ThreadItem.App -> AppCard(item, viewModel, modifier = content)
         is ThreadItem.Plan -> PlanChecklist(
             title = stringResource(R.string.plan_title, item.steps.count { it.status == PlanStatus.COMPLETED }, item.steps.size),
             steps = item.steps.map { it.toUi() },

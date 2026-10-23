@@ -22,6 +22,7 @@ import app.whittle.connectors.mcp.ConnectorsConfig
 import app.whittle.connectors.Connectors
 import app.whittle.apps.AndroidApkInspector
 import app.whittle.apps.AndroidKeystoreKeys
+import app.whittle.apps.AppInstaller
 import app.whittle.apps.AppSigner
 import app.whittle.apps.AppToolchain
 import app.whittle.apps.BuildAppTool
@@ -221,6 +222,13 @@ class AppGraph(context: Context) {
     /** The app-building toolchain in Linux; one instance, shared by its service, the chat and Settings. */
     val appToolchain: AppToolchain = AppToolchain(appShell, nativeApps)
 
+    /** The one signer and APK inspector: the build tools and the install card share them. */
+    private val appSigner = AppSigner(AndroidKeystoreKeys())
+    private val apkInspector = AndroidApkInspector(context.packageManager)
+
+    /** Installs, updates and reads the state of the apps the agent built; only the user's tap calls it. */
+    val appInstaller = AppInstaller(context, appSigner, apkInspector, nativeApps.powerful)
+
     /** The agent's `create_app` and `build_app`; the package is Whittle's own, so a debug build gives app.whittle.debug. */
     private fun appTools(context: Context): Pair<CreateAppTool, BuildAppTool> = CreateAppTool(
         workspaces, chatProjects, nativeApps, context.packageName, agentMessages,
@@ -228,7 +236,7 @@ class AppGraph(context: Context) {
         { path -> (configSource.read(ConfigName("native-app-template/$path")) as Outcome.Success).value },
     ) to BuildAppTool(
         workspaces, nativeApps, agentMessages, appToolchain::isReady, appShell,
-        AppSigner(AndroidKeystoreKeys()), AndroidApkInspector(context.packageManager),
+        appSigner, apkInspector,
         WorkspaceOutputs(workspaces, harness.agent.toolOutput.directory)::save,
     )
 
@@ -254,6 +262,7 @@ class AppGraph(context: Context) {
 
     init {
         appScope.launch { settings.ensureAvatarSeed() }
+        appScope.launch(Dispatchers.IO) { appInstaller.cleanUp() }
     }
 
     val modelLister = OpenAiCompatibleModelLister(httpClient, modelTrust, modelDefaults.fallbackCapabilities)

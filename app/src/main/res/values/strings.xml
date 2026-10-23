@@ -620,4 +620,42 @@
     </plurals>
     <string name="automation_busy">A task is running. Try again when it\'s done.</string>
     <string name="automation_no_model">Connect a model first.</string>
+
+    <!-- The card for an app Whittle built -->
+    <string name="app_card_version">Version %1$d</string>
+    <string name="app_card_version_status">Version %1$d · %2$s</string>
+    <string name="app_card_not_installed">Not installed</string>
+    <string name="app_card_installed">Installed</string>
+    <string name="app_card_update_available">Update available</string>
+    <string name="app_card_newer_installed">Newer build installed</string>
+    <string name="app_card_uses">Uses %1$s</string>
+    <string name="app_card_no_permissions">Uses no special permissions</string>
+    <plurals name="app_card_powerful_title">
+        <item quantity="one">This app can do something powerful</item>
+        <item quantity="other">This app can do %1$d powerful things</item>
+    </plurals>
+    <string name="app_card_tainted">Made after reading content from the web; check what it does before installing</string>
+    <string name="app_card_install">Install</string>
+    <string name="app_card_update">Update</string>
+    <string name="app_card_open">Open</string>
+    <string name="app_card_remove">Remove</string>
+    <string name="app_card_installing">Installing…</string>
+    <string name="app_card_allow_installs">Allow Whittle to install apps, then tap Install again.</string>
+    <string name="app_card_installed_done">Installed.</string>
+    <string name="app_card_cancelled">Not installed. You cancelled it.</string>
+    <string name="app_card_key_changed">Android won\'t update this app because it was signed differently. Remove it and install again.</string>
+    <string name="app_card_blocked">Android blocked the install. Check that installing apps is allowed for Whittle.</string>
+    <string name="app_card_failed">The install failed. Ask Whittle to build it again.</string>
+    <string name="app_card_changed">This app changed since it was built. Ask Whittle to build it again.</string>
+    <string name="app_card_settings_failed">Couldn\'t open the settings to allow installs. Allow Whittle to install apps in Android\'s settings.</string>
+    <string name="app_card_remove_failed">Couldn\'t ask Android to remove this app. Remove it from your launcher.</string>
+    <string name="app_card_open_failed">This app has nothing to open.</string>
+    <string name="app_powerful_dialog_title">Before you install</string>
+    <plurals name="app_powerful_dialog_body">
+        <item quantity="one">%1$s asks for something powerful. It would be able to:</item>
+        <item quantity="other">%1$s asks for %2$d powerful things. It would be able to:</item>
+    </plurals>
+    <string name="app_powerful_dialog_item">• %1$s</string>
+    <string name="app_powerful_dialog_continue">Continue</string>
+    <string name="app_powerful_dialog_cancel">Cancel</string>
 </resources>

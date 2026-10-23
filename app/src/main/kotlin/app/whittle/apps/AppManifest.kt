@@ -3,6 +3,7 @@ package app.whittle.apps
 /** What the built APK's manifest says, as Android's own parser read it. */
 data class ApkFacts(
     val packageName: String,
+    val versionCode: Long,
     val requestedPermissions: List<String>,
     /** Permissions that components (services, receivers, activities, providers) demand of their callers. */
     val componentPermissions: List<String>,

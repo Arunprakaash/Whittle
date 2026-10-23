@@ -71,7 +71,7 @@ class BuildAppToolTest {
         return CommandResult(0, "", "", false, false, 5)
     }
 
-    private var facts: (File) -> Outcome<ApkFacts> = { Outcome.Success(ApkFacts(package0, listOf("android.permission.CAMERA"), emptyList(), false)) }
+    private var facts: (File) -> Outcome<ApkFacts> = { Outcome.Success(ApkFacts(package0, 1L, listOf("android.permission.CAMERA"), emptyList(), false)) }
     private var signing: Outcome<SigningKey> = Outcome.Success(key)
 
     private fun tool() = BuildAppTool(
@@ -141,7 +141,7 @@ class BuildAppToolTest {
     fun `powerful declarations are written with name kind and sentence`() {
         project()
         val declaration = config.powerful.single { it.name == "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" }
-        facts = { Outcome.Success(ApkFacts(package0, emptyList(), listOf(declaration.name), false)) }
+        facts = { Outcome.Success(ApkFacts(package0, 1L, emptyList(), listOf(declaration.name), false)) }
         val json = Json.parseToJsonElement(build("notes").content).jsonObject
         val entry = json["powerful"]!!.jsonArray.single().jsonObject
         assertEquals(declaration.name, entry["name"]!!.jsonPrimitive.content)
@@ -165,7 +165,7 @@ class BuildAppToolTest {
     @Test
     fun `refuses an APK with a sharedUserId and leaves no APK or version bump`() {
         val folder = project()
-        facts = { Outcome.Success(ApkFacts(package0, emptyList(), emptyList(), true)) }
+        facts = { Outcome.Success(ApkFacts(package0, 1L, emptyList(), emptyList(), true)) }
         val output = build("notes")
         assertTrue(output.isError)
         assertEquals(messages.appSharedUserId, output.content)
@@ -175,7 +175,7 @@ class BuildAppToolTest {
     @Test
     fun `refuses a built APK whose package differs from the project's`() {
         val folder = project()
-        facts = { Outcome.Success(ApkFacts("com.evil.app", emptyList(), emptyList(), false)) }
+        facts = { Outcome.Success(ApkFacts("com.evil.app", 1L, emptyList(), emptyList(), false)) }
         val output = build("notes")
         assertTrue(output.isError)
         assertEquals(messages.appPackageMismatch(package0), output.content)

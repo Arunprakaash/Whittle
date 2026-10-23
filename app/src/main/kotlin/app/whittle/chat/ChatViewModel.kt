@@ -24,6 +24,7 @@ import app.whittle.agent.RunRequest
 import app.whittle.agent.RunStatus
 import app.whittle.agent.SystemPromptVariables
 import app.whittle.core.common.HarnessError
+import app.whittle.core.common.Outcome
 import app.whittle.core.common.getOrNull
 import app.whittle.core.model.Message
 import app.whittle.core.model.ContentBlock
@@ -58,6 +59,8 @@ import app.whittle.tools.workspace.UseProjectTool
 import app.whittle.tools.workspace.commandIn
 import app.whittle.tools.presentation.StepText
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlinx.coroutines.FlowPreview
@@ -72,6 +75,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import app.whittle.apps.BuildAppTool
+import app.whittle.apps.InstallResult
+import app.whittle.apps.PowerfulDeclaration
 import app.whittle.apps.awaitSetup
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.map
@@ -717,6 +723,7 @@ class ChatViewModel(
         val id = event.result.toolCallId.value
         // A server that ended at once still gets its card: its output and Ask to fix are on it.
         if (callTools[id] == StartProcessTool.DEFINITION.id.value) showProcess(event.result.content, stepArguments[id] ?: EMPTY_ARGUMENTS)
+        if (callTools[id] == BuildAppTool.DEFINITION.id.value && !event.result.isError) showApp(event.result.content)
         if (id in quietCalls) {
             refreshProjects()
             return
@@ -744,6 +751,7 @@ class ChatViewModel(
     /** The card already shows the user's choice; a server started from it still needs its own card. */
     private fun onDecisionResolved(event: RunEvent.DecisionResolved) {
         val output = event.output ?: return
+        if (event.decision.toolId == BuildAppTool.DEFINITION.id && !output.isError) showApp(output.content)
         if (event.decision.toolId != StartProcessTool.DEFINITION.id) return
         showProcess(output.content, arguments(event.decision.toolCall.argumentsJson))
     }
@@ -763,6 +771,83 @@ class ChatViewModel(
             }
             state.copy(items = items)
         }
+    }
+
+    /** build_app succeeded: its app gets a card to install from, the one card per package in this chat. */
+    private fun showApp(result: String) {
+        val runId = activeRunId
+        viewModelScope.launch {
+            // If the run can't be checked, the card says it may have read the web.
+            val tainted = runId?.let { graph.checkpoints.load(it).getOrNull()?.tainted } ?: true
+            val card = appCardFromBuild(key(), result, tainted) ?: return@launch
+            _state.update { state ->
+                val shown = state.items.any { it is ThreadItem.App && it.packageName == card.packageName }
+                val items = if (shown) state.items.map { if (it is ThreadItem.App && it.packageName == card.packageName) card.copy(key = it.key) else it } else state.items + card
+                state.copy(items = items)
+            }
+        }
+    }
+
+    private val _appStates = MutableStateFlow<Map<String, AppUiState>>(emptyMap())
+
+    /** What each app card shows about its install, by card key; kept here so it survives scrolling. */
+    val appStates: StateFlow<Map<String, AppUiState>> = _appStates.asStateFlow()
+
+    private fun updateApp(key: String, change: (AppUiState) -> AppUiState) = _appStates.update { it + (key to change(it[key] ?: AppUiState())) }
+
+    fun permissionWords(card: ThreadItem.App): String = permissionWords(card.permissions, graph.nativeApps.permissionWords)
+
+    /** Re-reads the installed version, so the buttons follow installs and removals that happened outside the chat. */
+    fun refreshApp(card: ThreadItem.App) {
+        viewModelScope.launch {
+            val (installed, live) = withContext(Dispatchers.IO) { graph.appInstaller.installedVersion(card.packageName) to graph.appInstaller.liveSessions() }
+            updateApp(card.key) { it.copy(installed = installed, installing = stillInstalling(it.installing, installed, card.versionCode, it.sessionId, live)) }
+        }
+    }
+
+    /**
+     * The user tapped Install or Update. Calls [needsAllow] when Android hasn't allowed Whittle to install apps, [confirm] with
+     * the powerful declarations the user must see first, or installs at once.
+     */
+    fun beginInstall(card: ThreadItem.App, needsAllow: () -> Unit, confirm: (List<PowerfulDeclaration>) -> Unit) {
+        if (_appStates.value[card.key]?.installing == true) return
+        viewModelScope.launch {
+            val (can, warn) = withContext(Dispatchers.IO) {
+                graph.appInstaller.canInstall() to addedPowerful(card, graph.appInstaller.installedPowerful(card.packageName))
+            }
+            when {
+                !can -> needsAllow()
+                warn.isEmpty() -> installApp(card)
+                else -> confirm(warn)
+            }
+        }
+    }
+
+    /** Installs the card's own APK after checking it is still what the card showed. A second tap while one runs does nothing. */
+    fun installApp(card: ThreadItem.App) {
+        if (_appStates.value[card.key]?.installing == true) return
+        updateApp(card.key) { it.copy(installing = true, result = null, sessionId = null) }
+        graph.appScope.launch {
+            var outcome = InstallResult.FAILED
+            try {
+                val root = (graph.workspaces.folder() as? Outcome.Success)?.value
+                val apk = root?.let { withContext(Dispatchers.IO) { resolveApk(it, card.apkPath) } }?.takeIf { it.isFile }
+                outcome = if (apk == null) InstallResult.CHANGED else graph.appInstaller.install(card, apk) { id -> updateApp(card.key) { it.copy(sessionId = id) } }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                outcome = InstallResult.FAILED
+            } finally {
+                // Whatever happened, the card leaves installing.
+                val installed = withContext(NonCancellable + Dispatchers.IO) { runCatching { graph.appInstaller.installedVersion(card.packageName) }.getOrNull() }
+                updateApp(card.key) { it.copy(installing = false, result = outcome, installed = installed, sessionId = null) }
+            }
+        }
+    }
+
+    /** Drops the last install message, when the user starts something else on the card. */
+    fun clearAppResult(card: ThreadItem.App) {
+        updateApp(card.key) { it.copy(result = null) }
     }
 
     /** Every process this run of the app knows; a card whose process isn't here isn't running. */
