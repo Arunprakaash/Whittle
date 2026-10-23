@@ -55,6 +55,7 @@ class WhittleApplication : Application() {
         }
         // Alarms don't survive a force stop or a restore from backup; setting them at each launch costs nothing.
         graph.appScope.launch { graph.automations.rescheduleAll() }
+        graph.appScope.launch { graph.reminders.rescheduleAll() }
         // Base packages added in an update reach a Linux set up before it; then Claude Code, if installed, stays current.
         graph.appScope.launch {
             graph.linux.topUpPackages()

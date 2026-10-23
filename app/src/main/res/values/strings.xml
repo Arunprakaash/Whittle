@@ -191,6 +191,9 @@
     <string name="notify_channel_running_body">Shows a task while it works in the background, with a Stop button.</string>
     <string name="notify_channel_updates">Task updates</string>
     <string name="notify_channel_updates_body">When a task finishes or needs your answer while you\'re away.</string>
+    <string name="notify_channel_reminders">Reminders</string>
+    <string name="notify_channel_reminders_body">Reminders you asked Whittle for.</string>
+    <string name="notify_reminder_public">Reminder</string>
     <string name="notify_running_title">Whittle is working</string>
     <string name="notify_running_plan">Step %1$d of %2$d · %3$s</string>
     <string name="notify_running_public">Whittle is working on a task</string>
@@ -209,6 +212,12 @@
     <string name="settings_wallpaper_title">Wallpaper colors</string>
     <string name="settings_haptics_title">Haptics</string>
     <string name="settings_section_tasks">Tasks</string>
+    <string name="phone_title">On this phone</string>
+    <string name="phone_description">What Whittle can use on this phone. Calls and messages always ask you first. Switching something off stops Whittle using it; Android\u2019s settings remove the permission itself.</string>
+    <plurals name="phone_reminders_waiting">
+        <item quantity="one">%d reminder waiting</item>
+        <item quantity="other">%d reminders waiting</item>
+    </plurals>
     <string name="settings_background_title">Keep working in the background</string>
     <string name="settings_section_privacy">Privacy</string>
     <string name="settings_usage_title">Share usage data</string>

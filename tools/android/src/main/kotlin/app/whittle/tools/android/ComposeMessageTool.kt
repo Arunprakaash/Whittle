@@ -1,6 +1,5 @@
 package app.whittle.tools.android
 
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -12,14 +11,10 @@ import app.whittle.tools.api.ToolDefinition
 import app.whittle.tools.api.ToolExecutionContext
 import app.whittle.tools.api.ToolId
 import app.whittle.tools.api.ToolOutput
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 /**
@@ -34,20 +29,10 @@ class ComposeMessageTool(private val context: Context) : Tool {
         val text = arguments.text(TEXT)
         if (phone.isEmpty() || !PHONE_PATTERN.matches(phone)) return ToolJson.error("phoneNumber is not a phone number")
         if (text.isEmpty()) return ToolJson.error("text is empty")
-        val intent = Intent(Intent.ACTION_SENDTO, Uri.parse(SMS_SCHEME + Uri.encode(phone)))
-            .putExtra(SMS_BODY_EXTRA, text)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        return withContext(Dispatchers.Main) {
-            try {
-                this@ComposeMessageTool.context.startActivity(intent)
-                ToolJson.success(Provenance.Trusted, buildJsonObject { put(OPENED, true); put(SENT, false) })
-            } catch (exception: ActivityNotFoundException) {
-                ToolJson.error("no messaging app is installed")
-            }
-        }
+        val intent = Intent(Intent.ACTION_SENDTO, Uri.parse(SMS_SCHEME + Uri.encode(phone))).putExtra(SMS_BODY_EXTRA, text)
+        if (!this.context.startHandOff(intent)) return ToolJson.error("no messaging app is installed")
+        return ToolJson.success(Provenance.Trusted, buildJsonObject { put(OPENED, true); put(SENT, false) })
     }
-
-    private fun JsonObject.text(name: String): String = this[name]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
 
     companion object {
         private const val RECIPIENT_NAME = "recipientName"

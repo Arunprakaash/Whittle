@@ -37,6 +37,9 @@ class RunNotifications(private val context: Context) {
                 NotificationChannel(CHANNEL_UPDATES, context.getString(R.string.notify_channel_updates), NotificationManager.IMPORTANCE_DEFAULT).apply {
                     description = context.getString(R.string.notify_channel_updates_body)
                 },
+                NotificationChannel(CHANNEL_REMINDERS, context.getString(R.string.notify_channel_reminders), NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = context.getString(R.string.notify_channel_reminders_body)
+                },
             ),
         )
     }
@@ -97,6 +100,21 @@ class RunNotifications(private val context: Context) {
     )
 
     /** The user is back: the notes about what happened while they were away have done their job. */
+    /** A reminder the user asked for; its words show only once the phone is unlocked. */
+    fun reminder(id: String, text: String) {
+        if (!manager.areNotificationsEnabled()) return
+        val notification = Notification.Builder(context, CHANNEL_REMINDERS)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(text)
+            .setContentIntent(openApp())
+            .setAutoCancel(true)
+            .setCategory(Notification.CATEGORY_REMINDER)
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicVersion(CHANNEL_REMINDERS, R.string.notify_reminder_public))
+            .build()
+        manager.notify(TAG_REMINDER, id.hashCode(), notification)
+    }
+
     fun clearUpdates() {
         manager.cancel(ID_FINISHED)
         manager.cancel(ID_NEEDS_YOU)
@@ -188,6 +206,9 @@ class RunNotifications(private val context: Context) {
         private const val ID_NEEDS_YOU = 3
         private const val CHANNEL_RUNNING = "running_task"
         private const val CHANNEL_UPDATES = "task_updates"
+        private const val CHANNEL_REMINDERS = "reminders"
+        /** Reminders are told apart by tag, so their ids never meet the fixed ones above. */
+        private const val TAG_REMINDER = "reminder"
         private const val REQUEST_OPEN = 1
         private const val REQUEST_STOP = 2
         private const val REQUEST_STOP_ALL = 3

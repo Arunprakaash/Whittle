@@ -13,6 +13,9 @@ import app.whittle.core.config.ConfigLoader
 import app.whittle.design.icons.MaterialSymbols
 import app.whittle.linux.LinuxBaseSetup
 import app.whittle.linux.LinuxConfig
+import app.whittle.phone.PhoneActionsConfig
+import app.whittle.tools.android.AndroidCapabilities
+import app.whittle.tools.api.CapabilityId
 import app.whittle.settings.AppDefaults
 import app.whittle.tools.presentation.ToolPresentationConfig
 import kotlin.test.Test
@@ -71,6 +74,21 @@ class BundledAppConfigTest {
         ).value
         val unchoosable = config.preApprovedTools.keys - automations.choosableToolIds
         assertTrue(unchoosable.isEmpty(), "claude-code.json maps tools an automation can't pre-approve: $unchoosable")
+    }
+
+    @Test
+    fun `phone actions load with maps links that take their places`() {
+        val phone = assertIs<Outcome.Success<PhoneActionsConfig>>(loader.load(PhoneActionsConfig.FILE, PhoneActionsConfig.serializer(), PhoneActionsConfig.SCHEMA_VERSION)).value
+        assertTrue(phone.maps.directionsUri.startsWith("https://"))
+        assertTrue(phone.reminders.maxReminders > 0)
+        // Every switch stops tools that exist, asks for capabilities Android knows, and has a bundled icon.
+        val toolIds = ToolCatalog.definitions.map { it.id.value }.toSet()
+        val unknownTools = phone.switches.flatMap { it.tools } - toolIds
+        assertTrue(unknownTools.isEmpty(), "phone-actions.json switches name tools that don't exist: $unknownTools")
+        val unknownCapabilities = phone.switches.flatMap { it.capabilities }.filter { AndroidCapabilities.permissionFor(CapabilityId(it)) == null }
+        assertTrue(unknownCapabilities.isEmpty(), "Capabilities without an Android permission: $unknownCapabilities")
+        val missingIcons = phone.switches.map { it.icon }.toSet() - MaterialSymbols.names
+        assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
     }
 
     @Test

@@ -15,6 +15,19 @@ import app.whittle.core.common.EpochClock
 import app.whittle.tools.android.CalendarEventsTool
 import app.whittle.tools.android.ComposeMessageTool
 import app.whittle.tools.android.ContactsSearchTool
+import app.whittle.tools.android.AddCalendarEventTool
+import app.whittle.tools.android.CallTool
+import app.whittle.tools.android.OpenAppTool
+import app.whittle.tools.android.OpenLinkTool
+import app.whittle.tools.android.OpenMapTool
+import app.whittle.tools.android.SetAlarmTool
+import app.whittle.tools.android.SetTimerTool
+import app.whittle.phone.CancelReminderTool
+import app.whittle.phone.ListRemindersTool
+import app.whittle.phone.PhoneTools
+import app.whittle.phone.RemindMeTool
+import app.whittle.phone.ShareTool
+import app.whittle.phone.switched
 import app.whittle.tools.api.Tool
 import app.whittle.tools.api.ToolDefinition
 import app.whittle.tools.device.DeviceClockTool
@@ -32,6 +45,17 @@ object ToolCatalog {
         ContactsSearchTool.DEFINITION,
         CalendarEventsTool.DEFINITION,
         ComposeMessageTool.DEFINITION,
+        CallTool.DEFINITION,
+        SetAlarmTool.DEFINITION,
+        SetTimerTool.DEFINITION,
+        RemindMeTool.DEFINITION,
+        ListRemindersTool.DEFINITION,
+        CancelReminderTool.DEFINITION,
+        AddCalendarEventTool.DEFINITION,
+        OpenMapTool.DEFINITION,
+        OpenAppTool.DEFINITION,
+        OpenLinkTool.DEFINITION,
+        ShareTool.DEFINITION,
         AddConnectionTool.DEFINITION,
         FindConnectionTool.DEFINITION,
         RememberTool.DEFINITION,
@@ -49,7 +73,8 @@ object ToolCatalog {
         memory: MemoryStore,
         messages: AgentMessages,
         scheduleTask: ScheduleTaskTool,
-    ): Set<Tool> = (
+        phone: PhoneTools,
+    ): Set<Tool> = switched(
         setOf(
             AskUserTool(),
             PlanTool(maxPlanItems),
@@ -58,13 +83,26 @@ object ToolCatalog {
             ContactsSearchTool(context),
             CalendarEventsTool(context, clock),
             ComposeMessageTool(context),
+            CallTool(context),
+            SetAlarmTool(context),
+            SetTimerTool(context),
+            RemindMeTool(phone.reminders),
+            ListRemindersTool(phone.reminders),
+            CancelReminderTool(phone.reminders),
+            AddCalendarEventTool(context),
+            OpenMapTool(context, phone.config.maps.links),
+            OpenAppTool(context),
+            OpenLinkTool(context),
+            ShareTool(context, phone.workspaces, phone.config.share),
             AddConnectionTool(context.applicationContext, connectors),
             FindConnectionTool(connectors),
             RememberTool(memory, messages),
             ForgetTool(memory, messages),
             scheduleTask,
-        ) + workspaceTools
-        ).also { tools ->
+        ) + workspaceTools,
+        phone.config,
+        phone.isOn,
+    ).also { tools ->
         check(tools.map { it.definition }.toSet() == definitions.toSet()) { "ToolCatalog.definitions is out of step with create()" }
     }
 }

@@ -115,3 +115,10 @@ logout
 account_balance_wallet
 swap_horiz
 content_paste
+alarm
+timer
+notifications_off
+event
+directions
+apps
+call

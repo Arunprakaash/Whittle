@@ -7,8 +7,8 @@ import app.whittle.WhittleApplication
 import kotlinx.coroutines.launch
 
 /**
- * Wakes for a due automation, and sets every alarm again after the phone restarts, the app updates or the clock
- * changes. Not exported: only Whittle's own alarms and the system's broadcasts reach it.
+ * Wakes for a due automation, and sets every alarm again, reminders' too, after the phone restarts, the app updates or
+ * the clock changes. Not exported: only Whittle's own alarms and the system's broadcasts reach it.
  */
 class AutomationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -21,6 +21,7 @@ class AutomationReceiver : BroadcastReceiver() {
                     app.automationRunner.due(id, intent.getLongExtra(EXTRA_SCHEDULED_FOR, 0))
                 } else {
                     app.graph.automations.rescheduleAll()
+                    app.graph.reminders.rescheduleAll()
                 }
             } finally {
                 pending.finish()
