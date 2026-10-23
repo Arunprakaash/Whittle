@@ -10,47 +10,64 @@ import java.io.File
 import java.io.IOException
 
 /**
- * The user's connections, handed to a Claude Code task as an MCP config file. The file holds the user's tokens, so
- * it's written outside the workspace (where the agent's file tools, Changes and the Files app would show it), only
- * its path goes on the command line, and it's removed when the task ends.
+ * Files a Claude Code task needs that hold the user's secrets (its MCP config, the API key). They're written outside
+ * the workspace, where the agent's file tools, Changes and the Files app would show them; only their paths go on the
+ * command line, and each is removed when its task ends.
  */
-class ClaudeCodeConnections(
+class ClaudeCodeTaskFiles(
     private val config: ClaudeCodeConfig,
-    /** Every connected service, as another MCP client reaches it. */
-    private val connections: suspend () -> List<McpAccess>,
     /** The host file at a Linux path; null before Linux is set up. */
     private val linuxFile: (String) -> File?,
 ) {
-    /**
-     * A task's MCP config: its Linux path, the tools the user switched off, and Whittle's tool ids by the prefix
-     * Claude Code gives each connection's tools.
-     */
-    class Handed(val path: String, val blocked: List<String>, private val prefixes: Map<String, String>, private val file: File) {
-        /** Whittle's id for a connection tool Claude Code names [tool], so its step shows like Whittle's own; else [tool]. */
-        fun toolId(tool: String): String =
-            prefixes.entries.firstOrNull { tool.startsWith(it.key) }?.let { (claude, whittle) -> whittle + tool.removePrefix(claude) } ?: tool
-
+    /** One task's file, by its Linux [path]. */
+    class TaskFile(val path: String, private val file: File) {
         suspend fun remove() {
             withContext(Dispatchers.IO) { file.delete() }
         }
     }
 
-    /** Writes the MCP config for task [name]; null when there are no connections or it can't be written. */
-    suspend fun hand(name: String): Handed? {
-        val servers = connections().ifEmpty { return null }
-        val path = "${config.mcpConfigDirectory.trimEnd('/')}/$MCP_PREFIX${safe(name)}$JSON"
+    /** Writes [text] as the file [name]; null when it can't be written. */
+    suspend fun write(name: String, text: String): TaskFile? {
+        val path = "${config.taskFilesDirectory.trimEnd('/')}/${safe(name)}"
         val file = linuxFile(path) ?: return null
         return withContext(Dispatchers.IO) {
             try {
                 file.parentFile?.mkdirs()
-                file.writeText(ClaudeCodeMcp.config(servers, config))
-                Handed(path, ClaudeCodeMcp.blocked(servers, config), ClaudeCodeMcp.prefixes(servers, config), file)
+                file.writeText(text)
+                TaskFile(path, file)
             } catch (exception: IOException) {
-                // The task runs without the connections rather than not at all.
                 file.delete()
                 null
             }
         }
+    }
+}
+
+/** The user's connections, handed to a Claude Code task as an MCP config file. */
+class ClaudeCodeConnections(
+    private val config: ClaudeCodeConfig,
+    /** Every connected service, as another MCP client reaches it. */
+    private val connections: suspend () -> List<McpAccess>,
+    private val files: ClaudeCodeTaskFiles,
+) {
+    /**
+     * A task's MCP config: its file, the tools the user switched off, and Whittle's tool ids by the prefix Claude Code
+     * gives each connection's tools.
+     */
+    class Handed(val file: ClaudeCodeTaskFiles.TaskFile, val blocked: List<String>, private val prefixes: Map<String, String>) {
+        /** Whittle's id for a connection tool Claude Code names [tool], so its step shows like Whittle's own; else [tool]. */
+        fun toolId(tool: String): String =
+            prefixes.entries.firstOrNull { tool.startsWith(it.key) }?.let { (claude, whittle) -> whittle + tool.removePrefix(claude) } ?: tool
+    }
+
+    /**
+     * Writes the MCP config for task [name]; null when there are no connections or it can't be written, and the task
+     * then runs without them rather than not at all.
+     */
+    suspend fun hand(name: String): Handed? {
+        val servers = connections().ifEmpty { return null }
+        val file = files.write("$MCP_PREFIX$name$JSON", ClaudeCodeMcp.config(servers, config)) ?: return null
+        return Handed(file, ClaudeCodeMcp.blocked(servers, config), ClaudeCodeMcp.prefixes(servers, config))
     }
 
     private companion object {

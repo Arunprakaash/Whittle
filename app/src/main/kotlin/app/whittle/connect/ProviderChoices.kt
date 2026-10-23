@@ -115,8 +115,9 @@ fun BringModelScreen(
     }
 }
 
+/** One way to bring a model, or to sign in: an icon tile, a name and a line about it, in a segmented list. */
 @Composable
-private fun ChoiceRow(
+internal fun ChoiceRow(
     icon: String,
     name: String,
     detail: String,

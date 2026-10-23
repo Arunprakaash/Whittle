@@ -14,13 +14,18 @@ import kotlin.test.assertTrue
 class ClaudeCodeStreamTest {
     private val config = ClaudeCodeConfig(
         schemaVersion = 1, enabled = true, providerId = "claude-code", displayName = "Claude Code", sessionsFileName = "s.json", updatedStampFileName = "u.txt",
-        installCommand = "i", removeCommand = "r", updateCommand = "u", versionCommand = "v", statusCommand = "s", signInCommand = "in", signOutCommand = "out",
+        installCommand = "i", removeCommand = "r", updateCommand = "u", versionCommand = "v", statusCommand = "s", signInCommand = "claude auth login", signOutCommand = "out",
+        signInMethods = listOf(ClaudeCodeSignInMethod("console", "Anthropic Console", "", "payments", "--console")),
+        apiKey = ClaudeCodeApiKey(
+            name = "Anthropic API key", detail = "", icon = "key", secretName = "k", checkUrl = "https://example.com", keyHeader = "x-api-key",
+            checkHeaders = emptyMap(), keysUrl = "https://example.com", runPrefix = "export ANTHROPIC_API_KEY=\"$(cat {{file}})\" && rm -f {{file}} &&",
+        ),
         runCommand = "claude -p --model {{model}}", resumeArguments = "--resume {{session}}",
         allowedToolsArguments = "--allowedTools {{tools}}",
         preApprovedTools = mapOf("read_file" to listOf("Read"), "edit_file" to listOf("Edit", "MultiEdit")), fileArguments = emptyMap(),
         mcpConfigArguments = "--mcp-config {{file}}", disallowedToolsArguments = "--disallowedTools {{tools}}",
         mcpToolName = "mcp__{{server}}__{{tool}}", mcpTransports = mapOf(McpTransportKind.STREAMABLE_HTTP to "http", McpTransportKind.SSE to "sse"),
-        mcpConfigDirectory = "/root/.whittle",
+        taskFilesDirectory = "/root/.whittle",
         installTimeoutSeconds = 1, updateEveryHours = 1, commandTimeoutSeconds = 1, inboxPollMillis = 1, signedOutErrors = emptySet(), limitErrors = emptySet(), limitNames = emptyMap(), planNames = emptyMap(), declinedMessage = "No", outputChars = 1,
         models = listOf(ClaudeCodeModel("opus", "Opus", "")),
     )
@@ -139,6 +144,12 @@ class ClaudeCodeStreamTest {
             config.run("opus", null, mcpConfig = "/root/.whittle/mcp-1.json", blocked = blocked),
         )
         assertTrue(servers.none { "t0k3n" in it.toString() })
+        // An API key reaches Claude Code from a file the command reads, then removes; the key isn't on the command line.
+        assertEquals(
+            "export ANTHROPIC_API_KEY=\"$(cat '/root/.whittle/key-1')\" && rm -f '/root/.whittle/key-1' && claude -p --model 'opus'",
+            config.run("opus", null, apiKeyFile = "/root/.whittle/key-1"),
+        )
+        assertEquals("claude auth login --console", config.signIn(config.signInMethods.single()))
         // A connection's tools show under Whittle's ids for them.
         val prefixes = ClaudeCodeMcp.prefixes(servers, config)
         assertEquals(mapOf("mcp__deepwiki__" to "deepwiki_", "mcp__my_notes_v2__" to "notes_"), prefixes)

@@ -277,6 +277,8 @@ class AppGraph(context: Context) {
             maxFileChars = terminalLimits.maxFileChars,
             connections = connectors::access,
             linuxFile = { path -> linux.root()?.let { File(it, path.removePrefix("/")) } },
+            secrets = secrets,
+            http = httpClient,
         )
     }
 

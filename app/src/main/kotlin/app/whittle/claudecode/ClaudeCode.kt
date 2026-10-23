@@ -3,12 +3,15 @@ package app.whittle.claudecode
 import app.whittle.agent.RunInbox
 import app.whittle.connectors.mcp.McpAccess
 import app.whittle.core.common.Outcome
+import app.whittle.core.common.Secret
 import app.whittle.core.common.getOrNull
 import app.whittle.core.model.ModelId
 import app.whittle.core.model.ProviderId
 import app.whittle.llm.api.ModelCapabilities
 import app.whittle.llm.api.ModelDescriptor
 import app.whittle.llm.api.TrustTier
+import app.whittle.storage.secrets.SecretKey
+import app.whittle.storage.secrets.SecretStore
 import app.whittle.tools.api.WorkspaceId
 import app.whittle.tools.workspace.CommandResult
 import app.whittle.tools.workspace.CommandRunner
@@ -16,6 +19,9 @@ import app.whittle.tools.workspace.FileChanges
 import app.whittle.tools.workspace.InteractiveCommand
 import app.whittle.tools.workspace.ShellEnvironment
 import app.whittle.tools.workspace.Workspaces
+import java.io.File
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -29,8 +35,8 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import java.io.File
-import java.util.concurrent.TimeUnit
+import okhttp3.OkHttpClient
+import okhttp3.Request
 
 /** Where Claude Code stands on this phone. */
 sealed interface ClaudeCodeState {
@@ -43,11 +49,31 @@ sealed interface ClaudeCodeState {
 
     data object Installing : ClaudeCodeState
 
-    /** [account] is who's signed in, when Claude Code says; [version] is the one installed, when it says. */
-    data class Ready(val signedIn: Boolean, val account: ClaudeCodeAccount? = null, val version: String? = null) : ClaudeCodeState
+    /**
+     * [account] is who's signed in, when Claude Code says; [apiKey] when tasks use the user's own API key instead;
+     * [version] is the one installed, when it says.
+     */
+    data class Ready(
+        val signedIn: Boolean,
+        val account: ClaudeCodeAccount? = null,
+        val version: String? = null,
+        val apiKey: Boolean = false,
+    ) : ClaudeCodeState
 
     /** Installing or removing failed; [detail] is the command's last line. */
     data class Failed(val detail: String) : ClaudeCodeState
+}
+
+/** How checking an Anthropic API key went. */
+enum class ApiKeyCheck {
+    /** Anthropic took it; it's saved and tasks use it. */
+    SAVED,
+
+    /** Anthropic refused it. */
+    REFUSED,
+
+    /** Anthropic couldn't be reached; nothing changed. */
+    UNREACHABLE,
 }
 
 /** How the last update of Claude Code went. */
@@ -96,7 +122,8 @@ internal object ClaudeCodeStatus {
 
 /**
  * Claude Code in Whittle's Linux: installed unchanged from Anthropic, signed in on its own screen, and run for the
- * chat's tasks. Whittle runs its commands and never reads, stores or forwards its sign-in.
+ * chat's tasks. Whittle runs its commands and never reads, stores or forwards its sign-in to a Claude account. A user
+ * who signs in with their own Anthropic API key instead has it kept encrypted, like their other keys.
  */
 class ClaudeCode(
     val config: ClaudeCodeConfig,
@@ -113,7 +140,11 @@ class ClaudeCode(
     connections: suspend () -> List<McpAccess>,
     /** The host file at a Linux path; null before Linux is set up. */
     linuxFile: (String) -> File?,
+    private val secrets: SecretStore,
+    private val http: OkHttpClient,
 ) {
+    private val apiKeySecret = SecretKey(config.apiKey.secretName)
+
     private val commands = CommandRunner(environment, config.outputChars)
     private val mutableState = MutableStateFlow<ClaudeCodeState>(ClaudeCodeState.Checking)
     val state: StateFlow<ClaudeCodeState> = mutableState.asStateFlow()
@@ -135,7 +166,9 @@ class ClaudeCode(
         locate = { chat, path -> workspaces.locate(chat, path).getOrNull() },
         changes = changes,
         maxFileChars = maxFileChars,
-        connections = ClaudeCodeConnections(config, connections, linuxFile),
+        connections = ClaudeCodeConnections(config, connections, ClaudeCodeTaskFiles(config, linuxFile)),
+        files = ClaudeCodeTaskFiles(config, linuxFile),
+        apiKey = ::apiKey,
     )
 
     private val updating = Mutex()
@@ -208,29 +241,66 @@ class ClaudeCode(
         }
     }
 
-    /** Runs Claude Code's own sign-out. */
+    /** Forgets the API key, when tasks use one; otherwise runs Claude Code's own sign-out. */
     fun signOut(): Job = scope.launch {
-        run(config.signOutCommand, config.commandTimeoutSeconds, network = true)
+        if (apiKey() != null) secrets.delete(apiKeySecret) else run(config.signOutCommand, config.commandTimeoutSeconds, network = true)
         mutableState.value = check()
     }
+
+    /**
+     * Checks [key] with Anthropic (a free call) and, once it's taken, keeps it encrypted for tasks to use instead of
+     * a Claude account.
+     */
+    suspend fun useApiKey(key: String): ApiKeyCheck {
+        val trimmed = key.trim()
+        val request = Request.Builder().url(config.apiKey.checkUrl).get()
+            .header(config.apiKey.keyHeader, trimmed)
+            .apply { config.apiKey.checkHeaders.forEach { (name, value) -> header(name, value) } }
+            .build()
+        val status = withContext(Dispatchers.IO) {
+            try {
+                http.newCall(request).execute().use { it.code }
+            } catch (exception: IOException) {
+                null
+            }
+        } ?: return ApiKeyCheck.UNREACHABLE
+        return when (status) {
+            in HTTP_OK -> {
+                secrets.put(apiKeySecret, Secret(trimmed))
+                mutableState.value = check()
+                ApiKeyCheck.SAVED
+            }
+            in HTTP_REFUSED -> ApiKeyCheck.REFUSED
+            else -> ApiKeyCheck.UNREACHABLE
+        }
+    }
+
+    /** The user's API key, when tasks use one. */
+    private suspend fun apiKey(): Secret? = secrets.get(apiKeySecret).getOrNull()
 
     /** Removes Claude Code, and with it the chats' Claude Code sessions. */
     fun remove(): Job = scope.launch {
         mutableState.value = ClaudeCodeState.Checking
         val ran = run(config.removeCommand, config.installTimeoutSeconds, network = false)
         sessions.clear()
+        secrets.delete(apiKeySecret)
         mutableState.value = if (ran != null && ran.exitCode != 0) ClaudeCodeState.Failed(lastLine(ran)) else check()
     }
 
-    /** Starts Claude Code's own sign-in; null when commands can't run yet. */
-    suspend fun signIn(): InteractiveCommand? {
+    /**
+     * Starts Claude Code's own sign-in with [method]'s account; null when commands can't run yet. Signing in this way
+     * replaces an API key, which tasks would otherwise go on using.
+     */
+    suspend fun signIn(method: ClaudeCodeSignInMethod): InteractiveCommand? {
         val folder = folder(null) ?: return null
-        return InteractiveCommand.start(environment, config.signInCommand, folder, network = true).getOrNull()
+        secrets.delete(apiKeySecret)
+        return InteractiveCommand.start(environment, config.signIn(method), folder, network = true).getOrNull()
     }
 
     private suspend fun check(): ClaudeCodeState {
         val version = run(config.versionCommand, config.commandTimeoutSeconds, network = false) ?: return ClaudeCodeState.NoLinux
         if (version.exitCode != 0) return ClaudeCodeState.NotInstalled
+        if (apiKey() != null) return ClaudeCodeState.Ready(signedIn = true, version = ClaudeCodeStatus.version(version.stdout), apiKey = true)
         val status = run(config.statusCommand, config.commandTimeoutSeconds, network = false) ?: return ClaudeCodeState.NoLinux
         val signedIn = status.exitCode == 0
         return ClaudeCodeState.Ready(
@@ -257,4 +327,10 @@ class ClaudeCode(
 
     private fun lastLine(result: CommandResult): String =
         (result.stderr.ifBlank { result.stdout }).lines().lastOrNull { it.isNotBlank() }?.trim().orEmpty()
+
+    private companion object {
+        val HTTP_OK = 200..299
+        /** Unauthorized or forbidden: the key isn't one Anthropic takes. */
+        val HTTP_REFUSED = 401..403
+    }
 }

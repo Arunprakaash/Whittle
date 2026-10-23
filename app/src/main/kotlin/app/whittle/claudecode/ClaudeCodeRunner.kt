@@ -8,6 +8,7 @@ import app.whittle.agent.RunInput
 import app.whittle.agent.RunRequest
 import app.whittle.core.common.HarnessError
 import app.whittle.core.common.Outcome
+import app.whittle.core.common.Secret
 import app.whittle.core.model.ContentBlock
 import app.whittle.core.model.Message
 import app.whittle.core.model.Provenance
@@ -61,26 +62,38 @@ class ClaudeCodeRunner(
     private val maxFileChars: Int,
     /** The user's connections, handed to each task. */
     private val connections: ClaudeCodeConnections,
+    private val files: ClaudeCodeTaskFiles,
+    /** The user's own Anthropic API key, when they signed in with one. */
+    private val apiKey: suspend () -> Secret?,
 ) {
     fun start(request: RunRequest): Flow<RunEvent> = channelFlow {
         val chat = request.workspace
         val folder = directory(chat) ?: return@channelFlow send(RunEvent.Failed(HarnessError.Storage(NO_WORKSPACE)))
         val handed = connections.hand(request.runId.value)
+        // The command removes the key's file as soon as it has read it; this is for a task that never started.
+        val key = apiKey()?.let { files.write(KEY_PREFIX + request.runId.value, it.reveal()) }
         try {
-            run(request, folder, handed)
+            run(request, folder, handed, key)
         } finally {
-            handed?.remove()
+            handed?.file?.remove()
+            key?.remove()
         }
     }
 
-    private suspend fun ProducerScope<RunEvent>.run(request: RunRequest, folder: File, handed: ClaudeCodeConnections.Handed?) {
+    private suspend fun ProducerScope<RunEvent>.run(
+        request: RunRequest,
+        folder: File,
+        handed: ClaudeCodeConnections.Handed?,
+        key: ClaudeCodeTaskFiles.TaskFile?,
+    ) {
         val chat = request.workspace
         val command = config.run(
             model = request.model.id.value,
             session = chat?.let(sessions::get),
             preApproved = request.preApprovedTools.mapTo(mutableSetOf()) { it.value },
-            mcpConfig = handed?.path,
+            mcpConfig = handed?.file?.path,
             blocked = handed?.blocked.orEmpty(),
+            apiKeyFile = key?.path,
         )
         val process = when (val started = InteractiveCommand.start(environment, command, folder, network = true)) {
             is Outcome.Failure -> return send(RunEvent.Failed(started.error))
@@ -225,6 +238,7 @@ class ClaudeCodeRunner(
         /** Claude Code's tools read files and the web; what they return informs, never authorizes. */
         val OUTPUT = Provenance.Untrusted("Claude Code")
         const val PARAGRAPH = "\n\n"
+        const val KEY_PREFIX = "key-"
         const val REJECTED = "rejected"
         const val MILLIS_PER_SECOND = 1000L
         const val LIMIT_STATUS = 429
