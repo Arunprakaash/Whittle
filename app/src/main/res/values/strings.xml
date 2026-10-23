@@ -439,6 +439,12 @@
     <string name="app_toolchain_remove_failed">Couldn\'t remove app building</string>
     <string name="app_toolchain_remove">Remove</string>
     <string name="app_toolchain_remove_title">Remove app building?</string>
+    <string name="app_toolchain_remove_cancel">Cancel</string>
+    <string name="app_toolchain_row_ready">Installed</string>
+    <string name="app_toolchain_row_building">An app is building. You can remove this once it\'s done.</string>
+    <string name="app_building_setting_up">Setting up app building…</string>
+    <string name="app_building_needs_linux">Set up Linux first, in Settings › Linux</string>
+    <string name="app_building_setup_failed">Couldn\'t set up app building: %1$s</string>
     <string name="app_toolchain_remove_body">The compiler and tools go. Your apps\' projects stay, and Whittle asks again before it builds one.</string>
     <string name="notify_linux_title">Setting up Linux</string>
     <string name="notify_linux_public">Whittle is setting up Linux</string>

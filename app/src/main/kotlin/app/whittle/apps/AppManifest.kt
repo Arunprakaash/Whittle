@@ -8,6 +8,9 @@ data class ApkFacts(
     /** Permissions that components (services, receivers, activities, providers) demand of their callers. */
     val componentPermissions: List<String>,
     val sharedUserId: Boolean,
+    /** The SDK levels the APK declares, which Whittle sets at build time. */
+    val minSdk: Int,
+    val targetSdk: Int,
 )
 
 /** What an app's manifest declares that Whittle shows or refuses. */

@@ -4,6 +4,7 @@ import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.core.common.Outcome
 import app.whittle.core.config.ConfigLoader
 import app.whittle.tools.workspace.CommandResult
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
@@ -105,19 +106,19 @@ class AppToolchainTest {
     @Test
     fun `awaitSetup is false when starting throws`() = runBlocking<Unit> {
         val toolchain = AppToolchain(FakeShell { _, _, _ -> result(1) }, config)
-        assertFalse(awaitSetup(toolchain, { throw IllegalStateException("not allowed") }, wait))
+        assertEquals(SetupOutcome.Failed("not allowed"), awaitSetup(toolchain, { throw IllegalStateException("not allowed") }, wait))
     }
 
     @Test
     fun `awaitSetup is true when setup never starts but the marker is good`() = runBlocking<Unit> {
         val toolchain = AppToolchain(FakeShell { _, _, _ -> result(0, AppToolchain.pinsHash(config)) }, config)
-        assertTrue(awaitSetup(toolchain, {}, 50.milliseconds))
+        assertEquals(SetupOutcome.Ready, awaitSetup(toolchain, {}, 50.milliseconds))
     }
 
     @Test
     fun `awaitSetup is false when setup never starts and there is no marker`() = runBlocking<Unit> {
         val toolchain = AppToolchain(FakeShell { _, _, _ -> result(1) }, config)
-        assertFalse(awaitSetup(toolchain, {}, 50.milliseconds))
+        assertIs<SetupOutcome.Failed>(awaitSetup(toolchain, {}, 50.milliseconds))
     }
 
     @Test
@@ -136,7 +137,7 @@ class AppToolchainTest {
             },
             config,
         )
-        assertTrue(awaitSetup(toolchain, { CoroutineScope(Dispatchers.Default).launch { toolchain.install() } }, wait))
+        assertEquals(SetupOutcome.Ready, awaitSetup(toolchain, { CoroutineScope(Dispatchers.Default).launch { toolchain.install() } }, wait))
     }
 
     @Test
@@ -145,7 +146,8 @@ class AppToolchainTest {
             FakeShell { command, _, _ -> if (command.startsWith("cat ")) result(1) else { delay(100); result(2, "", "boom") } },
             config,
         )
-        assertFalse(awaitSetup(toolchain, { CoroutineScope(Dispatchers.Default).launch { toolchain.install() } }, wait))
+        val failed = assertIs<SetupOutcome.Failed>(awaitSetup(toolchain, { CoroutineScope(Dispatchers.Default).launch { toolchain.install() } }, wait))
+        assertEquals("boom", failed.reason)
     }
 
     @Test
@@ -154,7 +156,7 @@ class AppToolchainTest {
         val scope = CoroutineScope(Dispatchers.Default)
         val install = scope.launch { toolchain.install() }
         val cancelling = scope.launch { toolchain.state.first { it is ToolchainState.Installing }; install.cancel() }
-        assertFalse(awaitSetup(toolchain, {}, wait))
+        assertIs<SetupOutcome.Failed>(awaitSetup(toolchain, {}, wait))
         cancelling.join()
         assertIs<ToolchainState.Failed>(toolchain.state.value)
     }
@@ -174,7 +176,84 @@ class AppToolchainTest {
         val toolchain = readyThenGone { }
         assertEquals(ToolchainState.Ready, toolchain.state.value)
         assertFalse(toolchain.isReady())
-        assertFalse(awaitSetup(toolchain, {}, 50.milliseconds))
+        assertIs<SetupOutcome.Failed>(awaitSetup(toolchain, {}, 50.milliseconds))
+    }
+
+    @Test
+    fun `without Linux the setup never starts`() = runBlocking<Unit> {
+        val shell = FakeShell { _, _, _ -> result(1) }
+        var started = false
+        assertEquals(SetupOutcome.NeedsLinux, prepareAppBuilding(linuxReady = false, AppToolchain(shell, config), { started = true }, wait))
+        assertFalse(started)
+        assertTrue(shell.calls.isEmpty())
+    }
+
+    @Test
+    fun `with Linux and a toolchain already there, setup is ready without starting`() = runBlocking<Unit> {
+        var started = false
+        val toolchain = AppToolchain(FakeShell { _, _, _ -> result(0, AppToolchain.pinsHash(config)) }, config)
+        assertEquals(SetupOutcome.Ready, prepareAppBuilding(linuxReady = true, toolchain, { started = true }, wait))
+        assertFalse(started)
+    }
+
+    @Test
+    fun `a failure's reason is capped`() = runBlocking<Unit> {
+        val toolchain = AppToolchain(FakeShell { command, _, _ -> if (command.startsWith("cat ")) result(1) else result(2, "", "x".repeat(config.maxReasonChars * 3)) }, config)
+        assertIs<Outcome.Failure>(toolchain.install())
+        assertEquals(config.maxReasonChars, assertIs<ToolchainState.Failed>(toolchain.state.value).reason.length)
+        val thrown = assertIs<SetupOutcome.Failed>(awaitSetup(toolchain, { throw IllegalStateException("y".repeat(config.maxReasonChars * 3)) }, wait))
+        assertEquals(config.maxReasonChars, thrown.reason.length)
+    }
+
+    @Test
+    fun `the card shows the last line of a reason`() {
+        assertEquals("E: Unable to locate package aapt", shortReason("Reading lists...\nE: Unable to locate package aapt\n\n"))
+        assertEquals("boom", shortReason("boom"))
+    }
+
+    @Test
+    fun `remove refuses while a build holds the toolchain`() = runBlocking<Unit> {
+        val hash = AppToolchain.pinsHash(config)
+        val shell = FakeShell { command, _, _ -> if (command.startsWith("cat ")) result(0, hash) else result(0) }
+        val toolchain = AppToolchain(shell, config)
+        val holding = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val build = launch(Dispatchers.Default) { toolchain.whileReady { holding.complete(Unit); release.await() } }
+        holding.await()
+        assertTrue(toolchain.building.value)
+        assertIs<Outcome.Failure>(toolchain.remove())
+        assertTrue(shell.calls.none { it.first.startsWith("rm ") })
+        release.complete(Unit)
+        build.join()
+        assertFalse(toolchain.building.value)
+        assertIs<Outcome.Success<Unit>>(toolchain.remove())
+        assertTrue(shell.calls.any { it.first.startsWith("rm ") })
+    }
+
+    @Test
+    fun `a build doesn't start while the toolchain is being removed, or when it isn't ready`() = runBlocking<Unit> {
+        val hash = AppToolchain.pinsHash(config)
+        val removing = CompletableDeferred<Unit>()
+        val finish = CompletableDeferred<Unit>()
+        val shell = FakeShell { command, _, _ ->
+            if (command.startsWith("rm ")) {
+                removing.complete(Unit)
+                finish.await()
+            }
+            if (command.startsWith("cat ")) result(0, hash) else result(0)
+        }
+        val toolchain = AppToolchain(shell, config)
+        val remove = launch(Dispatchers.Default) { toolchain.remove() }
+        removing.await()
+        var ran = false
+        assertEquals(null, toolchain.whileReady { ran = true })
+        assertFalse(ran)
+        finish.complete(Unit)
+        remove.join()
+
+        val missing = AppToolchain(FakeShell { _, _, _ -> result(1) }, config)
+        assertEquals(null, missing.whileReady { ran = true })
+        assertFalse(ran)
     }
 
     /** A toolchain driven through a real install; [setMarker] is called with false afterwards by tests via the shared flag. */

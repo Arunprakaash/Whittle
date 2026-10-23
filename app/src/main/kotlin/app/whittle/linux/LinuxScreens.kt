@@ -218,29 +218,37 @@ fun LinuxWorkspaceScreen(graph: AppGraph, onBack: () -> Unit) {
     confirming?.let { confirm -> ConfirmDialog(confirm, graph, onDone = { confirming = null }) }
 }
 
-/** The app-building toolchain's size, with Remove confirmed in its own dialog. */
+/**
+ * The app-building toolchain: whether it's set up (the ready marker, not just files on disk) and its size, with Remove
+ * confirmed in its own dialog. Remove waits while an app is building.
+ */
 @Composable
 private fun AppBuildingRow(graph: AppGraph) {
     val toolchain = graph.appToolchain
     val state by toolchain.state.collectAsStateWithLifecycle()
+    val building by toolchain.building.collectAsStateWithLifecycle()
     var confirming by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
     var removeFailed by remember { mutableStateOf(false) }
     LaunchedEffect(state) { removeFailed = false }
-    val size by produceState<String?>(null, state, refresh) { value = if (state is ToolchainState.Installing) null else toolchain.size() }
-    val installed = size != null
+    val installed by produceState<Installed?>(null, state, refresh) {
+        value = if (state is ToolchainState.Installing) null else Installed(toolchain.isReady(), toolchain.size())
+    }
+    val ready = installed?.ready == true
+    val removable = ready && state !is ToolchainState.Installing && !building
     SettingsRow(
         icon = "build",
         title = stringResource(R.string.app_toolchain_row_title),
         subtitle = when {
             state is ToolchainState.Installing -> stringResource(R.string.app_toolchain_row_installing)
+            ready && building -> stringResource(R.string.app_toolchain_row_building)
             removeFailed -> stringResource(R.string.app_toolchain_remove_failed)
-            installed -> stringResource(R.string.app_toolchain_row_installed, size.orEmpty())
+            ready -> installed?.size?.let { stringResource(R.string.app_toolchain_row_installed, it) } ?: stringResource(R.string.app_toolchain_row_ready)
             else -> stringResource(R.string.app_toolchain_row_missing)
         },
         shape = RoundedCornerShape(WhittleRadius.l),
-        destructive = installed && state !is ToolchainState.Installing,
-        onClick = { if (installed && state !is ToolchainState.Installing) confirming = true },
+        destructive = removable,
+        onClick = { if (removable) confirming = true },
     )
     if (confirming) {
         AlertDialog(
@@ -256,10 +264,13 @@ private fun AppBuildingRow(graph: AppGraph) {
                     }
                 }) { Text(stringResource(R.string.app_toolchain_remove), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.connector_cancel)) } },
+            dismissButton = { TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.app_toolchain_remove_cancel)) } },
         )
     }
 }
+
+/** What the app-building row shows: whether setup finished, and the size on disk when it can be read. */
+private data class Installed(val ready: Boolean, val size: String?)
 
 /** Repair, reset and remove, from least to most drastic. */
 @Composable

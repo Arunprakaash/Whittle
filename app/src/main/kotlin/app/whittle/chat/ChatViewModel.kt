@@ -78,7 +78,10 @@ import kotlinx.coroutines.flow.drop
 import app.whittle.apps.BuildAppTool
 import app.whittle.apps.InstallResult
 import app.whittle.apps.PowerfulDeclaration
-import app.whittle.apps.awaitSetup
+import app.whittle.apps.SetupOutcome
+import app.whittle.apps.prepareAppBuilding
+import app.whittle.apps.shortReason
+import app.whittle.linux.LinuxState
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOn
@@ -432,23 +435,39 @@ class ChatViewModel(
     }
 
     private var settingUpAppBuilding: Job? = null
+    private val _appBuildingSetup = MutableStateFlow<String?>(null)
+
+    /** The key of the app-building card whose setup is running, or null; the card says so while it runs. */
+    val appBuildingSetup: StateFlow<String?> = _appBuildingSetup.asStateFlow()
 
     /**
-     * Allow on the app-building card: sets the toolchain up in a service, then answers the capability as granted
-     * once it's ready, or as not granted if setup failed. A second tap while it runs doesn't start another.
+     * Allow on the app-building card. Nothing starts until Linux is set up; otherwise the toolchain is set up in a
+     * service. The run hears that it's ready, or that setup failed and why, never that the user said no. [needsLinux]
+     * and [failed] (given the short reason) are the card's words for the two failures. A second tap does nothing.
      */
-    fun setUpAppBuilding(item: ThreadItem.Capability) {
+    fun setUpAppBuilding(item: ThreadItem.Capability, needsLinux: String, failed: (String) -> String) {
         if (settingUpAppBuilding?.isActive == true) return
         settingUpAppBuilding = viewModelScope.launch {
+            _appBuildingSetup.value = item.key
             try {
-                val toolchain = graph.appToolchain
-                val ready = toolchain.isReady() ||
-                    awaitSetup(toolchain, startToolchainSetup, graph.nativeApps.setupStartTimeoutSeconds.seconds)
-                answer(item, granted = ready)
+                val linuxReady = graph.linux.state.value is LinuxState.Ready
+                val timeout = graph.nativeApps.setupStartTimeoutSeconds.seconds
+                when (val outcome = prepareAppBuilding(linuxReady, graph.appToolchain, startToolchainSetup, timeout)) {
+                    SetupOutcome.Ready -> answer(item, granted = true)
+                    SetupOutcome.NeedsLinux -> setupFailed(item, needsLinux, graph.agentMessages.appBuildingNeedsLinux)
+                    is SetupOutcome.Failed -> setupFailed(item, failed(shortReason(outcome.reason)), outcome.reason)
+                }
             } finally {
+                _appBuildingSetup.value = null
                 settingUpAppBuilding = null
             }
         }
+    }
+
+    /** Setting up [item]'s capability failed: the card shows [outcome], and the run hears [reason] as a failure. */
+    private fun setupFailed(item: ThreadItem.Capability, outcome: String, reason: String) {
+        replace(item.key) { ThreadItem.Resolved(item.key, outcome, declined = true) }
+        submit(item.runId, RunInput.CapabilityChanged(item.capability, granted = false, setupFailure = reason))
     }
 
     private fun submit(runId: RunId, input: RunInput) {

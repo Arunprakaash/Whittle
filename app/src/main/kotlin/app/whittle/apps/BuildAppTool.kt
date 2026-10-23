@@ -18,6 +18,8 @@ import app.whittle.tools.workspace.CommandResult
 import app.whittle.tools.workspace.Workspaces
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -30,25 +32,29 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 
 /** Saves a long output in the chat's workspace and gives the path it landed at. */
 typealias OutputSaver = suspend (WorkspaceId, RunId, ToolCallId, String) -> Outcome<String>
 
 /**
  * Builds a project's app: runs the build script from config in Linux with the network off, signs the unsigned APK here with the app's own key, checks what the built APK declares and returns a short JSON result. The version code goes up
- * (and into whittle-app.json) only when the build succeeds.
+ * (and into whittle-app.json) only when the build succeeds, and only the newest few APKs stay in build/.
  */
 class BuildAppTool(
     private val workspaces: Workspaces,
     private val config: NativeAppsConfig,
     private val messages: AgentMessages,
-    private val toolchainReady: suspend () -> Boolean,
+    private val toolchain: BuildToolchain,
     private val shell: LinuxShell,
     private val signer: AppSigner,
     private val inspector: ApkInspector,
     private val saveOutput: OutputSaver,
 ) : Tool {
     override val definition = DEFINITION
+
+    /** One lock per project folder: two builds of one app would share build/tmp and take the same version. */
+    private val projectLocks = ConcurrentHashMap<String, Mutex>()
 
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
         val chat = context.workspace ?: return reply(messages.appNoWorkspace, error = true)
@@ -59,12 +65,17 @@ class BuildAppTool(
             is Outcome.Success -> folder.value
         }
         val folder = File(root, name)
+        return projectLocks.computeIfAbsent(name) { Mutex() }.withLock {
+            toolchain.whileReady { build(chat, context, name, folder) }
+                ?: ToolOutput("", isError = true, provenance = Provenance.Trusted, missingCapability = APP_BUILDING)
+        }
+    }
+
+    private suspend fun build(chat: WorkspaceId, context: ToolExecutionContext, name: String, folder: File): ToolOutput {
         val project = withContext(Dispatchers.IO) { if (folder.isDirectory) AppProjects.read(folder) else null }
         if (project == null || project.packageName != config.packagePrefix + name) {
             return reply(messages.appNoProject(name), error = true)
         }
-        if (!toolchainReady()) return ToolOutput("", isError = true, provenance = Provenance.Trusted, missingCapability = APP_BUILDING)
-
         val version = project.versionCode + 1
         val script = config.buildScript
             .replace("{{project}}", name).replace("{{slug}}", name).replace("{{versionCode}}", version.toString())
@@ -91,19 +102,18 @@ class BuildAppTool(
                 is Outcome.Success -> inspected.value
             }
             report = AppManifest.classify(facts, config.powerful)
-            if (report.sharedUserId) {
+            refusal(facts, report, project, version)?.let { refused ->
                 apk.delete()
-                return reply(messages.appSharedUserId, error = true)
-            }
-            if (report.packageName != project.packageName) {
-                apk.delete()
-                return reply(messages.appPackageMismatch(project.packageName), error = true)
+                return reply(refused, error = true)
             }
         } finally {
             withContext(NonCancellable + Dispatchers.IO) { unsigned.delete() }
         }
         try {
-            withContext(Dispatchers.IO) { AppProjects.write(folder, project.copy(versionCode = version)) }
+            withContext(Dispatchers.IO) {
+                AppProjects.write(folder, project.copy(versionCode = version))
+                pruneApks(File(folder, "build"), name)
+            }
         } catch (e: IOException) {
             return failed(e.message ?: e.javaClass.simpleName)
         }
@@ -117,6 +127,25 @@ class BuildAppTool(
             put("powerful", Json.encodeToJsonElement(ListSerializer(PowerfulDeclaration.serializer()), report.powerful))
         }
         return reply(json.toString())
+    }
+
+    /** Why the built APK can't be offered for install, or null when it can. */
+    private fun refusal(facts: ApkFacts, report: ManifestReport, project: AppProject, version: Int): String? = when {
+        report.sharedUserId -> messages.appSharedUserId
+        report.packageName != project.packageName -> messages.appPackageMismatch(project.packageName)
+        // aapt2 replaces a version the manifest sets, but only fills in SDKs it doesn't; either way, check what was built.
+        facts.versionCode != version.toLong() -> messages.appVersionMismatch
+        facts.minSdk != config.minSdk || facts.targetSdk != config.targetSdk -> messages.appSdkMismatch
+        else -> null
+    }
+
+    /** Keeps the newest [NativeAppsConfig.keptApks] signed APKs in [build] and deletes every other APK there. */
+    private fun pruneApks(build: File, name: String) {
+        val signed = Regex("^${Regex.escape(name)}-(\\d+)\\.apk$")
+        val apks = build.listFiles { file -> file.isFile && file.name.endsWith(".apk") }.orEmpty()
+        val kept = apks.mapNotNull { file -> signed.find(file.name)?.groupValues?.get(1)?.toLongOrNull()?.let { file to it } }
+            .sortedByDescending { it.second }.take(config.keptApks).map { it.first }.toSet()
+        apks.filter { it !in kept }.forEach { it.delete() }
     }
 
     private suspend fun buildFailed(chat: WorkspaceId, context: ToolExecutionContext, ran: CommandResult): ToolOutput {
@@ -133,7 +162,6 @@ class BuildAppTool(
 
     companion object {
         private const val PROJECT = "project"
-        private const val MANIFEST = "AndroidManifest.xml"
 
         val DEFINITION = ToolDefinition(
             id = ToolId("build_app"),

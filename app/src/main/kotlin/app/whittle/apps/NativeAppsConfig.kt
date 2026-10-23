@@ -22,6 +22,10 @@ data class NativeAppsConfig(
     val maxErrors: Int,
     /** How much of the compiler's output goes back to the agent. */
     val maxErrorChars: Int,
+    /** How many signed APKs `build_app` keeps in a project's `build/`, newest first; older ones are deleted. */
+    val keptApks: Int,
+    /** How much of a failed setup's or removal's output is kept as its reason, for the agent and the card. */
+    val maxReasonChars: Int,
     /** Paths under `native-app-template/` that `create_app` fills in and writes. */
     val template: List<String>,
     /** Declarations that let an app watch or control the rest of the phone, each with the sentence shown to the user. */
@@ -41,6 +45,8 @@ data class NativeAppsConfig(
         require(buildTimeoutSeconds > 0 && toolchain.setupTimeoutSeconds > 0) { "Timeouts must be positive" }
         require(setupStartTimeoutSeconds > 0) { "setupStartTimeoutSeconds must be positive" }
         require(maxErrors > 0 && maxErrorChars > 0) { "Error limits must be positive" }
+        require(keptApks >= 1) { "keptApks must keep at least the newest APK, which the card installs" }
+        require(maxReasonChars > 0) { "maxReasonChars must be positive" }
         require(template.isNotEmpty()) { "template must name at least one file" }
         require(permissionWords.all { it.words.isNotBlank() }) { "permissionWords must have words for each permission" }
         require(permissionWords.map { it.name }.distinct().size == permissionWords.size) { "permissionWords names must be unique" }

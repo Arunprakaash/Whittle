@@ -47,7 +47,7 @@ class AppCardStateTest {
         val listener = PowerfulDeclaration("android.permission.BIND_NOTIFICATION_LISTENER_SERVICE", PowerfulKind.SERVICE_PERMISSION, "Reads notifications")
         val configured = listOf(listener, overlay)
         // v1 only requests the binding permission, which classify does not flag.
-        val installed = AppManifest.classify(ApkFacts("p", 1L, listOf(listener.name), emptyList(), false), configured).powerful
+        val installed = AppManifest.classify(ApkFacts("p", 1L, listOf(listener.name), emptyList(), false, 26, 35), configured).powerful
         assertEquals(emptyList(), installed)
         // v2 adds the real service.
         assertEquals(listOf(listener), addedPowerful(card.copy(powerful = listOf(listener)), installed))
@@ -55,7 +55,7 @@ class AppCardStateTest {
 
     @Test
     fun `a component permission with an overlay name does not hide the real request later`() {
-        val installed = AppManifest.classify(ApkFacts("p", 1L, emptyList(), listOf(overlay.name), false), listOf(overlay)).powerful
+        val installed = AppManifest.classify(ApkFacts("p", 1L, emptyList(), listOf(overlay.name), false, 26, 35), listOf(overlay)).powerful
         assertEquals(emptyList(), installed)
         assertEquals(listOf(overlay), addedPowerful(card, installed))
     }

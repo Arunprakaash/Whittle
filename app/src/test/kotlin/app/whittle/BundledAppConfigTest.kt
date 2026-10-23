@@ -1,6 +1,7 @@
 package app.whittle
 
 import app.whittle.apps.NativeAppsConfig
+import app.whittle.apps.PowerfulKind
 import app.whittle.automations.AutomationsConfig
 import app.whittle.claudecode.ClaudeCodeConfig
 import app.whittle.config.defaults.BundledConfigSource
@@ -209,6 +210,41 @@ class BundledAppConfigTest {
         assertFailsWith<IllegalArgumentException> { config.copy(permissionWords = listOf(word.copy(words = " "))) }
         assertFailsWith<IllegalArgumentException> { config.copy(powerful = config.powerful + config.powerful.first()) }
         assertFailsWith<IllegalArgumentException> { config.copy(maxCrashChars = 0) }
+        assertFailsWith<IllegalArgumentException> { config.copy(keptApks = 0) }
+        assertFailsWith<IllegalArgumentException> { config.copy(maxReasonChars = 0) }
+    }
+
+    @Test
+    fun `native apps config lists the newer powerful declarations, each with a sentence`() {
+        val config = assertIs<Outcome.Success<NativeAppsConfig>>(
+            loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),
+        ).value
+        val kinds = config.powerful.associate { it.name.removePrefix("android.permission.") to it.kind }
+        listOf("RECEIVE_MMS", "RECEIVE_WAP_PUSH", "PACKAGE_USAGE_STATS", "ACCESS_BACKGROUND_LOCATION").forEach {
+            assertEquals(PowerfulKind.PERMISSION, kinds[it], it)
+        }
+        assertEquals(PowerfulKind.SERVICE_PERMISSION, kinds["BIND_CREDENTIAL_PROVIDER_SERVICE"])
+        config.powerful.forEach { assertTrue(it.sentence.isNotBlank(), it.name) }
+    }
+
+    @Test
+    fun `the build lets Whittle set the version, whatever the manifest says`() {
+        val config = assertIs<Outcome.Success<NativeAppsConfig>>(
+            loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),
+        ).value
+        val link = config.buildScript.lines().single { it.startsWith("aapt2 link") }
+        assertTrue("--replace-version" in link.split(" "), link)
+    }
+
+    @Test
+    fun `the app template reports whole stacks once and keeps clear of the system bars`() {
+        val source = BundledConfigSource()
+        val reporter = assertIs<Outcome.Success<String>>(source.read(ConfigName("native-app-template/src/CrashReporter.kt"))).value
+        assertFalse("getStackTraceString(" in reporter, "Log.getStackTraceString drops chains with an UnknownHostException")
+        assertTrue("printStackTrace" in reporter)
+        assertTrue("if (installed) return" in reporter, "a second onCreate must not wrap the handler again")
+        val activity = assertIs<Outcome.Success<String>>(source.read(ConfigName("native-app-template/src/MainActivity.kt"))).value
+        assertTrue("fitsSystemWindows = true" in activity)
     }
 
     @Test

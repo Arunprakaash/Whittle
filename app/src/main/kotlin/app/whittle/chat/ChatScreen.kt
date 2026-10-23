@@ -11,6 +11,7 @@ import app.whittle.attachments.Attachment
 import app.whittle.design.components.ComposerAttach
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.content.ContextCompat
 import app.whittle.apps.APP_BUILDING
 import androidx.compose.runtime.DisposableEffect
@@ -82,6 +83,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
@@ -457,12 +459,24 @@ private fun ThreadRow(
             modifier = content,
             answer = item.answer,
         )
-        is ThreadItem.Capability -> DecisionCard(
-            item.presentation.toUi(item.key),
-            onApprove = { requestCapability(item) },
-            onDecline = { viewModel.answer(item, granted = false) },
-            modifier = modifier,
-        )
+        is ThreadItem.Capability -> {
+            val settingUp by viewModel.appBuildingSetup.collectAsStateWithLifecycle()
+            Column(modifier, verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+                DecisionCard(
+                    item.presentation.toUi(item.key),
+                    onApprove = { requestCapability(item) },
+                    onDecline = { viewModel.answer(item, granted = false) },
+                )
+                if (settingUp == item.key) {
+                    Text(
+                        stringResource(R.string.app_building_setting_up),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = WhittleSpace.m),
+                    )
+                }
+            }
+        }
         is ThreadItem.Interrupted -> Row(
             modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -744,11 +758,12 @@ private fun ChatMenu(pinned: Boolean?, onPin: (Boolean) -> Unit, onDelete: () ->
 
 /**
  * Allow on a capability card shows Android's own permission prompt, then reports the result. If access
- * was already granted (say, in system settings), it reports straight away.
+ * was already granted (say, in system settings), it reports straight away. App building has no prompt: Allow sets it up.
  */
 @Composable
 private fun rememberCapabilityRequest(items: List<ThreadItem>, viewModel: ChatViewModel): (ThreadItem.Capability) -> Unit {
     val context = LocalContext.current
+    val resources = LocalResources.current
     var requestingKey by rememberSaveable { mutableStateOf<String?>(null) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         items.firstOrNull { it.key == requestingKey }?.let { viewModel.answer(it as ThreadItem.Capability, granted) }
@@ -757,7 +772,11 @@ private fun rememberCapabilityRequest(items: List<ThreadItem>, viewModel: ChatVi
     return { item ->
         val permission = AndroidCapabilities.permissionFor(item.capability)
         when {
-            item.capability == APP_BUILDING -> viewModel.setUpAppBuilding(item)
+            item.capability == APP_BUILDING -> viewModel.setUpAppBuilding(
+                item,
+                needsLinux = resources.getString(R.string.app_building_needs_linux),
+                failed = { reason -> resources.getString(R.string.app_building_setup_failed, reason) },
+            )
             permission == null || AndroidCapabilities.isGranted(context, item.capability) -> viewModel.answer(item, granted = true)
             else -> {
                 requestingKey = item.key

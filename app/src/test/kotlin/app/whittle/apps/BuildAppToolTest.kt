@@ -12,6 +12,9 @@ import app.whittle.tools.api.ToolExecutionContext
 import app.whittle.tools.api.WorkspaceId
 import app.whittle.tools.workspace.CommandResult
 import app.whittle.tools.workspace.Workspaces
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -26,6 +29,7 @@ import java.nio.file.Files
 import java.security.KeyStore
 import java.security.PrivateKey
 import java.security.cert.X509Certificate
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.test.AfterTest
@@ -71,11 +75,19 @@ class BuildAppToolTest {
         return CommandResult(0, "", "", false, false, 5)
     }
 
-    private var facts: (File) -> Outcome<ApkFacts> = { Outcome.Success(ApkFacts(package0, 1L, listOf("android.permission.CAMERA"), emptyList(), false)) }
+    private var facts: (File) -> Outcome<ApkFacts> = { Outcome.Success(built(it)) }
     private var signing: Outcome<SigningKey> = Outcome.Success(key)
 
+    /** What a well-made build declares: the version its file name carries and the SDKs Whittle sets. */
+    private fun built(apk: File, requested: List<String> = listOf("android.permission.CAMERA"), components: List<String> = emptyList()) =
+        ApkFacts(package0, apk.name.removeSuffix(".apk").substringAfterLast('-').toLong(), requested, components, false, config.minSdk, config.targetSdk)
+
+    private val toolchain = object : BuildToolchain {
+        override suspend fun <T> whileReady(build: suspend () -> T): T? = if (ready) build() else null
+    }
+
     private fun tool() = BuildAppTool(
-        Workspaces(root), config, messages, { ready }, shell, AppSigner(FakeKeys { signing }), { facts(it) },
+        Workspaces(root), config, messages, toolchain, shell, AppSigner(FakeKeys { signing }), { facts(it) },
         { _, _, _, content -> saved += content; Outcome.Success(".whittle/outputs/run-call.txt") },
     )
 
@@ -141,7 +153,7 @@ class BuildAppToolTest {
     fun `powerful declarations are written with name kind and sentence`() {
         project()
         val declaration = config.powerful.single { it.name == "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" }
-        facts = { Outcome.Success(ApkFacts(package0, 1L, emptyList(), listOf(declaration.name), false)) }
+        facts = { Outcome.Success(built(it, requested = emptyList(), components = listOf(declaration.name))) }
         val json = Json.parseToJsonElement(build("notes").content).jsonObject
         val entry = json["powerful"]!!.jsonArray.single().jsonObject
         assertEquals(declaration.name, entry["name"]!!.jsonPrimitive.content)
@@ -165,7 +177,7 @@ class BuildAppToolTest {
     @Test
     fun `refuses an APK with a sharedUserId and leaves no APK or version bump`() {
         val folder = project()
-        facts = { Outcome.Success(ApkFacts(package0, 1L, emptyList(), emptyList(), true)) }
+        facts = { Outcome.Success(built(it).copy(sharedUserId = true)) }
         val output = build("notes")
         assertTrue(output.isError)
         assertEquals(messages.appSharedUserId, output.content)
@@ -175,7 +187,7 @@ class BuildAppToolTest {
     @Test
     fun `refuses a built APK whose package differs from the project's`() {
         val folder = project()
-        facts = { Outcome.Success(ApkFacts("com.evil.app", 1L, emptyList(), emptyList(), false)) }
+        facts = { Outcome.Success(built(it).copy(packageName = "com.evil.app")) }
         val output = build("notes")
         assertTrue(output.isError)
         assertEquals(messages.appPackageMismatch(package0), output.content)
@@ -230,6 +242,60 @@ class BuildAppToolTest {
         project()
         outcome = { CommandResult(1, "src/A.kt:1:2: error: from stdout", "noise", false, false, 5) }
         assertTrue("from stdout" in build("notes").content)
+    }
+
+    @Test
+    fun `refuses an APK whose version is not the one Whittle set, with no bump and no APK left`() {
+        val folder = project()
+        facts = { Outcome.Success(built(it).copy(versionCode = 7L)) }
+        val output = build("notes")
+        assertTrue(output.isError)
+        assertEquals(messages.appVersionMismatch, output.content)
+        assertNoApk(folder)
+    }
+
+    @Test
+    fun `refuses an APK whose SDKs are not the ones Whittle set, with no bump and no APK left`() {
+        val folder = project()
+        facts = { Outcome.Success(built(it).copy(targetSdk = config.targetSdk - 1)) }
+        val output = build("notes")
+        assertTrue(output.isError)
+        assertEquals(messages.appSdkMismatch, output.content)
+        assertNoApk(folder)
+
+        facts = { Outcome.Success(built(it).copy(minSdk = config.minSdk + 1)) }
+        assertEquals(messages.appSdkMismatch, build("notes").content)
+        assertNoApk(folder)
+    }
+
+    @Test
+    fun `two builds of one project run one after the other and get their own versions`() = runBlocking<Unit> {
+        val folder = project()
+        val running = AtomicInteger()
+        val most = AtomicInteger()
+        val slow = outcome
+        outcome = { folder ->
+            most.accumulateAndGet(running.incrementAndGet(), ::maxOf)
+            Thread.sleep(100)
+            slow(folder).also { running.decrementAndGet() }
+        }
+        val shared = tool()
+        val outputs = (1..2).map { async(Dispatchers.Default) { shared.execute(buildJsonObject { put("project", "notes") }, context) } }.awaitAll()
+        assertTrue(outputs.none { it.isError }, outputs.joinToString { it.content })
+        assertEquals(1, most.get())
+        assertEquals(setOf(1, 2), outputs.map { Json.parseToJsonElement(it.content).jsonObject["versionCode"]!!.jsonPrimitive.int }.toSet())
+        assertEquals(2, AppProjects.read(folder)!!.versionCode)
+    }
+
+    @Test
+    fun `only the last signed APKs are kept`() {
+        val folder = project()
+        File(folder, "build").mkdirs()
+        File(folder, "build/stray.apk").writeText("old")
+        repeat(config.keptApks + 2) { assertFalse(build("notes").isError) }
+        val last = config.keptApks + 2
+        val expected = ((last - config.keptApks + 1)..last).map { "notes-$it.apk" }.toSet()
+        assertEquals(expected, File(folder, "build").listFiles().orEmpty().map { it.name }.toSet())
     }
 
     private fun assertNoApk(folder: File) {

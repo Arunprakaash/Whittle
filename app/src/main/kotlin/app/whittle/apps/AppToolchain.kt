@@ -4,15 +4,17 @@ import app.whittle.core.common.HarnessError
 import app.whittle.core.common.Outcome
 import app.whittle.tools.api.CapabilityId
 import app.whittle.tools.workspace.CommandResult
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.time.Duration
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Duration
 import kotlinx.serialization.json.Json
 import java.security.MessageDigest
 
@@ -34,16 +36,35 @@ sealed interface ToolchainState {
     data class Failed(val reason: String) : ToolchainState
 }
 
+/** What a build needs from the toolchain. */
+interface BuildToolchain {
+    /**
+     * Runs [build] while holding the toolchain, so Remove refuses until it ends. Null, without running it, when the
+     * toolchain isn't ready or is being removed.
+     */
+    suspend fun <T> whileReady(build: suspend () -> T): T?
+}
+
 /**
  * The toolchain that builds apps in Linux (docs/native-apps.md, "The toolchain"). It is ready when the marker the
  * setup script writes last holds the hash of the current pins, so changed pins, or a changed script, set it up again.
  */
-class AppToolchain(private val shell: LinuxShell, config: NativeAppsConfig) {
+class AppToolchain(private val shell: LinuxShell, config: NativeAppsConfig) : BuildToolchain {
     private val pins = config.toolchain
     private val hash = pinsHash(config)
+    private val maxReasonChars = config.maxReasonChars
     private val lock = Mutex()
     private val _state = MutableStateFlow<ToolchainState>(ToolchainState.NotInstalled)
     val state: StateFlow<ToolchainState> = _state.asStateFlow()
+
+    /** Guards [builds] and [removing], which let builds run side by side but never with Remove. */
+    private val holds = Mutex()
+    private var builds = 0
+    private var removing = false
+    private val _building = MutableStateFlow(false)
+
+    /** Whether a build is using the toolchain, so it can't be removed. */
+    val building: StateFlow<Boolean> = _building.asStateFlow()
 
     /** Whether the marker holds the current pins hash; the state follows the answer, except while setup runs. */
     suspend fun isReady(): Boolean {
@@ -81,8 +102,9 @@ class AppToolchain(private val shell: LinuxShell, config: NativeAppsConfig) {
                 _state.value = ToolchainState.Ready
                 return Outcome.Success(Unit)
             }
-            _state.value = ToolchainState.Failed(failure)
-            return Outcome.Failure(HarnessError.Storage(failure))
+            val reason = capped(failure)
+            _state.value = ToolchainState.Failed(reason)
+            return Outcome.Failure(HarnessError.Storage(reason))
         } catch (cancellation: kotlinx.coroutines.CancellationException) {
             _state.value = ToolchainState.Failed(CANCELLED)
             throw cancellation
@@ -97,25 +119,58 @@ class AppToolchain(private val shell: LinuxShell, config: NativeAppsConfig) {
         return result?.takeIf { it.exitCode == 0 }?.stdout?.trim()?.substringBefore('\t')?.substringBefore(' ')?.ifBlank { null }
     }
 
-    /** Deletes the toolchain; the next build asks to set it up again. */
-    suspend fun remove(): Outcome<Unit> = lock.withLock {
-        when (val ran = shell.run("rm -rf $DIRECTORY", network = false, timeoutSeconds = REMOVE_TIMEOUT_SECONDS)) {
-            is Outcome.Failure -> ran
-            is Outcome.Success -> {
-                val exit = ran.value.exitCode
-                if (exit == 0) {
-                    _state.value = ToolchainState.NotInstalled
-                    Outcome.Success(Unit)
-                } else {
-                    Outcome.Failure(HarnessError.Storage(ran.value.stderr.trim().takeLast(MAX_REASON_CHARS).ifBlank { "Couldn't remove (exit $exit)" }))
+    override suspend fun <T> whileReady(build: suspend () -> T): T? {
+        val held = holds.withLock {
+            if (!removing) {
+                builds++
+                _building.value = true
+            }
+            !removing
+        }
+        if (!held) return null
+        try {
+            return if (isReady()) build() else null
+        } finally {
+            withContext(NonCancellable) {
+                holds.withLock {
+                    builds--
+                    _building.value = builds > 0
                 }
             }
         }
     }
 
+    /** Deletes the toolchain; the next build asks to set it up again. Refused while a build is using it. */
+    suspend fun remove(): Outcome<Unit> = lock.withLock {
+        val free = holds.withLock {
+            if (builds == 0) removing = true
+            builds == 0
+        }
+        if (!free) return@withLock Outcome.Failure(HarnessError.Storage(IN_USE))
+        try {
+            when (val ran = shell.run("rm -rf $DIRECTORY", network = false, timeoutSeconds = REMOVE_TIMEOUT_SECONDS)) {
+                is Outcome.Failure -> ran
+                is Outcome.Success -> {
+                    val exit = ran.value.exitCode
+                    if (exit == 0) {
+                        _state.value = ToolchainState.NotInstalled
+                        Outcome.Success(Unit)
+                    } else {
+                        Outcome.Failure(HarnessError.Storage(capped(ran.value.stderr.trim()).ifBlank { "Couldn't remove (exit $exit)" }))
+                    }
+                }
+            }
+        } finally {
+            withContext(NonCancellable) { holds.withLock { removing = false } }
+        }
+    }
+
+    /** The end of [reason], which holds the error, at most [NativeAppsConfig.maxReasonChars] long. */
+    fun capped(reason: String): String = reason.takeLast(maxReasonChars)
+
     private fun failureOf(result: CommandResult): String? = when {
         result.timedOut -> "Setup took too long"
-        result.exitCode != 0 -> (result.stderr.ifBlank { result.stdout }).trim().takeLast(MAX_REASON_CHARS).ifBlank { "Setup failed (exit ${result.exitCode})" }
+        result.exitCode != 0 -> (result.stderr.ifBlank { result.stdout }).trim().ifBlank { "Setup failed (exit ${result.exitCode})" }
         else -> null
     }
 
@@ -125,7 +180,7 @@ class AppToolchain(private val shell: LinuxShell, config: NativeAppsConfig) {
         private const val PINS_HASH = "{{pinsHash}}"
         private const val CHECK_TIMEOUT_SECONDS = 30
         private const val REMOVE_TIMEOUT_SECONDS = 300
-        private const val MAX_REASON_CHARS = 400
+        private const val IN_USE = "An app is building"
         private const val CANCELLED = "Setup was interrupted"
         private const val NOT_CONFIRMED = "Setup finished but the toolchain isn't ready"
 
@@ -137,22 +192,50 @@ class AppToolchain(private val shell: LinuxShell, config: NativeAppsConfig) {
     }
 }
 
+/** How the user's Allow on the app-building card ended. */
+sealed interface SetupOutcome {
+    data object Ready : SetupOutcome
+
+    /** Linux isn't set up, so app building's setup didn't start. */
+    data object NeedsLinux : SetupOutcome
+
+    data class Failed(val reason: String) : SetupOutcome
+}
+
 /**
- * Starts the setup with [start] and waits for how it ends: true when the toolchain is ready, false when setup failed,
- * was interrupted, or couldn't start. If setup doesn't begin within [startTimeout], the answer is whether the
- * toolchain is ready already. Never waits forever on a service that didn't start.
+ * Allow on the app-building card: nothing starts until Linux is ready; a toolchain that is there already is ready at
+ * once; otherwise [start] runs the setup and the answer is how it ended (see [awaitSetup]).
  */
-suspend fun awaitSetup(toolchain: AppToolchain, start: () -> Unit, startTimeout: Duration): Boolean {
+suspend fun prepareAppBuilding(linuxReady: Boolean, toolchain: AppToolchain, start: () -> Unit, startTimeout: Duration): SetupOutcome = when {
+    !linuxReady -> SetupOutcome.NeedsLinux
+    toolchain.isReady() -> SetupOutcome.Ready
+    else -> awaitSetup(toolchain, start, startTimeout)
+}
+
+/**
+ * Starts the setup with [start] and waits for how it ends: ready, or failed with the reason, also when it was
+ * interrupted or couldn't start. If setup doesn't begin within [startTimeout], the answer is whether the toolchain
+ * is ready already. Never waits forever on a service that didn't start.
+ */
+suspend fun awaitSetup(toolchain: AppToolchain, start: () -> Unit, startTimeout: Duration): SetupOutcome {
     try {
         start()
     } catch (exception: RuntimeException) {
-        return false
+        return SetupOutcome.Failed(toolchain.capped(exception.message ?: NOT_STARTED))
     }
     // A Failed left from an earlier try isn't this run's outcome: wait for the run to start over first.
     val before = toolchain.state.value
     val begun = withTimeoutOrNull(startTimeout) {
         toolchain.state.first { if (before is ToolchainState.Failed) it is ToolchainState.Installing || it is ToolchainState.Ready else it !is ToolchainState.NotInstalled }
-    } ?: return toolchain.isReady()
-    if (begun is ToolchainState.Ready) return true
-    return toolchain.state.first { it is ToolchainState.Ready || it is ToolchainState.Failed } is ToolchainState.Ready
+    } ?: return if (toolchain.isReady()) SetupOutcome.Ready else SetupOutcome.Failed(NOT_STARTED)
+    if (begun is ToolchainState.Ready) return SetupOutcome.Ready
+    return when (val ended = toolchain.state.first { it is ToolchainState.Ready || it is ToolchainState.Failed }) {
+        is ToolchainState.Failed -> SetupOutcome.Failed(ended.reason)
+        else -> SetupOutcome.Ready
+    }
 }
+
+/** The line of a setup failure the card shows: its last one, where the error usually is. */
+fun shortReason(reason: String): String = reason.lines().lastOrNull { it.isNotBlank() }?.trim() ?: reason.trim()
+
+private const val NOT_STARTED = "Setup didn't start"
