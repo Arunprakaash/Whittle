@@ -98,7 +98,7 @@ android.defaultConfig.buildConfigField("String", "SANDBOX_PROGRAM", "\"lib$sandb
 
 android.defaultConfig.buildConfigField("String", "RUNTIME_ASSETS", "\"$runtimeAssetDirectory\"")
 
-// The launcher, themed and notification icons are drawn from the beaver's sprite file.
+// The full-colour launcher icon is drawn from the beaver's sprite file; the one-colour ones are in res/drawable.
 val spriteDrawables = tasks.register<GenerateSpriteDrawablesTask>("generateSpriteDrawables") {
     spriteFile.set(rootProject.layout.projectDirectory.file("docs/design/sprites/beaver.sprite.json"))
     outputDirectory.set(layout.buildDirectory.dir("generated/sprites/res"))
