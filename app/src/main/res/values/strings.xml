@@ -649,6 +649,11 @@
     <string name="app_card_changed">This app changed since it was built. Ask Whittle to build it again.</string>
     <string name="app_card_settings_failed">Couldn\'t open the settings to allow installs. Allow Whittle to install apps in Android\'s settings.</string>
     <string name="app_card_remove_failed">Couldn\'t ask Android to remove this app. Remove it from your launcher.</string>
+    <string name="app_card_crash_title">Last crash</string>
+    <string name="app_card_crash_more">Show more</string>
+    <string name="app_card_crash_less">Show less</string>
+    <string name="app_card_ask_fix">Ask to fix</string>
+    <string name="app_fix_message">%1$s crashed. Here\'s the stack trace:\n\n%2$s\n\nPlease fix it and build it again.</string>
     <string name="app_card_open_failed">This app has nothing to open.</string>
     <string name="app_powerful_dialog_title">Before you install</string>
     <plurals name="app_powerful_dialog_body">

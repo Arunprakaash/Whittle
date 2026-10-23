@@ -30,6 +30,8 @@ data class NativeAppsConfig(
     val permissionWords: List<PermissionWords>,
     /** Added to Whittle's application id to make the authority crash reports go to. */
     val crashAuthoritySuffix: String,
+    /** The most characters of a crash's stack Whittle keeps, per app. */
+    val maxCrashChars: Int,
     /** The launcher icon colours (`#RRGGBB`) `create_app` picks from, by a hash of the app's name. */
     val palette: List<String>,
 ) : VersionedConfig {
@@ -44,6 +46,7 @@ data class NativeAppsConfig(
         require(permissionWords.map { it.name }.distinct().size == permissionWords.size) { "permissionWords names must be unique" }
         require(powerful.map { it.name }.distinct().size == powerful.size) { "powerful names must be unique" }
         require(crashAuthoritySuffix.startsWith(".")) { "crashAuthoritySuffix must start with a dot" }
+        require(maxCrashChars > 0) { "maxCrashChars must be positive" }
         require(palette.isNotEmpty() && palette.all { COLOUR.matches(it) }) { "palette must hold #RRGGBB colours" }
     }
 

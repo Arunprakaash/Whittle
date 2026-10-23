@@ -140,5 +140,6 @@
     }
   ],
   "crashAuthoritySuffix": ".apps.crashes",
+  "maxCrashChars": 4000,
   "palette": ["#2E7D32", "#1565C0", "#6A1B9A", "#C62828", "#EF6C00", "#00838F", "#AD1457", "#4E342E"]
 }

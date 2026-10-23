@@ -208,6 +208,7 @@ class BundledAppConfigTest {
         assertFailsWith<IllegalArgumentException> { config.copy(permissionWords = config.permissionWords + word) }
         assertFailsWith<IllegalArgumentException> { config.copy(permissionWords = listOf(word.copy(words = " "))) }
         assertFailsWith<IllegalArgumentException> { config.copy(powerful = config.powerful + config.powerful.first()) }
+        assertFailsWith<IllegalArgumentException> { config.copy(maxCrashChars = 0) }
     }
 
     @Test

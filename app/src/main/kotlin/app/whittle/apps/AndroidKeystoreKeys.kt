@@ -34,6 +34,16 @@ class AndroidKeystoreKeys : SigningKeys {
         Outcome.Failure(HarnessError.Authentication("The Keystore refused a signing key for $packageName: ${exception.message}"))
     }
 
+    override fun existingCertificate(packageName: String): X509Certificate? = try {
+        val store = KeyStore.getInstance(PROVIDER).apply { load(null) }
+        val alias = ALIAS_PREFIX + packageName
+        if (store.containsAlias(alias)) store.getCertificate(alias) as? X509Certificate else null
+    } catch (_: GeneralSecurityException) {
+        null
+    } catch (_: IOException) {
+        null
+    }
+
     private fun generate(alias: String, packageName: String) {
         val spec = KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN)
             .setKeySize(KEY_BITS)

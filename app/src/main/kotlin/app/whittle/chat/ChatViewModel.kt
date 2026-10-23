@@ -795,6 +795,9 @@ class ChatViewModel(
 
     private fun updateApp(key: String, change: (AppUiState) -> AppUiState) = _appStates.update { it + (key to change(it[key] ?: AppUiState())) }
 
+    /** The last crash of each app Whittle built, by package; the card shows its own. */
+    val appCrashes: StateFlow<Map<String, String>> get() = graph.appCrashes.latest
+
     fun permissionWords(card: ThreadItem.App): String = permissionWords(card.permissions, graph.nativeApps.permissionWords)
 
     /** Re-reads the installed version, so the buttons follow installs and removals that happened outside the chat. */

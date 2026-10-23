@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -65,6 +66,10 @@ fun AppCard(item: ThreadItem.App, viewModel: ChatViewModel, modifier: Modifier =
     val installing = shown.installing
     val result = shown.result
     val colors = MaterialTheme.colorScheme
+    val crashes by viewModel.appCrashes.collectAsStateWithLifecycle()
+    val crash = crashes[item.packageName]
+    var crashExpanded by remember { mutableStateOf(false) }
+    val fixMessage = stringResource(R.string.app_fix_message, item.name, crash.orEmpty())
 
     fun begin() {
         notice = null
@@ -144,7 +149,27 @@ fun AppCard(item: ThreadItem.App, viewModel: ChatViewModel, modifier: Modifier =
         val neutral = result == null || result == InstallResult.INSTALLED || result == InstallResult.CANCELLED
         val failed = !installing && (notice != null || (!needsAllow && !neutral))
         message?.let { Text(stringResource(it), style = MaterialTheme.typography.bodySmall, color = if (failed) colors.error else colors.onSurfaceVariant) }
+        if (crash != null) {
+            Column(
+                Modifier.fillMaxWidth().background(colors.surfaceContainerHigh, RoundedCornerShape(WhittleRadius.l)).padding(WhittleSpace.m),
+                verticalArrangement = Arrangement.spacedBy(WhittleSpace.xs),
+            ) {
+                Text(stringResource(R.string.app_card_crash_title), style = MaterialTheme.typography.labelLarge)
+                Text(
+                    crash,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = colors.onSurfaceVariant,
+                    maxLines = if (crashExpanded) Int.MAX_VALUE else CRASH_LINES,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                TextButton(onClick = { crashExpanded = !crashExpanded }) {
+                    Text(stringResource(if (crashExpanded) R.string.app_card_crash_less else R.string.app_card_crash_more))
+                }
+            }
+        }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s), verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+            if (crash != null) Action("build", R.string.app_card_ask_fix, primary = state == AppCardState.OPEN || state == AppCardState.NEWER_INSTALLED) { viewModel.sendText(fixMessage) }
             when (state) {
                 AppCardState.INSTALL -> Action("download", R.string.app_card_install, primary = true, enabled = !installing) { begin() }
                 AppCardState.UPDATE -> {
@@ -172,6 +197,8 @@ fun AppCard(item: ThreadItem.App, viewModel: ChatViewModel, modifier: Modifier =
     }
     if (confirming.isNotEmpty()) PowerfulDialog(item, confirming, onContinue = { confirming = emptyList(); viewModel.installApp(item) }, onCancel = { confirming = emptyList() })
 }
+
+private const val CRASH_LINES = 4
 
 private fun resultText(result: InstallResult): Int = when (result) {
     InstallResult.INSTALLED -> R.string.app_card_installed_done

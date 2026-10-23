@@ -16,8 +16,12 @@ import java.security.cert.X509Certificate
 data class SigningKey(val privateKey: PrivateKey, val certificate: X509Certificate)
 
 /** Where the signing key for each generated app comes from. */
-fun interface SigningKeys {
+interface SigningKeys {
+    /** The key for [packageName], made on first use. */
     fun keyFor(packageName: String): Outcome<SigningKey>
+
+    /** The certificate of the key already held for [packageName], or null; it never makes a key. */
+    fun existingCertificate(packageName: String): X509Certificate?
 }
 
 /** Signs generated apps with the key [keys] holds for their package, so an app keeps one identity across updates. */
@@ -57,6 +61,9 @@ class AppSigner(private val keys: SigningKeys) {
 
     /** The certificate [packageName] is signed with, or null when its key isn't available. */
     fun certificateFor(packageName: String): X509Certificate? = keys.keyFor(packageName).getOrNull()?.certificate
+
+    /** Like [certificateFor], but only for a key that already exists; checking a crash must not make keys. */
+    fun existingCertificate(packageName: String): X509Certificate? = keys.existingCertificate(packageName)
 
     private companion object {
         const val SIGNER_NAME = "whittle"

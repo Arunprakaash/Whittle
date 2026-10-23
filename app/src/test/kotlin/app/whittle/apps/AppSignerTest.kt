@@ -19,7 +19,7 @@ import kotlin.test.assertTrue
 class AppSignerTest {
     private val directory = Files.createTempDirectory("app-signer").toFile()
     private val fake = softwareKey()
-    private val signer = AppSigner { Outcome.Success(fake) }
+    private val signer = AppSigner(FakeKeys(Outcome.Success(fake)))
 
     @Test
     fun `signs with v2 and the APK verifies`() {
@@ -45,7 +45,7 @@ class AppSignerTest {
 
     @Test
     fun `fails without touching the output when there is no key`() {
-        val refusing = AppSigner { Outcome.Failure(app.whittle.core.common.HarnessError.Storage("no key")) }
+        val refusing = AppSigner(FakeKeys(Outcome.Failure(app.whittle.core.common.HarnessError.Storage("no key"))))
         val signed = File(directory, "refused.apk")
 
         assertIs<Outcome.Failure>(refusing.sign(unsignedApk(), signed, PACKAGE))

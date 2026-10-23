@@ -22,6 +22,7 @@ import app.whittle.connectors.mcp.ConnectorsConfig
 import app.whittle.connectors.Connectors
 import app.whittle.apps.AndroidApkInspector
 import app.whittle.apps.AndroidKeystoreKeys
+import app.whittle.apps.AppCrashes
 import app.whittle.apps.AppInstaller
 import app.whittle.apps.AppSigner
 import app.whittle.apps.AppToolchain
@@ -29,6 +30,7 @@ import app.whittle.apps.BuildAppTool
 import app.whittle.apps.CreateAppTool
 import app.whittle.apps.LinuxShell
 import app.whittle.apps.NativeAppsConfig
+import app.whittle.apps.signerOf
 import app.whittle.linux.LinuxConfig
 import app.whittle.linux.LinuxWorkspace
 import app.whittle.design.theme.WhittleAppearance
@@ -225,6 +227,15 @@ class AppGraph(context: Context) {
     /** The one signer and APK inspector: the build tools and the install card share them. */
     private val appSigner = AppSigner(AndroidKeystoreKeys())
     private val apkInspector = AndroidApkInspector(context.packageManager)
+
+    /** The last crash of each app Whittle built; the provider reaches it only when a report arrives. */
+    val appCrashes = AppCrashes(
+        appSigner::existingCertificate,
+        { packageName -> signerOf(context.packageManager, packageName) },
+        nativeApps.packagePrefix,
+        nativeApps.maxCrashChars,
+        File(context.filesDir, AppCrashes.FILE_NAME),
+    )
 
     /** Installs, updates and reads the state of the apps the agent built; only the user's tap calls it. */
     val appInstaller = AppInstaller(context, appSigner, apkInspector, nativeApps.powerful)

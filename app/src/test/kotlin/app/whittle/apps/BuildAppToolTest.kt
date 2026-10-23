@@ -75,7 +75,7 @@ class BuildAppToolTest {
     private var signing: Outcome<SigningKey> = Outcome.Success(key)
 
     private fun tool() = BuildAppTool(
-        Workspaces(root), config, messages, { ready }, shell, AppSigner { signing }, { facts(it) },
+        Workspaces(root), config, messages, { ready }, shell, AppSigner(FakeKeys { signing }), { facts(it) },
         { _, _, _, content -> saved += content; Outcome.Success(".whittle/outputs/run-call.txt") },
     )
 
