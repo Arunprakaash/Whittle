@@ -102,6 +102,7 @@
     <string name="claude_code_open_link">Open link</string>
     <string name="claude_code_paste_code">Paste the code</string>
     <string name="claude_code_send_code">Send</string>
+    <string name="claude_code_signing_in">Signing in\u2026</string>
     <string name="claude_code_sign_in_failed">Sign-in didn\'t finish.</string>
     <string name="claude_code_try_again">Try again</string>
     <string name="claude_code_signed_in">Signed in with your Claude plan</string>

@@ -77,6 +77,7 @@ import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
 import app.whittle.llm.api.ModelDescriptor
 import app.whittle.tools.workspace.InteractiveCommand
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -165,9 +166,12 @@ fun ClaudeCodeSignInScreen(claudeCode: ClaudeCode, onClose: () -> Unit, onSigned
     var failed by remember { mutableStateOf(false) }
     var attempt by remember { mutableIntStateOf(0) }
     var code by remember { mutableStateOf("") }
+    // From Send until Claude Code says how it went, and while the sign-in is checked afterwards.
+    var signingIn by remember { mutableStateOf(false) }
     LaunchedEffect(attempt) {
         lines.clear()
         failed = false
+        signingIn = false
         val started = claudeCode.signIn()
         if (started == null) {
             failed = true
@@ -181,8 +185,16 @@ fun ClaudeCodeSignInScreen(claudeCode: ClaudeCode, onClose: () -> Unit, onSigned
             started.stop()
             command = null
         }
+        signingIn = true
         claudeCode.refresh().join()
+        signingIn = false
         if ((claudeCode.state.value as? ClaudeCodeState.Ready)?.signedIn == true) onSignedIn() else failed = true
+    }
+    // Claude Code answered a code and is still running: it's asking again (a wrong code), so the code row returns.
+    LaunchedEffect(lines.size) {
+        if (!signingIn) return@LaunchedEffect
+        delay(ANSWER_SETTLE_MILLIS)
+        if (command != null) signingIn = false
     }
     val link = lines.firstNotNullOfOrNull(SignInOutput::link)
     val listState = rememberLazyListState()
@@ -236,11 +248,22 @@ fun ClaudeCodeSignInScreen(claudeCode: ClaudeCode, onClose: () -> Unit, onSigned
                 val typed = code.trim()
                 if (typed.isNotEmpty() && command != null) {
                     haptics.perform(WhittleHaptic.Tap)
+                    signingIn = true
                     scope.launch { command?.write(typed) }
                     code = ""
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+            if (signingIn) {
+                Row(
+                    Modifier.fillMaxWidth().height(WhittleSize.Button.default),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator(Modifier.size(WhittleSize.Icon.l), strokeWidth = WhittleSpace.hairline)
+                    Spacer(Modifier.width(WhittleSpace.m))
+                    Text(stringResource(R.string.claude_code_signing_in), style = MaterialTheme.typography.bodyLarge)
+                }
+            } else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
                 CodeField(value = code, onValueChange = { code = it }, enabled = command != null, onSend = send, modifier = Modifier.weight(1f))
                 if (code.isNotBlank()) {
                     Button(
@@ -501,6 +524,9 @@ private fun Busy(label: String) {
 private fun Problem(text: String) {
     Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
 }
+
+/** How long after Claude Code's reply to a code it must still be running to count as asking again. */
+private const val ANSWER_SETTLE_MILLIS = 1500L
 
 /** Claude Code's sign-in output, cleaned of terminal colour codes, and the link it prints. */
 internal object SignInOutput {
