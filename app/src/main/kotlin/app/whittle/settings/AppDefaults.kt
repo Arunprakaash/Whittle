@@ -23,6 +23,7 @@ data class AppDefaults(
     val toolRuntime: ToolRuntimeDefaults,
     val memory: MemoryDefaults,
     val attachments: AttachmentDefaults,
+    val updates: UpdateDefaults,
 ) : VersionedConfig {
     companion object {
         const val SCHEMA_VERSION = 1
@@ -88,6 +89,20 @@ data class SiteIconDefaults(
 ) {
     init {
         require(sizePx > 0 && maxPageBytes > 0 && maxIconBytes > 0 && memoryEntries > 0) { "siteIcons limits must be positive" }
+    }
+}
+
+/**
+ * Checking GitHub's Releases for a newer Whittle. [check] is the default of the user's switch in Settings; [latestReleaseUrl]
+ * is GitHub's latest-release endpoint, asked at most every [everyHours]; [apkPattern] picks the APK among a release's files.
+ * What the last check found is kept in [fileName], under the app's cache folder.
+ */
+@Serializable
+data class UpdateDefaults(val check: Boolean, val latestReleaseUrl: String, val apkPattern: String, val everyHours: Int, val fileName: String) {
+    init {
+        require(latestReleaseUrl.startsWith("https://")) { "updates.latestReleaseUrl must be https" }
+        require(everyHours > 0) { "updates.everyHours must be positive" }
+        Regex(apkPattern)
     }
 }
 

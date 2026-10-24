@@ -55,6 +55,9 @@ import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
 import app.whittle.llm.api.ModelDescriptor
 import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.net.toUri
+import android.content.Intent
 
 /** Settings: the model, how Whittle looks and feels, what it shares, and the user's data. Changes apply at once. */
 @Composable
@@ -240,12 +243,30 @@ fun SettingsScreen(
                 }
             }
             item {
+                val update by graph.updates.available.collectAsStateWithLifecycle()
+                val context = LocalContext.current
+                val version = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
                 SettingsSection(stringResource(R.string.settings_section_about)) {
                     SettingsRow(
                         icon = "info",
                         title = stringResource(R.string.settings_version_title),
-                        subtitle = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
-                        shape = segmentedShape(0, 1),
+                        subtitle = update?.let { stringResource(R.string.settings_version_update, version, it.version) } ?: version,
+                        shape = segmentedShape(0, 2),
+                        onClick = update?.let { release ->
+                            { context.startActivity(Intent(Intent.ACTION_VIEW, release.pageUrl.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                        },
+                    )
+                    SettingsToggleRow(
+                        icon = "download",
+                        title = stringResource(R.string.settings_updates_title),
+                        subtitle = stringResource(R.string.settings_updates_subtitle),
+                        checked = settings?.checkForUpdates == true,
+                        onCheckedChange = { on ->
+                            save { setCheckForUpdates(on) }
+                            if (on) graph.appScope.launch { graph.updates.checkIfDue() }
+                        },
+                        shape = segmentedShape(1, 2),
+                        enabled = settings != null,
                     )
                 }
             }
