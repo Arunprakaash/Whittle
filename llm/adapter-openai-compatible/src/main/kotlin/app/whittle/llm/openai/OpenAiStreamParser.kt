@@ -61,7 +61,8 @@ internal class OpenAiStreamParser(
 
     private fun accumulate(delta: ToolCallDelta) {
         val pending = pendingToolCalls.getOrPut(delta.index) { PendingToolCall() }
-        delta.id?.let { pending.id = it }
+        // Some OpenAI-compatible servers send "" for the id, or repeat it as "" in later fragments; that names no call.
+        delta.id?.takeIf { it.isNotEmpty() }?.let { pending.id = it }
         delta.function?.name?.let { pending.name.append(it) }
         delta.function?.arguments?.let { pending.arguments.append(it) }
     }
