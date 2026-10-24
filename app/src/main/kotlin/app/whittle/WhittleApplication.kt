@@ -22,6 +22,8 @@ import app.whittle.connectors.mcp.ConnectorState
 import app.whittle.quickstart.QuickStart
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.collectLatest
+import app.whittle.assistant.ScreenContext
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.drop
@@ -43,6 +45,9 @@ class WhittleApplication : Application() {
     }
 
     val notifications: RunNotifications by lazy { RunNotifications(this) }
+
+    /** The screen the assistant read, until the chat takes it (see [app.whittle.assistant.AssistSession]). */
+    val assistIncoming = MutableStateFlow<ScreenContext?>(null)
     val notificationManager: NotificationManager by lazy { getSystemService(NotificationManager::class.java) }
 
     private val scope = MainScope()

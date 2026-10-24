@@ -65,6 +65,7 @@ import app.whittle.onboarding.WelcomeScreen
 import app.whittle.linux.LinuxWorkspaceScreen
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.getAndUpdate
 import android.content.Intent
 import app.whittle.chat.AppShortcuts
 import app.whittle.chat.ShortcutOpening
@@ -94,10 +95,14 @@ class MainActivity : ComponentActivity() {
     /** A new chat asked for from the launcher icon or Quick Settings, until the chat takes it. */
     private val quickStart = MutableStateFlow<QuickStart?>(null)
 
+    /** Set when the assistant opened Whittle, until the chat takes the screen it read. */
+    private val assisting = MutableStateFlow(false)
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.action == ACTION_SHOW_CONNECTIONS) openingConnections.value = true
         QuickStart.from(intent.action)?.let { quickStart.value = it }
+        if (intent.action == ACTION_ASSIST) assisting.value = true
         SharedItems.from(intent)?.let { shared.value = it }
         AppShortcuts.opening(intent)?.let { openingApp.value = it }
     }
@@ -109,6 +114,7 @@ class MainActivity : ComponentActivity() {
             openingApp.value = AppShortcuts.opening(intent)
             openingConnections.value = intent?.action == ACTION_SHOW_CONNECTIONS
             quickStart.value = QuickStart.from(intent?.action)
+            assisting.value = intent?.action == ACTION_ASSIST
         }
         drawBehindSystemBars(dark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES)
         super.onCreate(savedInstanceState)
@@ -250,6 +256,17 @@ class MainActivity : ComponentActivity() {
                                 showingSettings = false; showingAllChats = false; showingModelPicker = false; showingAutomations = false
                                 showingMemory = false; showingLinux = false; showingConnectionLibrary = false; toolsOf = null
                                 chat.newChat(listen = start == QuickStart.SPEAK)
+                            }
+                            val assisted by assisting.collectAsStateWithLifecycle()
+                            LaunchedEffect(assisted) {
+                                if (!assisted) return@LaunchedEffect
+                                assisting.value = false
+                                val screen = (application as WhittleApplication).assistIncoming.getAndUpdate { null } ?: return@LaunchedEffect
+                                // The assistant lands in a new chat, whatever screen was open.
+                                files = null
+                                showingSettings = false; showingAllChats = false; showingModelPicker = false; showingAutomations = false
+                                showingMemory = false; showingLinux = false; showingConnectionLibrary = false; toolsOf = null
+                                chat.startWithScreen(screen)
                             }
                             val toolsConnection = toolsOf?.let { id -> connections.firstOrNull { it.server.id == id } }
                             val opening = files
@@ -430,6 +447,9 @@ class MainActivity : ComponentActivity() {
     companion object {
         /** Opens Settings, where the connections are; sent by the notification for a connection that signed Whittle out. */
         const val ACTION_SHOW_CONNECTIONS = "app.whittle.action.SHOW_CONNECTIONS"
+
+        /** Opens a new chat about the screen the assistant just read ([WhittleApplication.assistIncoming]). */
+        const val ACTION_ASSIST = "app.whittle.action.ASSIST_SCREEN"
     }
 }
 

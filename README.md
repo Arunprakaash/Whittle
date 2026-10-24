@@ -172,6 +172,15 @@ Settings › Automations, or asks in a chat and approves the `schedule_task` car
   automation tries again every few minutes. After a few hours it gives up, and the list shows the run as
   missed. Run now starts at once.
 
+### The assistant
+
+Whittle can be the phone's digital assistant (Settings › Tasks › Use as your assistant opens Android's picker). A
+long-press of power or home starts `AssistSession`, which reads the words on screen from Android's assist structure,
+leaving password fields out, and takes the screenshot if the user allows it in Android's assist settings. Whittle opens
+in a new chat with the screenshot attached and a chip naming the app; the words go with the next message as untrusted
+content, like a web page, so the run is tainted. Android also makes the assistant the speech recognizer, so
+`ForwardingRecognitionService` hands every request to a recognizer already installed.
+
 ### Connectors
 
 `connectors:mcp` speaks MCP over Streamable HTTP and the older SSE transport. Sign-in uses OAuth 2.1:

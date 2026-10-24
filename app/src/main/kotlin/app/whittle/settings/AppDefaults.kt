@@ -26,6 +26,7 @@ data class AppDefaults(
     val updates: UpdateDefaults,
     val starters: List<Starter>,
     val appIdeas: List<AppIdea>,
+    val assistant: AssistantDefaults,
 ) : VersionedConfig {
     companion object {
         const val SCHEMA_VERSION = 1
@@ -105,6 +106,17 @@ data class UpdateDefaults(val check: Boolean, val latestReleaseUrl: String, val 
         require(latestReleaseUrl.startsWith("https://")) { "updates.latestReleaseUrl must be https" }
         require(everyHours > 0) { "updates.everyHours must be positive" }
         Regex(apkPattern)
+    }
+}
+
+/**
+ * Whittle as the phone's assistant: how long a call waits for Android to hand over the screen and its screenshot
+ * ([waitMillis]), and the file in the app's cache the screenshot is kept in until it's attached.
+ */
+@Serializable
+data class AssistantDefaults(val waitMillis: Long, val screenshotFileName: String) {
+    init {
+        require(waitMillis > 0) { "assistant.waitMillis must be positive" }
     }
 }
 

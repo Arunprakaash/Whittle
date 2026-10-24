@@ -58,6 +58,9 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import android.content.Intent
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import app.whittle.assistant.AssistantRole
 
 /** Settings: the model, how Whittle looks and feels, what it shares, and the user's data. Changes apply at once. */
 @Composable
@@ -192,6 +195,10 @@ fun SettingsScreen(
                 }
             }
             item {
+                val context = LocalContext.current
+                // Read again when the user comes back from Android's settings.
+                var assistant by remember { mutableStateOf(AssistantRole.held(context)) }
+                LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { assistant = AssistantRole.held(context) }
                 SettingsSection(stringResource(R.string.settings_section_tasks)) {
                     SettingsToggleRow(
                         icon = "notifications",
@@ -202,8 +209,15 @@ fun SettingsScreen(
                             save { setKeepRunningInBackground(on) }
                             if (on) requestNotifications()
                         },
-                        shape = segmentedShape(0, 1),
+                        shape = segmentedShape(0, 2),
                         enabled = settings != null,
+                    )
+                    SettingsRow(
+                        icon = "assistant",
+                        title = stringResource(R.string.settings_assistant_title),
+                        subtitle = stringResource(if (assistant) R.string.settings_assistant_on else R.string.settings_assistant_body),
+                        shape = segmentedShape(1, 2),
+                        onClick = { AssistantRole.choose(context) },
                     )
                 }
             }

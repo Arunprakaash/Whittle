@@ -607,6 +607,9 @@ private fun Dock(
         AnimatedVisibility(!state.running, enter = WhittleTransitions.riseInPlace(), exit = WhittleTransitions.sinkOutPlace()) {
             ProjectChip(state.project, onClick = onChooseProject, modifier = Modifier.padding(start = WhittleSpace.xs))
         }
+        AnimatedVisibility(state.screen != null, enter = WhittleTransitions.riseInPlace(), exit = WhittleTransitions.sinkOutPlace()) {
+            ScreenChip(state.screen?.appName, onRemove = viewModel::removeScreen, modifier = Modifier.padding(start = WhittleSpace.xs).userContent())
+        }
         AnimatedVisibility(
             state.attachments.isNotEmpty() || state.attaching > 0,
             enter = WhittleTransitions.riseInPlace(),
