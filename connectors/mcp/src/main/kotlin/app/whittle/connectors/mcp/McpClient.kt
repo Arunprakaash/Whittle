@@ -126,9 +126,9 @@ class McpClient(
                 is Outcome.Success -> built.value
                 is Outcome.Failure -> return built
             }
-            (open(sent) as? Outcome.Failure)?.let { return it }
-            val body = rpc(method, params)
-            when (val reply = transport.send(body, body[ID], sent)) {
+            // A refusal while the session opens is handled like one to the request itself: refresh once, then retry.
+            val reply = open(sent) ?: rpc(method, params).let { body -> transport.send(body, body[ID], sent) }
+            when (reply) {
                 is Reply.Result -> return Outcome.Success(reply.value)
                 is Reply.Error -> return Outcome.Failure(HarnessError.Provider(reply.code, reply.message))
                 Reply.Unauthorized -> if (refreshed) return signInAgain() else { refreshed = true; reset() }
@@ -147,8 +147,9 @@ class McpClient(
         return Outcome.Success(headers() + listOfNotNull(token?.let { AUTHORIZATION to "$BEARER $it" }))
     }
 
-    private suspend fun open(headers: Map<String, String>): Outcome<Unit> = sessionLock.withLock {
-        if (initialized) return@withLock Outcome.Success(Unit)
+    /** Opens the session unless it's open; null once it is, else the reply that kept it from opening. */
+    private suspend fun open(headers: Map<String, String>): Reply? = sessionLock.withLock {
+        if (initialized) return@withLock null
         val initialize = rpc(
             METHOD_INITIALIZE,
             buildJsonObject {
@@ -159,14 +160,12 @@ class McpClient(
         )
         when (val reply = transport.send(initialize, initialize[ID], headers)) {
             is Reply.Result -> Unit
-            is Reply.Error -> return@withLock Outcome.Failure(HarnessError.Provider(reply.code, reply.message))
-            Reply.Unauthorized -> return@withLock signInAgain()
-            Reply.SessionGone -> return@withLock Outcome.Failure(HarnessError.Network("$name refused a new connection"))
-            is Reply.Failed -> return@withLock Outcome.Failure(reply.error)
+            Reply.SessionGone -> return@withLock Reply.Failed(HarnessError.Network("$name refused a new connection"))
+            else -> return@withLock reply
         }
         transport.send(notification(METHOD_INITIALIZED), id = null, headers)
         initialized = true
-        Outcome.Success(Unit)
+        null
     }
 
     private fun rpc(method: String, params: JsonObject) = buildJsonObject {
