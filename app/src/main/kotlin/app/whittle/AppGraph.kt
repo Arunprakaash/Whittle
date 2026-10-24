@@ -90,7 +90,6 @@ import app.whittle.policy.RuleBasedPolicyEngine
 import app.whittle.settings.AppDefaults
 import app.whittle.updates.UpdateCheck
 import app.whittle.chat.AppShortcuts
-import app.whittle.settings.NotificationApprovalDefaults
 import app.whittle.settings.ConnectionStore
 import app.whittle.storage.chats.ChatStore
 import app.whittle.storage.chats.RoomChatStore
@@ -100,6 +99,7 @@ import app.whittle.storage.secrets.SecretStore
 import app.whittle.storage.secrets.SecretStoreCredentialsProvider
 import app.whittle.storage.secrets.TinkContentCipher
 import app.whittle.tools.api.Tool
+import app.whittle.tools.api.ToolDefinition
 import app.whittle.tools.api.ToolRegistry
 import app.whittle.tools.presentation.ToolPresentationConfig
 import app.whittle.tools.presentation.ToolPresenter
@@ -138,6 +138,7 @@ class AppGraph(context: Context) {
 
     private val harness = load(ConfigFiles.harness, HarnessConfig.serializer(), HarnessConfig.SCHEMA_VERSION)
     private val appDefaults = load(AppDefaults.FILE, AppDefaults.serializer(), AppDefaults.SCHEMA_VERSION)
+    private val policyRules = load(ConfigFiles.policyRules, PolicyRuleSet.serializer(), PolicyRuleSet.SCHEMA_VERSION)
     val sidebarMaxChats: Int get() = appDefaults.chatList.sidebarMaxChats
     val memoryIdeas: List<MemoryIdea> get() = appDefaults.memory.ideas
     val starters: List<Starter> get() = appDefaults.starters
@@ -179,7 +180,13 @@ class AppGraph(context: Context) {
 
     /** Whether tasks keep running in the background before the user's saved choice has loaded. */
     val defaultKeepRunningInBackground: Boolean get() = appDefaults.background.keepRunning
-    val notificationApprovals: NotificationApprovalDefaults get() = appDefaults.background.approvals
+
+    /**
+     * Whether the approval for [tool], asked for in a run that has ([tainted]) or hasn't read untrusted content, may be
+     * answered from its notification rather than only in the app.
+     */
+    fun approvableFromNotification(tool: ToolDefinition, tainted: Boolean): Boolean =
+        appDefaults.background.approvals.buttonsFor(tool, tainted, alwaysAsks = policyRules.alwaysAsks(tool, tainted))
 
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(harness.network.connectTimeoutMillis, TimeUnit.MILLISECONDS)
@@ -400,7 +407,7 @@ class AppGraph(context: Context) {
         providers = providers,
         credentials = SecretStoreCredentialsProvider(secrets),
         tools = tools,
-        policy = RuleBasedPolicyEngine(load(ConfigFiles.policyRules, PolicyRuleSet.serializer(), PolicyRuleSet.SCHEMA_VERSION)),
+        policy = RuleBasedPolicyEngine(policyRules),
         inbox = inbox,
         checkpoints = checkpoints,
         telemetry = telemetry(context),

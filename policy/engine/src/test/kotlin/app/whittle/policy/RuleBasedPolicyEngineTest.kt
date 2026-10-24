@@ -9,7 +9,9 @@ import app.whittle.tools.api.ToolId
 import kotlinx.serialization.json.JsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class RuleBasedPolicyEngineTest {
     private val baseRules = PolicyRuleSet(
@@ -122,6 +124,21 @@ class RuleBasedPolicyEngineTest {
 
         assertIs<PolicyDecision.Allow>(engine.evaluate(remember, context()))
         assertEquals(DecisionReason.Rule("remember-after-outside"), assertIs<PolicyDecision.Ask>(engine.evaluate(remember, context(tainted = true))).reason)
+    }
+
+    @Test
+    fun `always-ask rules name the calls the policy always puts to the user, taint included`() {
+        val rules = baseRules.copy(
+            rules = listOf(
+                PolicyRule("calls", RuleEffect.ASK, ToolMatcher(toolIdPattern = "call")),
+                PolicyRule("remember-after-outside", RuleEffect.ASK, ToolMatcher(toolIdPattern = "remember"), whenTainted = true),
+                PolicyRule("allow-files", RuleEffect.ALLOW, ToolMatcher(toolIdPattern = "files.*")),
+            ),
+        )
+        assertTrue(rules.alwaysAsks(tool("call", RiskTier.WRITE_LOCAL), tainted = false))
+        assertTrue(rules.alwaysAsks(tool("remember", RiskTier.WORKSPACE), tainted = true))
+        assertFalse(rules.alwaysAsks(tool("remember", RiskTier.WORKSPACE), tainted = false))
+        assertFalse(rules.alwaysAsks(tool("files.read", RiskTier.READ), tainted = true))
     }
 
     private fun tool(id: String, risk: RiskTier) = ToolDefinition(

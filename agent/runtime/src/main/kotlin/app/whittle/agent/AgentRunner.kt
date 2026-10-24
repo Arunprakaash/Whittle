@@ -424,7 +424,7 @@ class AgentRunner(
             TelemetryEvent.DECISION_REQUESTED,
             toolAttributes(checkpoint, tool) + Attributes.of { metadata(AttributeKeys.DECISION_KIND, kind.name) },
         )
-        emit(RunEvent.DecisionRequested(pending, tool.definition, arguments))
+        emit(RunEvent.DecisionRequested(pending, tool.definition, arguments, checkpoint.tainted))
         val waiting = when (kind) {
             DecisionKind.APPROVAL -> messages.awaitingUser(call.toolName)
             DecisionKind.QUESTION -> messages.questionShown(call.toolName)

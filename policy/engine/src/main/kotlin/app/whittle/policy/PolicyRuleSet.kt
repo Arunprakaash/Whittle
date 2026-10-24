@@ -25,6 +25,13 @@ data class PolicyRuleSet(
         require(missingTrust.isEmpty()) { "trustTierLimits is missing $missingTrust" }
     }
 
+    /**
+     * Whether an ask rule covers [tool] in a run that has ([tainted]) or hasn't read untrusted content, in any run mode:
+     * the calls this policy deliberately always puts to the user.
+     */
+    fun alwaysAsks(tool: ToolDefinition, tainted: Boolean): Boolean =
+        rules.any { it.effect == RuleEffect.ASK && (it.whenTainted == null || it.whenTainted == tainted) && it.matcher.matches(tool) }
+
     companion object {
         const val SCHEMA_VERSION = 1
     }

@@ -43,7 +43,8 @@
     "keepRunning": true,
     "approvals": {
       "fromNotification": true,
-      "inAppOnly": ["DELETE_OR_PAY"]
+      "inAppOnlyTiers": ["DELETE_OR_PAY"],
+      "inAppOnlyTools": []
     }
   },
   "projects": {

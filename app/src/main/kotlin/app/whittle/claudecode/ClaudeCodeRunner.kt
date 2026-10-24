@@ -155,7 +155,8 @@ class ClaudeCodeRunner(
                             val name = named(event.toolName)
                             val decision = PendingDecision(call(id, name, event.input), ToolId(name), ApprovalScope.EVERY_CALL, step)
                             asking[id] = Asking(event.requestId, event.input, decision)
-                            send(RunEvent.DecisionRequested(decision, definition(name), event.input))
+                            // Claude Code reads files and the web on its own, so Whittle can't tell what steered it: tainted.
+                            send(RunEvent.DecisionRequested(decision, definition(name), event.input, tainted = true))
                         }
                         is ClaudeCodeEvent.OtherRequest -> process.write(ClaudeCodeStream.unsupported(event.requestId))
                         is ClaudeCodeEvent.ApiError -> apiError = event.kind
