@@ -12,7 +12,8 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  # Write only for the mirror step, which runs on pushes to main; pull requests from forks get read-only tokens anyway.
+  contents: write
 
 jobs:
   build:
@@ -43,6 +44,18 @@ jobs:
 
       - name: Test, lint and build
         run: ./gradlew test :app:lintRelease :app:assembleDebug
+
+      # Termux keeps only each package's current version, so a pinned one can vanish (5.1.107.98 did) and break
+      # every fresh build. From main, the pinned .debs go to the termux-runtimes release, the mirror the build
+      # falls back to (termux-runtimes.json); uploads replace files of the same name, and old versions stay.
+      - name: Mirror the pinned Termux packages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./gradlew :app:collectTermuxDebs
+          gh release view termux-runtimes > /dev/null 2>&1 || gh release create termux-runtimes --title "Termux runtimes (build mirror)" --notes "The Termux packages app/termux-runtimes.lock.json pins, kept for builds after Termux drops them. Not a Whittle release." --latest=false
+          gh release upload termux-runtimes app/build/termux-mirror/*.deb --clobber
 
       - name: Keep the reports
         if: failure()
