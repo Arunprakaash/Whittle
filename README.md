@@ -330,6 +330,20 @@ Pick the reasoning effort with `--reasoning none|low|medium|high`; the default c
 Use `--approve ask|always|never` to choose how approvals are handled (the default `ask` prompts in the
 terminal), and `--memory-file` to choose where memories are kept (default `~/.whittle/cli-memory.json`).
 
+### Evals
+
+A suite is a fixed set of tasks, each with its own files, its answer to approvals and what a passing run shows: tools
+called, run or refused, approvals asked, words in the answer, files written. Run it against a model to see what a change
+to the prompt, the policy or a tool did:
+
+```bash
+dev/cli/build/install/cli/bin/cli --provider openai --model <model-id> --eval dev/cli/evals/core.json
+```
+
+Each case runs in a fresh workspace with an empty memory. Results print as they finish and go to
+`build/eval-report.json` (`--report` to change it); the exit code is non-zero when any case fails. Every case calls the
+model, so a suite costs what its runs cost, and CI doesn't run it.
+
 ## Contributing
 
 How we work (branches and pull requests, config over code, design tokens, safety, tests) is in

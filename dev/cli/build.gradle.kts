@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.whittle.jvm.library)
+    alias(libs.plugins.kotlin.serialization)
     application
 }
 
@@ -21,4 +22,5 @@ dependencies {
     implementation(project(":tools:web"))
     implementation(project(":tools:workspace"))
     implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
 }
