@@ -209,6 +209,10 @@
     <string name="notify_install_prompt_public">Tap to finish installing an app</string>
     <string name="notify_update_title">Whittle %1$s is out</string>
     <string name="notify_update_text">Tap to see what\'s new and download it</string>
+    <!-- Quick starts: the launcher icon's long-press menu and the Quick Settings tile -->
+    <string name="quick_new_chat">New chat</string>
+    <string name="quick_speak">Speak</string>
+    <string name="quick_tile_label">Ask Whittle</string>
     <!-- Settings -->
     <string name="settings_title">Settings</string>
     <string name="settings_back">Back</string>

@@ -1,5 +1,6 @@
 package app.whittle.chat
 
+import app.whittle.quickstart.QuickStart
 import app.whittle.storage.chats.ChatId
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -18,6 +19,17 @@ class AppShortcutsTest {
         assertNull(chatOf("new-chat"))
         assertNull(chatOf("app:"))
         assertNull(chatOf("app::process-7"))
+    }
+
+    @Test
+    fun `a shortcut opens its app only when it came through the quick start alias`() {
+        val open = AppShortcuts.ACTION_OPEN_APP
+        assertEquals(ShortcutOpening(ChatId("c-1"), "p-2"), AppShortcuts.opening(open, QuickStart.ENTRY, "c-1", "p-2"))
+        // MainActivity is exported: another app can send the same action and extras straight to it.
+        assertNull(AppShortcuts.opening(open, "app.whittle.MainActivity", "c-1", "p-2"))
+        assertNull(AppShortcuts.opening(open, null, "c-1", "p-2"))
+        assertNull(AppShortcuts.opening("other", QuickStart.ENTRY, "c-1", "p-2"))
+        assertNull(AppShortcuts.opening(open, QuickStart.ENTRY, "c-1", null))
     }
 
     @Test

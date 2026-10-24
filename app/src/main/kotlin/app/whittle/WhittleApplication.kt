@@ -17,6 +17,7 @@ import app.whittle.apps.AppToolchainService
 import app.whittle.chat.ChatEvent
 import app.whittle.chat.ChatViewModel
 import app.whittle.storage.chats.ChatId
+import app.whittle.quickstart.QuickStart
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -49,6 +50,8 @@ class WhittleApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         notifications.createChannels()
+        QuickStart.publish(this)
+        graph.appShortcuts.migratePinned()
         registerActivityLifecycleCallbacks(VisibilityTracker())
         scope.launch {
             // Started with the task, while Whittle is on screen (Android refuses it once in the background).

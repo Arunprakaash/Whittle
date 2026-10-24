@@ -14,7 +14,7 @@ the [README](../../README.md) and [Linux workspace](../linux-workspace.md) descr
 | Diagram | Status | What's different now |
 | --- | --- | --- |
 | d01 System context | Partly | Providers are OpenAI, OpenRouter and any OpenAI-compatible server. No user-owned cloud, report form, Developer Console or package installs: nothing is exported |
-| d02 Layered architecture | Partly | No code runtimes, artifact builders or capability bridge: commands run in Ubuntu under proot, behind a seccomp sandbox. Surfaces are the chat, its cards and notifications: no share target, Quick Settings tile, assistant session, widgets or shortcuts |
+| d02 Layered architecture | Partly | No code runtimes, artifact builders or capability bridge: commands run in Ubuntu under proot, behind a seccomp sandbox. Surfaces are the chat, its cards and notifications, the share sheet, the launcher icon's New chat and Speak, and a Quick Settings tile: no assistant session or widgets |
 | d03 Module map | Partly | No `runtime/`, `export/` or `automation/` modules, and no Anthropic or Gemini adapters. The README lists the real modules |
 | d04 Agent run loop | Holds | Except auto-fix and scheduled jobs, which aren't built |
 | d05 Policy engine | Holds | The README has the full order, which adds trust-tier denials and personal data |

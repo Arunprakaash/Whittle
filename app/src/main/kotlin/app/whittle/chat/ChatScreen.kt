@@ -552,6 +552,11 @@ private fun Dock(
     modifier: Modifier = Modifier,
 ) {
     val voice = rememberVoice(voiceDefaults, state.input, viewModel::updateInput)
+    LaunchedEffect(state.listenNow) {
+        if (!state.listenNow) return@LaunchedEffect
+        viewModel.listenStarted()
+        if (voice != null && !voice.listening) voice.onToggle()
+    }
     val openAttachment = LocalOpenAttachment.current
     // No background of its own: only the cards, the chip and the composer cover the thread behind them.
     Column(
