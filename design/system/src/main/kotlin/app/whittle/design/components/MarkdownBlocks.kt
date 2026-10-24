@@ -46,6 +46,36 @@ object MarkdownBlocks {
         return blocks
     }
 
+    /**
+     * A text block's paragraphs, split at blank lines but never inside a ``` fence, so a long streaming answer can be
+     * laid out a paragraph at a time: only the last one changes as text arrives.
+     */
+    fun paragraphs(text: String): List<String> {
+        val paragraphs = mutableListOf<String>()
+        val current = mutableListOf<String>()
+        var inFence = false
+        fun flush() {
+            if (current.isNotEmpty()) paragraphs += current.joinToString("\n")
+            current.clear()
+        }
+        for (line in text.split('\n')) {
+            if (FENCE.matches(line)) inFence = !inFence
+            if (line.isBlank() && !inFence) flush() else current += line
+        }
+        flush()
+        return paragraphs
+    }
+
+    /**
+     * A paragraph in runs of up to [maxLines] lines, so a long list streaming in only lays out its last run again.
+     * A paragraph with a ``` fence stays whole: the fence styles the lines after it.
+     */
+    fun runs(paragraph: String, maxLines: Int): List<String> {
+        val lines = paragraph.split('\n')
+        if (lines.size <= maxLines || lines.any(FENCE::matches)) return listOf(paragraph)
+        return lines.chunked(maxLines) { it.joinToString("\n") }
+    }
+
     private fun isRow(line: String): Boolean = line.trim().let { it.startsWith(PIPE) && it.count { c -> c == '|' } >= 2 }
 
     private fun cells(line: String): List<String> =
@@ -56,5 +86,7 @@ object MarkdownBlocks {
 
     /** A pipe that isn't escaped with a backslash. */
     private val CELL_SPLIT = Regex("""(?<!\\)\|""")
+    /** A ``` line, which opens or closes a code block (as in [lightMarkdown]). */
+    private val FENCE = Regex("""^\s*```.*$""")
     private val SEPARATOR = Regex("""^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?$""")
 }

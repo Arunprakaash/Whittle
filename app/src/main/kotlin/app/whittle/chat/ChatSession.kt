@@ -326,6 +326,7 @@ class ChatSession(
     fun cutOff() {
         activeJob?.cancel()
         activeJob = null
+        landText()
         save()
         activeRunId = null
         waitingToContinue.clear()
@@ -341,6 +342,7 @@ class ChatSession(
 
     /** The session is done with: what it holds is saved and its work stops. */
     fun close() {
+        landText()
         save()
         scope.cancel()
     }
@@ -396,7 +398,7 @@ class ChatSession(
                 if (status != null && !status.writing && status.state != AgentState.Done && !stepRunning()) {
                     setStatus(AgentState.Acting, verb = null, writing = true)
                 }
-                appendNarration(event.text)
+                streamText(event.text)
             }
             is RunEvent.ToolCallDecided -> onToolCallDecided(event)
             is RunEvent.ToolCallFinished -> onToolCallFinished(event)
@@ -675,6 +677,34 @@ class ChatSession(
         state.copy(items = state.items.take(answer + 1) + item + state.items.drop(answer + 1))
     }
 
+    /** Streamed text not on screen yet, and the wait before it lands. */
+    private val pendingText = StringBuilder()
+    private var textLanding: Job? = null
+
+    /**
+     * Holds streamed text for up to [STREAM_FRAME_MILLIS], then shows it all at once, so a fast stream updates the
+     * thread a few times a frame's worth instead of on every token, which would keep the main thread busy.
+     */
+    private fun streamText(text: String) {
+        pendingText.append(text)
+        if (textLanding != null) return
+        textLanding = scope.launch {
+            delay(STREAM_FRAME_MILLIS)
+            textLanding = null
+            landText()
+        }
+    }
+
+    /** Shows any held text now: before anything else happens in the thread, and before it's saved. */
+    private fun landText() {
+        textLanding?.cancel()
+        textLanding = null
+        if (pendingText.isEmpty()) return
+        val text = pendingText.toString()
+        pendingText.setLength(0)
+        appendNarration(text)
+    }
+
     private fun appendNarration(text: String) = _state.update { state ->
         val last = state.items.lastOrNull()
         if (last is ThreadItem.Narration && last.streaming) {
@@ -684,9 +714,14 @@ class ChatSession(
         }
     }
 
-    private fun finishNarration() = _state.update { state ->
+    private fun finishNarration() {
+        landText()
+        _state.update { state -> narrationFinished(state) }
+    }
+
+    private fun narrationFinished(state: SessionState): SessionState {
         val last = state.items.lastOrNull()
-        if (last is ThreadItem.Narration && last.streaming) state.copy(items = state.items.dropLast(1) + last.copy(streaming = false)) else state
+        return if (last is ThreadItem.Narration && last.streaming) state.copy(items = state.items.dropLast(1) + last.copy(streaming = false)) else state
     }
 
     private fun addStep(step: StepModel) = _state.update { state ->
@@ -826,6 +861,8 @@ class ChatSession(
         const val FILE_PATH = "path"
         const val HOSTED_ACTION_SEPARATOR = "."
         const val SAVE_DEBOUNCE_MILLIS = 400L
+        /** How long streamed text waits to land, so a fast stream redraws the thread at most this often. */
+        const val STREAM_FRAME_MILLIS = 50L
         const val INSPECTION_MAX_CHARS = 4_000
         const val TITLE_MAX_CHARS = 80
         const val TOO_MANY_REQUESTS = 429
