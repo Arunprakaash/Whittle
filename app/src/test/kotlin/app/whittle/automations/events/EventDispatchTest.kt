@@ -48,4 +48,24 @@ class EventDispatchTest {
         assertEquals(listOf("bank"), arrived)
         assertEquals(setOf("bank"), gate.pending().keys)
     }
+
+    @Test
+    fun dispatchWaitsForAutomationsStillLoading() = runTest {
+        val saved = Automations(
+            MemoryBackend(), RecordingAlarms(), testAutomationsConfig, EpochClock { now }, IdGenerator { "x" }, { zone }, this,
+        ).draft("bank", "Do it").copy(id = "bank", schedule = null, trigger = Trigger.Sms(listOf("HDFCBK")))
+        val slow = object : app.whittle.automations.AutomationBackend {
+            override suspend fun load(): List<Automation> {
+                kotlinx.coroutines.delay(5_000)
+                return listOf(saved)
+            }
+
+            override suspend fun save(automations: List<Automation>) = app.whittle.core.common.Outcome.Success(Unit)
+        }
+        val automations = Automations(slow, RecordingAlarms(), testAutomationsConfig, EpochClock { now }, IdGenerator { "x" }, { zone }, this)
+        val gate = EventGate(MemoryEventBackend(), testEventsConfig, CodeMask(testCodeMaskConfig), EpochClock { now }, { zone }, this)
+        val arrived = mutableListOf<String>()
+        EventDispatch(automations, gate) { arrived += it }.dispatch(PhoneEvent(EventKind.SMS, "HDFCBK", "Spent 10", now))
+        assertEquals(listOf("bank"), arrived)
+    }
 }

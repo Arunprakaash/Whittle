@@ -17,7 +17,7 @@ class EventDispatch(
     private val eventsArrived: suspend (String) -> Unit,
 ) {
     suspend fun dispatch(event: PhoneEvent) {
-        for (automation in automations.all.value) {
+        for (automation in automations.loadedAll()) {
             if (!automation.enabled || !automation.isEvent || automation.trigger?.matches(event) != true) continue
             if (gate.offer(automation.id, event) is GateDecision.RunAt) eventsArrived(automation.id)
         }

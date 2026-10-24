@@ -11,7 +11,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Sees every notification once the user allows it in Android's settings, and hands the ones an enabled automation
- * watches to [EventDispatch]. With none watching it ignores everything at once. Nothing is stored here but each
+ * watches to [EventDispatch]. With none watching it ignores everything after one check. Nothing is stored here but each
  * notification's last text, in memory, to tell a re-post from a new one.
  */
 class WhittleNotificationListener : NotificationListenerService() {
@@ -19,28 +19,33 @@ class WhittleNotificationListener : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         val app = application as WhittleApplication
-        val watched = app.graph.automations.all.value
-            .filter { it.enabled && it.isEvent }
-            .mapNotNull { (it.trigger as? Trigger.Notification)?.app }
-            .toSet()
-        if (sbn.packageName !in watched) return
+        val text = textOf(sbn)
+        val ongoing = sbn.isOngoing
+        val summary = sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY != 0
+        app.graph.appScope.launch {
+            // Awaits the saved automations: in a fresh process they are not loaded yet, and none would mean a dropped event.
+            val watched = app.graph.automations.loadedAll()
+                .filter { it.enabled && it.isEvent }
+                .mapNotNull { (it.trigger as? Trigger.Notification)?.app }
+                .toSet()
+            if (sbn.packageName !in watched) return@launch
+            val fire = synchronized(lastTextByKey) {
+                NotificationFilter.shouldFire(
+                    sbn.packageName, packageName, ongoing, summary, sbn.key, text, lastTextByKey,
+                )
+            }
+            if (fire) {
+                app.eventDispatch.dispatch(PhoneEvent(EventKind.NOTIFICATION, sbn.packageName, text, app.graph.clock.nowMillis()))
+            }
+        }
+    }
+
+    private fun textOf(sbn: StatusBarNotification): String {
         val extras = sbn.notification.extras
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
         val body = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT) ?: extras.getCharSequence(Notification.EXTRA_TEXT))
             ?.toString().orEmpty()
-        val text = if (title.isEmpty()) body else "$title\n$body"
-        val fire = synchronized(lastTextByKey) {
-            NotificationFilter.shouldFire(
-                sbn.packageName, packageName,
-                ongoing = sbn.isOngoing,
-                groupSummary = sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY != 0,
-                key = sbn.key, text = text, lastTextByKey = lastTextByKey,
-            )
-        }
-        if (!fire) return
-        app.graph.appScope.launch {
-            app.eventDispatch.dispatch(PhoneEvent(EventKind.NOTIFICATION, sbn.packageName, text, app.graph.clock.nowMillis()))
-        }
+        return if (title.isEmpty()) body else "$title\n$body"
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {

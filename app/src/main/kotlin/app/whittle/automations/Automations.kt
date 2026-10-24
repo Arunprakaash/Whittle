@@ -66,6 +66,9 @@ class Automations(
     /** Every automation, in the order they were made; empty until loaded. */
     val all: StateFlow<List<Automation>> = _all.asStateFlow()
 
+    /** Every automation once they are loaded: for a caller that may run in a fresh process (an event source), where [all] is still empty. */
+    suspend fun loadedAll(): List<Automation> = current()
+
     /** The time zone schedules are in: the phone's, as it is now. */
     val zone: ZoneId get() = zones()
 
