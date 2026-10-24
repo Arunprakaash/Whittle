@@ -127,8 +127,9 @@ data class BackgroundDefaults(val keepRunning: Boolean, val approvals: Notificat
 /**
  * Approval cards that appear while the user is away. With [fromNotification] on, their notification carries the card's own
  * Approve and Decline buttons, which work only once the phone is unlocked. Some calls are only decided in the app, where the
- * notification opens the chat: those at an [inAppOnlyTiers] risk tier; the [inAppOnlyTools]; every call the policy always
- * asks about; and every call from a run that has read untrusted content, which may be what asked for it.
+ * notification opens the chat: those at an [inAppOnlyTiers] risk tier; the [inAppOnlyTools], such as hand-offs that open
+ * another app, which Android may not let Whittle start from the background; every call the policy always asks about; and
+ * every call from a run that has read untrusted content, which may be what asked for it.
  */
 @Serializable
 data class NotificationApprovalDefaults(val fromNotification: Boolean, val inAppOnlyTiers: Set<RiskTier>, val inAppOnlyTools: Set<String>) {
