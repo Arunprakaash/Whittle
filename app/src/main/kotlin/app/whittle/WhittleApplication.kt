@@ -41,7 +41,11 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.collectLatest
 import app.whittle.assistant.ForwardingRecognitionService
 import app.whittle.assistant.ScreenContext
+import app.whittle.automations.events.AndroidPhoneReader
+import app.whittle.automations.events.AndroidPhoneScheduler
 import app.whittle.automations.events.EventDispatch
+import app.whittle.automations.events.FilePhoneStateStore
+import app.whittle.automations.events.PhoneStateWatch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -84,6 +88,20 @@ class WhittleApplication : Application() {
     /** Where the SMS receiver and the notification listener hand events, so they reach the runner. */
     val eventDispatch: EventDispatch by lazy {
         EventDispatch(graph.automations, graph.eventGate) { automationRunner.eventsArrived(it) }
+    }
+
+    /** Watches charging, Wi-Fi and places for the automations that start on them; armed from [onCreate] and each wake. */
+    val phoneStateWatch: PhoneStateWatch by lazy {
+        val reader = AndroidPhoneReader(this)
+        PhoneStateWatch(
+            automations = graph.automations,
+            dispatch = eventDispatch::dispatch,
+            config = graph.automations.config.events,
+            reader = reader,
+            store = FilePhoneStateStore(graph.phoneStateFile),
+            scheduler = AndroidPhoneScheduler(this, graph.automations.config.events, reader),
+            clock = graph.clock,
+        )
     }
 
     val notifications: RunNotifications by lazy { RunNotifications(this) }
@@ -139,6 +157,8 @@ class WhittleApplication : Application() {
         // Alarms don't survive a force stop or a restore from backup; setting them at each launch costs nothing.
         graph.appScope.launch { graph.automations.rescheduleAll() }
         graph.appScope.launch { graph.reminders.rescheduleAll() }
+        // Wake sources are lost with the process or a restart; this arms them again, and again when the triggers change.
+        phoneStateWatch.start(graph.appScope)
         // Whittle is installed from GitHub, so it looks there for a newer version: once a day at most, while the user allows it.
         graph.appScope.launch {
             if (graph.settings.settings.first().checkForUpdates) graph.updates.checkIfDue()?.let(notifications::updateAvailable)

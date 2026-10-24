@@ -15,7 +15,8 @@
     "customConnectorsStoreName": "whittle_connectors",
     "chatProjectsFileName": "chat-projects.json",
     "automationsFileName": "automations.enc",
-    "automationEventsFileName": "automation-events.bin"
+    "automationEventsFileName": "automation-events.bin",
+    "phoneStateFileName": "phone-state.json"
   },
   "terminal": {
     "shell": "/system/bin/sh",

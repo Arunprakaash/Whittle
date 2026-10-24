@@ -18,6 +18,12 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Automations that start on a text; asked in the walkthrough when the user picks that trigger. -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <!-- Automations that start at a place, and the name of the Wi-Fi network (Android hides it without location); asked
+         in the walkthrough when the user picks one of those triggers. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Installing the apps Whittle builds, only when the user taps Install on one; Android asks them to allow it first. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Remove on an app's card asks Android to uninstall it; without this, Android 9 refuses the request. -->
@@ -166,6 +172,18 @@
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
         </receiver>
+        <!-- Charging, Wi-Fi and place automations: the job runs on the charger and every few minutes to look at the phone;
+             the receivers are named by Whittle's own network callback and proximity alerts. Nothing is exported. -->
+        <service
+            android:name=".automations.events.PhoneStateJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+        <receiver
+            android:name=".automations.events.NetworkReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".automations.events.PlaceReceiver"
+            android:exported="false" />
         <!-- An app's notification: may start an automation, once the user allows it in Android's settings. Only the system binds it. -->
         <service
             android:name=".automations.events.WhittleNotificationListener"

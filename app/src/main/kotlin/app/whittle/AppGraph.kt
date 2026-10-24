@@ -375,6 +375,9 @@ class AppGraph(context: Context) {
 
     private val automationsConfig = load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION)
 
+    /** Where the phone's last seen charging, Wi-Fi and places are kept. */
+    val phoneStateFile = File(context.filesDir, appDefaults.storage.phoneStateFileName)
+
     /** Events waiting for their automation's run, kept encrypted so a reboot doesn't lose them. */
     val eventGate = EventGate(
         backend = EncryptedFileEventQueue(File(context.filesDir, appDefaults.storage.automationEventsFileName), cipher),
