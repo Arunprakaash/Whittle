@@ -150,6 +150,10 @@ const releases = await fetchReleases();
 const latest = releases[0];
 const apk = latest.assets.find((asset) => new RegExp(config.releases.apkPattern).test(asset.name));
 const [styles, script, template] = await Promise.all(['styles.css', 'site.js', 'index.html'].map((name) => readFile(new URL(name, srcDir), 'utf8')));
+// Drawn by og-image.py and committed; the page links it by its own URL, versioned so link previews refetch it.
+const ogImageSource = new URL(config.ogImage.file, siteDir);
+const ogImage = await readFile(ogImageSource);
+const ogImageName = ogImageSource.pathname.split('/').at(-1);
 const firstQuestion = config.questions[0];
 
 const raw = {
@@ -181,6 +185,10 @@ const text = {
   choresLeft: `${config.chores.items.length} to go`,
   firstQuestion: firstQuestion.q,
   firstAnswer: firstQuestion.answer,
+  ogImageUrl: `${new URL(ogImageName, config.url)}?v=${version(ogImage)}`,
+  ogImageWidth: config.ogImage.width,
+  ogImageHeight: config.ogImage.height,
+  ogImageAlt: config.ogImage.alt,
   stylesVersion: version(styles),
   scriptVersion: version(script),
 };
@@ -195,6 +203,7 @@ await Promise.all([
   writeFile(new URL('site.js', distDir), script),
   writeFile(new URL('beaver.svg', distDir), frameSvg(beaver, beaver.frames.idle)),
   writeFile(new URL('chai.svg', distDir), frameSvg(chai, Object.values(chai.frames)[0])),
+  writeFile(new URL(ogImageName, distDir), ogImage),
   // GitHub Pages serves the files as they are.
   writeFile(new URL('.nojekyll', distDir), ''),
 ]);

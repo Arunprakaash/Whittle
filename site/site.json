@@ -6,6 +6,36 @@
     "beaver": "../docs/design/sprites/beaver.sprite.json",
     "chai": "src/chai.sprite.json"
   },
+  "ogImage": {
+    "$description": "The link-preview picture shown when the page is shared. og-image.py draws it from these settings and the beaver sprite into file, which is committed: run python3 site/og-image.py again after changing either. build.mjs copies it to dist and points og:image at it. Sizes are in pixels; tracking is the extra space between letters.",
+    "file": "src/og.png",
+    "alt": "Whittle: whittle down your to-do list. The pixel beaver on graph paper.",
+    "width": 1200,
+    "height": 630,
+    "font": "../design/system/src/main/res/font/figtree.ttf",
+    "gridSize": 40,
+    "colors": { "paper": "#FBF8F2", "grid": "rgba(78, 50, 32, 0.07)", "ink": "#1F1A15", "ink2": "#5B5248", "muted": "#8C8378", "accent": "#2B6A55", "marker": "#B3F0D6", "shadow": "rgba(78, 50, 32, 0.12)" },
+    "type": {
+      "kicker": { "weight": 700, "size": 26, "tracking": 3 },
+      "title": { "weight": 800, "size": 150, "tracking": -4 },
+      "tagline": { "weight": 600, "size": 46, "lineHeight": 58 },
+      "foot": { "weight": 700, "size": 21, "tracking": 2 }
+    },
+    "layout": { "left": 88, "capHeight": 0.74, "kickerGap": 34, "titleGap": 18, "footBottom": 52 },
+    "kicker": "ANDROID · AI AGENT",
+    "title": "Whittle",
+    "tagline": ["Whittle down", "your to-do list."],
+    "mark": "to-do list.",
+    "foot": "ANY MODEL · YOUR OWN KEYS · NO SERVER",
+    "beaver": {
+      "frame": "idle",
+      "pixel": 22,
+      "centerX": 940,
+      "centerY": 296,
+      "shadowWidth": 0.8,
+      "chips": [[-236, -150, 22, "#F2BD5C"], [-206, -106, 14, "#E9C58F"], [196, -170, 18, "#F2D7A6"], [214, -124, 12, "#F2BD5C"], [-250, 118, 16, "#E9C58F"]]
+    }
+  },
   "releases": {
     "$description": "The newest published release lists up to latestItems of its bold lead lines, each with its first sentence; the ones before it get a row each, up to earlier, summed up by up to summaryLeads leads. The APK is the release asset matching apkPattern.",
     "latestItems": 4,
