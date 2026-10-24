@@ -183,7 +183,7 @@ class ChatSession(
         text: String,
         model: ModelDescriptor,
         forModel: String,
-        images: List<String>,
+        images: List<ContentBlock.ImageFile>,
         attachments: List<Attachment>,
         pasted: List<ContentBlock.Text>,
     ) {
@@ -198,7 +198,7 @@ class ChatSession(
 
     /**
      * Runs [text], as the user wrote it; the model gets [forModel], which adds the attachment note, with the
-     * [images] (workspace paths) it can see and any output [pasted] from a card as untrusted content.
+     * [images] it can see and any output [pasted] from a card or the screen as untrusted content.
      */
     fun start(
         text: String,
@@ -206,7 +206,7 @@ class ChatSession(
         mode: RunMode,
         preApprovedTools: Set<ToolId>,
         forModel: String = text,
-        images: List<String> = emptyList(),
+        images: List<ContentBlock.ImageFile> = emptyList(),
         attachments: List<Attachment> = emptyList(),
         pasted: List<ContentBlock.Text> = emptyList(),
     ) {

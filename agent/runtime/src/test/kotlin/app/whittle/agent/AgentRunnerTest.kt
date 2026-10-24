@@ -82,6 +82,22 @@ class AgentRunnerTest {
     }
 
     @Test
+    fun `a screenshot of another app's screen reaches the model as an image and taints the run`() = runTest {
+        val adapter = ScriptedAdapter(listOf(textTurn("A game.")))
+        val loaded = ContentBlock.Image("image/jpeg", "AAAA")
+        val images = ImageSource { _, _ -> Outcome.Success(loaded) }
+        val shot = ContentBlock.ImageFile("uploads/assist-screen.jpg", Provenance.Untrusted("the screen of Game"))
+        val message = Message(Role.USER, listOf(ContentBlock.Text("What should I do?"), shot))
+
+        runner(adapter, images = images).start(request().copy(userMessage = message, workspace = WorkspaceId("chat-1"))).toList()
+
+        assertEquals(loaded, adapter.requests.single().messages.last().content[1])
+        val saved = savedCheckpoint()
+        assertTrue(saved.tainted)
+        assertEquals(shot, saved.conversation.messages.first { it.role == Role.USER }.content[1], "kept untrusted with the chat")
+    }
+
+    @Test
     fun `allowed tool runs and its result goes back to the model`() = runTest {
         val clock = FakeTool("time.now", RiskTier.READ)
         val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "time.now")), textTurn("It is noon.")))
@@ -278,7 +294,7 @@ class AgentRunnerTest {
     @Test
     fun `a photo sent mid-run reaches the model as an image with its words`() = runTest {
         val clock = FakeTool("time.now", RiskTier.READ) {
-            inbox.submit(runId, RunInput.Steer("What is this?", images = listOf("uploads/receipt.jpg")))
+            inbox.submit(runId, RunInput.Steer("What is this?", images = listOf(ContentBlock.ImageFile("uploads/receipt.jpg"))))
             "noon"
         }
         val loaded = ContentBlock.Image("image/jpeg", "AAAA")

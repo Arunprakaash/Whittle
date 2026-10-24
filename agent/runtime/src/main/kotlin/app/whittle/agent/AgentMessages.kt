@@ -115,6 +115,8 @@ data class AgentMessages(
     val diagnosticsFromScreen: String,
     /** The name [diagnosticsFromScreen] uses when Android didn't say which app was on screen. */
     val screenUnknownApp: String,
+    /** Names the screenshot at [PATH], of [SOURCE], as data; it goes beside it, so a model that sees images reads both. */
+    val screenshotUntrusted: String,
 ) : VersionedConfig {
     init {
         requirePlaceholders(attachments, FILES)
@@ -191,6 +193,7 @@ data class AgentMessages(
         requirePlaceholders(diagnosticsFromProcess, NAME)
         requirePlaceholders(diagnosticsFromPreview, NAME)
         requirePlaceholders(diagnosticsFromScreen, NAME)
+        requirePlaceholders(screenshotUntrusted, SOURCE, PATH)
     }
 
     fun unknownTool(tool: String): String = render(unknownTool, TOOL to tool)
@@ -301,6 +304,8 @@ data class AgentMessages(
     fun diagnosticsFromPreview(name: String): String = render(diagnosticsFromPreview, NAME to name)
 
     fun diagnosticsFromScreen(name: String): String = render(diagnosticsFromScreen, NAME to name)
+
+    fun screenshotUntrusted(source: String, path: String): String = render(screenshotUntrusted, SOURCE to source, PATH to path)
 
     /** The memory section of the system prompt: one line per remembered fact, as (id, text) pairs. */
     fun memories(items: List<Pair<String, String>>): String =

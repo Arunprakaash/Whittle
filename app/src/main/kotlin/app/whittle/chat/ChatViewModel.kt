@@ -5,8 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.whittle.AppGraph
 import app.whittle.agent.PastedKind
+import app.whittle.agent.PastedScreen
 import app.whittle.agent.PlanItem
 import app.whittle.agent.pastedOutput
+import app.whittle.agent.pastedScreen
 import app.whittle.apps.InstallResult
 import app.whittle.apps.PowerfulDeclaration
 import app.whittle.apps.SetupOutcome
@@ -94,6 +96,8 @@ data class ChatState(
     val listenNow: Boolean = false,
     /** What was on screen when the user called Whittle as their assistant; its words go with the next message. */
     val screen: ScreenContext? = null,
+    /** [screen]'s screenshot, once saved among [attachments]; it goes as untrusted content, like the screen's words. */
+    val screenshot: Attachment? = null,
     /** How many picked items are still being saved. */
     val attaching: Int = 0,
 ) {
@@ -325,7 +329,13 @@ class ChatViewModel(
             _state.first { !it.restoring }
             newChat()
             _state.update { it.copy(screen = screen) }
-            screen.screenshot?.let { file -> attach(listOf(Uri.fromFile(file))) }
+            val file = screen.screenshot ?: return@launch
+            _state.update { it.copy(attaching = it.attaching + 1) }
+            val imported = graph.attachments.import(Uri.fromFile(file), _state.value.project)
+            val added = (imported as? Imported.Added)?.attachment
+            // Kept apart from the user's own photos, so it goes as the screen, untrusted.
+            _state.update { state -> state.copy(attachments = state.attachments + listOfNotNull(added), attaching = state.attaching - 1, screenshot = added) }
+            if (imported is Imported.Refused) _attachmentProblems.tryEmit(imported.problem)
         }
     }
 
@@ -344,7 +354,7 @@ class ChatViewModel(
 
     /** Takes an attachment off the next message; it was never sent, so its saved copy goes too. */
     fun removeAttachment(attachment: Attachment) {
-        _state.update { state -> state.copy(attachments = state.attachments - attachment) }
+        _state.update { state -> state.copy(attachments = state.attachments - attachment, screenshot = state.screenshot.takeIf { it != attachment }) }
         graph.appScope.launch { graph.attachments.discard(attachment) }
     }
 
@@ -358,16 +368,18 @@ class ChatViewModel(
         val attachments = state.attachments
         val model = state.model ?: return
         if (state.attaching > 0 || (text.isEmpty() && attachments.isEmpty())) return
-        // The screen the assistant read goes with this message only, as data from the app it came from.
-        val screen = state.screen?.takeIf { it.text.isNotBlank() }?.let { screen ->
-            pastedOutput(graph.agentMessages, PastedKind.SCREEN, requestName(screen.appName ?: graph.agentMessages.screenUnknownApp, graph.maxPastedNameChars), screen.text, graph.maxPastedOutputChars)
+        // The screen the assistant read goes with this message only, words and screenshot, as data from the app it came from.
+        val screenshot = state.screenshot?.takeIf { it in attachments }
+        val screen = state.screen?.let { screen ->
+            val name = requestName(screen.appName ?: graph.agentMessages.screenUnknownApp, graph.maxPastedNameChars)
+            pastedScreen(graph.agentMessages, name, screen.text, screenshot?.path, screenshot?.let { "${graph.linux.workspaceMount}/${it.path}" }, graph.maxPastedOutputChars)
         }
-        _state.update { it.copy(input = "", attachments = emptyList(), screen = null) }
+        _state.update { it.copy(input = "", attachments = emptyList(), screen = null, screenshot = null) }
         @Suppress("NAME_SHADOWING")
-        val pasted = pasted + listOfNotNull(screen)
+        val pasted = pasted + screen?.text.orEmpty()
         val forModel = listOf(text, attachmentNote(attachments, model.capabilities.vision)).filter { it.isNotEmpty() }.joinToString(PARAGRAPH)
         // A model that can't see gets the photos only as files, through the note.
-        val images = attachments.filter { it.isImage && model.capabilities.vision }.map { it.path }
+        val images = if (model.capabilities.vision) messageImages(attachments, screenshot, screen) else emptyList()
         claimPendingProject()
         current.value.send(text, model, forModel, images, attachments, pasted)
     }
@@ -518,7 +530,7 @@ class ChatViewModel(
             if (leaving.working && id != null) background.update { it + (id to leaving) } else leaving.close()
         }
         _state.value.attachments.forEach { attachment -> graph.appScope.launch { graph.attachments.discard(attachment) } }
-        _state.update { it.copy(input = "", attachments = emptyList(), screen = null) }
+        _state.update { it.copy(input = "", attachments = emptyList(), screen = null, screenshot = null) }
         pendingProject = null
         current.value = next
         syncProject()
@@ -774,7 +786,16 @@ class ChatViewModel(
 
 /**
  * The user's message as the model gets it: their words ([forModel], with any attachment note), then output they [pasted] from a
- * card as untrusted content ([pastedOutput]), then their photos by workspace path.
+ * card or the screen as untrusted content ([pastedOutput], [pastedScreen]), then their photos by workspace path.
  */
-internal fun userMessage(forModel: String, pasted: List<ContentBlock.Text>, images: List<String>): Message =
-    Message(Role.USER, listOf(ContentBlock.Text(forModel)) + pasted + images.map(ContentBlock::ImageFile))
+internal fun userMessage(forModel: String, pasted: List<ContentBlock.Text>, images: List<ContentBlock.ImageFile>): Message =
+    Message(Role.USER, listOf(ContentBlock.Text(forModel)) + pasted + images)
+
+/**
+ * The photos a model that can see gets with a message: each image attachment by its workspace path, except the [screen]'s
+ * screenshot, which goes as [PastedScreen.screenshot] says, untrusted.
+ */
+internal fun messageImages(attachments: List<Attachment>, screenshot: Attachment?, screen: PastedScreen?): List<ContentBlock.ImageFile> =
+    attachments.filter { it.isImage }.map { attachment ->
+        screen?.screenshot?.takeIf { attachment == screenshot } ?: ContentBlock.ImageFile(attachment.path)
+    }
