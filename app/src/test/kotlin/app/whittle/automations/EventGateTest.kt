@@ -1,6 +1,8 @@
 package app.whittle.automations
 
 import app.whittle.core.common.EpochClock
+import app.whittle.core.common.HarnessError
+import app.whittle.core.common.Outcome
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import java.time.LocalDateTime
@@ -110,5 +112,34 @@ class EventGateTest {
     fun queuesSurviveAFreshGate() = runTest {
         gate().offer("a", event("kept"))
         assertEquals(listOf("kept"), gate().take("a").map { it.text })
+    }
+
+    @Test
+    fun dropsLoadedFromDiskShowTodayOnly() = runTest {
+        val today = java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toString()
+        backend.stored = listOf(
+            QueuedEvents("a", emptyList(), null, today, 3, 4),
+            QueuedEvents("b", emptyList(), null, "2020-01-01", 3, 9),
+        )
+        val gate = gate()
+        gate.pending()
+        assertEquals(mapOf("a" to 4), gate.dropped.value)
+        now += 24 * 3_600_000L
+        gate.offer("c", event("next day"))
+        assertTrue(gate.dropped.value.isEmpty())
+    }
+
+    @Test
+    fun aFailedWriteIsReported() = runTest {
+        val failing = object : EventQueueBackend {
+            override suspend fun load() = emptyList<QueuedEvents>()
+
+            override suspend fun save(all: List<QueuedEvents>): Outcome<Unit> =
+                Outcome.Failure(HarnessError.Storage("disk full"))
+        }
+        val gate = EventGate(failing, config, CodeMask(config.codeMask), EpochClock { now }, { zone }, this)
+        assertEquals(null, gate.saveError.value)
+        gate.offer("a", event("x"))
+        assertTrue(gate.saveError.value != null)
     }
 }

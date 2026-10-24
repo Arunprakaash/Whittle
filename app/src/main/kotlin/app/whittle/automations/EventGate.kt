@@ -1,6 +1,7 @@
 package app.whittle.automations
 
 import app.whittle.core.common.EpochClock
+import app.whittle.core.common.HarnessError
 import app.whittle.core.common.Outcome
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
@@ -58,11 +59,18 @@ class EventGate(
 ) {
     private val changes = Mutex()
     private val queues = LinkedHashMap<String, QueuedEvents>()
-    private val loaded = scope.async { backend.load().forEach { queues[it.automationId] = it } }
+    private val loaded = scope.async {
+        backend.load().forEach { queues[it.automationId] = it }
+        publishDropped()
+    }
     private val _dropped = MutableStateFlow<Map<String, Int>>(emptyMap())
+    private val _saveError = MutableStateFlow<HarnessError?>(null)
 
     /** Events dropped today per automation, for the list row. */
     val dropped: StateFlow<Map<String, Int>> = _dropped.asStateFlow()
+
+    /** Why the queue couldn't be written last time, or null. Events still run from memory, but a kill now would lose them. */
+    val saveError: StateFlow<HarnessError?> = _saveError.asStateFlow()
 
     suspend fun offer(automationId: String, event: PhoneEvent): GateDecision = changes.withLock {
         val kept = event.copy(text = mask.mask(event.text.take(config.maxEventChars)))
@@ -111,17 +119,26 @@ class EventGate(
     /** [automationId]'s queue with its counts started over if it is from another day. */
     private suspend fun today(automationId: String): QueuedEvents {
         loaded.await()
-        val day = Instant.ofEpochMilli(clock.nowMillis()).atZone(zones()).toLocalDate().toString()
+        publishDropped()
+        val day = day()
         val queue = queues[automationId] ?: return QueuedEvents(automationId, emptyList(), null, day, 0, 0)
         return if (queue.day == day) queue else queue.copy(day = day, runsToday = 0, droppedToday = 0)
     }
 
     private fun put(queue: QueuedEvents) {
         queues[queue.automationId] = queue
-        _dropped.value = queues.values.filter { it.droppedToday > 0 }.associate { it.automationId to it.droppedToday }
+        publishDropped()
+    }
+
+    private fun day(): String = Instant.ofEpochMilli(clock.nowMillis()).atZone(zones()).toLocalDate().toString()
+
+    /** Today's drops only: counts from an earlier day are history. */
+    private fun publishDropped() {
+        val day = day()
+        _dropped.value = queues.values.filter { it.day == day && it.droppedToday > 0 }.associate { it.automationId to it.droppedToday }
     }
 
     private suspend fun persist() {
-        backend.save(queues.values.toList())
+        _saveError.value = (backend.save(queues.values.toList()) as? Outcome.Failure)?.error
     }
 }
