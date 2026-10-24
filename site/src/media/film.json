@@ -1,0 +1,26 @@
+{
+  "poster": "media/whittle-film-poster.jpg",
+  "sound": "media/whittle-film-sound.m4a",
+  "sources": [
+    {
+      "src": "media/whittle-film-720.av1.mp4",
+      "type": "video/mp4; codecs=\"av01.0.05M.08\"",
+      "media": "(max-width: 700px)"
+    },
+    {
+      "src": "media/whittle-film-720.h264.mp4",
+      "type": "video/mp4; codecs=\"avc1.64001F\"",
+      "media": "(max-width: 700px)"
+    },
+    {
+      "src": "media/whittle-film-1080.av1.mp4",
+      "type": "video/mp4; codecs=\"av01.0.08M.08\"",
+      "media": null
+    },
+    {
+      "src": "media/whittle-film-1080.h264.mp4",
+      "type": "video/mp4; codecs=\"avc1.640028\"",
+      "media": null
+    }
+  ]
+}

@@ -355,27 +355,87 @@
 
   // ---- The film ------------------------------------------------------------------------------------------
 
-  // Plays muted while on screen; the button turns the sound on, from the top the first time so nothing is missed.
+  // Plays muted while it's on screen, unless the visitor asked to save data. Pause sticks until they press Play. The
+  // sound is its own file, fetched only when someone turns it on, and follows the film; the first time, the film
+  // starts over so nothing is missed.
   const film = document.querySelector('[data-film]');
   if (film && !still) {
     const video = film.querySelector('video');
-    const sound = film.querySelector('[data-film-sound]');
+    const playButton = film.querySelector('[data-film-play]');
+    const soundButton = film.querySelector('[data-film-sound]');
+    const saveData = navigator.connection?.saveData === true;
+    const sound = new Audio();
+    sound.preload = 'none';
+    sound.loop = true;
+    let paused = saveData;
+    let soundOn = false;
     let heard = false;
-    sound.addEventListener('click', () => {
-      video.muted = !video.muted;
-      if (!video.muted && !heard) {
-        heard = true;
-        video.currentTime = 0;
+    let onScreen = false;
+
+    video.removeAttribute('controls');
+    film.querySelector('[data-film-controls]').hidden = false;
+
+    const label = (button, on, icon) => {
+      button.setAttribute('aria-pressed', String(on));
+      button.querySelector('.ms').textContent = icon;
+      button.querySelector('[data-label]').textContent = on ? button.dataset.on : button.dataset.off;
+    };
+    const show = () => {
+      label(playButton, paused, paused ? 'play_arrow' : 'pause');
+      label(soundButton, soundOn, soundOn ? 'volume_up' : 'volume_off');
+    };
+    const follow = () => {
+      if (soundOn && !video.paused) {
+        if (Math.abs(sound.currentTime - video.currentTime) > 0.25) sound.currentTime = video.currentTime;
+        sound.play().catch(() => {});
+      } else {
+        sound.pause();
       }
-      video.play().catch(() => {});
-      sound.setAttribute('aria-pressed', String(!video.muted));
-      sound.querySelector('.ms').textContent = video.muted ? 'volume_off' : 'volume_up';
-      sound.querySelector('[data-film-sound-label]').textContent = video.muted ? sound.dataset.off : sound.dataset.on;
+    };
+    const update = () => {
+      if (onScreen && !paused) video.play().catch(() => {});
+      else video.pause();
+      follow();
+      show();
+    };
+
+    playButton.addEventListener('click', () => {
+      paused = !paused;
+      update();
+    });
+    soundButton.addEventListener('click', () => {
+      soundOn = !soundOn;
+      if (soundOn) {
+        if (!sound.src) sound.src = soundButton.dataset.src;
+        if (!heard) {
+          heard = true;
+          video.currentTime = 0;
+          sound.currentTime = 0;
+        }
+        paused = false;
+      }
+      update();
+    });
+    // Keep the sound with the picture through buffering, looping and seeking.
+    ['play', 'pause', 'waiting', 'playing', 'seeked'].forEach((event) => video.addEventListener(event, follow));
+    video.addEventListener('timeupdate', () => {
+      if (soundOn && !video.paused && Math.abs(sound.currentTime - video.currentTime) > 0.25) sound.currentTime = video.currentTime;
     });
     new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) video.play().catch(() => {});
-      else video.pause();
+      onScreen = entry.isIntersecting;
+      update();
     }, { threshold: 0.25 }).observe(video);
+    // Within a screen's height of view, it starts buffering, so it's ready to play when the visitor gets there.
+    if (!saveData) {
+      const warm = new IntersectionObserver(([entry]) => {
+        if (!entry.isIntersecting) return;
+        warm.disconnect();
+        video.preload = 'auto';
+        if (video.networkState === HTMLMediaElement.NETWORK_EMPTY || video.readyState === HTMLMediaElement.HAVE_NOTHING) video.load();
+      }, { rootMargin: '0px 0px 100% 0px' });
+      warm.observe(video);
+    }
+    show();
   }
 
   // ---- Vignettes -----------------------------------------------------------------------------------------

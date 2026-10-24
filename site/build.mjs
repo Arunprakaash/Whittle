@@ -130,7 +130,7 @@ const modelsHtml = config.models.map((model, index) => `<button type="button" cl
 /** Material Symbols trimmed to the icons the page uses, in the page itself or set by site.js. */
 const fontLinks = (html) => {
   const icons = new Set([...html.matchAll(/class="ms[^"]*"[^>]*>([a-z0-9_]+)</g)].map((match) => match[1]));
-  ['check_circle', 'progress_activity', 'volume_up'].forEach((icon) => icons.add(icon));
+  ['check_circle', 'progress_activity', 'volume_up', 'play_arrow'].forEach((icon) => icons.add(icon));
   config.questions.forEach((question) => question.sources.forEach(([icon]) => icons.add(icon)));
   const symbols = `https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&icon_names=${[...icons].sort().join(',')}&display=block`;
   const text = 'https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500&display=swap';
@@ -162,8 +162,15 @@ const apkName = apk?.name ?? `Whittle ${versionOf(latest)}`;
 const versionLine = [`v${versionOf(latest)}`, stageWord].filter(Boolean).join(' · ');
 const fileLine = [apkName, stageWord, dateFormat.format(new Date(latest.published_at))].filter(Boolean).join(' · ');
 
+// The film's versions, sound and poster, as site/film/render.mjs wrote them.
+const film = JSON.parse(await readFile(new URL('film.json', mediaDir), 'utf8'));
+const filmSources = film.sources
+  .map(({ src, type, media }) => `<source src="${escapeHtml(src)}" type="${escapeHtml(type)}"${media ? ` media="${escapeHtml(media)}"` : ''}>`)
+  .join('');
+
 const raw = {
   choresHtml,
+  filmSources,
   firstSources: firstQuestion.sources.map(sourceHtml).join(''),
   terminalHtml,
   modelsHtml,
@@ -183,6 +190,8 @@ const raw = {
 
 const text = {
   url: config.url,
+  filmPoster: film.poster,
+  filmSound: film.sound,
   repoUrl,
   releasesUrl: `${repoUrl}/releases`,
   issuesUrl: `${repoUrl}/issues`,
@@ -214,7 +223,7 @@ await Promise.all([
   writeFile(new URL('chai.svg', distDir), frameSvg(chai, Object.values(chai.frames)[0])),
   writeFile(new URL(ogImageName, distDir), ogImage),
   // The film and its poster, rendered by site/film.
-  ...(await readdir(mediaDir)).map(async (name) => {
+  ...(await readdir(mediaDir)).filter((name) => name !== 'film.json').map(async (name) => {
     await mkdir(new URL('media/', distDir), { recursive: true });
     await copyFile(new URL(name, mediaDir), new URL(`media/${name}`, distDir));
   }),
