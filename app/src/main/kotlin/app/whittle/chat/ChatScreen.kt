@@ -2,6 +2,7 @@ package app.whittle.chat
 
 import app.whittle.settings.VoiceDefaults
 import app.whittle.settings.Starter
+import app.whittle.settings.AppIdea
 import app.whittle.design.components.ComposerVoice
 import android.Manifest
 import android.content.pm.PackageManager
@@ -355,6 +356,8 @@ private fun ChatLayout(
                     // Only before the first chat: three things to try that work right away.
                     starters = if (state.chats.isEmpty()) viewModel.starters else emptyList(),
                     onStart = viewModel::sendText,
+                    appIdeas = viewModel.appIdeas,
+                    onAppIdea = viewModel::updateInput,
                     modifier = Modifier.padding(bottom = dockSpace),
                 )
                 // One list per chat: switching replaces the thread instead of animating one chat into another.
@@ -708,6 +711,8 @@ private fun EmptyThread(
     onPickProject: (String) -> Unit,
     starters: List<Starter>,
     onStart: (String) -> Unit,
+    appIdeas: List<AppIdea>,
+    onAppIdea: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -719,7 +724,11 @@ private fun EmptyThread(
         state.model?.let {
             Text(stringResource(R.string.chat_empty_body, it.displayName), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (state.project == null) CarryOn(state.projects.take(recentProjects), onPickProject)
+        if (state.project == null) {
+            CarryOn(state.projects.take(recentProjects), onPickProject)
+            // Not in the very first chat, which keeps its welcome simple.
+            if (state.chats.isNotEmpty()) AppIdeas(appIdeas, onAppIdea)
+        }
         Starters(starters, onStart)
     }
 }

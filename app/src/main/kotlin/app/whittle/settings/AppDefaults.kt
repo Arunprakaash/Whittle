@@ -25,6 +25,7 @@ data class AppDefaults(
     val attachments: AttachmentDefaults,
     val updates: UpdateDefaults,
     val starters: List<Starter>,
+    val appIdeas: List<AppIdea>,
 ) : VersionedConfig {
     companion object {
         const val SCHEMA_VERSION = 1
@@ -191,6 +192,13 @@ data class MemoryIdea(val icon: String, val title: String, val example: String, 
  */
 @Serializable
 data class Starter(val icon: String, val title: String, val prompt: String, val feature: String? = null)
+
+/**
+ * Something to build, offered in a new chat: tapping puts [prompt] in the composer, to send as it is or to finish first
+ * (one ending in ": " asks for a detail, like the shop's name).
+ */
+@Serializable
+data class AppIdea(val icon: String, val title: String, val prompt: String)
 
 /**
  * Photos and files the user adds to a message: where in the workspace they're saved (inside the chat's project when

@@ -41,6 +41,7 @@ import app.whittle.tools.workspace.ChatProjects
 import app.whittle.tools.workspace.ProcessInfo
 import app.whittle.tools.presentation.DecisionText
 import app.whittle.settings.Starter
+import app.whittle.settings.AppIdea
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -689,6 +690,9 @@ class ChatViewModel(
 
     /** What the very first chat offers to try, without the ones whose phone feature the user switched off. */
     val starters: List<Starter> get() = startersFor(graph.starters, graph.currentSettings.value?.phoneOff.orEmpty())
+
+    /** Things to build that a new chat offers. */
+    val appIdeas: List<AppIdea> get() = graph.appIdeas
 
     /** Sends [text] as the user's message, as if typed. */
     fun sendText(text: String) {

@@ -64,6 +64,22 @@
       "tools": ["web", "clock", "calendar"]
     },
     {
+      "icon": "bedtime",
+      "name": "Tomorrow at a glance",
+      "prompt": "Look at tomorrow's calendar and tell me, in three lines, when my day starts, what needs preparing tonight, and any gap for a break.",
+      "minuteOfDay": 1260,
+      "days": [7, 1, 2, 3, 4],
+      "tools": ["clock", "calendar"]
+    },
+    {
+      "icon": "newspaper",
+      "name": "News on a topic",
+      "prompt": "Find the three most important news stories from the last day on my topic, each in one line with its source. My topic is: ",
+      "minuteOfDay": 480,
+      "days": [1, 2, 3, 4, 5, 6, 7],
+      "tools": ["web", "clock"]
+    },
+    {
       "icon": "summarize",
       "name": "Weekly summary of a project",
       "prompt": "Read this project's files and summarize what it does and what changed recently, in a short list.",

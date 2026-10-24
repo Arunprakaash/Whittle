@@ -17,6 +17,7 @@ import app.whittle.memory.EncryptedFileMemory
 import app.whittle.tools.workspace.WorkspaceOutputs
 import app.whittle.settings.MemoryIdea
 import app.whittle.settings.Starter
+import app.whittle.settings.AppIdea
 import app.whittle.settings.VoiceDefaults
 import app.whittle.connectors.CustomConnectorStore
 import app.whittle.connectors.mcp.ConnectorsConfig
@@ -139,6 +140,7 @@ class AppGraph(context: Context) {
     val sidebarMaxChats: Int get() = appDefaults.chatList.sidebarMaxChats
     val memoryIdeas: List<MemoryIdea> get() = appDefaults.memory.ideas
     val starters: List<Starter> get() = appDefaults.starters
+    val appIdeas: List<AppIdea> get() = appDefaults.appIdeas
     val providers = load(ConfigFiles.providerCatalog, ProviderCatalog.serializer(), ProviderCatalog.SCHEMA_VERSION)
     val modelDefaults = load(ConfigFiles.modelDefaults, ModelDefaults.serializer(), ModelDefaults.SCHEMA_VERSION)
     private val modelTrust = load(ConfigFiles.modelTrust, ModelTrustConfig.serializer(), ModelTrustConfig.SCHEMA_VERSION)

@@ -130,6 +130,10 @@ object MaterialSymbols {
         "directions" to R.drawable.ms_directions,
         "apps" to R.drawable.ms_apps,
         "call" to R.drawable.ms_call,
+        "newspaper" to R.drawable.ms_newspaper,
+        "bedtime" to R.drawable.ms_bedtime,
+        "calculate" to R.drawable.ms_calculate,
+        "storefront" to R.drawable.ms_storefront,
     )
 
     private val filled: Map<String, Int> = mapOf(

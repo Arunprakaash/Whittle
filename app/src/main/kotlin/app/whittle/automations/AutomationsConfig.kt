@@ -23,7 +23,7 @@ data class AutomationsConfig(
     val alwaysPreApproved: List<String>,
     /** What the user can pre-approve, one row each; a row can stand for several tools. Never anything that sends data out. */
     val tools: List<AutomationToolChoice>,
-    /** Automations to start from when there are none yet; each opens the editor filled in. */
+    /** Automations to start from; each opens the editor filled in. Ones the user already has aren't offered again. */
     val ideas: List<AutomationIdea> = emptyList(),
 ) : VersionedConfig {
     init {
@@ -52,7 +52,11 @@ data class AutomationsConfig(
     }
 }
 
-/** A ready-made automation offered while there are none: what it's called and does, when, and which [tools] choices it starts with. */
+/** The ideas still worth offering: those the user hasn't made yet, matched by name. */
+fun unusedIdeas(ideas: List<AutomationIdea>, automations: List<Automation>): List<AutomationIdea> =
+    ideas.filter { idea -> automations.none { it.name.trim().equals(idea.name, ignoreCase = true) } }
+
+/** A ready-made automation to start from: what it's called and does, when, and which [tools] choices it starts with. */
 @Serializable
 data class AutomationIdea(
     val icon: String,
