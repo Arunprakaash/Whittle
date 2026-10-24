@@ -32,7 +32,7 @@ flowchart TB
     TOOLS["tools:* · connectors:mcp<br/>ToolRegistry"]
     STORE["storage:*<br/>Tink vault · chats and checkpoints in Room"]
     CFG["config:defaults<br/>versioned JSON + prompts"]
-    PROV(["Model provider<br/>OpenAI · Anthropic · OpenRouter · any OpenAI-compatible"])
+    PROV(["Model provider<br/>OpenAI · Anthropic · Gemini · OpenRouter · any OpenAI-compatible"])
     SANDBOX["Linux workspace<br/>Ubuntu under proot · seccomp sandbox"]
     FILES["Shared /workspace<br/>projects · file browser · change records"]
     PREVIEW["Live preview<br/>WebView on 127.0.0.1"]
@@ -94,7 +94,7 @@ rating can't use high-risk tools at all.
 ### One message format, any model
 
 `core:model` defines provider-neutral messages, tool calls and token usage. Adapters translate at the edge:
-`llm:adapter-openai-compatible` streams Chat Completions (OpenRouter, Groq, Together, Ollama…), and
+`llm:adapter-openai-compatible` streams Chat Completions (OpenRouter, Google Gemini, Groq, Together, Ollama…), and
 `llm:adapter-openai-responses` speaks the OpenAI Responses API with reasoning and `store: false`; it also supports
 OpenAI's hosted web search, which is off (it's paid per search) unless a provider lists it under `hostedTools`.
 `llm:adapter-anthropic-messages` speaks Anthropic's Messages API through Anthropic's Java SDK: adaptive thinking at the

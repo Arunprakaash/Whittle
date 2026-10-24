@@ -34,6 +34,19 @@ class OpenAiStreamParserTest {
     }
 
     @Test
+    fun `whole tool calls without an index, as Gemini sends them, stay separate`() {
+        val events = listOf(
+            """{"choices":[{"delta":{"tool_calls":[{"id":"a","type":"function","function":{"name":"one","arguments":"{}"}}]}}]}""",
+            """{"choices":[{"delta":{"tool_calls":[{"id":"b","type":"function","function":{"name":"two","arguments":"{\"x\":1}"}}]},"finish_reason":"tool_calls"}]}""",
+            "[DONE]",
+        ).flatMap(parser::onData)
+        assertEquals(
+            listOf(ContentBlock.ToolCall(ToolCallId("a"), "one", "{}"), ContentBlock.ToolCall(ToolCallId("b"), "two", "{\"x\":1}")),
+            events.filterIsInstance<ModelEvent.ToolCallCompleted>().map { it.toolCall },
+        )
+    }
+
+    @Test
     fun `tool call fragments are assembled by index`() {
         val events = listOf(
             """{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"time_","arguments":"{\"zo"}}]}}]}""",

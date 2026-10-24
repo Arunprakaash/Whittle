@@ -91,7 +91,8 @@ internal data class ChunkDelta(
 
 @Serializable
 internal data class ToolCallDelta(
-    val index: Int,
+    /** Which call a fragment belongs to. Gemini leaves it out and sends each call whole, in one fragment. */
+    val index: Int? = null,
     val id: String? = null,
     val function: FunctionDelta? = null,
 )
