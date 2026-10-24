@@ -163,9 +163,10 @@ class AppToolchainTest {
     @Test
     fun `awaitSetup is false when the install is cancelled`() = runBlocking<Unit> {
         val toolchain = AppToolchain(FakeShell { command, _, _ -> if (command.startsWith("cat ")) result(1) else awaitCancellation() }, config)
-        val scope = CoroutineScope(Dispatchers.Default)
-        val install = scope.launch { toolchain.install() }
-        val cancelling = scope.launch { toolchain.state.first { it is ToolchainState.Installing }; install.cancel() }
+        // On this test's one thread, the install and its cancelling only run while awaitSetup waits, so awaitSetup
+        // always sees the setup start and then fail; on other threads both could finish before it looks.
+        val install = launch { toolchain.install() }
+        val cancelling = launch { toolchain.state.first { it is ToolchainState.Installing }; install.cancel() }
         assertEquals(ToolchainFailure.Interrupted, assertIs<SetupOutcome.Failed>(awaitSetup(toolchain, {}, wait)).kind)
         cancelling.join()
         assertEquals(ToolchainState.Failed(ToolchainFailure.Interrupted), toolchain.state.value)
