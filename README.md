@@ -182,7 +182,9 @@ leaving password fields out, and takes the screenshot if the user allows it in A
 in a new chat with the screenshot attached and a chip naming the app; the words and the screenshot go with the next
 message as untrusted content, like a web page, so the run is tainted even when the screen has no words. Android also
 makes the assistant the speech recognizer, so `ForwardingRecognitionService` hands every request to a recognizer
-already installed.
+already installed. It runs in a process of its own, which skips Whittle's start-up work, so dictation in other apps
+stays light and can't take running tasks down. `WhittleAssistantService`, which Android keeps bound while Whittle is
+the assistant, waits there too; `AssistSessionService` reads the screen in Whittle's own process.
 
 ### Connectors
 
