@@ -74,6 +74,8 @@ android {
 val termuxSpec = layout.projectDirectory.file("termux-runtimes.json")
 val termuxLock = layout.projectDirectory.file("termux-runtimes.lock.json")
 val runtimeAssetDirectory = "runtimes"
+// Gradle's shared download cache for the pinned .debs; it outlives the build directory (CI caches it, see ci.yml).
+val termuxDownloads = File(gradle.gradleUserHomeDir, "caches/whittle-termux")
 val updateTermuxLock = tasks.register<UpdateTermuxLockTask>("updateTermuxLock") {
     specFile.set(termuxSpec)
     lockFile.set(termuxLock)
@@ -82,7 +84,7 @@ val updateTermuxLock = tasks.register<UpdateTermuxLockTask>("updateTermuxLock") 
 tasks.register<CollectTermuxDebsTask>("collectTermuxDebs") {
     specFile.set(termuxSpec)
     lockFile.set(termuxLock)
-    downloadDirectory.set(File(gradle.gradleUserHomeDir, "caches/whittle-termux"))
+    downloadDirectory.set(termuxDownloads)
     outputDirectory.set(layout.buildDirectory.dir("termux-mirror"))
 }
 android.packaging.jniLibs.useLegacyPackaging = true
@@ -119,7 +121,7 @@ androidComponents {
             lockFile.set(termuxLock)
             applicationId.set(variant.applicationId)
             assetDirectory.set(runtimeAssetDirectory)
-            downloadDirectory.set(File(gradle.gradleUserHomeDir, "caches/whittle-termux"))
+            downloadDirectory.set(termuxDownloads)
             jniLibsDirectory.set(layout.buildDirectory.dir("generated/termux/${variant.name}/jniLibs"))
             assetsDirectory.set(layout.buildDirectory.dir("generated/termux/${variant.name}/assets"))
             // Builds read the lock file; when it's updated in the same run, read the new one.

@@ -328,7 +328,9 @@ class BundledAppConfigTest {
         assertEquals(listOf("apt-get", "install") + toolchain.aptPackages, words)
         // The Kotlin library is turned to Android code once, at setup, for the apps' minSdk. Setting it from minSdk would
         // change the pins' hash and make every phone set up again, so this keeps the two in step instead.
-        assertTrue("--min-api ${config.minSdk} " in toolchain.setupScript, "the setup script's --min-api must be minSdk (${config.minSdk})")
+        val minApis = Regex("--min-api (\\d+)").findAll(toolchain.setupScript).map { it.groupValues[1] }.toList()
+        assertTrue(minApis.isNotEmpty(), "the setup script must turn the Kotlin library to Android code with --min-api")
+        assertTrue(minApis.all { it == config.minSdk.toString() }, "every --min-api in the setup script must be minSdk (${config.minSdk}): $minApis")
         val placeholder = Regex("\\{\\{(\\w+)}}")
         val buildAllowed = setOf("project", "slug", "versionCode", "minSdk", "targetSdk")
         assertTrue(placeholder.findAll(config.buildScript).map { it.groupValues[1] }.toSet().all { it in buildAllowed })
