@@ -128,7 +128,11 @@ internal data class ModelListResponse(
 internal data class WireModel(
     val id: String,
     val name: String? = null,
+    /** Anthropic's name for [name]. */
+    @SerialName("display_name") val displayName: String? = null,
     @SerialName("context_length") val contextLength: Long? = null,
+    /** Anthropic's name for [contextLength]. */
+    @SerialName("max_input_tokens") val maxInputTokens: Long? = null,
     @SerialName("supported_parameters") val supportedParameters: List<String>? = null,
     val architecture: WireArchitecture? = null,
     val pricing: WirePricing? = null,
