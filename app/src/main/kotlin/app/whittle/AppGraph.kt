@@ -86,6 +86,7 @@ import app.whittle.policy.PolicyRuleSet
 import app.whittle.policy.RuleBasedPolicyEngine
 import app.whittle.settings.AppDefaults
 import app.whittle.updates.UpdateCheck
+import app.whittle.chat.AppShortcuts
 import app.whittle.settings.ConnectionStore
 import app.whittle.storage.chats.ChatStore
 import app.whittle.storage.chats.RoomChatStore
@@ -165,6 +166,9 @@ class AppGraph(context: Context) {
             checkForUpdates = appDefaults.updates.check,
         ),
     )
+
+    /** Home-screen shortcuts to the apps the agent runs. */
+    val appShortcuts = AppShortcuts(context)
 
     /** Whether tasks keep running in the background before the user's saved choice has loaded. */
     val defaultKeepRunningInBackground: Boolean get() = appDefaults.background.keepRunning

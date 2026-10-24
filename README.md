@@ -145,6 +145,10 @@ with `read_process_output`, and `list_processes` / `stop_process` manage what ru
 when their chat is deleted, or with the app; the card restarts one with the same command. With Keep working in
 the background on, a notification lists them and keeps them running, with Stop all.
 
+Add to home screen, in the preview, pins an app like any other (`AppShortcuts`, with Android asking first). The
+shortcut opens Whittle at its chat with the preview, starting the app again if it stopped; once its chat is
+deleted, the shortcut stays greyed out instead of opening an empty Whittle.
+
 ### Automations
 
 An automation is a task Whittle runs by itself at a time of day, on chosen days. The user sets one up in

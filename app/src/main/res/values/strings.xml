@@ -487,6 +487,9 @@
     <string name="process_fix_message">Fix the error in %1$s and start it again</string>
     <string name="preview_reload">Reload</string>
     <string name="preview_open_browser">Open in browser</string>
+    <string name="preview_add_home">Add to home screen</string>
+    <string name="preview_add_home_failed">Your home screen doesn\'t take shortcuts.</string>
+    <string name="shortcut_chat_deleted">This app\'s chat was deleted</string>
     <string name="preview_stop">Stop</string>
     <string name="preview_close">Close</string>
     <string name="preview_console">Console</string>

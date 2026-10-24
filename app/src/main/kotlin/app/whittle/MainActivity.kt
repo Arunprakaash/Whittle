@@ -66,6 +66,8 @@ import app.whittle.linux.LinuxWorkspaceScreen
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import android.content.Intent
+import app.whittle.chat.AppShortcuts
+import app.whittle.chat.ShortcutOpening
 import app.whittle.attachments.SharedItems
 import app.whittle.core.common.getOrNull
 import app.whittle.core.model.ProviderId
@@ -82,14 +84,21 @@ class MainActivity : ComponentActivity() {
     /** What another app shared, until the chat takes it. */
     private val shared = MutableStateFlow<SharedItems?>(null)
 
+    /** The app a home-screen shortcut opens, until the chat takes it. */
+    private val openingApp = MutableStateFlow<ShortcutOpening?>(null)
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         SharedItems.from(intent)?.let { shared.value = it }
+        AppShortcuts.opening(intent)?.let { openingApp.value = it }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // A share is taken once: a screen rebuilt after rotating mustn't add it again.
-        if (savedInstanceState == null) shared.value = SharedItems.from(intent)
+        // A share or a shortcut is taken once: a screen rebuilt after rotating mustn't take it again.
+        if (savedInstanceState == null) {
+            shared.value = SharedItems.from(intent)
+            openingApp.value = AppShortcuts.opening(intent)
+        }
         drawBehindSystemBars(dark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES)
         super.onCreate(savedInstanceState)
         val graph = (application as WhittleApplication).graph
@@ -200,6 +209,16 @@ class MainActivity : ComponentActivity() {
                                 showingSettings = false; showingAllChats = false; showingModelPicker = false; showingAutomations = false
                                 showingMemory = false; showingLinux = false; showingConnectionLibrary = false; toolsOf = null
                                 chat.startShared(items)
+                            }
+                            val shortcut by openingApp.collectAsStateWithLifecycle()
+                            LaunchedEffect(shortcut) {
+                                val opening = shortcut ?: return@LaunchedEffect
+                                openingApp.value = null
+                                // The app opens over its chat, whatever screen was open.
+                                files = null
+                                showingSettings = false; showingAllChats = false; showingModelPicker = false; showingAutomations = false
+                                showingMemory = false; showingLinux = false; showingConnectionLibrary = false; toolsOf = null
+                                chat.openApp(opening)
                             }
                             val toolsConnection = toolsOf?.let { id -> connections.firstOrNull { it.server.id == id } }
                             val opening = files
