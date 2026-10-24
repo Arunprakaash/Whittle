@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 13,
+  "schemaVersion": 14,
   "unknownTool": "There is no tool named \"{{tool}}\". Use only the tools you were given.",
   "invalidArguments": "The arguments for \"{{tool}}\" were not valid: {{detail}}. Fix them and try again.",
   "policyDenied": "\"{{tool}}\" is not allowed by the user's safety settings. Do not retry it; tell the user what you could not do.",
@@ -41,6 +41,7 @@
   "automationTooMany": "The user already has {{limit}} automations; they can remove one in Settings › Automations.",
   "automationToolNotAllowed": "Those tools can't run unattended.",
   "automationProjectInvalid": "'{{project}}' isn't a project folder name: use letters, digits, dots, dashes and underscores.",
+  "automationIntervalTooShort": "Repeat no more often than every {{limit}} minutes; a shorter interval would keep the phone awake.",
   "automationProjectMissing": "There's no project '{{project}}' in the workspace. Start it first with use_project, or leave project out for the whole workspace.",
   "automationTimeInvalid": "Give the time as 24-hour HH:mm, e.g. 07:30.",
   "automationDaysInvalid": "Give days as a list of mon, tue, wed, thu, fri, sat or sun, e.g. [\"mon\", \"fri\"].",

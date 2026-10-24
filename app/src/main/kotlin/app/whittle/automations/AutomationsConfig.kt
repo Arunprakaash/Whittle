@@ -25,6 +25,8 @@ data class AutomationsConfig(
     val tools: List<AutomationToolChoice>,
     /** Automations to start from; each opens the editor filled in. Ones the user already has aren't offered again. */
     val ideas: List<AutomationIdea> = emptyList(),
+    /** Limits and masking for automations that run when something happens on the phone. */
+    val events: EventsConfig,
 ) : VersionedConfig {
     init {
         require(maxAutomations > 0 && maxNameChars > 0 && maxPromptChars > 0) { "limits must be positive" }
@@ -49,6 +51,46 @@ data class AutomationsConfig(
     companion object {
         const val SCHEMA_VERSION = 1
         val FILE = ConfigName("automations.json")
+    }
+}
+
+/** Limits for event-triggered automations, and how one-time codes are hidden from them. */
+@Serializable
+data class EventsConfig(
+    /** After an automation runs for an event, the next event for it waits this long. */
+    val cooldownMillis: Long,
+    val maxRunsPerDay: Int,
+    /** Events kept while waiting for a run; the oldest are dropped past this. */
+    val maxQueued: Int,
+    /** The shortest "every" interval an automation may ask for, so none polls the phone awake. */
+    val minIntervalMinutes: Int,
+    val placeCheckMinutes: Int,
+    val placePolling: Boolean,
+    /** Text of one event kept past this length is cut. */
+    val maxEventChars: Int,
+    val codeMask: CodeMaskConfig,
+) {
+    init {
+        require(cooldownMillis > 0 && maxRunsPerDay > 0 && maxQueued > 0) { "event limits must be positive" }
+        require(minIntervalMinutes > 0 && placeCheckMinutes > 0 && maxEventChars > 0) { "event limits must be positive" }
+    }
+}
+
+/** What counts as a one-time code and where it's hidden: a [codePattern] match with a keyword within [nearChars]. */
+@Serializable
+data class CodeMaskConfig(
+    /** Words that say a number is a code (case-insensitive). */
+    val keywords: List<String>,
+    /** A regular expression for the numbers that might be codes; compiled ignoring case. */
+    val codePattern: String,
+    val nearChars: Int,
+    /** What a hidden code is replaced with; says a code was there. */
+    val replacement: String,
+) {
+    init {
+        require(keywords.isNotEmpty() && keywords.all { it.isNotBlank() }) { "code keywords can't be empty" }
+        require(nearChars > 0 && replacement.isNotEmpty()) { "code mask needs a distance and a replacement" }
+        require(runCatching { Regex(codePattern) }.isSuccess) { "codePattern isn't a valid regular expression" }
     }
 }
 

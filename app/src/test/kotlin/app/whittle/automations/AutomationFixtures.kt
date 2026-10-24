@@ -3,6 +3,24 @@ package app.whittle.automations
 import app.whittle.core.common.Outcome
 import app.whittle.tools.api.ToolId
 
+internal val testCodeMaskConfig = CodeMaskConfig(
+    keywords = listOf("otp", "code", "verification", "verify", "pin", "password", "passcode", "one time", "one-time", "2fa", "login"),
+    codePattern = "\\b(?:[A-Z]-)?\\d{4,8}\\b",
+    nearChars = 40,
+    replacement = "[code hidden]",
+)
+
+internal val testEventsConfig = EventsConfig(
+    cooldownMillis = 120_000,
+    maxRunsPerDay = 30,
+    maxQueued = 20,
+    minIntervalMinutes = 15,
+    placeCheckMinutes = 15,
+    placePolling = false,
+    maxEventChars = 2000,
+    codeMask = testCodeMaskConfig,
+)
+
 internal val testAutomationsConfig = AutomationsConfig(
     schemaVersion = AutomationsConfig.SCHEMA_VERSION,
     maxAutomations = 2,
@@ -17,6 +35,7 @@ internal val testAutomationsConfig = AutomationsConfig(
         AutomationToolChoice(key = "web", icon = "travel_explore", label = "Web", toolIds = listOf("web_search", "web_fetch"), default = true),
         AutomationToolChoice(key = "calendar", icon = "calendar_month", label = "Calendar", toolIds = listOf("calendar_events"), default = false),
     ),
+    events = testEventsConfig,
 )
 
 internal data class Alarm(val id: String, val atMillis: Long, val scheduledForMillis: Long, val retry: Boolean)

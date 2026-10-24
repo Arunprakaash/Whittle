@@ -67,6 +67,7 @@ data class AgentMessages(
     val automationTooMany: String,
     val automationToolNotAllowed: String,
     val automationProjectInvalid: String,
+    val automationIntervalTooShort: String,
     val automationProjectMissing: String,
     val automationTimeInvalid: String,
     val automationDaysInvalid: String,
@@ -164,6 +165,7 @@ data class AgentMessages(
         requirePlaceholders(automationTooMany, LIMIT)
         requirePlaceholders(automationToolNotAllowed)
         requirePlaceholders(automationProjectInvalid, PROJECT)
+        requirePlaceholders(automationIntervalTooShort, LIMIT)
         requirePlaceholders(automationProjectMissing, PROJECT)
         requirePlaceholders(automationTimeInvalid)
         requirePlaceholders(automationDaysInvalid)
@@ -266,6 +268,8 @@ data class AgentMessages(
 
     fun automationTooMany(limit: Int): String = render(automationTooMany, LIMIT to limit.toString())
 
+    fun automationIntervalTooShort(minutes: Int): String = render(automationIntervalTooShort, LIMIT to minutes.toString())
+
     fun automationProjectInvalid(project: String): String = render(automationProjectInvalid, PROJECT to project)
 
     fun automationProjectMissing(project: String): String = render(automationProjectMissing, PROJECT to project)
@@ -312,7 +316,7 @@ data class AgentMessages(
         if (items.isEmpty()) noMemories else items.joinToString("\n") { (id, text) -> render(memoryLine, ID to id, TEXT to text) }
 
     companion object {
-        const val SCHEMA_VERSION = 13
+        const val SCHEMA_VERSION = 14
         private const val FILES = "files"
         private const val SIZE = "size"
         private const val TOOL = "tool"

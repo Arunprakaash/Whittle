@@ -106,6 +106,7 @@ internal val testMessages = AgentMessages(
     automationTooMany = "over {{limit}}",
     automationToolNotAllowed = "tool not allowed",
     automationProjectInvalid = "bad {{project}}",
+    automationIntervalTooShort = "under {{limit}} minutes",
     automationProjectMissing = "missing {{project}}",
     automationTimeInvalid = "bad time",
     automationDaysInvalid = "bad days",

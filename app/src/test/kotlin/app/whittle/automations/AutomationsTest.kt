@@ -43,6 +43,14 @@ class AutomationsTest {
     }
 
     @Test
+    fun everyBelowFloorRejected() = runTest {
+        val automations = automations()
+        val every = automations.draft("Poll", "Check").copy(schedule = null, trigger = Trigger.Every(10))
+        assertEquals(AutomationProblem.INTERVAL_TOO_SHORT, refusal(automations.save(every)))
+        assertIs<SaveResult.Saved>(automations.save(every.copy(trigger = Trigger.Every(15))))
+    }
+
+    @Test
     fun eventAutomationSetsNoAlarm() = runTest {
         val automations = automations()
         val event = automations.draft("Bank", "Log it").copy(schedule = null, trigger = Trigger.Sms(listOf("HDFCBK")))

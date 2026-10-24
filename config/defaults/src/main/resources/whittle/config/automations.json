@@ -8,6 +8,21 @@
   "giveUpAfterMillis": 10800000,
   "startTimeoutMillis": 10000,
   "alwaysPreApproved": ["ask_user", "update_plan"],
+  "events": {
+    "cooldownMillis": 120000,
+    "maxRunsPerDay": 30,
+    "maxQueued": 20,
+    "minIntervalMinutes": 15,
+    "placeCheckMinutes": 15,
+    "placePolling": false,
+    "maxEventChars": 2000,
+    "codeMask": {
+      "keywords": ["otp", "code", "verification", "verify", "pin", "password", "passcode", "one time", "one-time", "2fa", "login"],
+      "codePattern": "\\b(?:[A-Z]-)?\\d{4,8}\\b",
+      "nearChars": 40,
+      "replacement": "[code hidden]"
+    }
+  },
   "tools": [
     {
       "key": "web",
