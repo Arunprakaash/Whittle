@@ -176,6 +176,7 @@ class AgentRunnerTest {
 
         val requested = events.filterIsInstance<RunEvent.DecisionRequested>().single()
         assertEquals("c1", requested.decision.toolCall.id.value)
+        assertTrue(!requested.tainted)
         assertEquals(0, fetch.executions)
         assertEquals(1, clock.executions)
         assertEquals(1, adapter.requests.size)
@@ -305,7 +306,9 @@ class AgentRunnerTest {
 
         assertTrue(savedCheckpoint().tainted)
         assertEquals(0, post.executions)
-        assertEquals("c1", events.filterIsInstance<RunEvent.DecisionRequested>().single().decision.toolCall.id.value)
+        val requested = events.filterIsInstance<RunEvent.DecisionRequested>().single()
+        assertEquals("c1", requested.decision.toolCall.id.value)
+        assertTrue(requested.tainted, "the card says the run had read untrusted content")
         val sent = adapter.requests.first().messages.last().content.filterIsInstance<ContentBlock.Text>()
         assertEquals(ContentBlock.Text("Fix the crash in Counter (counter)"), sent[0])
         assertIs<Provenance.Untrusted>(sent[1].provenance)

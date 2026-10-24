@@ -568,7 +568,7 @@ class ChatSession(
         val runId = activeRunId ?: return
         // The run's id too: some providers reuse tool-call ids (call_0) from one turn to the next.
         val key = "decision-${runId.value}-${call.id.value}"
-        val fromNotification = graph.notificationApprovals.buttonsFor(event.tool.riskTier)
+        val fromNotification = graph.approvableFromNotification(event.tool, event.tainted)
         append(ThreadItem.Decision(key = key, runId = runId, toolCallId = call.id, text = text, fromNotification = fromNotification))
         cardShown(ChatEvent.ApprovalNeeded(chatId, key, text, buttons = fromNotification))
     }

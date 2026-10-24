@@ -4,6 +4,7 @@ import app.whittle.design.theme.ThemeMode
 import app.whittle.core.config.ConfigName
 import app.whittle.core.config.VersionedConfig
 import app.whittle.tools.api.RiskTier
+import app.whittle.tools.api.ToolDefinition
 import kotlinx.serialization.Serializable
 
 /** App-level defaults shipped as config: appearance and on-device storage names. */
@@ -125,17 +126,18 @@ data class BackgroundDefaults(val keepRunning: Boolean, val approvals: Notificat
 
 /**
  * Approval cards that appear while the user is away. With [fromNotification] on, their notification carries the card's own
- * Approve and Decline buttons, which work only once the phone is unlocked. Calls at an [inAppOnly] risk tier never get
- * buttons: the notification opens the chat, and the user decides there.
+ * Approve and Decline buttons, which work only once the phone is unlocked. Some calls are only decided in the app, where the
+ * notification opens the chat: those at an [inAppOnlyTiers] risk tier; the [inAppOnlyTools]; every call the policy always
+ * asks about; and every call from a run that has read untrusted content, which may be what asked for it.
  */
 @Serializable
-data class NotificationApprovalDefaults(val fromNotification: Boolean, val inAppOnly: Set<String>) {
-    init {
-        require(inAppOnly.all { name -> RiskTier.entries.any { it.name == name } }) { "background.approvals.inAppOnly must name tiers from ${RiskTier.entries}" }
-    }
-
-    /** Whether a waiting call at [tier] may be answered from its notification. */
-    fun buttonsFor(tier: RiskTier): Boolean = fromNotification && tier.name !in inAppOnly
+data class NotificationApprovalDefaults(val fromNotification: Boolean, val inAppOnlyTiers: Set<RiskTier>, val inAppOnlyTools: Set<String>) {
+    /**
+     * Whether a waiting call to [tool] may be answered from its notification. [tainted]: the run had read untrusted
+     * content when it asked; [alwaysAsks]: the policy has an ask rule for this call.
+     */
+    fun buttonsFor(tool: ToolDefinition, tainted: Boolean, alwaysAsks: Boolean): Boolean =
+        fromNotification && !tainted && !alwaysAsks && tool.riskTier !in inAppOnlyTiers && tool.id.value !in inAppOnlyTools
 }
 
 /** How a server the agent runs is shown in the live preview. */

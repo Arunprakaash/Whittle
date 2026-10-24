@@ -34,11 +34,15 @@ sealed interface RunEvent {
         val arguments: JsonObject,
     ) : RunEvent
 
-    /** A call was parked for the user's choice. The run keeps going; show it as an inline card. */
+    /**
+     * A call was parked for the user's choice. The run keeps going; show it as an inline card. [tainted]: untrusted
+     * content had entered the run when the call was asked for, so it may be what steered the model to it.
+     */
     data class DecisionRequested(
         val decision: PendingDecision,
         val tool: ToolDefinition,
         val arguments: JsonObject,
+        val tainted: Boolean,
     ) : RunEvent
 
     /** The answer cites [url] (from the provider's citations); [title] is the page title when known. */

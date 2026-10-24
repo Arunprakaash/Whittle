@@ -161,7 +161,9 @@ Settings › Automations, or asks in a chat and approves the `schedule_task` car
   and starts the run's foreground service before the alarm lets the process go. The policy engine then allows
   only the tools the user pre-approved for it; anything else pauses the run with a notification. For an approval it
   shows the card's words and its own Approve and Decline buttons, which answer the card once the phone is unlocked.
-  Deleting and paying are only decided in the app (`background.approvals` in app-defaults.json).
+  Some calls are only decided in the app: deleting and paying, whatever the policy always asks about
+  (`schedule_task`, `add_connection`, `call`, `remember` after outside content), and anything from a run that has
+  read untrusted content (`background.approvals` in app-defaults.json, and policy-rules.json).
 - **What runs without asking.** automations.json lists what can be pre-approved: web reads, the clock, the
   calendar, contacts and the workspace's files, never anything that sends data out. A new automation may only
   read; changing files is a separate choice, off by default. A test keeps both rules.
