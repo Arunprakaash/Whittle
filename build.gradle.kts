@@ -6,3 +6,8 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.ksp) apply false
 }
+
+// build-logic is an included build, so `./gradlew test` doesn't reach its tests on its own.
+tasks.register("test") {
+    dependsOn(gradle.includedBuild("build-logic").task(":convention:test"))
+}

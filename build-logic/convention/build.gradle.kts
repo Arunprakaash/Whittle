@@ -7,6 +7,12 @@ dependencies {
     compileOnly(libs.kotlin.gradle.plugin)
     compileOnly(libs.compose.compiler.gradle.plugin)
     implementation(libs.xz)
+
+    testImplementation(libs.kotlin.test.junit)
+}
+
+tasks.test {
+    useJUnit()
 }
 
 gradlePlugin {
