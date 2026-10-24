@@ -89,6 +89,7 @@ import app.whittle.policy.RuleBasedPolicyEngine
 import app.whittle.settings.AppDefaults
 import app.whittle.updates.UpdateCheck
 import app.whittle.chat.AppShortcuts
+import app.whittle.settings.NotificationApprovalDefaults
 import app.whittle.settings.ConnectionStore
 import app.whittle.storage.chats.ChatStore
 import app.whittle.storage.chats.RoomChatStore
@@ -176,6 +177,7 @@ class AppGraph(context: Context) {
 
     /** Whether tasks keep running in the background before the user's saved choice has loaded. */
     val defaultKeepRunningInBackground: Boolean get() = appDefaults.background.keepRunning
+    val notificationApprovals: NotificationApprovalDefaults get() = appDefaults.background.approvals
 
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(harness.network.connectTimeoutMillis, TimeUnit.MILLISECONDS)

@@ -3,6 +3,7 @@ package app.whittle.settings
 import app.whittle.design.theme.ThemeMode
 import app.whittle.core.config.ConfigName
 import app.whittle.core.config.VersionedConfig
+import app.whittle.tools.api.RiskTier
 import kotlinx.serialization.Serializable
 
 /** App-level defaults shipped as config: appearance and on-device storage names. */
@@ -108,7 +109,22 @@ data class UpdateDefaults(val check: Boolean, val latestReleaseUrl: String, val 
 
 /** Tasks keep running while the user is elsewhere, in a foreground service with an ongoing notification. */
 @Serializable
-data class BackgroundDefaults(val keepRunning: Boolean)
+data class BackgroundDefaults(val keepRunning: Boolean, val approvals: NotificationApprovalDefaults)
+
+/**
+ * Approval cards that appear while the user is away. With [fromNotification] on, their notification carries the card's own
+ * Approve and Decline buttons, which work only once the phone is unlocked. Calls at an [inAppOnly] risk tier never get
+ * buttons: the notification opens the chat, and the user decides there.
+ */
+@Serializable
+data class NotificationApprovalDefaults(val fromNotification: Boolean, val inAppOnly: Set<String>) {
+    init {
+        require(inAppOnly.all { name -> RiskTier.entries.any { it.name == name } }) { "background.approvals.inAppOnly must name tiers from ${RiskTier.entries}" }
+    }
+
+    /** Whether a waiting call at [tier] may be answered from its notification. */
+    fun buttonsFor(tier: RiskTier): Boolean = fromNotification && tier.name !in inAppOnly
+}
 
 /** How a server the agent runs is shown in the live preview. */
 @Serializable
