@@ -46,12 +46,17 @@
       <span class="small mono rise rise-4">{{versionLine}} · {{requirements}} · not on the Play Store, yet</span>
     </section>
 
-    <section class="wrap bench" aria-label="Whittle working through a to-do list">
-      <div class="psst" aria-hidden="true">
+    <section class="wrap bench" aria-label="Whittle at work">
+      <!-- The film plays muted on a loop; with reduced motion, the to-do list stands in for it. -->
+      <div class="film" data-film>
+        <video src="media/whittle-film.mp4" poster="media/whittle-film-poster.jpg" muted loop playsinline autoplay preload="metadata" aria-label="Whittle at work: a morning brief, splitting a trip bill, setting an alarm, asking before sharing, and building a chai timer app."></video>
+        <button type="button" class="film-sound" data-film-sound aria-pressed="false" data-on="Sound on" data-off="Tap for sound"><span class="ms" aria-hidden="true">volume_off</span><span data-film-sound-label>Tap for sound</span></button>
+      </div>
+      <div class="psst todo-only" aria-hidden="true">
         <span>psst… tap a chore</span>
         <svg width="120" height="70" viewBox="0 0 120 70" fill="none"><path class="drawn" d="M8 8 C 40 10, 80 18, 104 52" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path class="drawn" d="M92 50 L 106 56 L 108 40" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
-      <div class="pad" data-pad>
+      <div class="pad todo-only" data-pad>
         <div class="pad-holes" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
         <div class="pad-head"><span class="pad-title">{{choresTitle}}</span><span class="pad-count" data-count aria-live="polite">{{choresLeft}}</span></div>
         <ol class="chores">{{{choresHtml}}}</ol>
@@ -60,7 +65,7 @@
           <button type="button" class="btn btn-paper btn-sm" data-new-list hidden><span class="ms" aria-hidden="true">refresh</span>New list</button>
         </div>
       </div>
-      <div class="beaver beaver-hero" data-beaver="hero" aria-hidden="true"><img src="beaver.svg" alt=""></div>
+      <div class="beaver beaver-hero todo-only" data-beaver="hero" aria-hidden="true"><img src="beaver.svg" alt=""></div>
     </section>
 
     <section class="wrap section">

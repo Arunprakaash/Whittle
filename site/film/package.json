@@ -1,0 +1,12 @@
+{
+  "name": "whittle-film",
+  "private": true,
+  "description": "Renders the landing page's film (film.html) to site/src/media. See render.mjs.",
+  "type": "module",
+  "scripts": {
+    "render": "node render.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.48.2"
+  }
+}

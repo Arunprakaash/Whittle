@@ -157,6 +157,23 @@ a { color: var(--green); text-decoration: none; }
 
 /* Workbench: the to-do list the beaver chews through */
 .bench { position: relative; display: flex; justify-content: center; padding-block: 72px 120px; }
+
+/* The film, in the to-do list's place unless the visitor asked for less motion. */
+.film { position: relative; width: min(1100px, 100%); aspect-ratio: 16 / 9; border-radius: 28px; overflow: hidden; background: var(--paper); box-shadow: 0 0 0 1px var(--line), 0 40px 80px -40px rgba(78, 50, 32, 0.4); }
+.film video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.film-sound { position: absolute; right: 16px; bottom: 16px; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding-inline: 14px 16px; border: none; border-radius: 22px; background: rgba(31, 26, 21, 0.82); color: var(--on-green); font: 600 15px var(--font); cursor: pointer; transition: background-color 0.2s; }
+.film-sound .ms { font-size: 20px; }
+.film-sound[aria-pressed="true"] { background: var(--green); }
+@media (max-width: 560px) {
+  .film { border-radius: 18px; }
+  .film-sound { right: 10px; bottom: 10px; height: 36px; padding-inline: 10px 12px; font-size: 13px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .todo-only { display: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .film { display: none; }
+}
 .pad {
   position: relative;
   width: min(560px, 100%);

@@ -253,7 +253,9 @@
   const count = document.querySelector('[data-count]');
   const note = document.querySelector('[data-pad-note]');
   const newList = document.querySelector('[data-new-list]');
-  const list = { active: -1, start: 0, done: new Set(), auto: !still, next: t0 + FIRST_MILLIS, doneAt: -Infinity };
+  // The list is on screen only when the film isn't (styles.css); hidden, it neither plays nor animates the beaver.
+  const listShown = getComputedStyle(document.querySelector('[data-pad]')).display !== 'none';
+  const list = { active: -1, start: 0, done: new Set(), auto: !still && listShown, next: t0 + FIRST_MILLIS, doneAt: -Infinity };
 
   /**
    * Each chore has one status line whose space is kept from the start, so the list never changes height: it shows the
@@ -323,7 +325,7 @@
     status();
   });
 
-  onFrame((now) => {
+  if (listShown) onFrame((now) => {
     if (list.active >= 0) {
       const steps = chores[list.active].steps;
       const elapsed = now - list.start;
@@ -349,6 +351,31 @@
       outro.play((now - t0) % OUTRO_MILLIS < doneMillis ? 'done' : 'idle', now);
       outro.draw(now);
     });
+  }
+
+  // ---- The film ------------------------------------------------------------------------------------------
+
+  // Plays muted while on screen; the button turns the sound on, from the top the first time so nothing is missed.
+  const film = document.querySelector('[data-film]');
+  if (film && !still) {
+    const video = film.querySelector('video');
+    const sound = film.querySelector('[data-film-sound]');
+    let heard = false;
+    sound.addEventListener('click', () => {
+      video.muted = !video.muted;
+      if (!video.muted && !heard) {
+        heard = true;
+        video.currentTime = 0;
+      }
+      video.play().catch(() => {});
+      sound.setAttribute('aria-pressed', String(!video.muted));
+      sound.querySelector('.ms').textContent = video.muted ? 'volume_off' : 'volume_up';
+      sound.querySelector('[data-film-sound-label]').textContent = video.muted ? sound.dataset.off : sound.dataset.on;
+    });
+    new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) video.play().catch(() => {});
+      else video.pause();
+    }, { threshold: 0.25 }).observe(video);
   }
 
   // ---- Vignettes -----------------------------------------------------------------------------------------
