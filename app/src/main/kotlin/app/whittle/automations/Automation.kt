@@ -7,7 +7,8 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 /**
- * A task Whittle runs by itself on a schedule, in a chat of its own. [tools] are the ones it may use without
+ * A task Whittle runs by itself, in a chat of its own, either at a time of day ([schedule]) or when a [trigger]
+ * fires; exactly one is set. Automations saved before triggers existed have only a schedule. [tools] are the ones it may use without
  * asking; anything else waits for the user's approval, as in any unattended run.
  */
 @Serializable
@@ -16,7 +17,7 @@ data class Automation(
     val name: String,
     /** What Whittle is told each time, as if the user had sent it. */
     val prompt: String,
-    val schedule: Schedule,
+    val schedule: Schedule?,
     val tools: Set<String>,
     /**
      * A folder at the top of the workspace. Each run's chat works in it and its file tools reach nothing else;
@@ -29,7 +30,15 @@ data class Automation(
     val lastChatId: String? = null,
     /** When a run was due but couldn't start in time (no model, or the phone busy throughout); cleared by the next run. */
     val missedAtMillis: Long? = null,
-)
+    val trigger: Trigger? = null,
+) {
+    init {
+        require((schedule == null) != (trigger == null)) { "an automation has a time or a trigger, not both or neither" }
+    }
+
+    /** Started by something that happens on the phone. An interval has alarms like a time, so it isn't one. */
+    val isEvent: Boolean get() = trigger != null && trigger !is Trigger.Every
+}
 
 /** A time of day on some days of the week, in the phone's time zone at the moment it's due. */
 @Serializable

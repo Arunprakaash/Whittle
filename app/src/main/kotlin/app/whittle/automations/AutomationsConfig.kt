@@ -52,23 +52,31 @@ data class AutomationsConfig(
     }
 }
 
-/** A ready-made automation to start from: what it's called and does, when, and which [tools] choices it starts with. */
+/**
+ * A ready-made automation to start from: what it's called and does, when (a time of day on some days, or a
+ * [trigger]; exactly one), and which [tools] choices it starts with.
+ */
 @Serializable
 data class AutomationIdea(
     val icon: String,
     val name: String,
     val prompt: String,
-    val minuteOfDay: Int,
+    val minuteOfDay: Int? = null,
     /** ISO days of the week, as in [Schedule]. */
-    val days: Set<Int>,
+    val days: Set<Int>? = null,
     /** Keys of [AutomationsConfig.tools]. */
     val tools: List<String>,
+    val trigger: Trigger? = null,
 ) {
-    val schedule: Schedule get() = Schedule(minuteOfDay, days)
+    /** The schedule or the trigger this idea starts with, one of them null. */
+    fun draftWhen(): Pair<Schedule?, Trigger?> =
+        if (trigger != null) null to trigger else Schedule(requireNotNull(minuteOfDay), requireNotNull(days)) to null
 
     init {
+        require((minuteOfDay == null) == (days == null)) { "$name needs both a time and days, or neither" }
+        require((minuteOfDay == null) != (trigger == null)) { "$name needs a time or a trigger, not both or neither" }
         // Builds the schedule once, so a time or day out of range fails when the config loads.
-        schedule
+        draftWhen()
     }
 }
 

@@ -64,13 +64,15 @@ class ScheduleTaskTool(
 
     private fun describe(saved: SaveResult.Saved): String {
         val automation = saved.automation
+        // This tool only ever makes time automations.
+        val schedule = checkNotNull(automation.schedule)
         val next = saved.nextRunMillis?.let { Instant.ofEpochMilli(it).atZone(automations.zone) }
         val tools = automations.config.tools.filter { automation.tools.containsAll(it.toolIds) }
             .joinToString { it.labelFor(automation.project).lowercase(Locale.ROOT) }
         return messages.automationScheduled(
             name = automation.name,
-            time = automation.schedule.time.toString(),
-            days = days(automation.schedule),
+            time = schedule.time.toString(),
+            days = days(schedule),
             next = next?.let { "${it.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH)} ${it.toLocalDate()} ${it.toLocalTime()}" }.orEmpty(),
             place = automation.project?.let(messages::automationInProject) ?: messages.automationInWorkspace,
             tools = tools.ifEmpty { messages.automationNoTools },

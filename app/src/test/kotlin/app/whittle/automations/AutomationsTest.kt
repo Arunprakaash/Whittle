@@ -9,6 +9,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -29,6 +30,34 @@ class AutomationsTest {
         val draft = automations().draft("Brief", "Brief me")
         assertEquals(Schedule(420, Schedule.EVERY_DAY), draft.schedule)
         assertEquals(setOf("web_search", "web_fetch"), draft.tools)
+    }
+
+    @Test
+    fun everyRunsMinutesAfterLastRun() = runTest {
+        val automations = automations()
+        val every = Automation("e", "Poll", "Check", schedule = null, trigger = Trigger.Every(30), tools = emptySet())
+        assertEquals(now + 30 * 60_000, automations.nextRunMillis(every))
+        assertEquals(now + 10 * 60_000, automations.nextRunMillis(every.copy(lastRunAtMillis = now - 20 * 60_000)))
+        // A run long overdue is due now, not in the past.
+        assertEquals(now, automations.nextRunMillis(every.copy(trigger = Trigger.Every(30), lastRunAtMillis = now - 90 * 60_000)))
+    }
+
+    @Test
+    fun eventAutomationSetsNoAlarm() = runTest {
+        val automations = automations()
+        val event = automations.draft("Bank", "Log it").copy(schedule = null, trigger = Trigger.Sms(listOf("HDFCBK")))
+        assertTrue(event.isEvent)
+        val saved = assertIs<SaveResult.Saved>(automations.save(event))
+        assertNull(saved.nextRunMillis)
+        assertTrue(alarms.set.isEmpty())
+    }
+
+    @Test
+    fun anAutomationHasATimeOrATriggerNotBoth() {
+        assertFailsWith<IllegalArgumentException> { Automation("a", "n", "p", schedule = null, tools = emptySet()) }
+        assertFailsWith<IllegalArgumentException> {
+            Automation("a", "n", "p", Schedule(420, Schedule.EVERY_DAY), trigger = Trigger.Charging(Edge.START), tools = emptySet())
+        }
     }
 
     @Test

@@ -76,8 +76,10 @@ class Automations(
     )
 
     /** A new automation filled in from one of the config's ideas. */
-    fun draft(idea: AutomationIdea): Automation =
-        draft(idea.name, idea.prompt).copy(schedule = idea.schedule, tools = config.toolIdsFor(idea))
+    fun draft(idea: AutomationIdea): Automation {
+        val (schedule, trigger) = idea.draftWhen()
+        return draft(idea.name, idea.prompt).copy(schedule = schedule, trigger = trigger, tools = config.toolIdsFor(idea))
+    }
 
     /**
      * Adds [automation], or replaces the one with its id, and sets its alarm. What its runs did is kept from the
@@ -134,8 +136,16 @@ class Automations(
     }
 
     /** When [automation] runs next, or null while it's off. */
-    fun nextRunMillis(automation: Automation): Long? =
-        if (automation.enabled) automation.schedule.nextAfter(Instant.ofEpochMilli(clock.nowMillis()), zone).toEpochMilli() else null
+    fun nextRunMillis(automation: Automation): Long? {
+        if (!automation.enabled) return null
+        val now = clock.nowMillis()
+        val trigger = automation.trigger
+        return when {
+            trigger is Trigger.Every -> maxOf(now, (automation.lastRunAtMillis ?: now) + trigger.minutes * MILLIS_PER_MINUTE)
+            automation.schedule != null -> automation.schedule.nextAfter(Instant.ofEpochMilli(now), zone).toEpochMilli()
+            else -> null
+        }
+    }
 
     /** What a run of [automation] may use without asking. Only tools automations.json lets the user choose count. */
     fun preApprovedTools(automation: Automation): Set<ToolId> =
@@ -164,5 +174,9 @@ class Automations(
         automation.project != null && !ChatProjects.isValidName(automation.project) -> AutomationProblem.PROJECT_INVALID
         isNew && count >= config.maxAutomations -> AutomationProblem.TOO_MANY
         else -> null
+    }
+
+    private companion object {
+        const val MILLIS_PER_MINUTE = 60_000L
     }
 }

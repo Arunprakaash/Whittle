@@ -29,6 +29,20 @@ class EncryptedFileAutomationsTest {
     }
 
     @Test
+    fun oldFileLoadsUnchanged() = runTest {
+        file.writeText("""[{"id":"a","name":"Brief","prompt":"Brief me","schedule":{"minuteOfDay":420,"days":[1,2,3,4,5,6,7]},"tools":[]}]""")
+        assertEquals(listOf(automation), EncryptedFileAutomations(file, Plain).load())
+    }
+
+    @Test
+    fun `a trigger automation is saved and loads again`() = runTest {
+        val every = Automation("e", "Poll", "Check", schedule = null, trigger = Trigger.Every(30), tools = emptySet())
+        val sms = Automation("s", "Bank", "Log", schedule = null, trigger = Trigger.Sms(listOf("HDFCBK")), tools = emptySet())
+        EncryptedFileAutomations(file, Plain).save(listOf(every, sms))
+        assertEquals(listOf(every, sms), EncryptedFileAutomations(file, Plain).load())
+    }
+
+    @Test
     fun `a file that can't be decrypted is kept aside, not overwritten by the next save`() = runTest {
         EncryptedFileAutomations(file, Plain).save(listOf(automation))
         val written = file.readBytes()
