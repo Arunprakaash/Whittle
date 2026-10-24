@@ -112,6 +112,9 @@ data class ChatState(
 ) {
     val running: Boolean get() = status != null
 
+    /** The next message without the screen the assistant read: neither its words nor its screenshot go. */
+    fun withoutScreen(): ChatState = copy(screen = null, screenshot = null, attachments = attachments - setOfNotNull(screenshot))
+
     /** An attached photo the current model would only see as a file. */
     val imagesUnseen: Boolean get() = model?.capabilities?.vision == false && attachments.any { it.isImage }
 }
@@ -329,8 +332,7 @@ class ChatViewModel(
 
     /**
      * The user called Whittle as their assistant: a new chat about [screen], its screenshot attached and its words waiting
-     * to go with the first message. The screenshot is copied into the workspace like any photo; the cache's copy is replaced
-     * on the next call.
+     * to go with the first message. The screenshot is copied into the workspace like any photo, and the cache's copy deleted.
      */
     fun startWithScreen(screen: ScreenContext) {
         viewModelScope.launch {
@@ -341,15 +343,26 @@ class ChatViewModel(
             val file = screen.screenshot ?: return@launch
             _state.update { it.copy(attaching = it.attaching + 1) }
             val imported = graph.attachments.import(Uri.fromFile(file), _state.value.project)
+            withContext(Dispatchers.IO) { file.delete() }
             val added = (imported as? Imported.Added)?.attachment
+            // Left out while it was being saved (the chip's X, or another chat): its copy goes too.
+            val wanted = added?.takeIf { _state.value.screen === screen }
+            if (added != null && wanted == null) graph.appScope.launch { graph.attachments.discard(added) }
             // Kept apart from the user's own photos, so it goes as the screen, untrusted.
-            _state.update { state -> state.copy(attachments = state.attachments + listOfNotNull(added), attaching = state.attaching - 1, screenshot = added) }
+            _state.update { state -> state.copy(attachments = state.attachments + listOfNotNull(wanted), attaching = state.attaching - 1, screenshot = wanted) }
             if (imported is Imported.Refused) _attachmentProblems.tryEmit(imported.problem)
         }
     }
 
-    /** The user took the screen off the next message. */
-    fun removeScreen() = _state.update { it.copy(screen = null) }
+    /**
+     * The user took the screen off the next message: its words, and its screenshot with them, whose saved copy goes as it
+     * was never sent.
+     */
+    fun removeScreen() {
+        val screenshot = _state.value.screenshot
+        _state.update { it.withoutScreen() }
+        screenshot?.let { graph.appScope.launch { graph.attachments.discard(it) } }
+    }
 
     /** Attached photos, for thumbnails and the viewer. */
     val images: WorkspaceImages get() = graph.images
