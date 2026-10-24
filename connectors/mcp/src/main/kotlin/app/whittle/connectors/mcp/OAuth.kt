@@ -63,6 +63,8 @@ data class McpCredentials(
     val preRegistered: OAuthClientCredentials? = null,
     /** The service ended the sign-in (a refused token): the user is asked to sign in again rather than quietly signed out. */
     val signedOut: Boolean = false,
+    /** The user was told about this sign-out (see [McpConnection.takeSignOutNotice]); cleared by the next one. */
+    val signOutNoticed: Boolean = false,
 )
 
 /** One sign-in in progress: kept until the browser sends the user back. The verifier never leaves the phone. */

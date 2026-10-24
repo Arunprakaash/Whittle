@@ -29,6 +29,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -205,6 +206,30 @@ class McpConnectionTest {
         assertIs<Outcome.Success<Unit>>(restarted.complete("${REDIRECT}?code=code-2&state=$state"))
         assertEquals(ConnectorState.Connected(3), restarted.state.value)
         assertEquals(false, store.saved?.signedOut)
+    }
+
+    @Test
+    fun `a sign-out by the service is told once, across restarts, and again after the next one`() = runTest {
+        val connection = signedIn()
+        assertFalse(connection.takeSignOutNotice(), "nothing to tell while signed in")
+        refreshStatus = 400
+        now += 3_600_000
+        connection.refreshTools()
+        assertTrue(connection.takeSignOutNotice())
+        assertFalse(connection.takeSignOutNotice())
+
+        val restarted = connection()
+        restarted.restore()
+        assertEquals(ConnectorState.SignInExpired, restarted.state.value)
+        assertFalse(restarted.takeSignOutNotice(), "a restart reports it signed out again, but it was told already")
+
+        refreshStatus = 200
+        val state = (restarted.beginSignIn() as Outcome.Success).value.toHttpUrl().queryParameter("state")
+        restarted.complete("${REDIRECT}?code=code-2&state=$state")
+        refreshStatus = 400
+        now += 3_600_000
+        restarted.refreshTools()
+        assertTrue(restarted.takeSignOutNotice(), "a new sign-out is told again")
     }
 
     @Test

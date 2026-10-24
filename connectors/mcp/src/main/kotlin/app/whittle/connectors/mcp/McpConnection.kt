@@ -203,6 +203,16 @@ class McpConnection(
     }
 
     /**
+     * True once per sign-out by the service, for whoever tells the user about it; false until the next one. Kept with the
+     * sign-in, so a restart, which reports the connection signed out again, doesn't tell them again.
+     */
+    suspend fun takeSignOutNotice(): Boolean = credentialsLock.withLock {
+        val stored = credentials.load()?.takeIf { it.signedOut && !it.signOutNoticed } ?: return@withLock false
+        credentials.save(stored.copy(signOutNoticed = true))
+        true
+    }
+
+    /**
      * How another MCP client reaches this server as the user, with a token fresh enough to use now; null when it
      * isn't connected or the token can't be had.
      */
@@ -259,7 +269,7 @@ class McpConnection(
         // Refused with a sign-in the user has since replaced: the new one stands.
         if (generation.get() != sentWith) return@withLock
         generation.incrementAndGet()
-        credentials.load()?.let { credentials.save(it.copy(tokens = null, open = false, signedOut = true)) }
+        credentials.load()?.let { credentials.save(it.copy(tokens = null, open = false, signedOut = true, signOutNoticed = false)) }
         signedIn = false
         expired = true
         client.reset()
