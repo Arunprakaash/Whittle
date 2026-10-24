@@ -255,14 +255,28 @@
   const newList = document.querySelector('[data-new-list]');
   const list = { active: -1, start: 0, done: new Set(), auto: !still, next: t0 + FIRST_MILLIS, doneAt: -Infinity };
 
-  const stepLine = (text) => {
-    const line = document.createElement('span');
-    line.className = 'stepline';
-    const icon = document.createElement('span');
-    icon.className = 'ms spin';
-    icon.textContent = 'progress_activity';
-    line.append(icon, text);
-    return line;
+  /**
+   * Each chore has one status line whose space is kept from the start, so the list never changes height: it shows the
+   * step being worked on, then the chore's result. Showing new words replays the line's entrance.
+   */
+  const showLine = (button, text, done) => {
+    const line = button.querySelector('[data-line]');
+    if (line.dataset.text === text) return;
+    line.dataset.text = text;
+    line.className = `chore-line ${done ? 'receipt' : 'stepline'}`;
+    const icon = line.querySelector('[data-line-icon]');
+    icon.className = done ? 'ms fill' : 'ms spin';
+    icon.textContent = done ? 'check_circle' : 'progress_activity';
+    line.querySelector('[data-line-text]').textContent = text;
+    line.style.animation = 'none';
+    void line.offsetWidth;
+    line.style.animation = '';
+  };
+
+  const hideLine = (button) => {
+    const line = button.querySelector('[data-line]');
+    line.className = 'chore-line off';
+    line.dataset.text = '';
   };
 
   const status = () => {
@@ -276,8 +290,7 @@
     const button = buttons[index];
     button.classList.remove('active');
     button.setAttribute('aria-pressed', 'true');
-    button.querySelector('[data-steps]').replaceChildren();
-    button.querySelector('[data-receipt]').hidden = false;
+    showLine(button, chores[index].steps.at(-1), true);
     list.done.add(index);
     list.active = -1;
     list.doneAt = now;
@@ -303,7 +316,7 @@
     list.done.clear();
     buttons.forEach((button) => {
       button.setAttribute('aria-pressed', 'false');
-      button.querySelector('[data-receipt]').hidden = true;
+      hideLine(button);
     });
     list.auto = !still;
     list.next = performance.now() + BETWEEN_MILLIS / 2;
@@ -314,16 +327,8 @@
     if (list.active >= 0) {
       const steps = chores[list.active].steps;
       const elapsed = now - list.start;
-      const box = buttons[list.active].querySelector('[data-steps]');
-      const shown = Math.min(steps.length, Math.floor(elapsed / STEP_MILLIS) + 1);
-      while (box.children.length < shown) box.append(stepLine(steps[box.children.length]));
-      [...box.children].forEach((line, k) => {
-        if (elapsed >= (k + 1) * STEP_MILLIS && line.firstChild.classList.contains('spin')) {
-          line.firstChild.className = 'ms fill';
-          line.firstChild.textContent = 'check_circle';
-        }
-      });
       if (elapsed >= steps.length * STEP_MILLIS) finish(list.active, now);
+      else showLine(buttons[list.active], steps[Math.floor(elapsed / STEP_MILLIS)], false);
     } else if (list.auto && now >= list.next) {
       const next = chores.findIndex((_, index) => !list.done.has(index));
       if (next >= 0) begin(next, now);

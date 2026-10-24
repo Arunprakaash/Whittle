@@ -206,12 +206,13 @@ a { color: var(--green); text-decoration: none; }
 }
 .chore[aria-pressed="true"] .strike { background-size: 100% 2.5px; color: var(--ink-3); }
 @keyframes stepin { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
-.stepline, .receipt { display: flex; align-items: center; gap: 8px; font: 13px/20px var(--mono); animation: stepin 0.35s var(--spring) both; }
+.stepline, .receipt { animation: stepin 0.35s var(--spring) both; }
 .stepline { color: var(--ink-2); }
-.stepline .ms { font-size: 16px; color: var(--green); }
 .receipt { color: var(--green); }
-.chore-steps { display: flex; flex-direction: column; gap: 4px; }
-.chore-steps:empty { display: none; }
+/* One line per chore, its space kept from the start, so the list never changes height as it fills in. */
+.chore-line { display: flex; align-items: center; gap: 8px; min-height: 20px; font: 13px/20px var(--mono); }
+.chore-line .ms { font-size: 16px; color: var(--green); }
+.chore-line-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 1s linear infinite; }
 .pad-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 12px 0 0 50px; }
