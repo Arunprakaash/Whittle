@@ -580,6 +580,7 @@
     <string name="project_cancel">Cancel</string>
     <string name="project_carry_on">Carry on with</string>
     <string name="starters_title">Try one of these</string>
+    <string name="app_ideas_title">Or build something</string>
 
     <!-- Automations -->
     <string name="settings_section_automations">Automations</string>
@@ -591,6 +592,7 @@
     <string name="automation_empty_title">Nothing scheduled yet</string>
     <string name="automation_empty_body">Pick a time and the days. Whittle does the task then, and a notification tells you when it\'s done.</string>
     <string name="automation_ideas">Start from one of these</string>
+    <string name="automation_more_ideas">More to start from</string>
     <string name="automation_new">New automation</string>
     <string name="automation_limit">You can have up to %1$d</string>
     <string name="automation_every_day">Every day</string>

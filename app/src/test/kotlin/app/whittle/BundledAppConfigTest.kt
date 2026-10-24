@@ -53,6 +53,15 @@ class BundledAppConfigTest {
     }
 
     @Test
+    fun `app ideas have bundled icons and something to ask`() {
+        val defaults = assertIs<Outcome.Success<AppDefaults>>(loader.load(AppDefaults.FILE, AppDefaults.serializer(), AppDefaults.SCHEMA_VERSION)).value
+        assertTrue(defaults.appIdeas.isNotEmpty())
+        val missingIcons = defaults.appIdeas.map { it.icon }.toSet() - MaterialSymbols.names
+        assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
+        assertTrue(defaults.appIdeas.all { it.title.isNotBlank() && it.prompt.isNotBlank() })
+    }
+
+    @Test
     fun `memory ideas have bundled icons and somewhere to start`() {
         val defaults = assertIs<Outcome.Success<AppDefaults>>(loader.load(AppDefaults.FILE, AppDefaults.serializer(), AppDefaults.SCHEMA_VERSION)).value
         val ideas = defaults.memory.ideas

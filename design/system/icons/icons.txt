@@ -123,3 +123,7 @@ event
 directions
 apps
 call
+newspaper
+bedtime
+calculate
+storefront

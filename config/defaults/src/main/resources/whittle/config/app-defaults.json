@@ -101,6 +101,11 @@
     { "icon": "alarm", "title": "A reminder", "prompt": "Remind me to stretch in 30 minutes.", "feature": "reminders" },
     { "icon": "sms", "title": "A quick text", "prompt": "Draft a text saying I'm running 10 minutes late." }
   ],
+  "appIdeas": [
+    { "icon": "checklist", "title": "Habit tracker", "prompt": "Make me an Android app to tick off three daily habits, with a streak for each." },
+    { "icon": "calculate", "title": "Tip calculator", "prompt": "Make me an Android app that splits a bill and the tip between friends." },
+    { "icon": "storefront", "title": "A page for my shop", "prompt": "Build a one-page website for my small shop, with opening hours and a map link. My shop is: " }
+  ],
   "attachments": {
     "directoryName": "uploads",
     "maxPerMessage": 5,
