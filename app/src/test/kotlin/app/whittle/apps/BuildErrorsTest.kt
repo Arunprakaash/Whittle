@@ -41,6 +41,21 @@ class BuildErrorsTest {
     }
 
     @Test
+    fun `lists the line after Error in once, even when it looks like an error itself`() {
+        val output = "Error in classes.jar:\nsrc/A.kt:1:1: error: boom\nError: Compilation failed\n"
+        assertEquals(
+            listOf("Error in classes.jar: src/A.kt:1:1: error: boom", "Error: Compilation failed"),
+            BuildErrors.parse(output, 10, 1000).lines(),
+        )
+    }
+
+    @Test
+    fun `only Error in takes the next line, not any Error line ending in a colon`() {
+        val output = "Error: these failed:\nnoise that is not an error\n"
+        assertEquals("Error: these failed:", BuildErrors.parse(output, 10, 1000))
+    }
+
+    @Test
     fun `caps the characters`() {
         val parsed = BuildErrors.parse("a.kt:1:1: error: " + "z".repeat(500), 10, 50)
         assertEquals(50, parsed.length)

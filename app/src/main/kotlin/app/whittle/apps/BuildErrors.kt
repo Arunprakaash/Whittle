@@ -7,19 +7,25 @@ object BuildErrors {
 
     // d8: `Error: …`, or `Error in path:` with what's wrong on the next line.
     private val D8_ERROR = Regex("""^Error(:| in )""")
+    private const val D8_IN = "Error in "
 
     /** The first [maxErrors] error lines of [output] (stderr and stdout together), at most [maxChars] characters; its tail when no line is an error. */
     fun parse(output: String, maxErrors: Int, maxChars: Int): String {
         val lines = output.lines().map { it.trimEnd() }
-        val errors = lines.indices.mapNotNull { i ->
-            val line = lines[i]
+        val errors = mutableListOf<String>()
+        var i = 0
+        while (i < lines.size && errors.size < maxErrors) {
+            val line = lines[i++]
+            val detail = lines.getOrNull(i)?.trim()?.takeIf { it.isNotEmpty() }
             when {
-                ERROR.containsMatchIn(line) -> line
-                D8_ERROR.containsMatchIn(line) && line.endsWith(":") -> listOfNotNull(line, lines.getOrNull(i + 1)?.trim()?.takeIf { it.isNotEmpty() }).joinToString(" ")
-                D8_ERROR.containsMatchIn(line) -> line
-                else -> null
+                ERROR.containsMatchIn(line) -> errors += line
+                line.startsWith(D8_IN) && line.endsWith(":") && detail != null -> {
+                    errors += "$line $detail"
+                    i++ // the detail line is part of this error, not another
+                }
+                D8_ERROR.containsMatchIn(line) -> errors += line
             }
-        }.take(maxErrors)
+        }
         val text = if (errors.isEmpty()) output.trim() else errors.joinToString("\n")
         return if (errors.isEmpty()) text.takeLast(maxChars) else text.take(maxChars)
     }
