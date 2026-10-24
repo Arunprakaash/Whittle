@@ -131,6 +131,7 @@ dependencies {
     implementation(project(":policy:engine"))
     implementation(project(":llm:adapter-openai-compatible"))
     implementation(project(":llm:adapter-openai-responses"))
+    implementation(project(":llm:adapter-anthropic-messages"))
     implementation(project(":tools:presentation"))
     implementation(project(":tools:device"))
     implementation(project(":tools:web"))

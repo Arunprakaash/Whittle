@@ -32,6 +32,7 @@ include(
     ":llm:http",
     ":llm:adapter-openai-compatible",
     ":llm:adapter-openai-responses",
+    ":llm:adapter-anthropic-messages",
     ":llm:openrouter-auth",
     ":tools:api",
     ":tools:presentation",

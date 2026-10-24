@@ -34,6 +34,7 @@ import app.whittle.llm.api.ModelTrustConfig
 import app.whittle.llm.api.ProviderCatalog
 import app.whittle.llm.openai.OpenAiCompatibleAdapter
 import app.whittle.llm.openai.OpenAiCompatibleModelLister
+import app.whittle.llm.anthropic.AnthropicMessagesAdapter
 import app.whittle.llm.responses.OpenAiResponsesAdapter
 import app.whittle.observability.LocalTelemetry
 import app.whittle.policy.PolicyRuleSet
@@ -100,7 +101,7 @@ fun main(args: Array<String>) = runBlocking {
     val memory = MemoryStore(JsonFileMemory(arguments.memoryFile), harness.agent.memory, messages, clock, IdGenerator.Random, this)
     val runner = AgentRunner(
         adapters = ModelAdapterRegistry(
-            setOf(OpenAiCompatibleAdapter(httpClient, IdGenerator.Random), OpenAiResponsesAdapter(httpClient)),
+            setOf(OpenAiCompatibleAdapter(httpClient, IdGenerator.Random), OpenAiResponsesAdapter(httpClient), AnthropicMessagesAdapter()),
         ),
         providers = providers,
         credentials = credentials,

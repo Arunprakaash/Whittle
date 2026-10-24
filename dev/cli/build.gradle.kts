@@ -16,6 +16,7 @@ dependencies {
     implementation(project(":agent:runtime"))
     implementation(project(":llm:adapter-openai-compatible"))
     implementation(project(":llm:adapter-openai-responses"))
+    implementation(project(":llm:adapter-anthropic-messages"))
     implementation(project(":tools:device"))
     implementation(project(":tools:web"))
     implementation(project(":tools:workspace"))

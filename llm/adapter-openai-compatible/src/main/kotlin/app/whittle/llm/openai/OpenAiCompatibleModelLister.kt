@@ -51,8 +51,8 @@ class OpenAiCompatibleModelLister(
         return ModelDescriptor(
             id = modelId,
             providerId = provider.id,
-            displayName = name ?: id,
-            contextWindowTokens = contextLength,
+            displayName = name ?: displayName ?: id,
+            contextWindowTokens = contextLength ?: maxInputTokens,
             capabilities = provider.capabilitiesFor(modelId) ?: capabilities(),
             trustTier = trustConfig.tierFor(modelId),
             pricing = pricing(),

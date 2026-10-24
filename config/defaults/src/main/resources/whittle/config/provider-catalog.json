@@ -267,6 +267,88 @@
           }
         }
       ]
+    },
+    {
+      "id": "anthropic",
+      "displayName": "Anthropic",
+      "tagline": "Your API key, for Claude",
+      "keysUrl": "https://console.anthropic.com/settings/keys",
+      "apiFormat": "ANTHROPIC_MESSAGES",
+      "baseUrl": "https://api.anthropic.com/",
+      "generationPath": "v1/messages",
+      "modelsPath": "v1/models?limit=100",
+      "listedModelIdPatterns": [
+        "claude-fable-5-1",
+        "claude-fable-5",
+        "claude-opus-5-5",
+        "claude-opus-5",
+        "claude-opus-4-8",
+        "claude-opus-4-7",
+        "claude-opus-4-6",
+        "claude-sonnet-5-5",
+        "claude-sonnet-5",
+        "claude-sonnet-4-6",
+        "claude-haiku-5-5",
+        "claude-haiku-4-5"
+      ],
+      "keyCheckPath": "v1/models?limit=1",
+      "auth": {
+        "headerName": "x-api-key",
+        "valuePrefix": ""
+      },
+      "maxOutputTokensParameter": "max_tokens",
+      "defaultHeaders": {
+        "anthropic-version": "2023-06-01",
+        "anthropic-beta": "server-side-fallback-2026-07-01"
+      },
+      "requestOverrides": [
+        {
+          "modelIdPattern": "claude-fable-5-1",
+          "fields": {
+            "fallbacks": "default"
+          }
+        },
+        {
+          "modelIdPattern": "claude-opus-5-5",
+          "fields": {
+            "fallbacks": "default"
+          }
+        },
+        {
+          "modelIdPattern": "claude-opus-5",
+          "fields": {
+            "fallbacks": "default"
+          }
+        },
+        {
+          "modelIdPattern": "claude-sonnet-5-5",
+          "fields": {
+            "fallbacks": "default"
+          }
+        }
+      ],
+      "capabilityOverrides": [
+        {
+          "modelIdPattern": "claude-haiku-4-5",
+          "capabilities": {
+            "toolCalling": true,
+            "parallelToolCalls": true,
+            "vision": true,
+            "promptCaching": true,
+            "reasoning": false
+          }
+        },
+        {
+          "modelIdPattern": "claude-*",
+          "capabilities": {
+            "toolCalling": true,
+            "parallelToolCalls": true,
+            "vision": true,
+            "promptCaching": true,
+            "reasoning": true
+          }
+        }
+      ]
     }
   ]
 }
