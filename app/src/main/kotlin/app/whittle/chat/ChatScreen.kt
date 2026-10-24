@@ -159,6 +159,12 @@ fun ChatScreen(
         val current = state.items.firstOrNull { it.key == item.key } as? ThreadItem.Process ?: item
         LivePreviewSheet(current, viewModel, previewHeight, onDismiss = { previewing = null })
     }
+    // An app's home-screen shortcut asked for its preview.
+    LaunchedEffect(state.openPreview) {
+        val key = state.openPreview ?: return@LaunchedEffect
+        previewing = state.items.firstOrNull { it.key == key } as? ThreadItem.Process
+        viewModel.previewOpened()
+    }
     val chat = state.currentChat?.value
     val openFile = { path: String -> onOpenFiles(FilesOpening(FilesPlace.Document(path), chat)) }
     // A photo opens in the viewer beside the others it came with; any other file in the file viewer.

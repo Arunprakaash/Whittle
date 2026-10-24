@@ -55,6 +55,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -85,6 +86,8 @@ data class ChatState(
     val projects: List<ProjectFolder> = emptyList(),
     /** Photos and files added to the next message, already saved in the workspace. */
     val attachments: List<Attachment> = emptyList(),
+    /** The app card whose preview opens now, asked for from outside the chat (its home-screen shortcut). */
+    val openPreview: String? = null,
     /** How many picked items are still being saved. */
     val attaching: Int = 0,
 ) {
@@ -482,6 +485,38 @@ class ChatViewModel(
         refreshProjects()
     }
 
+    /**
+     * A home-screen shortcut to an app: opens its chat and the app's preview, starting the app again when it isn't running.
+     * Nothing changes when the chat or the card is gone.
+     */
+    fun openApp(opening: ShortcutOpening) {
+        viewModelScope.launch {
+            // At launch the last chat is restored first; opening before that finishes would be undone by it.
+            _state.first { !it.restoring }
+            val session = when (opening.chat) {
+                current.value.chatId -> current.value
+                in background.value -> background.value.getValue(opening.chat).also { background.update { it - opening.chat } }
+                else -> {
+                    val document = graph.chats.load(opening.chat).getOrNull()?.let { decode(it.document) } ?: return@launch
+                    newSession().also { it.load(opening.chat, document) }
+                }
+            }
+            if (session !== current.value) switchTo(session)
+            val card = session.state.value.items.firstOrNull { it.key == opening.cardKey } as? ThreadItem.Process ?: return@launch
+            if (graph.processes.processes.value.none { it.id == card.processId && it.live }) session.restartProcess(card)
+            _state.update { it.copy(openPreview = card.key) }
+        }
+    }
+
+    /** The screen opened the preview [openApp] asked for. */
+    fun previewOpened() = _state.update { it.copy(openPreview = null) }
+
+    /** Adds the app on [item] to the home screen; false when the launcher doesn't take shortcuts or the chat isn't saved. */
+    fun pinApp(item: ThreadItem.Process): Boolean = current.value.chatId?.let { graph.appShortcuts.pin(it, item) } == true
+
+    /** Whether apps can be added to the home screen at all. */
+    val canPinApps: Boolean get() = graph.appShortcuts.canPin
+
     /** Removes a chat for good: its messages, its saved runs and its workspace files. */
     fun deleteChat(id: ChatId) {
         background.value[id]?.let { session ->
@@ -517,6 +552,7 @@ class ChatViewModel(
     }
 
     private suspend fun purge(id: ChatId) {
+        graph.appShortcuts.forget(id)
         val document = graph.chats.load(id).getOrNull()?.let { decode(it.document) }
         graph.chats.delete(id)
         document?.let { graph.checkpoints.delete(it.runIds + listOfNotNull(it.activeRunId)) }
