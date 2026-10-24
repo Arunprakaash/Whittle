@@ -59,7 +59,10 @@ import app.whittle.agent.RunInbox
 import app.whittle.automations.AndroidAutomationAlarms
 import app.whittle.automations.Automations
 import app.whittle.automations.AutomationsConfig
+import app.whittle.automations.CodeMask
 import app.whittle.automations.EncryptedFileAutomations
+import app.whittle.automations.EncryptedFileEventQueue
+import app.whittle.automations.EventGate
 import app.whittle.automations.ScheduleTaskTool
 import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.core.common.EpochClock
@@ -370,15 +373,28 @@ class AppGraph(context: Context) {
         appScope,
     )
 
+    private val automationsConfig = load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION)
+
+    /** Events waiting for their automation's run, kept encrypted so a reboot doesn't lose them. */
+    val eventGate = EventGate(
+        backend = EncryptedFileEventQueue(File(context.filesDir, appDefaults.storage.automationEventsFileName), cipher),
+        config = automationsConfig.events,
+        mask = CodeMask(automationsConfig.events.codeMask),
+        clock = clock,
+        zones = ZoneId::systemDefault,
+        scope = appScope,
+    )
+
     /** Tasks Whittle runs by itself on a schedule, each with an alarm for its next run. */
     val automations = Automations(
         backend = EncryptedFileAutomations(File(context.filesDir, appDefaults.storage.automationsFileName), cipher),
         alarms = AndroidAutomationAlarms(context),
-        config = load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
+        config = automationsConfig,
         clock = clock,
         ids = idGenerator,
         zones = ZoneId::systemDefault,
         scope = appScope,
+        pendingDrains = eventGate::pending,
     )
 
     /** The phone tools' settings: where maps open, reminders and sharing. */

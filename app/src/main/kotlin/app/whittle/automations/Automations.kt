@@ -28,6 +28,9 @@ interface AutomationAlarms {
     fun set(id: String, atMillis: Long, scheduledForMillis: Long, retry: Boolean)
 
     fun cancel(id: String)
+
+    /** Cancels only the next-run alarm, leaving a retry or a drain alarm in place. */
+    fun cancelNext(id: String)
 }
 
 /** Why an automation wasn't saved. */
@@ -53,6 +56,8 @@ class Automations(
     private val ids: IdGenerator,
     private val zones: () -> ZoneId,
     scope: CoroutineScope,
+    /** When each automation's waiting events may run, from the event gate; its drain alarms are set again with the rest. */
+    private val pendingDrains: suspend () -> Map<String, Long> = { emptyMap() },
 ) {
     private val changes = Mutex()
     private val _all = MutableStateFlow<List<Automation>>(emptyList())
@@ -106,7 +111,13 @@ class Automations(
 
     suspend fun setEnabled(id: String, enabled: Boolean): Outcome<Unit> = changes.withLock {
         val updated = current().map { if (it.id == id) it.copy(enabled = enabled) else it }
-        store(updated).also { if (it is Outcome.Success) updated.firstOrNull { a -> a.id == id }?.let(::schedule) }
+        store(updated).also {
+            if (it is Outcome.Success) {
+                updated.firstOrNull { a -> a.id == id }?.let(::schedule)
+                // An event automation's drain alarm outlives a save, but not being switched off.
+                if (!enabled && updated.any { a -> a.id == id && a.isEvent }) alarms.cancel(id)
+            }
+        }
     }
 
     suspend fun delete(id: String): Outcome<Unit> = changes.withLock {
@@ -124,8 +135,18 @@ class Automations(
         store(current().map { if (it.id == id) it.copy(missedAtMillis = scheduledForMillis) else it })
     }
 
-    /** Sets every alarm again: after a reboot, an update or a time zone change, and at each launch. */
-    suspend fun rescheduleAll() = changes.withLock { current().forEach(::schedule) }
+    /**
+     * Sets every alarm again: after a reboot, an update or a time zone change, and at each launch. Events still
+     * waiting get their drain alarm back, for automations that are still there and on.
+     */
+    suspend fun rescheduleAll() = changes.withLock {
+        val automations = current()
+        automations.forEach(::schedule)
+        pendingDrains().forEach { (id, at) -> if (automations.any { it.id == id && it.enabled }) setDrain(id, at) }
+    }
+
+    /** Wakes [id] at [atMillis] to run the events waiting for it. Kept apart from its next run, like a retry. */
+    fun setDrain(id: String, atMillis: Long) = alarms.set(id, atMillis, atMillis, retry = true)
 
     /** Sets [id]'s next alarm from now. A run calls it before starting, so one failed run never ends the schedule. */
     suspend fun scheduleNext(id: String) = changes.withLock { current().firstOrNull { it.id == id }?.let(::schedule) }
@@ -161,7 +182,12 @@ class Automations(
 
     private fun schedule(automation: Automation): Long? {
         val next = nextRunMillis(automation)
-        if (next == null) alarms.cancel(automation.id) else alarms.set(automation.id, next, next, retry = false)
+        if (next == null) {
+            // An event automation has no next run, but may have a drain alarm waiting that a save mustn't wipe.
+            if (automation.isEvent) alarms.cancelNext(automation.id) else alarms.cancel(automation.id)
+        } else {
+            alarms.set(automation.id, next, next, retry = false)
+        }
         return next
     }
 

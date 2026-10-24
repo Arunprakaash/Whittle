@@ -43,6 +43,7 @@ internal data class Alarm(val id: String, val atMillis: Long, val scheduledForMi
 internal class RecordingAlarms : AutomationAlarms {
     val set = mutableListOf<Alarm>()
     val cancelled = mutableListOf<String>()
+    val nextCancelled = mutableListOf<String>()
 
     override fun set(id: String, atMillis: Long, scheduledForMillis: Long, retry: Boolean) {
         set += Alarm(id, atMillis, scheduledForMillis, retry)
@@ -50,6 +51,10 @@ internal class RecordingAlarms : AutomationAlarms {
 
     override fun cancel(id: String) {
         cancelled += id
+    }
+
+    override fun cancelNext(id: String) {
+        nextCancelled += id
     }
 }
 
@@ -78,5 +83,16 @@ internal class FakeChat(
         if (isRunning) return null
         started += automation to preApprovedTools
         return "chat-${started.size}"
+    }
+}
+
+internal class MemoryEventBackend : EventQueueBackend {
+    var stored: List<QueuedEvents> = emptyList()
+
+    override suspend fun load(): List<QueuedEvents> = stored
+
+    override suspend fun save(all: List<QueuedEvents>): Outcome<Unit> {
+        stored = all
+        return Outcome.Success(Unit)
     }
 }

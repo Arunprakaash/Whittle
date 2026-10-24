@@ -50,6 +50,30 @@ class AutomationsTest {
         assertIs<SaveResult.Saved>(automations.save(every.copy(trigger = Trigger.Every(15))))
     }
 
+    private fun TestScope.automations(pending: Map<String, Long>) =
+        Automations(backend, alarms, config, EpochClock { now }, IdGenerator { "a${nextId++}" }, { zone }, this, { pending })
+
+    @Test
+    fun rescheduleAllSetsDrainAlarmForQueuedEvents() = runTest {
+        val automations = automations(mapOf("sms" to now + 90_000, "gone" to now + 1_000))
+        val sms = automations.draft("Bank", "Log it").copy(id = "sms", schedule = null, trigger = Trigger.Sms(listOf("HDFCBK")))
+        automations.save(sms)
+        automations.rescheduleAll()
+        assertEquals(listOf(Alarm("sms", now + 90_000, now + 90_000, retry = true)), alarms.set)
+        // Saving an event automation never cancels its drain alarm.
+        assertTrue(alarms.cancelled.isEmpty())
+        assertEquals(listOf("sms", "sms"), alarms.nextCancelled)
+    }
+
+    @Test
+    fun disablingAnEventAutomationCancelsEverything() = runTest {
+        val automations = automations()
+        val sms = automations.draft("Bank", "Log it").copy(id = "sms", schedule = null, trigger = Trigger.Sms())
+        automations.save(sms)
+        automations.setEnabled("sms", false)
+        assertEquals(listOf("sms"), alarms.cancelled)
+    }
+
     @Test
     fun eventAutomationSetsNoAlarm() = runTest {
         val automations = automations()
