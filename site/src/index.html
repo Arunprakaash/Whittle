@@ -20,6 +20,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 {{{fontLinks}}}
+<link rel="preload" as="image" href="{{filmPoster}}" fetchpriority="high">
 <link rel="stylesheet" href="styles.css?v={{stylesVersion}}">
 <script src="site.js?v={{scriptVersion}}" defer></script>
 </head>
@@ -49,8 +50,12 @@
     <section class="wrap bench" aria-label="Whittle at work">
       <!-- The film plays muted on a loop; with reduced motion, the to-do list stands in for it. -->
       <div class="film" data-film>
-        <video src="media/whittle-film.mp4" poster="media/whittle-film-poster.jpg" muted loop playsinline autoplay preload="metadata" aria-label="Whittle at work: a morning brief, splitting a trip bill, setting an alarm, asking before sharing, and building a chai timer app."></video>
-        <button type="button" class="film-sound" data-film-sound aria-pressed="false" data-on="Sound on" data-off="Tap for sound"><span class="ms" aria-hidden="true">volume_off</span><span data-film-sound-label>Tap for sound</span></button>
+        <!-- site.js starts it once it's on screen; without the script, the browser's own controls stand in. -->
+        <video poster="{{filmPoster}}" muted loop playsinline preload="none" controls aria-label="Whittle at work: a morning brief, splitting a trip bill, setting an alarm, asking before sharing, and building a chai timer app.">{{{filmSources}}}</video>
+        <div class="film-controls" data-film-controls hidden>
+          <button type="button" class="film-button" data-film-play aria-pressed="false" data-on="Play" data-off="Pause"><span class="ms" aria-hidden="true">pause</span><span data-label>Pause</span></button>
+          <button type="button" class="film-button" data-film-sound aria-pressed="false" data-src="{{filmSound}}" data-on="Sound on" data-off="Tap for sound"><span class="ms" aria-hidden="true">volume_off</span><span data-label>Tap for sound</span></button>
+        </div>
       </div>
       <div class="psst todo-only" aria-hidden="true">
         <span>psst… tap a chore</span>
