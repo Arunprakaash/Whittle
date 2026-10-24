@@ -15,6 +15,10 @@ import kotlinx.serialization.Serializable
 /** Whether the card [key] in [items] is still a capability card waiting for an answer; answered cards are left as they are. */
 fun stillAsking(items: List<ThreadItem>, key: String): Boolean = items.any { it is ThreadItem.Capability && it.key == key }
 
+/** The approval card [key] in [items] while it still waits for an answer; null once answered, or when it isn't there. */
+fun waitingDecision(items: List<ThreadItem>, key: String): ThreadItem.Decision? =
+    items.firstOrNull { it.key == key } as? ThreadItem.Decision
+
 /**
  * One entry in the conversation, in the order the user reads it. Saved with the chat, so it holds
  * the words the presenter produced, not UI objects; the screen maps these to components.

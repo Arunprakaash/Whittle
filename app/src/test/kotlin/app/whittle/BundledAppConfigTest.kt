@@ -62,6 +62,13 @@ class BundledAppConfigTest {
     }
 
     @Test
+    fun `deleting and paying are only approved in the app, never from a notification`() {
+        val defaults = assertIs<Outcome.Success<AppDefaults>>(loader.load(AppDefaults.FILE, AppDefaults.serializer(), AppDefaults.SCHEMA_VERSION)).value
+        assertTrue(defaults.background.approvals.fromNotification)
+        assertFalse(defaults.background.approvals.buttonsFor(RiskTier.DELETE_OR_PAY))
+    }
+
+    @Test
     fun `memory ideas have bundled icons and somewhere to start`() {
         val defaults = assertIs<Outcome.Success<AppDefaults>>(loader.load(AppDefaults.FILE, AppDefaults.serializer(), AppDefaults.SCHEMA_VERSION)).value
         val ideas = defaults.memory.ideas

@@ -124,6 +124,15 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+        <!-- Approve or Decline on an approval's notification: answers the card, then closes. Its own task, so Whittle
+             doesn't come forward; not exported, so only Whittle's own notifications open it. -->
+        <activity
+            android:name=".background.ApprovalActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <!-- Where the installer reports how an install went; only the system's PendingIntent reaches it. -->
         <receiver
             android:name=".apps.InstallResultReceiver"

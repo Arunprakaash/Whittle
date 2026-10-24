@@ -40,7 +40,11 @@
     "memoryEntries": 64
   },
   "background": {
-    "keepRunning": true
+    "keepRunning": true,
+    "approvals": {
+      "fromNotification": true,
+      "inAppOnly": ["DELETE_OR_PAY"]
+    }
   },
   "projects": {
     "promptWithProject": "This chat works on the project {{project}}, in {{mount}}/{{project}}: commands start there and relative paths resolve inside it.",
