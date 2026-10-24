@@ -38,6 +38,7 @@ import app.whittle.tools.api.ToolId
 import app.whittle.tools.api.WorkspaceId
 import app.whittle.tools.workspace.ChatProjects
 import app.whittle.tools.workspace.ProcessInfo
+import app.whittle.settings.Starter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -667,6 +668,9 @@ class ChatViewModel(
 
     /** Runs the card's command again, in the same folder; the card follows the new process. */
     fun restartProcess(item: ThreadItem.Process) = current.value.restartProcess(item)
+
+    /** What the very first chat offers to try, without the ones whose phone feature the user switched off. */
+    val starters: List<Starter> get() = startersFor(graph.starters, graph.currentSettings.value?.phoneOff.orEmpty())
 
     /** Sends [text] as the user's message, as if typed. */
     fun sendText(text: String) {

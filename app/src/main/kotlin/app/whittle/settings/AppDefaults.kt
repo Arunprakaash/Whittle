@@ -23,6 +23,7 @@ data class AppDefaults(
     val memory: MemoryDefaults,
     val attachments: AttachmentDefaults,
     val updates: UpdateDefaults,
+    val starters: List<Starter>,
 ) : VersionedConfig {
     companion object {
         const val SCHEMA_VERSION = 1
@@ -166,6 +167,13 @@ data class MemoryDefaults(
 /** A kind of thing worth remembering: what it's about, an example, and the words the editor starts with. */
 @Serializable
 data class MemoryIdea(val icon: String, val title: String, val example: String, val start: String)
+
+/**
+ * A task the first chat offers, one that works right away: no Linux, no connection. Tapping sends [prompt] as the user's
+ * message. One that needs the phone feature [feature] (an id in phone-actions.json) isn't offered while it's switched off.
+ */
+@Serializable
+data class Starter(val icon: String, val title: String, val prompt: String, val feature: String? = null)
 
 /**
  * Photos and files the user adds to a message: where in the workspace they're saved (inside the chat's project when

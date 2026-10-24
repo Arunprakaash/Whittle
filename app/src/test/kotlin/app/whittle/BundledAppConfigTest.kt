@@ -41,6 +41,18 @@ class BundledAppConfigTest {
     }
 
     @Test
+    fun `the first chat offers three starters with bundled icons and real phone features`() {
+        val defaults = assertIs<Outcome.Success<AppDefaults>>(loader.load(AppDefaults.FILE, AppDefaults.serializer(), AppDefaults.SCHEMA_VERSION)).value
+        val phone = assertIs<Outcome.Success<PhoneActionsConfig>>(loader.load(PhoneActionsConfig.FILE, PhoneActionsConfig.serializer(), PhoneActionsConfig.SCHEMA_VERSION)).value
+        assertEquals(3, defaults.starters.size)
+        val missingIcons = defaults.starters.map { it.icon }.toSet() - MaterialSymbols.names
+        assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
+        assertTrue(defaults.starters.all { it.title.isNotBlank() && it.prompt.isNotBlank() })
+        val features = phone.switches.map { it.id }.toSet()
+        assertTrue(defaults.starters.mapNotNull { it.feature }.all { it in features }, "Starters may only name features in phone-actions.json")
+    }
+
+    @Test
     fun `memory ideas have bundled icons and somewhere to start`() {
         val defaults = assertIs<Outcome.Success<AppDefaults>>(loader.load(AppDefaults.FILE, AppDefaults.serializer(), AppDefaults.SCHEMA_VERSION)).value
         val ideas = defaults.memory.ideas

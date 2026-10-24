@@ -579,6 +579,7 @@
     <string name="project_create">Create</string>
     <string name="project_cancel">Cancel</string>
     <string name="project_carry_on">Carry on with</string>
+    <string name="starters_title">Try one of these</string>
 
     <!-- Automations -->
     <string name="settings_section_automations">Automations</string>
