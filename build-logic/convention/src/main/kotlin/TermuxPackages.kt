@@ -14,6 +14,11 @@ import java.util.zip.GZIPInputStream
  */
 internal class TermuxSpec(
     val repository: String,
+    /**
+     * Where else a pinned .deb is found, by its file name, when Termux has dropped it (it keeps only current versions):
+     * Whittle's own copies, uploaded by CI from the lock file. Each download is checked against the pinned SHA-256.
+     */
+    val mirrors: List<String>,
     /** Termux's own install prefix, compiled into its programs; rewritten to Whittle's at build time. */
     val termuxPrefix: String,
     /** Folder in the app's data directory the tools live in; padded so the new prefix is as long as Termux's. */
@@ -43,6 +48,7 @@ internal class TermuxSpec(
             val json = JsonSlurper().parse(file) as Map<String, Any?>
             return TermuxSpec(
                 repository = json["repository"] as String,
+                mirrors = (json["mirrors"] as List<String>?).orEmpty(),
                 termuxPrefix = json["termuxPrefix"] as String,
                 installDirectory = json["installDirectory"] as String,
                 packages = json["packages"] as List<String>,
@@ -107,8 +113,38 @@ internal sealed interface TarEntry {
 internal object Debs {
     fun download(url: String): ByteArray = URI(url).toURL().openStream().use(InputStream::readBytes)
 
+    /**
+     * The pinned [locked] .deb: from [cache] when it's there and intact, else from Termux, else from the first of the
+     * spec's mirrors that has it. Whatever is downloaded must match the pinned SHA-256, and is kept in [cache].
+     */
+    fun fetch(spec: TermuxSpec, locked: LockedPackage, cache: File): ByteArray {
+        val name = locked.filename.substringAfterLast('/')
+        val file = File(cache.apply { mkdirs() }, name)
+        val what = "${locked.name} ${locked.version}"
+        file.takeIf { it.isFile }?.readBytes()?.takeIf { sha256(it).equals(locked.sha256, ignoreCase = true) }?.let { return it }
+        val sources = listOf(spec.repository.trimEnd('/') + "/" + locked.filename) + spec.mirrors.map { it.trimEnd('/') + "/" + name }
+        val failures = mutableListOf<String>()
+        for (url in sources) {
+            val bytes = try {
+                download(url)
+            } catch (exception: java.io.IOException) {
+                failures += "$url: ${exception.javaClass.simpleName}"
+                continue
+            }
+            verify(bytes, locked.sha256, what)
+            file.writeBytes(bytes)
+            return bytes
+        }
+        throw GradleException(
+            "Neither Termux nor a mirror has $what (${failures.joinToString("; ")}). Run ./gradlew :app:updateTermuxLock to pin " +
+                "what Termux has now, then test Linux on a phone before committing the new lock.",
+        )
+    }
+
+    fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+
     fun verify(bytes: ByteArray, sha256: String, what: String) {
-        val actual = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        val actual = sha256(bytes)
         if (!actual.equals(sha256, ignoreCase = true)) throw GradleException("$what doesn't match its pinned SHA-256: expected $sha256, got $actual")
     }
 

@@ -86,7 +86,8 @@ fun verifyCopy(
         if (expected == null) {
             InstallCheck.CHANGED
         } else {
-            val verified = ApkVerifier.Builder(copy).setMinCheckedPlatformVersion(MIN_CHECKED_SDK).build().verify()
+            // Signatures are checked as every Android the app installs on would check them, from its minSdk up.
+            val verified = ApkVerifier.Builder(copy).setMinCheckedPlatformVersion(minSdk).build().verify()
             val facts = (inspector.inspect(copy) as? Outcome.Success)?.value
             if (facts == null) InstallCheck.CHANGED else checkInstallable(card, facts, signerMatches(verified, expected), configured, minSdk, targetSdk)
         }
@@ -116,8 +117,6 @@ fun verifyForInstall(
     minSdk: Int,
     targetSdk: Int,
 ): InstallCheck = verifyCopy(card, apk, copy, signer.existingCertificate(card.packageName), inspector, configured, minSdk, targetSdk)
-
-private const val MIN_CHECKED_SDK = 26
 
 /**
  * Installs, updates and reads the state of the apps Whittle built. The user's tap is the only way anything reaches here.

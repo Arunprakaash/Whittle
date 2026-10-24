@@ -15,7 +15,6 @@ import org.gradle.api.tasks.TaskAction
 import java.io.File
 import java.nio.file.FileSystems
 import java.nio.file.Path
-import java.security.MessageDigest
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -75,15 +74,8 @@ abstract class TermuxRuntimeTask : DefaultTask() {
     }
 
     private fun entries(spec: TermuxSpec, locked: LockedPackage): List<TarEntry> {
-        val file = File(downloadDirectory.get().asFile.apply { mkdirs() }, locked.filename.substringAfterLast('/'))
-        val what = "${locked.name} ${locked.version}"
-        val bytes = file.takeIf { it.isFile }?.readBytes()?.takeIf { sha256(it).equals(locked.sha256, ignoreCase = true) }
-            ?: try {
-                Debs.download(spec.repository.trimEnd('/') + "/" + locked.filename).also { Debs.verify(it, locked.sha256, what); file.writeBytes(it) }
-            } catch (exception: java.io.FileNotFoundException) {
-                throw GradleException("Termux no longer has $what; run ./gradlew :app:updateTermuxLock", exception)
-            }
-        return Debs.dataEntries(bytes, what)
+        val bytes = Debs.fetch(spec, locked, downloadDirectory.get().asFile)
+        return Debs.dataEntries(bytes, "${locked.name} ${locked.version}")
     }
 
     private class Layout(private val spec: TermuxSpec, private val prefix: String, private val jniDirectory: File) {
@@ -198,7 +190,5 @@ abstract class TermuxRuntimeTask : DefaultTask() {
         const val BYTE = 0xFF
         const val BITS = 8
         val NOT_NAME_SAFE = Regex("[^A-Za-z0-9]")
-
-        fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
     }
 }

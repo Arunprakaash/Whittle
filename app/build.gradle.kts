@@ -78,6 +78,13 @@ val updateTermuxLock = tasks.register<UpdateTermuxLockTask>("updateTermuxLock") 
     specFile.set(termuxSpec)
     lockFile.set(termuxLock)
 }
+// Every pinned .deb, for CI to upload as the mirror termux-runtimes.json names: Termux keeps only current versions.
+tasks.register<CollectTermuxDebsTask>("collectTermuxDebs") {
+    specFile.set(termuxSpec)
+    lockFile.set(termuxLock)
+    downloadDirectory.set(File(gradle.gradleUserHomeDir, "caches/whittle-termux"))
+    outputDirectory.set(layout.buildDirectory.dir("termux-mirror"))
+}
 android.packaging.jniLibs.useLegacyPackaging = true
 android.ndkVersion = libs.versions.ndk.get()
 
