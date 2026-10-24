@@ -11,9 +11,9 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Read-only for every job; only the mirror job asks for more, and it runs no build code.
 permissions:
-  # Write only for the mirror step, which runs on pushes to main; pull requests from forks get read-only tokens anyway.
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -46,16 +46,20 @@ jobs:
         run: ./gradlew test :app:lintRelease :app:assembleDebug
 
       # Termux keeps only each package's current version, so a pinned one can vanish (5.1.107.98 did) and break
-      # every fresh build. From main, the pinned .debs go to the termux-runtimes release, the mirror the build
-      # falls back to (termux-runtimes.json); uploads replace files of the same name, and old versions stay.
-      - name: Mirror the pinned Termux packages
+      # every fresh build. On main the pinned .debs are collected here, with this job's read-only token, and the
+      # mirror job below publishes them.
+      - name: Collect the pinned Termux packages
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          ./gradlew :app:collectTermuxDebs
-          gh release view termux-runtimes > /dev/null 2>&1 || gh release create termux-runtimes --title "Termux runtimes (build mirror)" --notes "The Termux packages app/termux-runtimes.lock.json pins, kept for builds after Termux drops them. Not a Whittle release." --latest=false
-          gh release upload termux-runtimes app/build/termux-mirror/*.deb --clobber
+        run: ./gradlew :app:collectTermuxDebs
+
+      - name: Hand the packages to the mirror job
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: termux-debs
+          path: app/build/termux-mirror/*.deb
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Keep the reports
         if: failure()
@@ -66,3 +70,49 @@ jobs:
             **/build/reports/
             **/build/test-results/
           retention-days: 7
+
+  # Puts the pinned .debs on the termux-runtimes release, the mirror the build falls back to (termux-runtimes.json).
+  # The only job with a write token. It runs no Gradle and no repository code: it uploads what the build job
+  # handed over, and every .deb is checked against its pinned SHA-256 again when a build downloads it.
+  mirror:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: termux-debs
+          path: debs
+
+      # Names include the version and the bytes are pinned, so a file the release already has is never uploaded
+      # again (no --clobber, which deletes the old asset first). The release is a prerelease so the landing page,
+      # which lists only full releases, doesn't show it.
+      - name: Upload the packages the mirror lacks
+        run: |
+          set -euo pipefail
+          errors=$(mktemp)
+          if ! existing=$(gh release view termux-runtimes --json assets --jq '.assets[].name' 2> "$errors"); then
+            # Only a missing release is created; an auth or network error stops here with its own message.
+            grep -qi 'release not found' "$errors" || { cat "$errors" >&2; exit 1; }
+            gh release create termux-runtimes --prerelease --title "Termux runtimes (build mirror)" --notes "The Termux packages app/termux-runtimes.lock.json pins, kept for builds after Termux drops them. Not a Whittle release."
+            existing=""
+          fi
+          missing=()
+          for deb in debs/*.deb; do
+            grep -qxF "$(basename "$deb")" <<< "$existing" || missing+=("$deb")
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            gh release upload termux-runtimes "${missing[@]}"
+          fi
+          # GitHub renames assets whose names have some special characters (a version with ~ or +), and builds look
+          # a package up on the mirror by its Termux file name, so check every name is there as it was uploaded.
+          uploaded=$(gh release view termux-runtimes --json assets --jq '.assets[].name')
+          for deb in debs/*.deb; do
+            grep -qxF "$(basename "$deb")" <<< "$uploaded" || { echo "::error::The mirror has no asset named $(basename "$deb"); GitHub may have renamed it"; exit 1; }
+          done
