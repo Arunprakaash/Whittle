@@ -1,0 +1,70 @@
+# Builds the landing page (site/) and publishes it to GitHub Pages. It rebuilds whenever the site changes on main
+# and each time a release is published, so What's new and the download link follow GitHub Releases.
+name: Site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - site/**
+      - docs/design/sprites/beaver.sprite.json
+      - .github/workflows/site.yml
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site
+  cancel-in-progress: false
+
+jobs:
+  # A release runs on its tag, which the github-pages environment won't deploy from, so it asks for a build of
+  # the default branch instead. The workflow token may start workflow_dispatch runs.
+  on-release:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Rebuild the site from the default branch
+        run: gh workflow run site.yml --repo "$GITHUB_REPOSITORY" --ref "${{ github.event.repository.default_branch }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  build:
+    if: github.event_name != 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build
+        run: node site/build.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

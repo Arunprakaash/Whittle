@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>Whittle: an AI agent on your phone</title>
+<meta name="description" content="Whittle is an AI agent that lives on your Android phone and actually does the stuff. Any model, your own keys, and no Whittle server in between.">
+<link rel="canonical" href="{{url}}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{url}}">
+<meta property="og:title" content="Whittle down your to-do list.">
+<meta property="og:description" content="An AI agent that lives on your Android phone and actually does the stuff. Any model, your own keys, and no Whittle server in between.">
+<link rel="icon" href="beaver.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+{{{fontLinks}}}
+<link rel="stylesheet" href="styles.css?v={{stylesVersion}}">
+<script src="site.js?v={{scriptVersion}}" defer></script>
+</head>
+<body>
+<div class="page">
+
+  <header class="wrap nav">
+    <a class="brand" href="#top"><img src="beaver.svg" alt="" width="34" height="30">whittle</a>
+    <nav class="links" aria-label="Main">
+      <a class="link" href="#new">What's new</a>
+      <a class="link" href="{{repoUrl}}">GitHub</a>
+      <a class="btn btn-ink btn-sm" href="{{downloadUrl}}"><span class="ms" aria-hidden="true">android</span>Get the APK</a>
+    </nav>
+  </header>
+
+  <main>
+    <section id="top" class="wrap hero">
+      <h1 class="display h1 rise">Whittle down<br>your <span class="marker">to-do list.</span></h1>
+      <p class="lede rise rise-2">An AI agent that lives on your Android phone and actually does the stuff. Any model, your own keys, and no Whittle server in between.</p>
+      <div class="cta rise rise-3">
+        <a class="btn btn-ink" href="{{downloadUrl}}"><span class="ms" aria-hidden="true">android</span>Download for Android<span class="pill-price">free</span></a>
+        <a class="btn btn-paper" href="{{repoUrl}}"><span class="ms" aria-hidden="true">code</span>Read the code</a>
+      </div>
+      <span class="small mono rise rise-4">v{{version}} · {{requirements}} · not on the Play Store, yet</span>
+    </section>
+
+    <section class="wrap bench" aria-label="Whittle working through a to-do list">
+      <div class="psst" aria-hidden="true">
+        <span>psst… tap a chore</span>
+        <svg width="120" height="70" viewBox="0 0 120 70" fill="none"><path class="drawn" d="M8 8 C 40 10, 80 18, 104 52" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path class="drawn" d="M92 50 L 106 56 L 108 40" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="pad" data-pad>
+        <div class="pad-holes" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="pad-head"><span class="pad-title">{{choresTitle}}</span><span class="pad-count" data-count aria-live="polite">{{choresLeft}}</span></div>
+        <ol class="chores">{{{choresHtml}}}</ol>
+        <div class="pad-foot">
+          <span class="small" data-pad-note>Tap any chore.</span>
+          <button type="button" class="btn btn-paper btn-sm" data-new-list hidden><span class="ms" aria-hidden="true">refresh</span>New list</button>
+        </div>
+      </div>
+      <div class="beaver beaver-hero" data-beaver="hero" aria-hidden="true"><img src="beaver.svg" alt=""></div>
+    </section>
+
+    <section class="wrap section">
+      <div class="row">
+        <div class="copy reveal">
+          <span class="kicker"><b>01</b>on your phone</span>
+          <h2 class="display h2">It doesn't explain how. It just does it.</h2>
+          <p class="lede">Alarms, reminders, your calendar, Maps, calls and sharing. Every step shows up as it happens. Anything that sends, calls or spends waits for your thumb.</p>
+          <div class="notes"><span class="note"><span class="ms" aria-hidden="true">alarm</span>Clock</span><span class="note"><span class="ms" aria-hidden="true">event</span>Calendar</span><span class="note"><span class="ms" aria-hidden="true">map</span>Maps</span><span class="note"><span class="ms" aria-hidden="true">call</span>Calls</span><span class="note"><span class="ms" aria-hidden="true">share</span>Sharing</span></div>
+        </div>
+        <div class="stage reveal" data-demo="phone" aria-hidden="true">
+          <div class="bubble">Wake me at 6:30, add the dentist on Friday and call them to confirm</div>
+          <div class="steprow" data-from="900"><span class="ms fill">alarm</span><div><div class="steprow-title">Set an alarm</div><div class="steprow-detail">06:30 · Clock</div></div></div>
+          <div class="steprow" data-from="1900"><span class="ms fill">event</span><div><div class="steprow-title">Added to your calendar</div><div class="steprow-detail">Dentist · Fri 4:00 PM</div></div></div>
+          <div class="overlap">
+            <div class="ask" data-from="3100" data-until="6600" data-enter="slideup">
+              <div class="ask-head"><span class="ask-icon"><span class="ms fill">call</span></span><div><div class="steprow-title">Call Smile Dental?</div><div class="steprow-detail">Whittle opens your phone app. You press call.</div></div></div>
+              <div class="ask-buttons"><span class="ask-btn ask-no">Not now</span><span class="ask-btn ask-yes" data-press-from="5600" data-press-until="6000">Allow</span></div>
+            </div>
+            <span class="toast off" data-from="6600"><span class="ms fill">call</span>Ready to call Smile Dental</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap section section-follow">
+      <div class="row flip">
+        <div class="copy reveal">
+          <span class="kicker"><b>02</b>apps on the spot</span>
+          <h2 class="display h2">Ask for an app. Get an app.</h2>
+          <p class="lede">A real Android app, written in Kotlin and built right on your phone with the network off. Or a website you can try in a tap. Nothing installs until you say so.</p>
+        </div>
+        <div class="stage reveal" data-demo="app" aria-hidden="true">
+          <div class="bubble">Make me a chai timer. Four minutes, then buzz.</div>
+          <div class="build">
+            <div class="build-top">
+              <span class="app-tile"><img data-chai src="chai.svg" alt=""></span>
+              <div class="build-name"><div class="steprow-title">Chai Timer</div><div class="steprow-detail" data-status>Version 1 · Uses vibration only</div></div>
+              <span class="install" data-install><span class="ms">android</span>Install</span>
+            </div>
+            <div class="bar"><i data-progress style="width: 100%;"></i></div>
+            <div class="log"><div data-log="5">$ write app/src/main/MainActivity.kt</div><div data-log="40">$ gradle assembleRelease --offline</div><div data-log="100">$ sign with Chai Timer's own key ✓</div></div>
+          </div>
+          <div class="dock">
+            <span class="dock-app"><span class="dock-icon"></span></span>
+            <span class="dock-app"><span class="dock-icon"></span></span>
+            <span class="dock-app"><span class="dock-slot"><span class="app-tile" data-landed><img data-chai src="chai.svg" alt=""></span></span>Chai Timer</span>
+            <span class="dock-app"><span class="dock-icon"></span></span>
+            <span class="dock-app"><span class="dock-icon"></span></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap section section-follow">
+      <div class="row">
+        <div class="copy reveal">
+          <span class="kicker"><b>03</b>answers, with receipts</span>
+          <h2 class="display h2">Reads the web so you don't have to.</h2>
+          <p class="lede">It opens the pages, checks the facts and shows where it found them. Connect Notion, Linear, GitHub or any MCP server and it digs there too.</p>
+        </div>
+        <div class="stage reveal" data-demo="research">
+          <div class="search" aria-hidden="true"><span class="ms">search</span><span data-typed>{{firstQuestion}}</span><span class="caret"></span></div>
+          <div class="sources" data-sources aria-hidden="true">{{{firstSources}}}</div>
+          <div class="answer" data-answer aria-hidden="true">{{firstAnswer}}</div>
+          <button type="button" class="next" data-next><span class="ms" aria-hidden="true">shuffle</span>Ask something else</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap section section-follow">
+      <div class="bento">
+        <div class="tile t-linux reveal">
+          <span class="kicker kicker-night"><b>04</b>a whole computer</span>
+          <h3>A whole Linux in your pocket.</h3>
+          <p>Ubuntu runs inside Whittle, so it never has to say "I can't install that." Scripts, PDFs, git, servers: all on the phone.</p>
+          <div class="term" data-demo="terminal" aria-hidden="true">{{{terminalHtml}}}</div>
+        </div>
+        <div class="tile t-night reveal" data-demo="night">
+          <div class="stars" aria-hidden="true"><i style="left: 62%; top: 18%;"></i><i style="left: 78%; top: 40%; animation-delay: 1s;"></i><i style="left: 52%; top: 34%; animation-delay: 2s;"></i><i style="left: 88%; top: 62%; animation-delay: .5s;"></i></div>
+          <div class="moon" aria-hidden="true"></div>
+          <span class="kicker kicker-dusk"><b>05</b>automations</span>
+          <h3>Works the night shift.</h3>
+          <p>Pick a time and the days. Wake up to it done.</p>
+          <div class="clock" aria-hidden="true"><b data-time>7:30</b><span class="mono">weekdays</span></div>
+          <div class="notif" data-from="2600" aria-hidden="true"><img src="beaver.svg" alt=""><div><div class="steprow-title">Morning brief is ready</div><div class="steprow-detail">3 meetings, 1 bill due, rain after 4.</div></div></div>
+        </div>
+        <div class="tile t-brain reveal">
+          <div class="brain-copy">
+            <span class="kicker"><b>06</b>bring your own brain</span>
+            <h3 class="brain-title">Any model. Your keys. Switch whenever.</h3>
+            <p>Your phone talks straight to the provider you pick. Keys are encrypted on the phone and never backed up anywhere.</p>
+          </div>
+          <div class="models" data-demo="models" role="radiogroup" aria-label="Model providers">{{{modelsHtml}}}</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="safe" class="wrap section section-follow">
+      <div class="row">
+        <div class="copy reveal">
+          <h2 class="display h2">Busy, not nosy.</h2>
+          <p class="lede">An agent with your phone in its paws needs rules it can't talk its way out of. These are fixed in the app, not left to the model's mood.</p>
+        </div>
+        <div class="rules reveal">
+          <span class="tape" aria-hidden="true"></span>
+          <div class="pad-title rules-title">House rules</div>
+          <ol class="rule-list">
+            <li class="rule"><span class="rule-n">1</span><div><div class="rule-t">It asks before it sends, calls, deletes or spends.</div><div class="rule-d">Your tap, every time. Calls and messages always wait for you.</div></div></li>
+            <li class="rule"><span class="rule-n">2</span><div><div class="rule-t">Strangers don't get to boss it around.</div><div class="rule-d">What a web page or an email says is information, never instructions.</div></div></li>
+            <li class="rule"><span class="rule-n">3</span><div><div class="rule-t">There's no Whittle server.</div><div class="rule-d">Nowhere in between for your stuff to end up.</div></div></li>
+            <li class="rule"><span class="rule-n">4</span><div><div class="rule-t">Your keys stay home.</div><div class="rule-d">Encrypted on your phone, never backed up to anyone's cloud.</div></div></li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section id="new" class="wrap section section-follow">
+      <div class="row row-top">
+        <div class="copy reveal">
+          <h2 class="display h2">Fresh shavings.</h2>
+          <p class="lede">Straight from GitHub Releases. This page updates itself every time a new version ships.</p>
+          <a class="btn btn-paper btn-sm self-start" href="{{releasesUrl}}">Every release<span class="ms" aria-hidden="true">arrow_forward</span></a>
+        </div>
+        <div class="log-list reveal">{{{releasesHtml}}}</div>
+      </div>
+    </section>
+
+    <section class="wrap ending">
+      <div class="beaver" data-beaver="outro" aria-hidden="true"><img src="beaver.svg" alt=""></div>
+      <h2 class="display h2">Now ask it something real.</h2>
+      <div class="cta">
+        <a class="btn btn-ink" href="{{downloadUrl}}"><span class="ms" aria-hidden="true">android</span>Download for Android</a>
+      </div>
+      <span class="small mono">{{apkName}} · {{apkDate}}</span>
+      <nav class="foot" aria-label="Footer">
+        <a class="link" href="{{repoUrl}}">GitHub</a>
+        <a class="link" href="{{releasesUrl}}">Releases</a>
+        <a class="link" href="{{issuesUrl}}">Report a problem</a>
+      </nav>
+      <div class="wordmark" aria-hidden="true">whittle</div>
+    </section>
+  </main>
+
+</div>
+<script type="application/json" id="site-config">{{{clientConfig}}}</script>
+</body>
+</html>
