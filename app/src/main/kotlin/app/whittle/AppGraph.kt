@@ -45,6 +45,7 @@ import app.whittle.core.config.ConsentLevel
 import app.whittle.settings.UserSettings
 import app.whittle.settings.SettingsStore
 import android.content.Context
+import android.text.format.DateFormat
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
@@ -96,6 +97,7 @@ import app.whittle.tools.api.Tool
 import app.whittle.tools.api.ToolRegistry
 import app.whittle.tools.presentation.ToolPresentationConfig
 import app.whittle.tools.presentation.ToolPresenter
+import app.whittle.tools.presentation.UserClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -293,7 +295,11 @@ class AppGraph(context: Context) {
     val voiceDefaults: VoiceDefaults get() = appDefaults.voice
     val previewSheetHeight: Float get() = appDefaults.preview.sheetHeightFraction
     val siteIcons = SiteIconLoader(httpClient, File(context.cacheDir, appDefaults.siteIcons.cacheDirectoryName), appDefaults.siteIcons)
-    val presenter = ToolPresenter(load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION))
+    val presenter = ToolPresenter(
+        load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION),
+        // Read each time a card is made, so a change to the phone's clock or language shows on the next one.
+        UserClock(use24Hour = { DateFormat.is24HourFormat(context) }),
+    )
     val inbox = RunInbox()
 
     val agentMessages = load(ConfigFiles.agentMessages, AgentMessages.serializer(), AgentMessages.SCHEMA_VERSION)

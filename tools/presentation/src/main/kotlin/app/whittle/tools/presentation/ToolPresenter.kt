@@ -40,8 +40,11 @@ data class QuestionText(val icon: String, val question: String, val options: Lis
  * Turns a tool call into the words the user sees. When a template can't be filled (an optional
  * argument is missing), the tool's fallback text is used instead of showing a placeholder. A tool from
  * elsewhere ([ToolOrigin]) also fills {{toolTitle}} and {{toolSource}} with its provider's own names.
+ * Every argument also fills `<argument>_when`: in plain words when it's a time ([PlainTime]), as written otherwise.
  */
-class ToolPresenter(private val config: ToolPresentationConfig) {
+class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock = UserClock()) {
+    private val plainTime = config.times?.let { PlainTime(it, clock) }
+
     /** Every argument name that holds the address of a page a step reads. */
     val siteArguments: Set<String> = config.tools.values.mapNotNullTo(mutableSetOf()) { it.siteArgument }
 
@@ -108,6 +111,7 @@ class ToolPresenter(private val config: ToolPresentationConfig) {
             val text = (value as? JsonPrimitive)?.contentOrNull ?: return@forEach
             put(name, text)
             hostOf(text)?.let { put("${name}$HOST_SUFFIX", it) }
+            put("${name}$WHEN_SUFFIX", plainTime?.format(text) ?: text)
         }
         // Set last, so an argument of the same name can't pass itself off as the tool's own name.
         origin?.let {
@@ -124,6 +128,7 @@ class ToolPresenter(private val config: ToolPresentationConfig) {
 
     companion object {
         const val HOST_SUFFIX = "_host"
+        const val WHEN_SUFFIX = "_when"
         const val TOOL_TITLE = "toolTitle"
         const val TOOL_SOURCE = "toolSource"
         private const val SENTENCE_GAP = " "

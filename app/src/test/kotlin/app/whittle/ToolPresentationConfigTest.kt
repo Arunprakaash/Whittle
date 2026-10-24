@@ -47,7 +47,7 @@ class ToolPresentationConfigTest {
         builtInTools.forEach { tool ->
             val presentation = config.tools.getValue(tool.id.value)
             val properties = tool.inputSchema["properties"]?.jsonObject?.keys.orEmpty()
-            val allowed = properties + properties.map { it + ToolPresenter.HOST_SUFFIX }
+            val allowed = properties + properties.map { it + ToolPresenter.HOST_SUFFIX } + properties.map { it + ToolPresenter.WHEN_SUFFIX }
             val unknown = templates(presentation).flatMap { PromptTemplate(NAME, it).placeholders }.toSet() - allowed
             assertTrue(unknown.isEmpty(), "${tool.id.value} uses unknown placeholders $unknown")
         }
