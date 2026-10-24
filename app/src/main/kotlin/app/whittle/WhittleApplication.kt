@@ -41,6 +41,7 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.collectLatest
 import app.whittle.assistant.ForwardingRecognitionService
 import app.whittle.assistant.ScreenContext
+import app.whittle.automations.events.EventDispatch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -78,6 +79,11 @@ class WhittleApplication : Application() {
             graph.automations, SessionAutomationChat(chat), graph.clock, inForeground = { inForeground }, protect = ::startRunService,
             gate = graph.eventGate, messages = graph.agentMessages, maxPastedChars = graph.maxPastedOutputChars,
         )
+    }
+
+    /** Where the SMS receiver and the notification listener hand events, so they reach the runner. */
+    val eventDispatch: EventDispatch by lazy {
+        EventDispatch(graph.automations, graph.eventGate) { automationRunner.eventsArrived(it) }
     }
 
     val notifications: RunNotifications by lazy { RunNotifications(this) }
