@@ -9,10 +9,12 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.core.net.toUri
 import android.os.Build
 import app.whittle.MainActivity
 import app.whittle.R
+import app.whittle.storage.chats.ChatId
 import app.whittle.tools.presentation.DecisionText
 import app.whittle.updates.Release
 
@@ -103,11 +105,11 @@ class RunNotifications(private val context: Context) {
     )
 
     /**
-     * The approval card [key] waits while the user is away, in its own words. With [buttons], its Approve and Decline
-     * buttons answer it as the card would, once the phone is unlocked (see [ApprovalActivity]); otherwise tapping opens
-     * the chat. One per card, so several waiting cards are answered one by one.
+     * The approval card [key] in [chat] waits while the user is away, in its own words. With [buttons], its Approve and
+     * Decline buttons answer it as the card would, once the phone is unlocked (see [ApprovalActivity]); otherwise tapping
+     * opens the chat. One per card, told apart by chat as well as key, so several waiting cards are answered one by one.
      */
-    fun approval(key: String, chatTitle: String?, text: DecisionText, buttons: Boolean) {
+    fun approval(chat: ChatId?, key: String, chatTitle: String?, text: DecisionText, buttons: Boolean) {
         if (!manager.areNotificationsEnabled()) return
         // What the call would send or change, as the card shows it, so the answer isn't given blind.
         val details = text.payload?.let { payload -> text.payloadLabel?.let { "$it: $payload" } ?: payload }
@@ -122,23 +124,24 @@ class RunNotifications(private val context: Context) {
             .setCategory(Notification.CATEGORY_REMINDER)
             .setVisibility(Notification.VISIBILITY_PRIVATE)
             .setPublicVersion(publicVersion(CHANNEL_UPDATES, R.string.notify_approval_public))
-        if (buttons) {
-            builder.addAction(answerAction(key, text.decline, approve = false))
-            builder.addAction(answerAction(key, text.approve, approve = true))
+        // Buttons need the chat: the answer is looked for there and nowhere else.
+        if (buttons && chat != null) {
+            builder.addAction(answerAction(chat, key, text.decline, approve = false))
+            builder.addAction(answerAction(chat, key, text.approve, approve = true))
         }
-        manager.notify(TAG_APPROVAL, key.hashCode(), builder.build())
+        manager.notify(approvalTag(chat, key), ID_APPROVAL, builder.build())
     }
 
-    /** The card [key] has its answer; its notification has nothing left to ask. */
-    fun clearApproval(key: String) {
-        manager.cancel(TAG_APPROVAL, key.hashCode())
+    /** The card [key] in [chat] has its answer; its notification has nothing left to ask. */
+    fun clearApproval(chat: ChatId, key: String) {
+        manager.cancel(approvalTag(chat, key), ID_APPROVAL)
     }
 
     /** The user is back: the notes about what happened while they were away have done their job. */
     fun clearUpdates() {
         manager.cancel(ID_FINISHED)
         manager.cancel(ID_NEEDS_YOU)
-        manager.activeNotifications.filter { it.tag == TAG_APPROVAL }.forEach { manager.cancel(TAG_APPROVAL, it.id) }
+        manager.activeNotifications.filter { it.tag?.startsWith("$TAG_APPROVAL/") == true }.forEach { manager.cancel(it.tag, it.id) }
     }
 
     /** A newer Whittle is out; tapping opens its release page, with what's new and the APK. */
@@ -307,17 +310,26 @@ class RunNotifications(private val context: Context) {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
-    /** Opens [ApprovalActivity], which Android shows only after the phone is unlocked; Android 12+ also asks before the tap counts. */
-    private fun answerAction(key: String, label: String, approve: Boolean): Notification.Action {
+    /**
+     * Opens [ApprovalActivity], which Android shows only after the phone is unlocked; Android 12+ also asks before the tap
+     * counts. The chat and key are in the intent's data too, so each card's buttons are a PendingIntent of their own:
+     * Android tells PendingIntents apart by their intent without its extras, and by the request code.
+     */
+    private fun answerAction(chat: ChatId, key: String, label: String, approve: Boolean): Notification.Action {
         val intent = Intent(context, ApprovalActivity::class.java)
             .setAction(if (approve) ApprovalActivity.ACTION_APPROVE else ApprovalActivity.ACTION_DECLINE)
+            .setData(Uri.Builder().scheme(APPROVAL_SCHEME).appendPath(chat.value).appendPath(key).build())
+            .putExtra(ApprovalActivity.EXTRA_CHAT, chat.value)
             .putExtra(ApprovalActivity.EXTRA_KEY, key)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        val open = PendingIntent.getActivity(context, key.hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val open = PendingIntent.getActivity(context, approvalTag(chat, key).hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         return Notification.Action.Builder(null, label, open)
             .apply { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) setAuthenticationRequired(true) }
             .build()
     }
+
+    /** One tag per card and chat: a tag is a string, so two cards never share a notification the way a hashed id could. */
+    private fun approvalTag(chat: ChatId?, key: String): String = "$TAG_APPROVAL/${chat?.value.orEmpty()}/$key"
 
     private fun stopRun(): PendingIntent = PendingIntent.getService(
         context,
@@ -342,6 +354,8 @@ class RunNotifications(private val context: Context) {
         private const val TAG_REMINDER = "reminder"
         private const val TAG_INSTALL_PROMPT = "install_prompt"
         private const val TAG_APPROVAL = "approval"
+        private const val ID_APPROVAL = 0
+        private const val APPROVAL_SCHEME = "whittle-approval"
         private const val TAG_SIGN_IN = "sign_in"
         private const val REQUEST_OPEN = 1
         private const val REQUEST_STOP = 2

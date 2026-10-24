@@ -104,8 +104,7 @@ class WhittleApplication : Application() {
                 val title = titleOf(event.chat)
                 when (event) {
                     is ChatEvent.NeedsYou -> notifications.needsYou(title)
-                    is ChatEvent.ApprovalNeeded ->
-                        notifications.approval(event.key, title, event.text, buttons = graph.notificationApprovals.buttonsFor(event.tier))
+                    is ChatEvent.ApprovalNeeded -> notifications.approval(event.chat, event.key, title, event.text, event.buttons)
                     is ChatEvent.Finished -> notifications.finished(title, event.failed)
                 }
             }
