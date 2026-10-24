@@ -7,7 +7,13 @@ import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.tools.api.RiskTier
 import app.whittle.tools.api.ToolExecutionContext
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -17,6 +23,8 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import java.nio.file.Files
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -40,10 +48,25 @@ class McpConnectionTest {
 
     /** The MCP server answers 401 to requests with this access token, as to one it no longer takes. */
     @Volatile private var refusedToken: String? = null
+
+    /** While set, a refresh waits for it to open, after saying it arrived; for a request still in flight. */
+    @Volatile private var holdRefresh: CountDownLatch? = null
+    private val refreshArrived = CountDownLatch(1)
     private val store = object : McpCredentialStore {
         var saved: McpCredentials? = null
+
+        /** While set, saving a sign-out waits for it, after saying so: a slow write, for another to land meanwhile. */
+        @Volatile var holdSignOut: CompletableDeferred<Unit>? = null
+        val signOutHeld = CompletableDeferred<Unit>()
+
         override suspend fun load() = saved
-        override suspend fun save(credentials: McpCredentials) { saved = credentials }
+        override suspend fun save(credentials: McpCredentials) {
+            holdSignOut?.takeIf { credentials.signedOut }?.let { hold ->
+                signOutHeld.complete(Unit)
+                hold.await()
+            }
+            saved = credentials
+        }
         override suspend fun clear() { saved = null }
     }
 
@@ -71,6 +94,7 @@ class McpConnectionTest {
                     )
                     "/register" -> json("""{"client_id":"client-1","client_secret":"secret-1"}""")
                     "/token" -> if (body.contains("grant_type=refresh_token")) {
+                        holdRefresh?.let { hold -> refreshArrived.countDown(); hold.await(WAIT_SECONDS, TimeUnit.SECONDS) }
                         if (refreshStatus != 200) {
                             json("""{"error":"invalid_grant"}""").setResponseCode(refreshStatus)
                         } else {
@@ -254,6 +278,58 @@ class McpConnectionTest {
         assertEquals("access-1", store.saved?.tokens?.accessToken)
     }
 
+    @Test
+    fun `a refusal for a request sent with an old sign-in doesn't sign out the new one`() = runTest {
+        val connection = signedIn()
+        // The old sign-in stops working: its token is refused and its refresh token too, but the refresh is slow.
+        refusedToken = "access-1"
+        refreshStatus = 400
+        val hold = CountDownLatch(1).also { holdRefresh = it }
+        coroutineScope {
+            val stale = async(Dispatchers.IO) { connection.refreshTools() }
+            assertTrue(withContext(Dispatchers.IO) { refreshArrived.await(WAIT_SECONDS, TimeUnit.SECONDS) })
+            // Meanwhile the user signs in again; the new tokens are saved before the old request hears back.
+            val state = (connection.beginSignIn() as Outcome.Success).value.toHttpUrl().queryParameter("state")
+            val fresh = async(Dispatchers.IO) { connection.complete("${REDIRECT}?code=code-2&state=$state") }
+            withContext(Dispatchers.IO) { while (store.saved?.tokens?.accessToken != "access-2") Thread.sleep(POLL_MILLIS) }
+            holdRefresh = null
+            hold.countDown()
+            assertIs<Outcome.Failure>(stale.await())
+            assertIs<Outcome.Success<Unit>>(fresh.await())
+        }
+        assertEquals(ConnectorState.Connected(3), connection.state.value)
+        assertEquals("access-2", store.saved?.tokens?.accessToken)
+        assertEquals(false, store.saved?.signedOut)
+    }
+
+    @Test
+    fun `a sign-in that lands while a refusal is signing out is the one that stays`() = runTest {
+        val connection = signedIn()
+        val state = (connection.beginSignIn() as Outcome.Success).value.toHttpUrl().queryParameter("state")
+        // The old sign-in stops working, and saving its sign-out is slow.
+        refusedToken = "access-1"
+        refreshStatus = 400
+        val hold = CompletableDeferred<Unit>().also { store.holdSignOut = it }
+        coroutineScope {
+            val refused = async(Dispatchers.IO) { connection.refreshTools() }
+            withContext(Dispatchers.IO) { withTimeout(WAIT_SECONDS * 1_000) { store.signOutHeld.await() } }
+            // The user's new sign-in arrives while the sign-out is half done.
+            val fresh = async(Dispatchers.IO) { connection.complete("${REDIRECT}?code=code-2&state=$state") }
+            // Unguarded, its tokens would be saved now, and the sign-out would then write over them.
+            withContext(Dispatchers.IO) {
+                val deadline = System.currentTimeMillis() + SETTLE_MILLIS
+                while (store.saved?.tokens?.accessToken != "access-2" && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MILLIS)
+            }
+            store.holdSignOut = null
+            hold.complete(Unit)
+            refused.await()
+            assertIs<Outcome.Success<Unit>>(fresh.await())
+        }
+        assertEquals(ConnectorState.Connected(3), connection.state.value)
+        assertEquals("access-2", store.saved?.tokens?.accessToken)
+        assertEquals(false, store.saved?.signedOut)
+    }
+
     private suspend fun signedIn(): McpConnection {
         val connection = connection()
         val state = (connection.beginSignIn() as Outcome.Success).value.toHttpUrl().queryParameter("state")
@@ -365,5 +441,8 @@ class McpConnectionTest {
     private companion object {
         const val REDIRECT = "app.whittle://oauth/db"
         const val SESSION = "session-1"
+        const val WAIT_SECONDS = 10L
+        const val POLL_MILLIS = 10L
+        const val SETTLE_MILLIS = 500L
     }
 }
