@@ -160,6 +160,28 @@ class RunNotifications(private val context: Context) {
         manager.notify(ID_UPDATE, notification)
     }
 
+    /**
+     * The service [name] signed Whittle out while the user was away, so its tools are gone until they sign in again;
+     * tapping opens Settings at the connections. Automations that use it would otherwise just fail.
+     */
+    fun signInAgain(name: String) {
+        if (!manager.areNotificationsEnabled()) return
+        val open = PendingIntent.getActivity(
+            context,
+            REQUEST_CONNECTIONS,
+            Intent(context, MainActivity::class.java).setAction(MainActivity.ACTION_SHOW_CONNECTIONS).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val notification = Notification.Builder(context, CHANNEL_UPDATES)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.notify_sign_in_title, name))
+            .setContentText(context.getString(R.string.notify_sign_in_text))
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        manager.notify(TAG_SIGN_IN, name.hashCode(), notification)
+    }
+
     /** A reminder the user asked for; its words show only once the phone is unlocked. */
     fun reminder(id: String, text: String) {
         if (!manager.areNotificationsEnabled()) return
@@ -320,9 +342,11 @@ class RunNotifications(private val context: Context) {
         private const val TAG_REMINDER = "reminder"
         private const val TAG_INSTALL_PROMPT = "install_prompt"
         private const val TAG_APPROVAL = "approval"
+        private const val TAG_SIGN_IN = "sign_in"
         private const val REQUEST_OPEN = 1
         private const val REQUEST_STOP = 2
         private const val REQUEST_STOP_ALL = 3
         private const val REQUEST_UPDATE = 4
+        private const val REQUEST_CONNECTIONS = 5
     }
 }
