@@ -133,12 +133,16 @@
             android:noHistory="true"
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-        <!-- Whittle as the digital assistant (res/xml/assistant.xml). Only the system binds these. -->
+        <!-- Whittle as the digital assistant (res/xml/assistant.xml). Only the system binds these. Android keeps the
+             assistant service bound from boot while Whittle holds the role; it does nothing itself, so it waits in the
+             light :recognizer process. The session service, which reads the screen and opens the chat, stays in
+             Whittle's own process. -->
         <service
             android:name=".assistant.WhittleAssistantService"
             android:exported="true"
             android:label="@string/app_name"
-            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            android:permission="android.permission.BIND_VOICE_INTERACTION"
+            android:process=":recognizer">
             <meta-data
                 android:name="android.voice_interaction"
                 android:resource="@xml/assistant" />
@@ -151,11 +155,14 @@
             android:exported="true"
             android:permission="android.permission.BIND_VOICE_INTERACTION" />
         <!-- The assistant must also be a speech recognizer; this one hands every request to one already installed. Exported
-             with no permission on purpose: any app may ask the phone's recognizer to listen, as with every recognizer. -->
+             with no permission on purpose: any app may ask the phone's recognizer to listen, as with every recognizer.
+             In a process of its own, so dictation in other apps doesn't run Whittle's start-up work, and can't take
+             running tasks down with it. -->
         <service
             android:name=".assistant.ForwardingRecognitionService"
             android:exported="true"
             android:label="@string/app_name"
+            android:process=":recognizer"
             tools:ignore="ExportedService">
             <intent-filter>
                 <action android:name="android.speech.RecognitionService" />

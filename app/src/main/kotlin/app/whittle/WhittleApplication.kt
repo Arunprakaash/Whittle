@@ -3,10 +3,13 @@ package app.whittle
 import app.whittle.background.PlanProgress
 import app.whittle.agent.PlanStatus
 import android.app.Activity
+import android.app.ActivityManager
 import android.app.Application
 import android.app.NotificationManager
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.os.Process
 import app.whittle.automations.AutomationRunner
 import app.whittle.automations.SessionAutomationChat
 import app.whittle.background.AgentRunService
@@ -22,6 +25,7 @@ import app.whittle.quickstart.QuickStart
 import app.whittle.connectors.mcp.ConnectorState
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.collectLatest
+import app.whittle.assistant.ForwardingRecognitionService
 import app.whittle.assistant.ScreenContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -57,6 +61,9 @@ class WhittleApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Dictation from any app, and holding the assistant role from boot, start the recognizer's own process, which
+        // needs none of what follows.
+        if (processName()?.endsWith(ForwardingRecognitionService.PROCESS) == true) return
         notifications.createChannels()
         QuickStart.publish(this)
         graph.appShortcuts.migratePinned()
@@ -132,6 +139,12 @@ class WhittleApplication : Application() {
         graph.currentSettings.value?.keepRunningInBackground ?: graph.defaultKeepRunningInBackground
 
     private fun startRunService() = startService(AgentRunService::class.java)
+
+    private fun processName(): String? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        getProcessName()
+    } else {
+        getSystemService(ActivityManager::class.java).runningAppProcesses?.firstOrNull { it.pid == Process.myPid() }?.processName
+    }
 
     private fun startService(service: Class<*>) {
         try {
