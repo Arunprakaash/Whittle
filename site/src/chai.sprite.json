@@ -1,0 +1,42 @@
+{
+  "$description": "Chai Timer's icon on the landing page: a cutting-chai glass in the beaver's pixel style (see docs/design/sprites/beaver.sprite.json). Same grid format; the steam frames play in turn every steamMillis.",
+  "name": "Chai glass",
+  "width": 16,
+  "height": 14,
+  "steamMillis": 450,
+  "palette": {"G": "#E8F1EC", "f": "#F2D7A6", "t": "#C77D3E", "H": "#E2A266", "D": "#0B3F30", "s": "#DDEFE6"},
+  "frames": {
+    "steamA": [
+      "......s...s.....",
+      ".....s...s......",
+      "......s...s.....",
+      ".....s...s......",
+      "................",
+      "...GGGGGGGGGG...",
+      "...GffffffffG...",
+      "...GtHttttttG...",
+      "...GtHttttttG...",
+      "....GHtttttG....",
+      "....GHtttttG....",
+      "....GttttttG....",
+      "....GGGGGGGG....",
+      ".....DDDDDD....."
+    ],
+    "steamB": [
+      ".....s...s......",
+      "......s...s.....",
+      ".....s...s......",
+      "......s...s.....",
+      "................",
+      "...GGGGGGGGGG...",
+      "...GffffffffG...",
+      "...GtHttttttG...",
+      "...GtHttttttG...",
+      "....GHtttttG....",
+      "....GHtttttG....",
+      "....GttttttG....",
+      "....GGGGGGGG....",
+      ".....DDDDDD....."
+    ]
+  }
+}

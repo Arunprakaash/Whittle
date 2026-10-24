@@ -1,0 +1,47 @@
+{
+  "$description": "The landing page's settings and demo content. build.mjs reads this, fills src/index.html and writes dist/. Page copy lives in src/index.html; the beaver comes from the app's own sprite; What's new comes from GitHub Releases at build time.",
+  "repository": "Arunprakaash/Whittle",
+  "url": "https://arunprakaash.github.io/Whittle/",
+  "sprites": {
+    "beaver": "../docs/design/sprites/beaver.sprite.json",
+    "chai": "src/chai.sprite.json"
+  },
+  "releases": {
+    "$description": "The newest published release lists up to latestItems of its bold lead lines, each with its first sentence; the ones before it get a row each, up to earlier, summed up by up to summaryLeads leads. The APK is the release asset matching apkPattern.",
+    "latestItems": 4,
+    "earlier": 3,
+    "summaryLeads": 3,
+    "dateLocale": "en-GB",
+    "apkPattern": "^Whittle-.*\\.apk$"
+  },
+  "requirements": "64-bit Android 8 or later",
+  "chores": {
+    "$description": "The hero's to-do list. Each chore's steps play in turn under it; the last step stays as its receipt once the chore is struck through.",
+    "title": "Saturday",
+    "items": [
+      {"text": "Wake me at 6:30, it's gym day", "steps": ["Opened Clock", "Alarm set for 06:30"]},
+      {"text": "Which phone plan in my email is cheaper?", "steps": ["Read 2 emails in Gmail", "Compared both plans", "Plan B saves ₹1,200 a year"]},
+      {"text": "Split the Goa trip bill from this PDF", "steps": ["Installed poppler-utils", "Read goa-trip.pdf", "₹4,180 each, 4 people"]},
+      {"text": "Make me a chai timer app", "steps": ["Wrote MainActivity.kt", "Built Chai Timer", "Ready to install"]},
+      {"text": "Every Monday, brief me on my week", "steps": ["Scheduled Weekly brief", "Mondays at 8:00 AM"]}
+    ]
+  },
+  "questions": [
+    {"q": "Best rice cooker under ₹5,000?", "sources": [["language", "consumerreports.org"], ["language", "reddit.com"], ["language", "amazon.in"]], "answer": "Two stand out, both under ₹4,500. Reviews and links attached."},
+    {"q": "What did the team decide about the launch?", "sources": [["extension", "Linear"], ["extension", "Notion"]], "answer": "Launch moved to the 14th. Two issues still open, both assigned."},
+    {"q": "Is this 2019 laptop worth ₹30,000?", "sources": [["language", "notebookcheck.net"], ["language", "reddit.com"], ["language", "olx.in"]], "answer": "A bit high. Similar ones sold for ₹22–26k this month."}
+  ],
+  "terminal": [
+    ["prompt", "$ apt-get install -y poppler-utils"],
+    ["output", "Setting up poppler-utils (24.02.0) ..."],
+    ["prompt", "$ pdftotext goa-trip.pdf - | grep Total"],
+    ["result", "Total: ₹16,720"],
+    ["prompt", "$ echo $((16720 / 4))"],
+    ["result", "4180"]
+  ],
+  "models": [
+    {"name": "OpenAI", "detail": "your API key"},
+    {"name": "OpenRouter", "detail": "hundreds of models"},
+    {"name": "Claude Code", "detail": "your Claude plan"}
+  ]
+}
