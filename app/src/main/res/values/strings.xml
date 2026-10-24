@@ -65,6 +65,7 @@
     <string name="chats_section_older">Older</string>
     <string name="sidebar_empty">No chats yet</string>
     <string name="sidebar_untitled">New chat</string>
+    <string name="chats_working">Working</string>
     <string name="sidebar_delete">Delete</string>
     <string name="sidebar_delete_title">Delete this chat?</string>
     <string name="sidebar_delete_body">Its messages and saved tasks are removed from this phone. Files it made stay in your workspace. This can\'t be undone.</string>

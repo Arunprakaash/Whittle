@@ -264,6 +264,7 @@ private fun ChatLayout(
             ChatSidebar(
                 chats = state.chats,
                 current = state.currentChat,
+                working = state.workingElsewhere,
                 maxChats = sidebarMaxChats,
                 onNewChat = { closeThen(viewModel::newChat) },
                 onOpen = { id -> closeThen { viewModel.openChat(id) } },
