@@ -42,6 +42,7 @@ import app.whittle.tools.workspace.ProcessInfo
 import app.whittle.settings.Starter
 import app.whittle.settings.AppIdea
 import app.whittle.tools.presentation.DecisionText
+import app.whittle.assistant.ScreenContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -101,6 +102,8 @@ data class ChatState(
     val openPreview: String? = null,
     /** What the composer does as soon as it's on screen: asked for by a quick start or an app idea. */
     val composerStart: ComposerStart? = null,
+    /** What was on screen when the user called Whittle as their assistant; its words go with the next message. */
+    val screen: ScreenContext? = null,
     /** How many picked items are still being saved. */
     val attaching: Int = 0,
 ) {
@@ -321,6 +324,24 @@ class ChatViewModel(
         attach(shared.uris)
     }
 
+    /**
+     * The user called Whittle as their assistant: a new chat about [screen], its screenshot attached and its words waiting
+     * to go with the first message. The screenshot is copied into the workspace like any photo; the cache's copy is replaced
+     * on the next call.
+     */
+    fun startWithScreen(screen: ScreenContext) {
+        viewModelScope.launch {
+            // At launch the last chat is restored first; starting before that finishes would be undone by it.
+            _state.first { !it.restoring }
+            newChat()
+            _state.update { it.copy(screen = screen) }
+            screen.screenshot?.let { file -> attach(listOf(Uri.fromFile(file))) }
+        }
+    }
+
+    /** The user took the screen off the next message. */
+    fun removeScreen() = _state.update { it.copy(screen = null) }
+
     /** Attached photos, for thumbnails and the viewer. */
     val images: WorkspaceImages get() = graph.images
 
@@ -347,7 +368,13 @@ class ChatViewModel(
         val attachments = state.attachments
         val model = state.model ?: return
         if (state.attaching > 0 || (text.isEmpty() && attachments.isEmpty())) return
-        _state.update { it.copy(input = "", attachments = emptyList()) }
+        // The screen the assistant read goes with this message only, as data from the app it came from.
+        val screen = state.screen?.takeIf { it.text.isNotBlank() }?.let { screen ->
+            pastedOutput(graph.agentMessages, PastedKind.SCREEN, requestName(screen.appName ?: graph.agentMessages.screenUnknownApp, graph.maxPastedNameChars), screen.text, graph.maxPastedOutputChars)
+        }
+        _state.update { it.copy(input = "", attachments = emptyList(), screen = null) }
+        @Suppress("NAME_SHADOWING")
+        val pasted = pasted + listOfNotNull(screen)
         val forModel = listOf(text, attachmentNote(attachments, model.capabilities.vision)).filter { it.isNotEmpty() }.joinToString(PARAGRAPH)
         // A model that can't see gets the photos only as files, through the note.
         val images = attachments.filter { it.isImage && model.capabilities.vision }.map { it.path }
@@ -500,7 +527,7 @@ class ChatViewModel(
             if (leaving.working && id != null) background.update { it + (id to leaving) } else leaving.close()
         }
         _state.value.attachments.forEach { attachment -> graph.appScope.launch { graph.attachments.discard(attachment) } }
-        _state.update { it.copy(input = "", attachments = emptyList()) }
+        _state.update { it.copy(input = "", attachments = emptyList(), screen = null) }
         pendingProject = null
         current.value = next
         syncProject()

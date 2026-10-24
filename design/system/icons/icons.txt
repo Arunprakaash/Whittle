@@ -127,3 +127,5 @@ newspaper
 bedtime
 calculate
 storefront
+mobile_screen_share
+assistant

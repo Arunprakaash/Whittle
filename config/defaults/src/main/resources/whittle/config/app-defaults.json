@@ -110,6 +110,10 @@
     { "icon": "calculate", "title": "Tip calculator", "prompt": "Make me an Android app that splits a bill and the tip between friends." },
     { "icon": "storefront", "title": "A page for my shop", "prompt": "Build a one-page website for my small shop, with opening hours and a map link. My shop is: " }
   ],
+  "assistant": {
+    "waitMillis": 2000,
+    "screenshotFileName": "assist-screen.jpg"
+  },
   "attachments": {
     "directoryName": "uploads",
     "maxPerMessage": 5,

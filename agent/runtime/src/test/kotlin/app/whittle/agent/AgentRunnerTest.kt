@@ -352,6 +352,7 @@ class AgentRunnerTest {
         assertEquals("pasted from process server: <<<6789>>>", block.text)
         assertEquals("crash of Counter", (pastedOutput(testMessages, PastedKind.APP_CRASH, "Counter", "x", 10).provenance as Provenance.Untrusted).sourceLabel)
         assertEquals("preview of site", (pastedOutput(testMessages, PastedKind.PREVIEW_CONSOLE, "site", "x", 10).provenance as Provenance.Untrusted).sourceLabel)
+        assertEquals("screen of Gmail", (pastedOutput(testMessages, PastedKind.SCREEN, "Gmail", "x", 10).provenance as Provenance.Untrusted).sourceLabel)
     }
 
     @Test
