@@ -33,7 +33,11 @@ sealed interface ConnectorState {
 
     data object Connecting : ConnectorState
 
-    data class Connected(val toolCount: Int) : ConnectorState
+    /** Signed in. [reachable] is false while the server doesn't answer; its tools stay, from the cached list. */
+    data class Connected(val toolCount: Int, val reachable: Boolean = true) : ConnectorState
+
+    /** The service ended the sign-in (a token it refused): its tools are gone until the user signs in again. */
+    data object SignInExpired : ConnectorState
 }
 
 /**
@@ -60,6 +64,12 @@ class McpConnection(
 
     @Volatile private var signedIn = false
 
+    /** The service signed Whittle out; see [ConnectorState.SignInExpired]. */
+    @Volatile private var expired = false
+
+    /** The last request couldn't reach the server. */
+    @Volatile private var unreachable = false
+
     @Volatile var tools: List<Tool> = emptyList()
         private set
 
@@ -81,7 +91,11 @@ class McpConnection(
     /** At start-up: the cached tools if the user is signed in, then a fresh list from the server. */
     suspend fun restore() {
         val stored = credentials.load() ?: return
-        if (stored.tokens == null && !stored.open) return
+        if (stored.tokens == null && !stored.open) {
+            expired = stored.signedOut
+            settle()
+            return
+        }
         signedIn = true
         publish(readCache().orEmpty())
         refreshTools()
@@ -114,8 +128,9 @@ class McpConnection(
         }
         return when (tokens) {
             is Outcome.Success -> {
-                credentials.save((credentials.load() ?: McpCredentials()).copy(client = signIn.client, tokens = tokens.value))
+                credentials.save((credentials.load() ?: McpCredentials()).copy(client = signIn.client, tokens = tokens.value, signedOut = false))
                 signedIn = true
+                expired = false
                 client.reset()
                 refreshTools()
             }
@@ -149,6 +164,7 @@ class McpConnection(
 
     private suspend fun connected(): Outcome<Unit> {
         signedIn = true
+        expired = false
         client.reset()
         return refreshTools().also { if (it is Outcome.Failure) disconnect() }
     }
@@ -161,8 +177,9 @@ class McpConnection(
 
     /** Forgets the tokens and tools on this phone; the registration stays so connecting again is quick. */
     suspend fun disconnect() {
-        credentials.load()?.let { credentials.save(it.copy(tokens = null, open = false)) }
+        credentials.load()?.let { credentials.save(it.copy(tokens = null, open = false, signedOut = false)) }
         signedIn = false
+        expired = false
         client.reset()
         withContext(Dispatchers.IO) { toolCache.delete() }
         publish(emptyList())
@@ -184,14 +201,42 @@ class McpConnection(
 
     suspend fun refreshTools(): Outcome<Unit> = when (val listed = client.listTools()) {
         is Outcome.Success -> {
+            unreachable = false
             writeCache(listed.value)
             publish(listed.value)
             Outcome.Success(Unit)
         }
-        is Outcome.Failure -> listed.also { settle() }
+        is Outcome.Failure -> listed.also { noteFailure(it.error) }
     }
 
-    internal suspend fun call(tool: String, arguments: JsonObject): Outcome<RemoteResult> = client.callTool(tool, arguments)
+    internal suspend fun call(tool: String, arguments: JsonObject): Outcome<RemoteResult> = client.callTool(tool, arguments).also { result ->
+        when (result) {
+            is Outcome.Success -> if (unreachable) { unreachable = false; settle() }
+            is Outcome.Failure -> noteFailure(result.error)
+        }
+    }
+
+    /** What a failed request says about the connection: signed out by the service, or the server not answering. */
+    private suspend fun noteFailure(error: HarnessError) {
+        when {
+            error is HarnessError.Authentication && signedIn -> signedOutByService()
+            error is HarnessError.Network || (error is HarnessError.Provider && error.statusCode >= HTTP_SERVER_ERROR) -> unreachable = true
+        }
+        settle()
+    }
+
+    /**
+     * The service refused Whittle's sign-in. Its tokens and tools go, as with Disconnect, but the connection says so and
+     * stays listed with Sign in again, even after a restart, instead of quietly disappearing.
+     */
+    private suspend fun signedOutByService() {
+        credentials.load()?.let { credentials.save(it.copy(tokens = null, open = false, signedOut = true)) }
+        signedIn = false
+        expired = true
+        client.reset()
+        withContext(Dispatchers.IO) { toolCache.delete() }
+        publish(emptyList())
+    }
 
     private suspend fun accessToken(refresh: Boolean): Outcome<String?> = tokenLock.withLock {
         val stored = credentials.load() ?: return@withLock signedOut()
@@ -208,7 +253,7 @@ class McpConnection(
             }
             is Outcome.Failure -> {
                 // A refused refresh token means the user must sign in again; a network failure doesn't.
-                if (renewed.error is HarnessError.Authentication) disconnect()
+                if (renewed.error is HarnessError.Authentication) signedOutByService()
                 renewed
             }
         }
@@ -226,8 +271,9 @@ class McpConnection(
 
     private fun settle() {
         _state.value = when {
-            signedIn -> ConnectorState.Connected(tools.size)
+            signedIn -> ConnectorState.Connected(tools.size, reachable = !unreachable)
             pending != null -> ConnectorState.Connecting
+            expired -> ConnectorState.SignInExpired
             else -> ConnectorState.Disconnected
         }
     }
@@ -258,6 +304,7 @@ class McpConnection(
         val TOOL_NAME = Regex("[A-Za-z0-9_-]+")
         const val AUTHORIZATION = "Authorization"
         const val BEARER = "Bearer"
+        const val HTTP_SERVER_ERROR = 500
         val json = Json { ignoreUnknownKeys = true }
     }
 }
