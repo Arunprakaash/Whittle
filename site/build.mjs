@@ -6,10 +6,11 @@
 //   node site/build.mjs
 
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 
 const siteDir = new URL('./', import.meta.url);
 const srcDir = new URL('src/', siteDir);
+const mediaDir = new URL('media/', srcDir);
 const distDir = new URL('dist/', siteDir);
 
 const readJson = async (url) => JSON.parse(await readFile(url, 'utf8'));
@@ -129,7 +130,7 @@ const modelsHtml = config.models.map((model, index) => `<button type="button" cl
 /** Material Symbols trimmed to the icons the page uses, in the page itself or set by site.js. */
 const fontLinks = (html) => {
   const icons = new Set([...html.matchAll(/class="ms[^"]*"[^>]*>([a-z0-9_]+)</g)].map((match) => match[1]));
-  ['check_circle', 'progress_activity'].forEach((icon) => icons.add(icon));
+  ['check_circle', 'progress_activity', 'volume_up'].forEach((icon) => icons.add(icon));
   config.questions.forEach((question) => question.sources.forEach(([icon]) => icons.add(icon)));
   const symbols = `https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&icon_names=${[...icons].sort().join(',')}&display=block`;
   const text = 'https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500&display=swap';
@@ -212,6 +213,11 @@ await Promise.all([
   writeFile(new URL('beaver.svg', distDir), frameSvg(beaver, beaver.frames.idle)),
   writeFile(new URL('chai.svg', distDir), frameSvg(chai, Object.values(chai.frames)[0])),
   writeFile(new URL(ogImageName, distDir), ogImage),
+  // The film and its poster, rendered by site/film.
+  ...(await readdir(mediaDir)).map(async (name) => {
+    await mkdir(new URL('media/', distDir), { recursive: true });
+    await copyFile(new URL(name, mediaDir), new URL(`media/${name}`, distDir));
+  }),
   // GitHub Pages serves the files as they are.
   writeFile(new URL('.nojekyll', distDir), ''),
 ]);

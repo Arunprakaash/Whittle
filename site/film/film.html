@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Whittle film</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=block">
+<style>
+:root {
+  --paper: #FBF8F2; --grid: rgba(78, 50, 32, .05); --ink: #1F1A15; --ink-2: #5B5248; --ink-3: #8C8378;
+  --app-bg: #F6FAF7; --app-ink: #171D1A; --app-ink-2: #404944; --app-card: #EBF0EC; --app-chip: #EBF0EC; --app-input: #E4E9E5;
+  --green: #2B6A55; --mint: #B3F0D6; --on-mint: #002117; --mic: #CCE8DB; --tile: #FFDEA6; --pine: #2B6A55; --bezel: #1C1D1F;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--paper); }
+#stage {
+  position: relative; width: 1920px; height: 1080px; overflow: hidden; font-family: Figtree, system-ui, sans-serif; color: var(--ink);
+  background-color: var(--paper);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+.layer { position: absolute; inset: 0; opacity: 0; will-change: opacity, transform; }
+.center { display: flex; align-items: center; justify-content: center; }
+.ms { font-family: "Material Symbols Rounded"; font-weight: normal; font-style: normal; line-height: 1; display: inline-block; white-space: nowrap; font-feature-settings: "liga"; -webkit-font-smoothing: antialiased; }
+.fill { font-variation-settings: "FILL" 1; }
+
+/* App icon and notifications */
+.app-icon { width: 220px; height: 220px; border-radius: 52px; background: var(--pine); display: flex; align-items: center; justify-content: center; box-shadow: 0 30px 60px -24px rgba(31, 26, 21, .45), inset 0 2px 0 rgba(255, 255, 255, .14); }
+.notif { position: absolute; left: 50%; top: 50%; width: 1040px; display: flex; gap: 28px; align-items: flex-start; padding: 34px 40px; border-radius: 44px; background: rgba(255, 255, 255, .92); box-shadow: 0 40px 80px -40px rgba(31, 26, 21, .45), 0 0 0 1px rgba(31, 26, 21, .05); }
+.notif .app-icon { width: 96px; height: 96px; border-radius: 24px; flex-shrink: 0; }
+.notif-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 30px; font-weight: 700; }
+.notif-head span { font-size: 24px; font-weight: 500; color: var(--ink-3); }
+.notif-text { font-size: 34px; line-height: 1.32; color: var(--ink); margin-top: 6px; }
+
+/* Phone */
+/* Zoomed in from the bottom, the way the reference frames its phone: the conversation, status line and composer fill the shot. */
+.phone { position: absolute; scale: 1.45; transform-origin: 50% 100%; width: 488px; height: 1000px; border-radius: 72px; background: var(--bezel); padding: 14px; box-shadow: 0 60px 120px -50px rgba(31, 26, 21, .55); }
+.screen { position: relative; width: 100%; height: 100%; border-radius: 58px; background: var(--app-bg); overflow: hidden; display: flex; flex-direction: column; }
+.statusbar { height: 54px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 6px 38px 0; font-size: 19px; font-weight: 600; color: var(--app-ink); }
+.statusbar .ms { font-size: 20px; margin-left: 4px; }
+.island { position: absolute; top: 14px; left: 50%; width: 120px; height: 34px; margin-left: -60px; border-radius: 20px; background: #0B0B0C; }
+.topbar { flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 6px 18px 10px; }
+.round { width: 54px; height: 54px; border-radius: 27px; background: var(--app-input); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.round .ms { font-size: 26px; color: var(--app-ink); }
+.title { flex: 1; min-width: 0; font-size: 22px; font-weight: 600; color: var(--app-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.thread-wrap { position: relative; flex: 1; overflow: hidden; }
+.thread { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 22px 24px; display: flex; flex-direction: column; gap: 14px; will-change: transform; }
+.item { will-change: opacity, transform; opacity: 0; }
+.user { align-self: flex-end; max-width: 82%; padding: 14px 20px; border-radius: 28px 28px 8px 28px; background: var(--mint); color: var(--on-mint); font-size: 21px; line-height: 1.38; font-weight: 500; }
+.narr { font-size: 21px; line-height: 1.45; color: var(--app-ink); }
+.narr b { font-weight: 700; }
+.step { align-self: flex-start; display: flex; align-items: center; gap: 10px; padding: 9px 18px 9px 12px; border-radius: 22px; background: var(--app-chip); font-size: 18px; color: var(--app-ink-2); }
+.step .ms { font-size: 24px; color: var(--green); }
+.spinner { width: 22px; height: 22px; margin: 1px; border-radius: 50%; border: 3px solid rgba(43, 106, 85, .22); border-top-color: var(--green); }
+.card { padding: 20px; border-radius: 30px; background: var(--app-card); display: flex; flex-direction: column; gap: 14px; }
+.card-head { display: flex; gap: 14px; align-items: flex-start; }
+.card-tile { width: 54px; height: 54px; border-radius: 16px; background: var(--tile); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.card-tile .ms { font-size: 28px; color: #3A2A10; }
+.card-title { font-size: 20px; font-weight: 700; color: var(--app-ink); line-height: 1.25; }
+.card-body { font-size: 16px; color: var(--app-ink-2); line-height: 1.35; margin-top: 3px; }
+.payload { padding: 14px 18px; border-radius: 22px; background: #FFFFFF; font-size: 18px; line-height: 1.4; color: var(--app-ink); }
+.actions { display: flex; align-items: center; gap: 26px; }
+.btn { position: relative; display: inline-flex; align-items: center; gap: 8px; height: 56px; padding: 0 26px 0 20px; border-radius: 28px; background: var(--green); color: #FFFFFF; font-size: 20px; font-weight: 600; overflow: visible; will-change: transform; }
+.btn .ms { font-size: 22px; }
+.text-btn { font-size: 20px; font-weight: 600; color: var(--green); }
+.ripple { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; background: rgba(255, 255, 255, .45); opacity: 0; pointer-events: none; }
+.finger { position: absolute; width: 64px; height: 64px; border-radius: 50%; background: rgba(31, 26, 21, .18); border: 3px solid rgba(255, 255, 255, .9); box-shadow: 0 8px 18px rgba(0, 0, 0, .18); opacity: 0; z-index: 5; }
+.outcome { align-self: flex-start; display: flex; align-items: center; gap: 10px; padding: 9px 18px 9px 12px; border-radius: 22px; background: var(--app-chip); font-size: 18px; color: var(--app-ink-2); }
+.outcome .ms { font-size: 24px; color: var(--green); }
+.app-card { padding: 18px; border-radius: 30px; background: var(--app-card); display: flex; flex-direction: column; gap: 14px; }
+.app-row { display: flex; align-items: center; gap: 14px; }
+.app-tile { width: 64px; height: 64px; border-radius: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(120% 90% at 30% 15%, #3F8A6F, #1B5A46 55%, #0F4636); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18); }
+.app-name { font-size: 20px; font-weight: 700; color: var(--app-ink); }
+.app-detail { font-size: 15px; color: var(--app-ink-2); margin-top: 2px; }
+.bar { height: 8px; border-radius: 99px; background: #D9E0DB; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; border-radius: 99px; background: var(--green); }
+.status { flex-shrink: 0; margin: 0 14px 10px; height: 76px; border-radius: 30px; background: var(--app-input); display: flex; align-items: center; gap: 12px; padding: 0 12px 0 14px; opacity: 0; }
+.status canvas { width: 48px; height: 42px; image-rendering: pixelated; flex-shrink: 0; }
+.status-text { flex: 1; font-size: 19px; font-weight: 600; color: var(--app-ink); }
+.status-time { font: 500 17px "Geist Mono", monospace; color: var(--app-ink-2); }
+.stop { display: flex; align-items: center; gap: 6px; height: 46px; padding: 0 18px 0 14px; border-radius: 23px; background: var(--app-bg); font-size: 17px; font-weight: 600; color: var(--app-ink); }
+.stop i { width: 14px; height: 14px; border-radius: 3px; background: var(--app-ink); }
+.composer { flex-shrink: 0; margin: 0 14px 22px; height: 76px; border-radius: 38px; background: var(--app-input); display: flex; align-items: center; gap: 12px; padding: 0 12px; }
+.composer .plus { width: 54px; height: 54px; border-radius: 27px; background: var(--app-bg); display: flex; align-items: center; justify-content: center; }
+.composer .plus .ms { font-size: 30px; color: var(--app-ink); }
+.composer .ph { flex: 1; font-size: 20px; color: var(--app-ink-2); }
+.composer .mic { width: 54px; height: 54px; border-radius: 27px; background: var(--mic); display: flex; align-items: center; justify-content: center; }
+.composer .mic .ms { font-size: 26px; color: var(--app-ink); }
+.home { position: absolute; inset: 0; opacity: 0; background: linear-gradient(170deg, #DDEBE3, #F3E9D9 60%, #EBD9C6); }
+/* Low on the screen: the zoomed shot only shows its lower part. */
+.home-grid { position: absolute; left: 34px; right: 34px; top: 470px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 34px 0; justify-items: center; }
+.home-app { display: flex; flex-direction: column; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; color: #3B3A36; }
+.home-app i { display: block; width: 76px; height: 76px; border-radius: 22px; background: rgba(255, 255, 255, .55); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .04); }
+.home-app .app-tile { width: 76px; height: 76px; border-radius: 22px; }
+.home-time { position: absolute; top: 330px; left: 0; right: 0; text-align: center; font-size: 64px; font-weight: 600; color: #2F3A34; }
+
+/* Captions and cards */
+.caption { position: absolute; top: 50%; transform: translateY(-50%); font-size: 96px; font-weight: 800; letter-spacing: -0.045em; line-height: 0.98; }
+.caption div { will-change: opacity, transform; opacity: 0; }
+.caption .soft { color: var(--ink-3); }
+.wordmark { display: flex; align-items: center; gap: 26px; }
+.wordmark b { font-size: 210px; font-weight: 900; letter-spacing: -0.06em; line-height: 1; }
+.pill { padding: 10px 18px; border-radius: 16px; background: var(--mint); color: var(--on-mint); font: 600 30px "Geist Mono", monospace; letter-spacing: 0.06em; text-transform: uppercase; }
+.tagline { font-size: 58px; font-weight: 700; letter-spacing: -0.03em; color: var(--ink-2); }
+.small-line { font: 500 30px "Geist Mono", monospace; color: var(--ink-3); }
+canvas.sprite { image-rendering: pixelated; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script id="sprites" type="application/json">/*SPRITES*/</script>
+<script>
+const SPRITES = JSON.parse(document.getElementById('sprites').textContent);
+const stage = document.getElementById('stage');
+const FPS = 30;
+const DURATION = 56;
+
+// ---- Little helpers ----------------------------------------------------------------------------------------
+const clamp = (v) => Math.max(0, Math.min(1, v));
+const p = (t, a, b) => clamp((t - a) / (b - a));
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const back = (x, c = 1.4) => 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2);
+const el = (tag, cls, html, parent) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html != null) e.innerHTML = html;
+  if (parent) parent.appendChild(e);
+  return e;
+};
+const icon = (name, fill = false) => `<span class="ms${fill ? ' fill' : ''}">${name}</span>`;
+const bold = (text) => text.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+// A repeatable random number in [0, 1) for n.
+const noise = (n) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+
+// ---- Sprites, played the way the app plays them -------------------------------------------------------------
+const runsOf = (palette, rows) => {
+  const runs = [];
+  rows.forEach((row, y) => {
+    for (let x = 0; x < row.length;) {
+      let end = x + 1;
+      while (end < row.length && row[end] === row[x]) end++;
+      if (row[x] !== '.') runs.push({ x, y, length: end - x, color: palette[row[x]] });
+      x = end;
+    }
+  });
+  return runs;
+};
+
+class Sprite {
+  constructor(sprite, pixel, room = { side: 8, top: 10, bottom: 2 }) {
+    this.sprite = sprite;
+    this.pixel = pixel;
+    this.room = room;
+    this.runs = Object.fromEntries(Object.entries(sprite.frames).map(([name, rows]) => [name, runsOf(sprite.palette, rows)]));
+    const w = sprite.width + 2 * room.side;
+    const h = sprite.height + room.top + room.bottom;
+    this.canvas = document.createElement('canvas');
+    this.canvas.className = 'sprite';
+    this.canvas.width = w * pixel;
+    this.canvas.height = h * pixel;
+    this.canvas.style.width = `${w * pixel}px`;
+    this.canvas.style.height = `${h * pixel}px`;
+    this.ctx = this.canvas.getContext('2d');
+  }
+
+  /** Draws [pose] [t] ms after it began. */
+  draw(pose, t) {
+    const { sprite, ctx, pixel, room } = this;
+    const spec = sprite.poses[pose];
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.setTransform(pixel, 0, 0, pixel, room.side * pixel, room.top * pixel);
+    let frame = spec.steps?.[0]?.frame ?? spec.bite.rest;
+    let dip = 0, sx = 1, sy = 1;
+    if (spec.steps?.length) {
+      let at = t % spec.steps.reduce((s, x) => s + x.millis, 0);
+      for (const step of spec.steps) { if (at < step.millis) { frame = step.frame; break; } at -= step.millis; }
+    }
+    if (spec.breathe) { const w = Math.sin(2 * Math.PI * t / spec.breathe.periodMillis); sy += spec.breathe.amount * w; sx -= spec.breathe.amount * 0.5 * w; }
+    if (spec.bite) {
+      const b = spec.bite;
+      const phase = (t % b.millis) / b.millis;
+      frame = phase < b.biteAt ? b.rest : b.bite;
+      const into = phase < b.biteAt ? 0 : (phase - b.biteAt) / (1 - b.biteAt);
+      const bump = Math.sin(Math.PI * Math.min(1, into * 1.4));
+      dip = b.dip * bump; sy *= 1 - b.squash * bump; sx *= 1 + b.squash * 0.7 * bump;
+    }
+    if (spec.pop) { const s = spec.pop.from + (1 - spec.pop.from) * back(Math.min(1, t / spec.pop.millis), spec.pop.overshoot); sx *= s; sy *= s; }
+    const [px, py] = sprite.pivot;
+    ctx.save();
+    ctx.translate(px, py); ctx.scale(sx, sy); ctx.translate(-px, -py + dip);
+    const seam = sx === 1 && sy === 1 && dip === 0 ? 0 : 0.04;
+    for (const r of this.runs[frame]) { ctx.fillStyle = r.color; ctx.fillRect(r.x, r.y, r.length + seam, 1 + seam); }
+    ctx.restore();
+    // Particles: chips on each bite, or sparks once at the start.
+    const ps = spec.particles;
+    if (!ps) return;
+    const bursts = [];
+    if (ps.on === 'start') bursts.push({ at: 0, seed: 1 });
+    else if (spec.bite) {
+      const cycle = Math.floor(t / spec.bite.millis);
+      for (let c = Math.max(0, cycle - 1); c <= cycle; c++) bursts.push({ at: (c + spec.bite.biteAt) * spec.bite.millis, seed: c + 2 });
+    }
+    for (const burst of bursts) {
+      const age = t - burst.at;
+      if (age < 0 || age > ps.lifeMillis) continue;
+      const range = ps.angles[1] - ps.angles[0];
+      for (let i = 0; i < ps.count; i++) {
+        const share = ps.count === 1 ? 0.5 : i / (ps.count - 1);
+        const deg = ps.angles[0] + range * share + range * 0.16 * (noise(burst.seed * 13 + i) - 0.5);
+        const rad = deg * Math.PI / 180;
+        const speed = ps.speed[0] + (ps.speed[1] - ps.speed[0]) * noise(burst.seed * 7 + i * 3);
+        const a = age / 1000;
+        const x = ps.from[0] + Math.cos(rad) * speed * a;
+        const y = ps.from[1] + Math.sin(rad) * speed * a + 0.5 * ps.gravity * a * a;
+        const progress = age / ps.lifeMillis;
+        ctx.globalAlpha = clamp(1 - (progress - 0.45) / 0.55);
+        ctx.fillStyle = sprite.palette[ps.keys[Math.floor(noise(burst.seed * 5 + i) * ps.keys.length)]];
+        ctx.fillRect(x - 0.5, y - 0.5, 1, 1);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+/** A still frame of a sprite as a canvas, for icons. */
+const still = (sprite, frame, pixel) => {
+  const c = document.createElement('canvas');
+  c.className = 'sprite';
+  c.width = sprite.width * pixel; c.height = sprite.height * pixel;
+  c.style.width = `${sprite.width * pixel}px`; c.style.height = `${sprite.height * pixel}px`;
+  const ctx = c.getContext('2d');
+  ctx.scale(pixel, pixel);
+  for (const r of runsOf(sprite.palette, sprite.frames[frame])) { ctx.fillStyle = r.color; ctx.fillRect(r.x, r.y, r.length, 1); }
+  return c;
+};
+
+const beaver = SPRITES.beaver;
+const chai = SPRITES.chai;
+const appIcon = (size) => {
+  const tile = el('div', 'app-icon');
+  tile.style.width = tile.style.height = `${size}px`;
+  tile.style.borderRadius = `${size * 0.24}px`;
+  const art = still(beaver, 'idle', Math.round(size * 0.6 / 16));
+  tile.appendChild(art);
+  return tile;
+};
+const chaiTile = (size) => {
+  const tile = el('div', 'app-tile');
+  tile.style.width = tile.style.height = `${size}px`;
+  tile.style.borderRadius = `${size * 0.28}px`;
+  tile.appendChild(still(chai, 'steamA', Math.max(2, Math.round(size * 0.7 / 16))));
+  return tile;
+};
+
+// ---- Layers ----------------------------------------------------------------------------------------------------
+/** A layer is shown between [fadeIn] and [fadeOut], entering with [enter]: 'fade', 'pop', 'rise', 'left', 'right'. */
+const layers = [];
+const layer = (cls, from, to, enter = 'fade') => {
+  const node = el('div', `layer ${cls || ''}`, null, stage);
+  const entry = { node, from, to, enter, children: [] };
+  layers.push(entry);
+  return entry;
+};
+const playLayer = (l, t) => {
+  const i = easeOut(p(t, l.from, l.from + 0.55));
+  const o = easeInOut(p(t, l.to - 0.5, l.to));
+  const visible = t >= l.from - 0.01 && t <= l.to + 0.01;
+  l.node.style.display = visible ? '' : 'none';
+  if (!visible) return false;
+  l.node.style.opacity = String(i * (1 - o));
+  let tf = '';
+  if (l.enter === 'pop') tf = `scale(${0.94 + 0.06 * i - 0.03 * o})`;
+  if (l.enter === 'rise') tf = `translateY(${(1 - i) * 60}px) scale(${1 - 0.03 * o})`;
+  if (l.enter === 'left') tf = `translateX(${(1 - i) * -80}px)`;
+  if (l.enter === 'right') tf = `translateX(${(1 - i) * 80}px)`;
+  l.node.style.transform = tf;
+  return true;
+};
+
+/** An element that appears at [at] (and leaves at [until]): rises a little and fades in, or pops. */
+const enterEl = (node, t, at, kind = 'rise', until = Infinity) => {
+  const i = kind === 'pop' ? p(t, at, at + 0.45) : easeOut(p(t, at, at + 0.4));
+  const o = until === Infinity ? 0 : easeInOut(p(t, until, until + 0.35));
+  node.style.opacity = String(Math.min(1, i * 1.4) * (1 - o));
+  if (kind === 'pop') node.style.transform = `scale(${0.8 + 0.2 * back(i, 2)})`;
+  else if (kind === 'drop') node.style.transform = `translateY(${(1 - i) * -40}px)`;
+  else node.style.transform = `translateY(${(1 - i) * 22}px)`;
+};
+
+// ---- Phone -----------------------------------------------------------------------------------------------------
+/**
+ * A phone running Whittle. [items] are what the thread shows, each with the time it appears; the thread scrolls so
+ * the newest is in view, the way the app follows the end of a chat.
+ */
+const phone = (parent, { title, left, top, items, working = [] }) => {
+  const frame = el('div', 'phone', null, parent);
+  frame.style.left = `${left}px`; frame.style.top = `${top}px`;
+  const screen = el('div', 'screen', null, frame);
+  el('div', 'island', null, screen);
+  el('div', 'statusbar', `<span>9:41</span><span>${icon('signal_cellular_alt')}${icon('wifi')}${icon('battery_full', true)}</span>`, screen);
+  el('div', 'topbar', `<div class="round">${icon('menu')}</div><div class="title">${title}</div><div class="round">${icon('folder_open')}</div><div class="round">${icon('edit_square')}</div>`, screen);
+  const wrap = el('div', 'thread-wrap', null, screen);
+  const thread = el('div', 'thread', null, wrap);
+  const status = el('div', 'status', null, screen);
+  const sprite = new Sprite(beaver, 3, { side: 0, top: 0, bottom: 0 });
+  status.appendChild(sprite.canvas);
+  const statusText = el('div', 'status-text', 'Thinking…', status);
+  const statusTime = el('div', 'status-time', '0:00', status);
+  el('div', 'stop', '<i></i>Stop', status);
+  el('div', 'composer', `<div class="plus">${icon('add')}</div><div class="ph">Get something done…</div><div class="mic">${icon('mic')}</div>`, screen);
+
+  // Build first: buildItem hangs the card's button and bar on the item.
+  const built = items.map((item) => { const node = buildItem(item, thread); return { ...item, node }; });
+  return { frame, screen, thread, wrap, status, statusText, statusTime, sprite, items: built, working };
+};
+
+const buildItem = (item, thread) => {
+  switch (item.kind) {
+    case 'user': return el('div', 'item user', item.text, thread);
+    case 'narr': return el('div', 'item narr', bold(item.text), thread);
+    case 'step': return el('div', 'item step', `<span class="state"></span><span class="label"></span>`, thread);
+    case 'outcome': return el('div', 'item outcome', `${icon('check_circle', true)}${item.text}`, thread);
+    case 'card': {
+      const card = el('div', 'item card', null, thread);
+      el('div', 'card-head', `<div class="card-tile">${icon(item.icon, true)}</div><div><div class="card-title">${item.title}</div><div class="card-body">${item.body}</div></div>`, card);
+      el('div', 'payload', item.payload, card);
+      const actions = el('div', 'actions', null, card);
+      const button = el('div', 'btn', `${icon('check')}${item.approve}<span class="ripple"></span>`, actions);
+      el('div', 'text-btn', 'Not now', actions);
+      item.button = button;
+      return card;
+    }
+    case 'app': {
+      const card = el('div', 'item app-card', null, thread);
+      const row = el('div', 'app-row', null, card);
+      row.appendChild(chaiTile(64));
+      el('div', '', `<div class="app-name">Chai Timer</div><div class="app-detail">Version 1 · Uses vibration only</div>`, row).style.flex = '1';
+      const button = el('div', 'btn', `${icon('android')}<span class="btn-label">Install</span><span class="ripple"></span>`, row);
+      button.style.height = '50px'; button.style.fontSize = '18px';
+      const bar = el('div', 'bar', '<i></i>', card);
+      item.button = button; item.bar = bar.firstChild;
+      return card;
+    }
+    default: throw new Error(item.kind);
+  }
+};
+
+const playPhone = (ph, t) => {
+  // Items in, steps ticking from working to done.
+  for (const item of ph.items) {
+    enterEl(item.node, t, item.at, item.kind === 'card' || item.kind === 'app' ? 'rise' : 'rise', item.gone ?? Infinity);
+    if (item.kind === 'step') {
+      const done = t >= item.done;
+      const state = item.node.querySelector('.state');
+      const label = item.node.querySelector('.label');
+      const want = done ? 'done' : 'working';
+      if (state.dataset.state !== want) {
+        state.dataset.state = want;
+        state.innerHTML = done ? icon('check_circle', true) : '<div class="spinner"></div>';
+        label.textContent = done ? item.doneText : item.text;
+      }
+      const spinner = state.querySelector('.spinner');
+      if (spinner) spinner.style.transform = `rotate(${t * 360}deg)`;
+    }
+    if (item.kind === 'card' && item.tap != null) pressButton(item.button, t, item.tap);
+    if (item.gone != null) {
+      if (item.height == null) item.height = item.node.offsetHeight;
+      const fold = easeInOut(p(t, item.gone, item.gone + 0.4));
+      item.node.style.height = fold > 0 ? `${item.height * (1 - fold)}px` : '';
+      item.node.style.overflow = 'hidden';
+      item.node.style.marginBottom = `${-14 * fold}px`;
+    }
+    if (item.kind === 'app') {
+      item.bar.style.width = `${100 * easeInOut(p(t, item.at + 0.1, item.at + 1.0))}%`;
+      pressButton(item.button, t, item.tap);
+      const label = item.button.querySelector('.btn-label');
+      const text = t < item.tap + 0.4 ? 'Install' : t < item.installed ? 'Installing…' : 'Open';
+      if (label.textContent !== text) label.textContent = text;
+    }
+  }
+  // The thread grows up from the composer: the newest item that has appeared sits at the bottom, and each new one
+  // eases the rest up by its height. Items still to come are laid out below, out of sight.
+  const total = ph.thread.offsetHeight;
+  const shown = ph.items.filter((item) => t >= item.at);
+  const offsetFor = (item) => (item ? total - (item.node.offsetTop + item.node.offsetHeight + 24) : total);
+  const latest = shown.at(-1);
+  const before = shown.at(-2);
+  const settle = latest ? easeInOut(p(t, latest.at, latest.at + 0.45)) : 1;
+  const offset = offsetFor(before) + (offsetFor(latest) - offsetFor(before)) * (latest && latest.at > -1 ? settle : 1);
+  ph.thread.style.transform = `translateY(${offset}px)`;
+  // The status line while the agent works, with the beaver gnawing.
+  const run = ph.working.find(([a, b]) => t >= a - 0.4 && t <= b + 0.4);
+  if (run) {
+    const [a, b, text] = run;
+    ph.status.style.opacity = String(easeOut(p(t, a - 0.3, a)) * (1 - easeOut(p(t, b, b + 0.3))));
+    ph.status.style.display = '';
+    ph.statusText.textContent = typeof text === 'function' ? text(t) : text;
+    const secs = Math.max(0, Math.floor(t - a));
+    ph.statusTime.textContent = `0:${String(secs).padStart(2, '0')}`;
+    ph.sprite.draw('working', Math.max(0, (t - a) * 1000));
+  } else {
+    ph.status.style.opacity = '0';
+    ph.status.style.display = 'none';
+  }
+};
+
+const pressButton = (button, t, tap) => {
+  if (tap == null) return;
+  const press = p(t, tap, tap + 0.12) * (1 - p(t, tap + 0.18, tap + 0.4));
+  button.style.transform = `scale(${1 - 0.06 * press})`;
+  const ripple = button.querySelector('.ripple');
+  const r = p(t, tap, tap + 0.6);
+  ripple.style.opacity = String(r > 0 && r < 1 ? 0.9 * (1 - r) : 0);
+  ripple.style.transform = `scale(${0.2 + 1.6 * easeOut(r)})`;
+};
+
+/** A fingertip that comes in, taps [target] at [tap], and leaves. */
+const finger = (parent) => el('div', 'finger', null, parent);
+const playFinger = (node, t, tap, target, root) => {
+  const show = p(t, tap - 0.5, tap - 0.15) * (1 - p(t, tap + 0.35, tap + 0.7));
+  node.style.opacity = String(show);
+  if (show <= 0) return;
+  const tr = target.getBoundingClientRect();
+  const rr = root.getBoundingClientRect();
+  const x = tr.left - rr.left + tr.width / 2 - 32;
+  const y = tr.top - rr.top + tr.height / 2 - 32;
+  const lift = 1 - easeOut(p(t, tap - 0.5, tap));
+  const press = p(t, tap, tap + 0.1) * (1 - p(t, tap + 0.15, tap + 0.35));
+  node.style.transform = `translate(${x + lift * 40}px, ${y + lift * 70}px) scale(${1 - 0.12 * press})`;
+};
+
+// ---- Scenes ----------------------------------------------------------------------------------------------------
+const W = 1920, H = 1080;
+
+// 1. The app icon.
+const s1 = layer('center', 0, 3.3, 'pop');
+const bigIcon = appIcon(220);
+s1.node.appendChild(bigIcon);
+
+// 2. The morning notification.
+const notification = (parent, text) => {
+  const n = el('div', 'notif', null, parent);
+  n.appendChild(appIcon(96));
+  el('div', '', `<div class="notif-head">Whittle<span>now</span></div><div class="notif-text">${text}</div>`, n).style.flex = '1';
+  return n;
+};
+const s2 = layer('', 3.0, 6.9, 'fade');
+const n2 = notification(s2.node, "Morning! The dentist is at 4, rent's due today, and the Goa trip bill is still unsplit.");
+
+// 3. The morning brief in the chat.
+const s3 = layer('', 6.5, 11.4, 'rise');
+const phoneA = phone(s3.node, {
+  title: 'Morning brief', left: (W - 488) / 2, top: 40,
+  items: [
+    { kind: 'narr', at: 7.3, text: 'Morning! Three things today:' },
+    { kind: 'narr', at: 7.8, text: '• Dentist at **4:00 PM**<br>• Rent is due: **₹18,000**<br>• The Goa trip bill is still unsplit' },
+    { kind: 'narr', at: 9.1, text: 'Something I can do right now: split the Goa bill from the PDF you sent.' },
+  ],
+});
+
+// 4. The title card.
+const s4 = layer('center', 11.2, 15.3, 'pop');
+const titleBox = el('div', '', null, s4.node);
+Object.assign(titleBox.style, { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px' });
+const titleRow = el('div', 'wordmark', null, titleBox);
+const titleBeaver = new Sprite(beaver, 11, { side: 0, top: 0, bottom: 0 });
+titleRow.appendChild(titleBeaver.canvas);
+const wordmark = el('b', '', 'whittle', titleRow);
+const pill4 = el('span', 'pill', 'Beta', titleRow);
+const swoosh = el('div', '', `<svg width="900" height="80" viewBox="0 0 900 80" fill="none"><path d="M20 52 C 220 8, 420 70, 610 34 S 830 18, 880 40" stroke="#2B6A55" stroke-width="10" stroke-linecap="round"/></svg>`, titleBox);
+const swooshPath = swoosh.querySelector('path');
+const swooshLength = 980;
+swooshPath.style.strokeDasharray = `${swooshLength}`;
+const tagline = el('div', 'tagline', 'Whittle down your to-do list.', titleBox);
+swoosh.style.marginTop = '-40px';
+
+// 5. Splitting the bill.
+const s5 = layer('', 15.0, 24.4, 'rise');
+const phoneB = phone(s5.node, {
+  title: 'Morning brief', left: (W - 488) / 2, top: 40,
+  working: [[16.3, 21.6, (t) => (t < 18.1 ? 'Installing poppler-utils' : t < 19.6 ? 'Reading goa-trip.pdf' : 'Working out the split')]],
+  items: [
+    { kind: 'narr', at: -1, text: 'Something I can do right now: split the Goa bill from the PDF you sent.' },
+    { kind: 'user', at: 15.8, text: 'Go for it!' },
+    { kind: 'step', at: 16.7, done: 17.9, text: 'Installing poppler-utils', doneText: 'Installed poppler-utils' },
+    { kind: 'step', at: 18.2, done: 19.3, text: 'Reading goa-trip.pdf', doneText: 'Read goa-trip.pdf' },
+    { kind: 'step', at: 19.6, done: 20.7, text: 'Working out the split', doneText: 'Worked out the split' },
+    { kind: 'narr', at: 21.1, text: 'Total ₹16,720, so **₹4,180 each** for the four of you.' },
+    { kind: 'narr', at: 22.2, text: 'Want me to send it to the group?' },
+  ],
+});
+
+// 6. It does the work.
+const s6 = layer('', 24.2, 32.3, 'fade');
+const cap6 = el('div', 'caption', '<div>It does the work,</div><div class="soft">not the tutorial.</div>', s6.node);
+cap6.style.left = '150px';
+const phoneC = phone(s6.node, {
+  title: 'Wake me at 6:30…', left: 1450 - 244, top: 40,
+  working: [[26.0, 29.0, (t) => (t < 27.3 ? 'Setting an alarm' : 'Adding to your calendar')]],
+  items: [
+    { kind: 'user', at: 25.3, text: 'Wake me at 6:30 and add the dentist on Friday at 4' },
+    { kind: 'step', at: 26.3, done: 27.2, text: 'Setting an alarm for 6:30 AM', doneText: 'Alarm set for 6:30 AM' },
+    { kind: 'step', at: 27.6, done: 28.6, text: 'Adding Dentist to your calendar', doneText: 'Added Dentist · Fri 4:00 PM' },
+    { kind: 'narr', at: 29.3, text: 'Done. Sleep well.' },
+  ],
+});
+
+// 7. And it asks first.
+const s7 = layer('', 32.2, 40.3, 'fade');
+const phoneD = phone(s7.node, {
+  title: 'Morning brief', left: 540 - 244, top: 40,
+  items: [
+    { kind: 'narr', at: -1, text: 'Total ₹16,720, so **₹4,180 each** for the four of you.' },
+    { kind: 'narr', at: -1, text: 'Want me to send it to the group?' },
+    { kind: 'user', at: 33.0, text: 'Yes, send it' },
+    {
+      kind: 'card', at: 33.9, gone: 37.25, tap: 36.7, icon: 'share', approve: 'Share',
+      title: 'Share to Goa Trip 🌴?', body: 'Opens WhatsApp with this ready. You press send.',
+      payload: 'Hey all! Goa came to ₹16,720, so ₹4,180 each 🙏',
+    },
+    { kind: 'outcome', at: 37.3, text: 'Opened WhatsApp with the message' },
+  ],
+});
+const cap7 = el('div', 'caption', '<div>And it asks</div><div class="soft">before anything big.</div>', s7.node);
+cap7.style.left = '990px';
+const finger7 = finger(s7.node);
+
+// 8. An app on the spot.
+const s8 = layer('', 40.2, 50.3, 'rise');
+const phoneE = phone(s8.node, {
+  title: 'Make me a chai timer…', left: (W - 488) / 2, top: 40,
+  working: [[41.4, 44.6, (t) => (t < 42.8 ? 'Writing the app' : 'Building Chai Timer')]],
+  items: [
+    { kind: 'user', at: 40.9, text: 'Make me a chai timer. Four minutes, then buzz.' },
+    { kind: 'step', at: 41.8, done: 42.7, text: 'Writing MainActivity.kt', doneText: 'Wrote MainActivity.kt' },
+    { kind: 'step', at: 43.0, done: 44.3, text: 'Building Chai Timer, network off', doneText: 'Built Chai Timer' },
+    { kind: 'app', at: 44.8, tap: 46.2, installed: 47.4 },
+  ],
+});
+const finger8 = finger(s8.node);
+const home = el('div', 'home', null, phoneE.screen);
+el('div', 'home-time', '9:42', home);
+const homeGrid = el('div', 'home-grid', null, home);
+const homeApps = ['Phone', 'Messages', 'Camera', 'Photos', 'Maps', 'Clock', 'Whittle', 'Chai Timer'];
+let landing;
+homeApps.forEach((name) => {
+  const app = el('div', 'home-app', null, homeGrid);
+  if (name === 'Whittle') app.appendChild(appIcon(76));
+  else if (name === 'Chai Timer') { landing = chaiTile(76); app.appendChild(landing); }
+  else el('i', '', null, app);
+  el('span', '', name, app);
+});
+
+// 9. Paid back, and the end card.
+const s9 = layer('', 50.2, 53.0, 'fade');
+const n9 = notification(s9.node, 'Everyone paid you back 🎉');
+const confettiBox = el('div', '', null, s9.node);
+const confetti = Array.from({ length: 140 }, (_, i) => {
+  const c = el('i', '', null, confettiBox);
+  const colors = ['#2B6A55', '#B3F0D6', '#F2BD5C', '#C77D5E', '#9A6440', '#97D4BA', '#F2D7A6'];
+  Object.assign(c.style, { position: 'absolute', width: `${10 + noise(i) * 10}px`, height: `${6 + noise(i + 9) * 8}px`, background: colors[i % colors.length], borderRadius: '2px' });
+  return { node: c, x: noise(i * 3) * W, delay: noise(i * 5) * 0.6, speed: 520 + noise(i * 7) * 420, sway: 30 + noise(i * 11) * 60, spin: (noise(i * 13) - 0.5) * 900 };
+});
+const s10 = layer('center', 53.1, 56.6, 'pop');
+const endBox = el('div', '', null, s10.node);
+Object.assign(endBox.style, { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '26px' });
+const endBeaver = new Sprite(beaver, 12, { side: 8, top: 10, bottom: 2 });
+endBox.appendChild(endBeaver.canvas);
+endBeaver.canvas.style.margin = '-120px 0 -40px';
+const endRow = el('div', 'wordmark', '<b>whittle</b><span class="pill">Beta</span>', endBox);
+const endLine = el('div', 'tagline', 'Any model. Your keys. No server.', endBox);
+const endUrl = el('div', 'small-line', 'arunprakaash.github.io/Whittle', endBox);
+
+// ---- The timeline ----------------------------------------------------------------------------------------------
+window.renderAt = (t) => {
+  // 1
+  if (playLayer(s1, t)) {
+    const pop = back(p(t, 0.25, 0.85), 1.6);
+    bigIcon.style.transform = `scale(${0.6 + 0.4 * pop - 0.25 * easeInOut(p(t, 2.7, 3.3))})`;
+  }
+  // 2
+  if (playLayer(s2, t)) {
+    const i = easeOut(p(t, 3.1, 3.7));
+    n2.style.transform = `translate(-50%, -50%) translateY(${(1 - i) * -140}px) scale(${1 - 0.04 * easeInOut(p(t, 6.3, 6.9))})`;
+  }
+  if (playLayer(s3, t)) playPhone(phoneA, t);
+  // 4
+  if (playLayer(s4, t)) {
+    titleBeaver.draw('idle', (t - 11.2) * 1000);
+    const w = easeOut(p(t, 11.4, 12.0));
+    wordmark.style.opacity = String(w);
+    wordmark.style.transform = `translateY(${(1 - w) * 30}px)`;
+    enterEl(pill4, t, 12.0, 'pop');
+    swooshPath.style.strokeDashoffset = String(swooshLength * (1 - easeInOut(p(t, 11.8, 13.0))));
+    enterEl(tagline, t, 12.6);
+  }
+  if (playLayer(s5, t)) playPhone(phoneB, t);
+  // 6
+  if (playLayer(s6, t)) {
+    [...cap6.children].forEach((line, i) => enterEl(line, t, 24.5 + i * 0.7));
+    playPhone(phoneC, t);
+    phoneC.frame.style.transform = `translateX(${(1 - easeOut(p(t, 24.3, 24.9))) * 120}px)`;
+  }
+  // 7
+  if (playLayer(s7, t)) {
+    [...cap7.children].forEach((line, i) => enterEl(line, t, 32.6 + i * 0.7));
+    playPhone(phoneD, t);
+    phoneD.frame.style.transform = `translateX(${(1 - easeOut(p(t, 32.3, 32.9))) * -120}px)`;
+    playFinger(finger7, t, 36.7, phoneD.items[3].button, s7.node);
+  }
+  // 8
+  if (playLayer(s8, t)) {
+    playPhone(phoneE, t);
+    playFinger(finger8, t, 46.2, phoneE.items[3].button, s8.node);
+    const h = easeInOut(p(t, 47.9, 48.5));
+    home.style.opacity = String(h);
+    const land = p(t, 48.6, 49.2);
+    landing.style.opacity = String(Math.min(1, land * 2));
+    landing.style.transform = `scale(${land > 0 ? 0.3 + 0.7 * back(land, 2.2) : 0}) rotate(${(1 - land) * -18}deg)`;
+  }
+  // 9
+  if (playLayer(s9, t)) {
+    const i = easeOut(p(t, 50.4, 51.0));
+    n9.style.transform = `translate(-50%, -50%) translateY(${(1 - i) * -140}px)`;
+    for (const c of confetti) {
+      const a = t - 50.5 - c.delay;
+      if (a < 0) { c.node.style.opacity = '0'; continue; }
+      c.node.style.opacity = String(1 - p(a, 2.0, 2.6));
+      const y = -40 + c.speed * a + 160 * a * a;
+      const x = c.x + Math.sin(a * 3 + c.x) * c.sway;
+      c.node.style.transform = `translate(${x}px, ${y}px) rotate(${c.spin * a}deg)`;
+    }
+  }
+  // 10
+  if (playLayer(s10, t)) {
+    endBeaver.draw(t < 53.4 ? 'idle' : 'done', Math.max(0, (t - 53.4) * 1000));
+    enterEl(endRow, t, 53.4);
+    enterEl(endLine, t, 54.0);
+    enterEl(endUrl, t, 54.5);
+  }
+};
+window.FILM = { FPS, DURATION };
+document.fonts.ready.then(() => { window.renderAt(0); window.filmReady = true; });
+</script>
+</body>
+</html>
