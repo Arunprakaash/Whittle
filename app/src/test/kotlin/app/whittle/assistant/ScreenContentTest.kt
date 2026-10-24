@@ -3,6 +3,7 @@ package app.whittle.assistant
 import app.whittle.agent.AgentMessages
 import app.whittle.agent.pastedScreen
 import app.whittle.attachments.Attachment
+import app.whittle.chat.ChatState
 import app.whittle.chat.messageImages
 import app.whittle.chat.userMessage
 import app.whittle.config.defaults.BundledConfigSource
@@ -59,6 +60,15 @@ class ScreenContentTest {
         val screen = pastedScreen(messages, "Mail", "Hello", screenshot = null, screenshotShownAt = null, maxChars = 1_000)
         assertNull(screen.screenshot)
         assertTrue(userMessage("Reply to this", screen.text, emptyList()).carriesUntrustedContent())
+    }
+
+    @Test
+    fun `leaving the screen out takes its screenshot off the message too, and keeps the user's photos`() {
+        val state = ChatState(screen = ScreenContext("Bank", "Balance", null), screenshot = screenshot, attachments = listOf(photo, screenshot))
+        val left = state.withoutScreen()
+        assertNull(left.screen)
+        assertNull(left.screenshot)
+        assertEquals(listOf(photo), left.attachments)
     }
 
     @Test
