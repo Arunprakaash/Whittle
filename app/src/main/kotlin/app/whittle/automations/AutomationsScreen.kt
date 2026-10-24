@@ -149,6 +149,15 @@ private fun AutomationsList(graph: AppGraph, onBack: () -> Unit, onOpen: (Automa
                         Modifier.padding(top = WhittleSpace.l),
                     )
                 }
+                // The recipes stay one tap away after the first automation, without the ones already made.
+                val more = unusedIdeas(config.ideas, automations)
+                if (!full && more.isNotEmpty()) {
+                    item {
+                        IdeasSection(more, resources, stringResource(R.string.automation_more_ideas), Modifier.padding(top = WhittleSpace.xxl)) { idea ->
+                            onOpen(graph.automations.draft(idea), true)
+                        }
+                    }
+                }
             }
         }
     }
@@ -165,19 +174,23 @@ private fun EmptyAutomations(ideas: List<AutomationIdea>, resources: Resources, 
                 Text(stringResource(R.string.automation_empty_body), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        if (ideas.isNotEmpty()) {
-            SettingsSection(title = stringResource(R.string.automation_ideas)) {
-                ideas.forEachIndexed { index, idea ->
-                    SettingsRow(
-                        icon = idea.icon,
-                        title = idea.name,
-                        subtitle = scheduleText(resources, idea.schedule),
-                        shape = segmentedShape(index, ideas.size),
-                        onClick = { onIdea(idea) },
-                        trailing = { WhittleIcon("chevron_right", size = WhittleSize.Icon.l, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    )
-                }
-            }
+        if (ideas.isNotEmpty()) IdeasSection(ideas, resources, stringResource(R.string.automation_ideas), onIdea = onIdea)
+    }
+}
+
+/** Ready-made automations, each with its schedule; tapping one opens the editor filled in. */
+@Composable
+private fun IdeasSection(ideas: List<AutomationIdea>, resources: Resources, title: String, modifier: Modifier = Modifier, onIdea: (AutomationIdea) -> Unit) {
+    SettingsSection(title = title, modifier = modifier) {
+        ideas.forEachIndexed { index, idea ->
+            SettingsRow(
+                icon = idea.icon,
+                title = idea.name,
+                subtitle = scheduleText(resources, idea.schedule),
+                shape = segmentedShape(index, ideas.size),
+                onClick = { onIdea(idea) },
+                trailing = { WhittleIcon("chevron_right", size = WhittleSize.Icon.l, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+            )
         }
     }
 }

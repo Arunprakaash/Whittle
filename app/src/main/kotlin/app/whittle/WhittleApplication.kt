@@ -10,6 +10,7 @@ import android.os.Bundle
 import app.whittle.automations.AutomationRunner
 import app.whittle.automations.SessionAutomationChat
 import app.whittle.background.AgentRunService
+import app.whittle.background.ApprovalActivity
 import app.whittle.background.ProcessesService
 import app.whittle.background.RunNotifications
 import app.whittle.background.RunProgress
@@ -17,8 +18,15 @@ import app.whittle.apps.AppToolchainService
 import app.whittle.chat.ChatEvent
 import app.whittle.chat.ChatViewModel
 import app.whittle.storage.chats.ChatId
+import app.whittle.connectors.mcp.ConnectorState
+import app.whittle.quickstart.QuickStart
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.collectLatest
+import app.whittle.assistant.ScreenContext
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -37,6 +45,9 @@ class WhittleApplication : Application() {
     }
 
     val notifications: RunNotifications by lazy { RunNotifications(this) }
+
+    /** The screen the assistant read, until the chat takes it (see [app.whittle.assistant.AssistSession]). */
+    val assistIncoming = MutableStateFlow<ScreenContext?>(null)
     val notificationManager: NotificationManager by lazy { getSystemService(NotificationManager::class.java) }
 
     private val scope = MainScope()
@@ -48,6 +59,7 @@ class WhittleApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         notifications.createChannels()
+        QuickStart.publish(this)
         registerActivityLifecycleCallbacks(VisibilityTracker())
         scope.launch {
             // Started with the task, while Whittle is on screen (Android refuses it once in the background).
@@ -58,6 +70,10 @@ class WhittleApplication : Application() {
         // Alarms don't survive a force stop or a restore from backup; setting them at each launch costs nothing.
         graph.appScope.launch { graph.automations.rescheduleAll() }
         graph.appScope.launch { graph.reminders.rescheduleAll() }
+        // Whittle is installed from GitHub, so it looks there for a newer version: once a day at most, while the user allows it.
+        graph.appScope.launch {
+            if (graph.settings.settings.first().checkForUpdates) graph.updates.checkIfDue()?.let(notifications::updateAvailable)
+        }
         // Base packages added in an update reach a Linux set up before it; then Claude Code, if installed, stays current.
         graph.appScope.launch {
             graph.linux.topUpPackages()
@@ -70,11 +86,25 @@ class WhittleApplication : Application() {
             }
         }
         scope.launch {
+            // A service that signs Whittle out while the user is away (an automation's run, say) says so once.
+            graph.connectors.all.collectLatest { connections ->
+                connections.forEach { connection ->
+                    launch {
+                        connection.state.map { it == ConnectorState.SignInExpired }.distinctUntilChanged().drop(1).collect { expired ->
+                            if (expired && !inForeground) notifications.signInAgain(connection.server.name)
+                        }
+                    }
+                }
+            }
+        }
+        scope.launch {
             chat.events.collect { event ->
                 if (inForeground) return@collect
                 val title = titleOf(event.chat)
                 when (event) {
                     is ChatEvent.NeedsYou -> notifications.needsYou(title)
+                    is ChatEvent.ApprovalNeeded ->
+                        notifications.approval(event.key, title, event.text, buttons = graph.notificationApprovals.buttonsFor(event.tier))
                     is ChatEvent.Finished -> notifications.finished(title, event.failed)
                 }
             }
@@ -112,13 +142,16 @@ class WhittleApplication : Application() {
         }
     }
 
+    /** Answering from a notification opens a screen the user never sees; that isn't them coming back. */
     private inner class VisibilityTracker : ActivityLifecycleCallbacks {
         override fun onActivityStarted(activity: Activity) {
+            if (activity is ApprovalActivity) return
             visibleActivities++
             notifications.clearUpdates()
         }
 
         override fun onActivityStopped(activity: Activity) {
+            if (activity is ApprovalActivity) return
             visibleActivities--
         }
 

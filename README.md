@@ -145,6 +145,10 @@ with `read_process_output`, and `list_processes` / `stop_process` manage what ru
 when their chat is deleted, or with the app; the card restarts one with the same command. With Keep working in
 the background on, a notification lists them and keeps them running, with Stop all.
 
+Add to home screen, in the preview, pins an app like any other (`AppShortcuts`, with Android asking first). The
+shortcut opens Whittle at its chat with the preview, starting the app again if it stopped; once its chat is
+deleted, the shortcut stays greyed out instead of opening an empty Whittle.
+
 ### Automations
 
 An automation is a task Whittle runs by itself at a time of day, on chosen days. The user sets one up in
@@ -155,7 +159,9 @@ Settings › Automations, or asks in a chat and approves the `schedule_task` car
   time zone change, and at every launch.
 - **Running.** `AutomationRunner` starts the automation in a new chat titled after it, in `RunMode.UNATTENDED`,
   and starts the run's foreground service before the alarm lets the process go. The policy engine then allows
-  only the tools the user pre-approved for it; anything else pauses the run with a Needs you notification.
+  only the tools the user pre-approved for it; anything else pauses the run with a notification. For an approval it
+  shows the card's words and its own Approve and Decline buttons, which answer the card once the phone is unlocked.
+  Deleting and paying are only decided in the app (`background.approvals` in app-defaults.json).
 - **What runs without asking.** automations.json lists what can be pre-approved: web reads, the clock, the
   calendar, contacts and the workspace's files, never anything that sends data out. A new automation may only
   read; changing files is a separate choice, off by default. A test keeps both rules.
@@ -165,6 +171,15 @@ Settings › Automations, or asks in a chat and approves the `schedule_task` car
 - **Not taking over.** While a task is running, the user is in the app or no model is connected, a due
   automation tries again every few minutes. After a few hours it gives up, and the list shows the run as
   missed. Run now starts at once.
+
+### The assistant
+
+Whittle can be the phone's digital assistant (Settings › Tasks › Use as your assistant opens Android's picker). A
+long-press of power or home starts `AssistSession`, which reads the words on screen from Android's assist structure,
+leaving password fields out, and takes the screenshot if the user allows it in Android's assist settings. Whittle opens
+in a new chat with the screenshot attached and a chip naming the app; the words go with the next message as untrusted
+content, like a web page, so the run is tainted. Android also makes the assistant the speech recognizer, so
+`ForwardingRecognitionService` hands every request to a recognizer already installed.
 
 ### Connectors
 
@@ -176,6 +191,11 @@ Settings › Automations, or asks in a chat and approves the `schedule_task` car
 
 Tokens are kept in the vault and never pass through the chat.
 
+A connection says when it stops working. If the service refuses Whittle's sign-in (a refresh token it no longer
+takes, a key it rejects), the connection stays listed as signed out with Sign in again, even after a restart, and a
+notification says so if it happens while the user is away. A server that doesn't answer keeps its tools and shows
+Can't reach it right now until it answers again; a sign-in server that is down never signs the user out.
+
 ### Storage, telemetry, design
 
 - **Storage.** Keys and tokens are in a Tink vault keyed by the Android Keystore. Chats and run checkpoints
@@ -183,6 +203,9 @@ Tokens are kept in the vault and never pass through the chat.
   `DocumentsProvider`.
 - **Telemetry.** `observability:api` is vendor-neutral with consent filtering, and `observability:posthog`
   adapts it. Events carry metadata only. Session replays mask messages, answers, chat titles and apps.
+- **Updates.** Whittle is installed from GitHub, so once a day it asks GitHub's Releases for the latest version
+  (`updates` in app-defaults.json). A newer one shows under Settings › About and in one notification per version,
+  opening its release page. Only that request leaves the phone, and Settings › Check for updates turns it off.
 - **Design system.** W3C DTCG tokens in `docs/design/tokens` generate the Compose colors, type, spacing and
   Material 3 Expressive motion springs. A sprite file generates the beaver's animation and the launcher icon;
   the themed and notification icons are a W, since Android tints them one colour.

@@ -1,6 +1,8 @@
 package app.whittle.chat
 
 import app.whittle.settings.VoiceDefaults
+import app.whittle.settings.Starter
+import app.whittle.settings.AppIdea
 import app.whittle.design.components.ComposerVoice
 import android.Manifest
 import android.content.pm.PackageManager
@@ -158,6 +160,12 @@ fun ChatScreen(
         // The card may have restarted its process since; the preview follows the card.
         val current = state.items.firstOrNull { it.key == item.key } as? ThreadItem.Process ?: item
         LivePreviewSheet(current, viewModel, previewHeight, onDismiss = { previewing = null })
+    }
+    // An app's home-screen shortcut asked for its preview.
+    LaunchedEffect(state.openPreview) {
+        val key = state.openPreview ?: return@LaunchedEffect
+        previewing = state.items.firstOrNull { it.key == key } as? ThreadItem.Process
+        viewModel.previewOpened()
     }
     val chat = state.currentChat?.value
     val openFile = { path: String -> onOpenFiles(FilesOpening(FilesPlace.Document(path), chat)) }
@@ -341,7 +349,17 @@ private fun ChatLayout(
                 state.restoring -> Unit
                 // Before the first message, the note stands where the welcome would.
                 state.items.isEmpty() && unseen != null -> Box(Modifier.fillMaxSize().padding(bottom = dockSpace), contentAlignment = Alignment.Center) { unseen(Modifier) }
-                state.items.isEmpty() -> EmptyThread(state, recentProjects, viewModel::chooseProject, Modifier.padding(bottom = dockSpace))
+                state.items.isEmpty() -> EmptyThread(
+                    state,
+                    recentProjects,
+                    viewModel::chooseProject,
+                    // Only before the first chat: three things to try that work right away.
+                    starters = if (state.chats.isEmpty()) viewModel.starters else emptyList(),
+                    onStart = viewModel::sendText,
+                    appIdeas = viewModel.appIdeas,
+                    onAppIdea = viewModel::updateInput,
+                    modifier = Modifier.padding(bottom = dockSpace),
+                )
                 // One list per chat: switching replaces the thread instead of animating one chat into another.
                 else -> key(state.currentChat) { Thread(state.items, state.running, viewModel, requestCapability, dockSpace, unseen) }
             }
@@ -546,6 +564,11 @@ private fun Dock(
     modifier: Modifier = Modifier,
 ) {
     val voice = rememberVoice(voiceDefaults, state.input, viewModel::updateInput)
+    LaunchedEffect(state.listenNow) {
+        if (!state.listenNow) return@LaunchedEffect
+        viewModel.listenStarted()
+        if (voice != null && !voice.listening) voice.onToggle()
+    }
     val openAttachment = LocalOpenAttachment.current
     // No background of its own: only the cards, the chip and the composer cover the thread behind them.
     Column(
@@ -583,6 +606,9 @@ private fun Dock(
         // Where the next task runs, right where it's typed; while a task runs, its status line stands here instead.
         AnimatedVisibility(!state.running, enter = WhittleTransitions.riseInPlace(), exit = WhittleTransitions.sinkOutPlace()) {
             ProjectChip(state.project, onClick = onChooseProject, modifier = Modifier.padding(start = WhittleSpace.xs))
+        }
+        AnimatedVisibility(state.screen != null, enter = WhittleTransitions.riseInPlace(), exit = WhittleTransitions.sinkOutPlace()) {
+            ScreenChip(state.screen?.appName, onRemove = viewModel::removeScreen, modifier = Modifier.padding(start = WhittleSpace.xs).userContent())
         }
         AnimatedVisibility(
             state.attachments.isNotEmpty() || state.attaching > 0,
@@ -682,7 +708,16 @@ private fun rememberVoice(defaults: VoiceDefaults, input: String, onInput: (Stri
 }
 
 @Composable
-private fun EmptyThread(state: ChatState, recentProjects: Int, onPickProject: (String) -> Unit, modifier: Modifier = Modifier) {
+private fun EmptyThread(
+    state: ChatState,
+    recentProjects: Int,
+    onPickProject: (String) -> Unit,
+    starters: List<Starter>,
+    onStart: (String) -> Unit,
+    appIdeas: List<AppIdea>,
+    onAppIdea: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier.fillMaxSize().padding(horizontal = WhittleSpace.xxl),
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.s, Alignment.CenterVertically),
@@ -692,7 +727,12 @@ private fun EmptyThread(state: ChatState, recentProjects: Int, onPickProject: (S
         state.model?.let {
             Text(stringResource(R.string.chat_empty_body, it.displayName), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (state.project == null) CarryOn(state.projects.take(recentProjects), onPickProject)
+        if (state.project == null) {
+            CarryOn(state.projects.take(recentProjects), onPickProject)
+            // Not in the very first chat, which keeps its welcome simple.
+            if (state.chats.isNotEmpty()) AppIdeas(appIdeas, onAppIdea)
+        }
+        Starters(starters, onStart)
     }
 }
 

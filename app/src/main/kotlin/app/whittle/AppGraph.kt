@@ -16,6 +16,9 @@ import app.whittle.settings.AttachmentDefaults
 import app.whittle.memory.EncryptedFileMemory
 import app.whittle.tools.workspace.WorkspaceOutputs
 import app.whittle.settings.MemoryIdea
+import app.whittle.settings.Starter
+import app.whittle.settings.AppIdea
+import app.whittle.settings.AssistantDefaults
 import app.whittle.settings.VoiceDefaults
 import app.whittle.connectors.CustomConnectorStore
 import app.whittle.connectors.mcp.ConnectorsConfig
@@ -85,6 +88,9 @@ import app.whittle.observability.posthog.PostHogTelemetry
 import app.whittle.policy.PolicyRuleSet
 import app.whittle.policy.RuleBasedPolicyEngine
 import app.whittle.settings.AppDefaults
+import app.whittle.settings.NotificationApprovalDefaults
+import app.whittle.updates.UpdateCheck
+import app.whittle.chat.AppShortcuts
 import app.whittle.settings.ConnectionStore
 import app.whittle.storage.chats.ChatStore
 import app.whittle.storage.chats.RoomChatStore
@@ -134,6 +140,9 @@ class AppGraph(context: Context) {
     private val appDefaults = load(AppDefaults.FILE, AppDefaults.serializer(), AppDefaults.SCHEMA_VERSION)
     val sidebarMaxChats: Int get() = appDefaults.chatList.sidebarMaxChats
     val memoryIdeas: List<MemoryIdea> get() = appDefaults.memory.ideas
+    val starters: List<Starter> get() = appDefaults.starters
+    val appIdeas: List<AppIdea> get() = appDefaults.appIdeas
+    val assistantDefaults: AssistantDefaults get() = appDefaults.assistant
     val providers = load(ConfigFiles.providerCatalog, ProviderCatalog.serializer(), ProviderCatalog.SCHEMA_VERSION)
     val modelDefaults = load(ConfigFiles.modelDefaults, ModelDefaults.serializer(), ModelDefaults.SCHEMA_VERSION)
     private val modelTrust = load(ConfigFiles.modelTrust, ModelTrustConfig.serializer(), ModelTrustConfig.SCHEMA_VERSION)
@@ -161,17 +170,25 @@ class AppGraph(context: Context) {
             screenRecordings = harness.telemetry.sessionReplay.enabled,
             keepRunningInBackground = appDefaults.background.keepRunning,
             themeMode = appDefaults.appearance.theme,
+            checkForUpdates = appDefaults.updates.check,
         ),
     )
 
+    /** Home-screen shortcuts to the apps the agent runs. */
+    val appShortcuts = AppShortcuts(context)
+
     /** Whether tasks keep running in the background before the user's saved choice has loaded. */
     val defaultKeepRunningInBackground: Boolean get() = appDefaults.background.keepRunning
+    val notificationApprovals: NotificationApprovalDefaults get() = appDefaults.background.approvals
 
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(harness.network.connectTimeoutMillis, TimeUnit.MILLISECONDS)
         .readTimeout(harness.network.readTimeoutMillis, TimeUnit.MILLISECONDS)
         .writeTimeout(harness.network.writeTimeoutMillis, TimeUnit.MILLISECONDS)
         .build()
+
+    /** Whether a newer Whittle is out on GitHub; see [UpdateCheck]. */
+    val updates = UpdateCheck(httpClient, appDefaults.updates, BuildConfig.VERSION_NAME, File(context.cacheDir, appDefaults.updates.fileName), clock)
 
     private val cipher = TinkContentCipher(context, harness.secrets)
     val secrets: SecretStore = EncryptedSecretStore(context, harness.secrets, cipher)

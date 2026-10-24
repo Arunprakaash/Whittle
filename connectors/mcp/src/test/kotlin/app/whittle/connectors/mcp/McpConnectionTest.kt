@@ -31,6 +31,12 @@ class McpConnectionTest {
 
     /** Sign-in details only at the spec's fallback addresses: the root and OpenID discovery. */
     private var fallbackLayout = false
+
+    /** What the token endpoint answers a refresh with; 200 gives new tokens. */
+    private var refreshStatus = 200
+
+    /** The MCP server answers 503, as when it's down. */
+    private var serverDown = false
     private val store = object : McpCredentialStore {
         var saved: McpCredentials? = null
         override suspend fun load() = saved
@@ -61,8 +67,12 @@ class McpConnectionTest {
                         """{"authorization_endpoint":"$base/authorize","token_endpoint":"$base/token","registration_endpoint":"$base/register"}""",
                     )
                     "/register" -> json("""{"client_id":"client-1","client_secret":"secret-1"}""")
-                    "/token" -> json("""{"access_token":"access-1","refresh_token":"refresh-1","expires_in":3600}""")
-                    else -> mcp(body)
+                    "/token" -> if (body.contains("grant_type=refresh_token") && refreshStatus != 200) {
+                        json("""{"error":"invalid_grant"}""").setResponseCode(refreshStatus)
+                    } else {
+                        json("""{"access_token":"access-1","refresh_token":"refresh-1","expires_in":3600}""")
+                    }
+                    else -> if (serverDown) MockResponse().setResponseCode(503) else mcp(body)
                 }
             }
         }
@@ -137,6 +147,67 @@ class McpConnectionTest {
         now += 3_600_000
         connection.refreshTools()
         assertEquals(2, requests.count { it.path == "/token" })
+    }
+
+    @Test
+    fun `a refused refresh asks the user to sign in again, even after a restart`() = runTest {
+        val connection = signedIn()
+        refreshStatus = 400
+        now += 3_600_000
+        connection.refreshTools()
+        assertEquals(ConnectorState.SignInExpired, connection.state.value)
+        assertTrue(connection.tools.isEmpty())
+        assertEquals(true, store.saved?.signedOut)
+
+        val restarted = connection()
+        restarted.restore()
+        assertEquals(ConnectorState.SignInExpired, restarted.state.value)
+
+        refreshStatus = 200
+        val state = (restarted.beginSignIn() as Outcome.Success).value.toHttpUrl().queryParameter("state")
+        assertIs<Outcome.Success<Unit>>(restarted.complete("${REDIRECT}?code=code-2&state=$state"))
+        assertEquals(ConnectorState.Connected(3), restarted.state.value)
+        assertEquals(false, store.saved?.signedOut)
+    }
+
+    @Test
+    fun `a sign-in server that is down doesn't sign the user out`() = runTest {
+        val connection = signedIn()
+        refreshStatus = 503
+        now += 3_600_000
+        connection.refreshTools()
+        assertIs<ConnectorState.Connected>(connection.state.value)
+        assertEquals(false, store.saved?.signedOut)
+    }
+
+    @Test
+    fun `a server that is down keeps its tools and says so until it answers again`() = runTest {
+        val connection = signedIn()
+        serverDown = true
+        connection.refreshTools()
+        assertEquals(ConnectorState.Connected(3, reachable = false), connection.state.value)
+        assertEquals(3, connection.tools.size)
+        serverDown = false
+        connection.refreshTools()
+        assertEquals(ConnectorState.Connected(3), connection.state.value)
+    }
+
+    @Test
+    fun `disconnecting a signed-out connection stops asking`() = runTest {
+        val connection = signedIn()
+        refreshStatus = 400
+        now += 3_600_000
+        connection.refreshTools()
+        connection.disconnect()
+        assertEquals(ConnectorState.Disconnected, connection.state.value)
+        assertEquals(false, store.saved?.signedOut)
+    }
+
+    private suspend fun signedIn(): McpConnection {
+        val connection = connection()
+        val state = (connection.beginSignIn() as Outcome.Success).value.toHttpUrl().queryParameter("state")
+        assertIs<Outcome.Success<Unit>>(connection.complete("${REDIRECT}?code=code-1&state=$state"))
+        return connection
     }
 
     @Test

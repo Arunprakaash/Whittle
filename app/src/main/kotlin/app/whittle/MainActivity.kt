@@ -65,7 +65,11 @@ import app.whittle.onboarding.WelcomeScreen
 import app.whittle.linux.LinuxWorkspaceScreen
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.getAndUpdate
 import android.content.Intent
+import app.whittle.chat.AppShortcuts
+import app.whittle.chat.ShortcutOpening
+import app.whittle.quickstart.QuickStart
 import app.whittle.attachments.SharedItems
 import app.whittle.core.common.getOrNull
 import app.whittle.core.model.ProviderId
@@ -82,14 +86,36 @@ class MainActivity : ComponentActivity() {
     /** What another app shared, until the chat takes it. */
     private val shared = MutableStateFlow<SharedItems?>(null)
 
+    /** The app a home-screen shortcut opens, until the chat takes it. */
+    private val openingApp = MutableStateFlow<ShortcutOpening?>(null)
+
+    /** A notification asked for Settings, where the connections are. */
+    private val openingConnections = MutableStateFlow(false)
+
+    /** A new chat asked for from the launcher icon or Quick Settings, until the chat takes it. */
+    private val quickStart = MutableStateFlow<QuickStart?>(null)
+
+    /** Set when the assistant opened Whittle, until the chat takes the screen it read. */
+    private val assisting = MutableStateFlow(false)
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (intent.action == ACTION_SHOW_CONNECTIONS) openingConnections.value = true
+        QuickStart.from(intent.action)?.let { quickStart.value = it }
+        if (intent.action == ACTION_ASSIST) assisting.value = true
         SharedItems.from(intent)?.let { shared.value = it }
+        AppShortcuts.opening(intent)?.let { openingApp.value = it }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // A share is taken once: a screen rebuilt after rotating mustn't add it again.
-        if (savedInstanceState == null) shared.value = SharedItems.from(intent)
+        // A share or a shortcut is taken once: a screen rebuilt after rotating mustn't take it again.
+        if (savedInstanceState == null) {
+            shared.value = SharedItems.from(intent)
+            openingApp.value = AppShortcuts.opening(intent)
+            openingConnections.value = intent?.action == ACTION_SHOW_CONNECTIONS
+            quickStart.value = QuickStart.from(intent?.action)
+            assisting.value = intent?.action == ACTION_ASSIST
+        }
         drawBehindSystemBars(dark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES)
         super.onCreate(savedInstanceState)
         val graph = (application as WhittleApplication).graph
@@ -200,6 +226,47 @@ class MainActivity : ComponentActivity() {
                                 showingSettings = false; showingAllChats = false; showingModelPicker = false; showingAutomations = false
                                 showingMemory = false; showingLinux = false; showingConnectionLibrary = false; toolsOf = null
                                 chat.startShared(items)
+                            }
+                            val shortcut by openingApp.collectAsStateWithLifecycle()
+                            LaunchedEffect(shortcut) {
+                                val opening = shortcut ?: return@LaunchedEffect
+                                openingApp.value = null
+                                // The app opens over its chat, whatever screen was open.
+                                files = null
+                                showingSettings = false; showingAllChats = false; showingModelPicker = false; showingAutomations = false
+                                showingMemory = false; showingLinux = false; showingConnectionLibrary = false; toolsOf = null
+                                chat.openApp(opening)
+                            }
+                            val toConnections by openingConnections.collectAsStateWithLifecycle()
+                            LaunchedEffect(toConnections) {
+                                if (!toConnections) return@LaunchedEffect
+                                openingConnections.value = false
+                                files = null
+                                showingAllChats = false; showingModelPicker = false; showingAutomations = false
+                                showingMemory = false; showingLinux = false; showingConnectionLibrary = false; toolsOf = null
+                                showingSettings = true
+                            }
+                            val starting by quickStart.collectAsStateWithLifecycle()
+                            LaunchedEffect(starting) {
+                                val start = starting ?: return@LaunchedEffect
+                                quickStart.value = null
+                                start.reportUsed(this@MainActivity)
+                                // A quick start lands in a new chat, whatever screen was open.
+                                files = null
+                                showingSettings = false; showingAllChats = false; showingModelPicker = false; showingAutomations = false
+                                showingMemory = false; showingLinux = false; showingConnectionLibrary = false; toolsOf = null
+                                chat.newChat(listen = start == QuickStart.SPEAK)
+                            }
+                            val assisted by assisting.collectAsStateWithLifecycle()
+                            LaunchedEffect(assisted) {
+                                if (!assisted) return@LaunchedEffect
+                                assisting.value = false
+                                val screen = (application as WhittleApplication).assistIncoming.getAndUpdate { null } ?: return@LaunchedEffect
+                                // The assistant lands in a new chat, whatever screen was open.
+                                files = null
+                                showingSettings = false; showingAllChats = false; showingModelPicker = false; showingAutomations = false
+                                showingMemory = false; showingLinux = false; showingConnectionLibrary = false; toolsOf = null
+                                chat.startWithScreen(screen)
                             }
                             val toolsConnection = toolsOf?.let { id -> connections.firstOrNull { it.server.id == id } }
                             val opening = files
@@ -376,6 +443,14 @@ class MainActivity : ComponentActivity() {
     /** Bringing Claude Code instead of an API key: its setup, then its own sign-in. */
     /** Which part of Claude Code's setup is open: from its first screen, or straight at how to sign in. */
     private enum class ClaudeCodeStep(val entry: ClaudeCodeEntry) { None(ClaudeCodeEntry.SETUP), Setup(ClaudeCodeEntry.SETUP), SignIn(ClaudeCodeEntry.SIGN_IN) }
+
+    companion object {
+        /** Opens Settings, where the connections are; sent by the notification for a connection that signed Whittle out. */
+        const val ACTION_SHOW_CONNECTIONS = "app.whittle.action.SHOW_CONNECTIONS"
+
+        /** Opens a new chat about the screen the assistant just read ([WhittleApplication.assistIncoming]). */
+        const val ACTION_ASSIST = "app.whittle.action.ASSIST_SCREEN"
+    }
 }
 
 /**

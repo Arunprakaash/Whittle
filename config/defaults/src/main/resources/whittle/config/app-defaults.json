@@ -40,7 +40,11 @@
     "memoryEntries": 64
   },
   "background": {
-    "keepRunning": true
+    "keepRunning": true,
+    "approvals": {
+      "fromNotification": true,
+      "inAppOnly": ["DELETE_OR_PAY"]
+    }
   },
   "projects": {
     "promptWithProject": "This chat works on the project {{project}}, in {{mount}}/{{project}}: commands start there and relative paths resolve inside it.",
@@ -96,6 +100,20 @@
       { "icon": "short_text", "title": "How you like answers", "example": "“Short, main point first.”", "start": "I like answers that are " }
     ]
   },
+  "starters": [
+    { "icon": "calendar_month", "title": "What's on today", "prompt": "What's on my calendar today?", "feature": "calendar" },
+    { "icon": "alarm", "title": "A reminder", "prompt": "Remind me to stretch in 30 minutes.", "feature": "reminders" },
+    { "icon": "sms", "title": "A quick text", "prompt": "Draft a text saying I'm running 10 minutes late." }
+  ],
+  "appIdeas": [
+    { "icon": "checklist", "title": "Habit tracker", "prompt": "Make me an Android app to tick off three daily habits, with a streak for each." },
+    { "icon": "calculate", "title": "Tip calculator", "prompt": "Make me an Android app that splits a bill and the tip between friends." },
+    { "icon": "storefront", "title": "A page for my shop", "prompt": "Build a one-page website for my small shop, with opening hours and a map link. My shop is: " }
+  ],
+  "assistant": {
+    "waitMillis": 2000,
+    "screenshotFileName": "assist-screen.jpg"
+  },
   "attachments": {
     "directoryName": "uploads",
     "maxPerMessage": 5,
@@ -105,5 +123,12 @@
     "thumbnailSidePx": 256,
     "memoryEntries": 24,
     "cameraDirectoryName": "camera"
+  },
+  "updates": {
+    "check": true,
+    "latestReleaseUrl": "https://api.github.com/repos/Arunprakaash/Whittle/releases/latest",
+    "apkPattern": "^Whittle-.*\\.apk$",
+    "everyHours": 24,
+    "fileName": "update-check.json"
   }
 }

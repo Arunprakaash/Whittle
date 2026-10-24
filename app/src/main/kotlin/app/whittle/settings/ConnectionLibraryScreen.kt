@@ -129,6 +129,7 @@ fun ConnectionLibraryScreen(graph: AppGraph, onBack: () -> Unit) {
                             is ConnectorState.Connected -> RowStatus.Done(stringResource(R.string.connector_connected))
                             ConnectorState.Connecting -> RowStatus.Busy
                             ConnectorState.Disconnected -> RowStatus.Action(stringResource(R.string.connector_connect))
+                            ConnectorState.SignInExpired -> RowStatus.Action(stringResource(R.string.connector_sign_in_again))
                         },
                         shape = segmentedShape(index, size),
                     ) {

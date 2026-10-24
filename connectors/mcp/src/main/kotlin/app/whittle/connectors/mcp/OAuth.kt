@@ -61,6 +61,8 @@ data class McpCredentials(
     val headers: Map<String, String> = emptyMap(),
     /** The client the user gave, if any; [client] is then made from it instead of registering. */
     val preRegistered: OAuthClientCredentials? = null,
+    /** The service ended the sign-in (a refused token): the user is asked to sign in again rather than quietly signed out. */
+    val signedOut: Boolean = false,
 )
 
 /** One sign-in in progress: kept until the browser sends the user back. The verifier never leaves the phone. */
@@ -225,6 +227,10 @@ class McpAuthorizer(
         try {
             http.newCall(request).execute().use { response ->
                 val body = response.body?.string().orEmpty()
+                // A sign-in server that is down hasn't refused anything; the sign-in stays and is tried again later.
+                if (response.code >= HTTP_SERVER_ERROR) {
+                    return@use Outcome.Failure(HarnessError.Network("${server.name} sign-in isn't answering (HTTP ${response.code})"))
+                }
                 if (!response.isSuccessful) {
                     val reason = runCatching { json.decodeFromString(OAuthError.serializer(), body) }.getOrNull()
                     return@use authFailure(reason?.description ?: reason?.error ?: "${server.name} sign-in failed with HTTP ${response.code}")
@@ -295,6 +301,7 @@ class McpAuthorizer(
     }
 
     private companion object {
+        const val HTTP_SERVER_ERROR = 500
         const val CODE = "code"
         const val S256 = "S256"
         const val AUTH_NONE = "none"

@@ -3,6 +3,7 @@ package app.whittle.settings
 import app.whittle.design.theme.ThemeMode
 import app.whittle.core.config.ConfigName
 import app.whittle.core.config.VersionedConfig
+import app.whittle.tools.api.RiskTier
 import kotlinx.serialization.Serializable
 
 /** App-level defaults shipped as config: appearance and on-device storage names. */
@@ -22,6 +23,10 @@ data class AppDefaults(
     val toolRuntime: ToolRuntimeDefaults,
     val memory: MemoryDefaults,
     val attachments: AttachmentDefaults,
+    val updates: UpdateDefaults,
+    val starters: List<Starter>,
+    val appIdeas: List<AppIdea>,
+    val assistant: AssistantDefaults,
 ) : VersionedConfig {
     companion object {
         const val SCHEMA_VERSION = 1
@@ -90,9 +95,49 @@ data class SiteIconDefaults(
     }
 }
 
+/**
+ * Checking GitHub's Releases for a newer Whittle. [check] is the default of the user's switch in Settings; [latestReleaseUrl]
+ * is GitHub's latest-release endpoint, asked at most every [everyHours]; [apkPattern] picks the APK among a release's files.
+ * What the last check found is kept in [fileName], under the app's cache folder.
+ */
+@Serializable
+data class UpdateDefaults(val check: Boolean, val latestReleaseUrl: String, val apkPattern: String, val everyHours: Int, val fileName: String) {
+    init {
+        require(latestReleaseUrl.startsWith("https://")) { "updates.latestReleaseUrl must be https" }
+        require(everyHours > 0) { "updates.everyHours must be positive" }
+        Regex(apkPattern)
+    }
+}
+
+/**
+ * Whittle as the phone's assistant: how long a call waits for Android to hand over the screen and its screenshot
+ * ([waitMillis]), and the file in the app's cache the screenshot is kept in until it's attached.
+ */
+@Serializable
+data class AssistantDefaults(val waitMillis: Long, val screenshotFileName: String) {
+    init {
+        require(waitMillis > 0) { "assistant.waitMillis must be positive" }
+    }
+}
+
 /** Tasks keep running while the user is elsewhere, in a foreground service with an ongoing notification. */
 @Serializable
-data class BackgroundDefaults(val keepRunning: Boolean)
+data class BackgroundDefaults(val keepRunning: Boolean, val approvals: NotificationApprovalDefaults)
+
+/**
+ * Approval cards that appear while the user is away. With [fromNotification] on, their notification carries the card's own
+ * Approve and Decline buttons, which work only once the phone is unlocked. Calls at an [inAppOnly] risk tier never get
+ * buttons: the notification opens the chat, and the user decides there.
+ */
+@Serializable
+data class NotificationApprovalDefaults(val fromNotification: Boolean, val inAppOnly: Set<String>) {
+    init {
+        require(inAppOnly.all { name -> RiskTier.entries.any { it.name == name } }) { "background.approvals.inAppOnly must name tiers from ${RiskTier.entries}" }
+    }
+
+    /** Whether a waiting call at [tier] may be answered from its notification. */
+    fun buttonsFor(tier: RiskTier): Boolean = fromNotification && tier.name !in inAppOnly
+}
 
 /** How a server the agent runs is shown in the live preview. */
 @Serializable
@@ -152,6 +197,20 @@ data class MemoryDefaults(
 /** A kind of thing worth remembering: what it's about, an example, and the words the editor starts with. */
 @Serializable
 data class MemoryIdea(val icon: String, val title: String, val example: String, val start: String)
+
+/**
+ * A task the first chat offers, one that works right away: no Linux, no connection. Tapping sends [prompt] as the user's
+ * message. One that needs the phone feature [feature] (an id in phone-actions.json) isn't offered while it's switched off.
+ */
+@Serializable
+data class Starter(val icon: String, val title: String, val prompt: String, val feature: String? = null)
+
+/**
+ * Something to build, offered in a new chat: tapping puts [prompt] in the composer, to send as it is or to finish first
+ * (one ending in ": " asks for a detail, like the shop's name).
+ */
+@Serializable
+data class AppIdea(val icon: String, val title: String, val prompt: String)
 
 /**
  * Photos and files the user adds to a message: where in the workspace they're saved (inside the chat's project when

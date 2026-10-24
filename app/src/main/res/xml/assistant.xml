@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Whittle as the digital assistant: reads the screen when called (supportsAssist), with no hotword of its own. -->
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:recognitionService="app.whittle.assistant.ForwardingRecognitionService"
+    android:sessionService="app.whittle.assistant.AssistSessionService"
+    android:supportsAssist="true"
+    android:supportsLaunchVoiceAssistFromKeyguard="false" />
