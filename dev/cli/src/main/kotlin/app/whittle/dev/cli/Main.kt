@@ -1,21 +1,8 @@
 package app.whittle.dev.cli
 
-import app.whittle.agent.PauseReason
-import app.whittle.agent.ForgetTool
-import app.whittle.agent.RememberTool
-import app.whittle.agent.MemoryStore
-import app.whittle.core.common.getOrNull
-import app.whittle.tools.workspace.WorkspaceOutputs
 import app.whittle.agent.AgentMessages
-import app.whittle.agent.AgentRunner
-import app.whittle.agent.AskUserTool
-import app.whittle.agent.InMemoryRunCheckpointStore
 import app.whittle.agent.RunEvent
-import app.whittle.agent.RunInbox
-import app.whittle.agent.RunRequest
-import app.whittle.agent.SystemPromptVariables
 import app.whittle.config.defaults.BundledConfigSource
-import app.whittle.core.common.EpochClock
 import app.whittle.core.common.IdGenerator
 import app.whittle.core.common.Outcome
 import app.whittle.core.common.getOrElse
@@ -24,38 +11,20 @@ import app.whittle.core.config.ConfigLoader
 import app.whittle.core.config.HarnessConfig
 import app.whittle.core.config.NetworkConfig
 import app.whittle.core.config.PromptTemplate
-import app.whittle.core.model.Message
-import app.whittle.core.model.RunId
-import app.whittle.tools.device.DeviceClockTool
-import app.whittle.tools.web.WebFetchTool
+import app.whittle.dev.cli.eval.EvalRunner
+import app.whittle.dev.cli.eval.EvalSuite
+import app.whittle.tools.workspace.TerminalConfig
 import app.whittle.llm.api.ModelAdapterRegistry
 import app.whittle.llm.api.ModelDefaults
 import app.whittle.llm.api.ModelTrustConfig
 import app.whittle.llm.api.ProviderCatalog
 import app.whittle.llm.openai.OpenAiCompatibleAdapter
 import app.whittle.llm.openai.OpenAiCompatibleModelLister
+import app.whittle.llm.anthropic.AnthropicMessagesAdapter
 import app.whittle.llm.responses.OpenAiResponsesAdapter
-import app.whittle.observability.LocalTelemetry
 import app.whittle.policy.PolicyRuleSet
-import app.whittle.policy.RuleBasedPolicyEngine
-import app.whittle.policy.RunMode
-import app.whittle.tools.api.ToolRegistry
-import app.whittle.tools.api.WorkspaceId
-import app.whittle.tools.workspace.ProcessManager
-import app.whittle.tools.workspace.ShellEnvironment
-import app.whittle.tools.workspace.TerminalConfig
-import app.whittle.tools.workspace.WorkspaceToolSet
-import app.whittle.tools.workspace.Workspaces
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
-import java.io.File
-import java.nio.file.Files
 import okhttp3.OkHttpClient
-import java.time.LocalDate
-import java.time.ZoneId
-import java.util.Locale
 import java.util.concurrent.TimeUnit
 import kotlin.system.exitProcess
 
@@ -91,71 +60,40 @@ fun main(args: Array<String>) = runBlocking {
     val modelId = arguments.modelId ?: fail("Pass --model (see --list-models)")
     val model = models.firstOrNull { it.id == modelId }
         ?: fail("Model '${modelId.value}' is not offered by ${provider.displayName}. Run with --list-models.")
-    val prompt = arguments.prompt ?: fail("Pass --prompt")
 
-    val clock = EpochClock.System
-    val inbox = RunInbox()
-    val decisions = ConsoleDecisions(arguments.approvalMode, inbox)
-    val workspaces = Workspaces(Files.createTempDirectory(WORKSPACE_PREFIX).toFile())
-    val memory = MemoryStore(JsonFileMemory(arguments.memoryFile), harness.agent.memory, messages, clock, IdGenerator.Random, this)
-    val runner = AgentRunner(
-        adapters = ModelAdapterRegistry(
-            setOf(OpenAiCompatibleAdapter(httpClient, IdGenerator.Random), OpenAiResponsesAdapter(httpClient)),
-        ),
+    val setup = CliSetup(
+        harness = harness,
         providers = providers,
         credentials = credentials,
-        tools = ToolRegistry(
-            setOf(AskUserTool(), DeviceClockTool(clock), WebFetchTool(httpClient), RememberTool(memory, messages), ForgetTool(memory, messages)) +
-                workspaceTools(loader, workspaces),
-        ),
-        policy = RuleBasedPolicyEngine(rules),
-        inbox = inbox,
-        checkpoints = InMemoryRunCheckpointStore(),
-        telemetry = LocalTelemetry(IdGenerator.Random),
-        limits = harness.agent,
-        systemPrompt = systemPrompt,
+        rules = rules,
         messages = messages,
-        clock = clock,
-        outputs = WorkspaceOutputs(workspaces, harness.agent.toolOutput.directory)::save,
-        memory = memory,
+        systemPrompt = systemPrompt,
+        terminal = loader.load(TerminalConfig.FILE, TerminalConfig.serializer(), TerminalConfig.SCHEMA_VERSION).orExit(),
+        httpClient = httpClient,
+        adapters = ModelAdapterRegistry(setOf(OpenAiCompatibleAdapter(httpClient, IdGenerator.Random), OpenAiResponsesAdapter(httpClient), AnthropicMessagesAdapter())),
     )
     val reasoningEffort = arguments.reasoningEffort ?: modelDefaults.defaultReasoningEffort
-    println(
-        "[run] ${provider.displayName} / ${model.id.value} (trust tier ${model.trustTier}, " +
-            "reasoning ${if (model.capabilities.reasoning) reasoningEffort else "not supported"})",
-    )
-    val runId = RunId(IdGenerator.Random.newId())
-    var events = runner.start(
-        RunRequest(
-            runId = runId,
-            workspace = WorkspaceId(CLI_WORKSPACE),
-            model = model,
-            userMessage = Message.userText(prompt),
-            mode = RunMode.LIVE,
-            reasoningEffort = reasoningEffort,
-            preApprovedTools = emptySet(),
-            promptVariables = mapOf(
-                SystemPromptVariables.CURRENT_DATE to LocalDate.now().toString(),
-                SystemPromptVariables.USER_LOCALE to Locale.getDefault().toLanguageTag(),
-                SystemPromptVariables.USER_TIME_ZONE to ZoneId.systemDefault().id,
-                // The CLI has no chat projects: every command starts at the workspace.
-                SystemPromptVariables.PROJECT to "",
-            ),
-        ),
-    )
-    // Answers given after the model's last step are applied by continuing the run, as the app does.
-    while (true) {
-        var openDecisions = false
-        events.collect { event ->
-            render(event)
-            if (event is RunEvent.DecisionRequested) decisions.answer(runId, event)
-            if (event is RunEvent.Completed) openDecisions = event.openDecisions.isNotEmpty()
-            if (event is RunEvent.Paused && event.reason == PauseReason.AWAITING_USER) openDecisions = true
+    val runLabel = "${provider.displayName} / ${model.id.value} (trust tier ${model.trustTier}, " +
+        "reasoning ${if (model.capabilities.reasoning) reasoningEffort else "not supported"})"
+
+    arguments.evalSuite?.let { suiteFile ->
+        val suite = runCatching { EvalSuite.read(suiteFile.toFile()) }.getOrElse { fail("Can't read ${suiteFile}: ${it.message}") }
+        println("[eval] ${suite.name}: ${suite.cases.size} cases on $runLabel")
+        val report = EvalRunner(setup, this).run(suite, model, reasoningEffort) { result ->
+            val verdict = if (result.passed) "pass" else "FAIL"
+            println("[eval] $verdict  ${result.id}  (${result.steps} steps, ${"%.1f".format(result.seconds)} s, ${result.inputTokens}+${result.outputTokens} tokens)")
+            result.problems.forEach { println("         - $it") }
         }
-        if (!openDecisions || !inbox.hasInput(runId)) break
-        println("\n[run] continuing with your answers")
-        events = runner.resume(runId)
+        EvalRunner.write(report, arguments.reportFile.toFile())
+        println("[eval] ${report.passed}/${report.cases.size} passed; report in ${arguments.reportFile}")
+        exitProcess(if (report.passed == report.cases.size) 0 else EXIT_FAILURE)
     }
+
+    val prompt = arguments.prompt ?: fail("Pass --prompt, or --eval with a suite")
+    val session = CliSession(setup, arguments.approvalMode, arguments.memoryFile, this)
+    println("[workspace] ${session.workspace}")
+    println("[run] $runLabel")
+    session.run(model, reasoningEffort, prompt, ::render, onContinue = { println("\n[run] continuing with your answers") })
 }
 
 private fun render(event: RunEvent) {
@@ -198,24 +136,7 @@ private fun fail(message: String): Nothing {
     exitProcess(EXIT_FAILURE)
 }
 
-/** A throwaway workspace for this session, using the desktop's own shell. */
-private fun workspaceTools(loader: ConfigLoader, workspaces: Workspaces): List<app.whittle.tools.api.Tool> {
-    workspaces.directory(WorkspaceId(CLI_WORKSPACE)).getOrNull()?.let { println("[workspace] $it") }
-    val environment = ShellEnvironment(shell = DESKTOP_SHELL, path = System.getenv("PATH").orEmpty(), launcher = null, killProcessGroup = null)
-    val config = loader.load(TerminalConfig.FILE, TerminalConfig.serializer(), TerminalConfig.SCHEMA_VERSION).orExit()
-    return WorkspaceToolSet.create(
-        workspaces = workspaces,
-        environment = environment,
-        config = config,
-        // Processes end with the CLI.
-        processes = ProcessManager(environment, config.processes, CoroutineScope(SupervisorJob() + Dispatchers.IO)),
-    )
-}
-
 private const val PREVIEW_CHARS = 300
-private const val CLI_WORKSPACE = "cli"
-private const val WORKSPACE_PREFIX = "whittle-cli"
-private const val DESKTOP_SHELL = "/bin/sh"
 private const val EXIT_USAGE = 2
 private const val EXIT_FAILURE = 1
 

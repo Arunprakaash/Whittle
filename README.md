@@ -32,7 +32,7 @@ flowchart TB
     TOOLS["tools:* · connectors:mcp<br/>ToolRegistry"]
     STORE["storage:*<br/>Tink vault · chats and checkpoints in Room"]
     CFG["config:defaults<br/>versioned JSON + prompts"]
-    PROV(["Model provider<br/>OpenAI · OpenRouter · any OpenAI-compatible"])
+    PROV(["Model provider<br/>OpenAI · Anthropic · Gemini · OpenRouter · any OpenAI-compatible"])
     SANDBOX["Linux workspace<br/>Ubuntu under proot · seccomp sandbox"]
     FILES["Shared /workspace<br/>projects · file browser · change records"]
     PREVIEW["Live preview<br/>WebView on 127.0.0.1"]
@@ -94,9 +94,14 @@ rating can't use high-risk tools at all.
 ### One message format, any model
 
 `core:model` defines provider-neutral messages, tool calls and token usage. Adapters translate at the edge:
-`llm:adapter-openai-compatible` streams Chat Completions (OpenRouter, Groq, Together, Ollama…), and
+`llm:adapter-openai-compatible` streams Chat Completions (OpenRouter, Google Gemini, Groq, Together, Ollama…), and
 `llm:adapter-openai-responses` speaks the OpenAI Responses API with reasoning and `store: false`; it also supports
-OpenAI's hosted web search, which is off (it's paid per search) unless a provider lists it under `hostedTools`. Providers and models come from `provider-catalog.json` and `model-defaults.json`, not code.
+OpenAI's hosted web search, which is off (it's paid per search) unless a provider lists it under `hostedTools`.
+`llm:adapter-anthropic-messages` speaks Anthropic's Messages API through Anthropic's Java SDK: adaptive thinking at the
+run's effort, prompt caching of the system prompt and the conversation, and Claude's web search when listed. Each Claude
+turn is kept as the API returned it and sent back unchanged, so its thinking stays valid. The newest models fall back
+server-side when a safety classifier declines (`fallbacks` in the provider's `requestOverrides`). Providers and models
+come from `provider-catalog.json` and `model-defaults.json`, not code.
 
 ### Linux on the phone
 
@@ -217,6 +222,7 @@ Every file has a `schemaVersion`, and unknown keys are rejected.
 | `llm:http` | Shared streaming plumbing: Server-Sent Events, provider URLs and auth headers |
 | `llm:adapter-openai-compatible` | Streaming Chat Completions adapter and model lister |
 | `llm:adapter-openai-responses` | OpenAI Responses API adapter |
+| `llm:adapter-anthropic-messages` | Anthropic Messages API adapter, on Anthropic's Java SDK |
 | `llm:openrouter-auth` | One-tap OpenRouter sign-in with OAuth PKCE |
 | `tools:api` | `ToolDefinition`, `ToolRegistry`, risk tiers, argument validation |
 | `tools:presentation` | Step labels and approval cards for each tool |
@@ -323,6 +329,20 @@ dev/cli/build/install/cli/bin/cli --provider openai --model <model-id> --prompt 
 Pick the reasoning effort with `--reasoning none|low|medium|high`; the default comes from `model-defaults.json`.
 Use `--approve ask|always|never` to choose how approvals are handled (the default `ask` prompts in the
 terminal), and `--memory-file` to choose where memories are kept (default `~/.whittle/cli-memory.json`).
+
+### Evals
+
+A suite is a fixed set of tasks, each with its own files, its answer to approvals and what a passing run shows: tools
+called, run or refused, approvals asked, words in the answer, files written. Run it against a model to see what a change
+to the prompt, the policy or a tool did:
+
+```bash
+dev/cli/build/install/cli/bin/cli --provider openai --model <model-id> --eval dev/cli/evals/core.json
+```
+
+Each case runs in a fresh workspace with an empty memory. Results print as they finish and go to
+`build/eval-report.json` (`--report` to change it); the exit code is non-zero when any case fails. Every case calls the
+model, so a suite costs what its runs cost, and CI doesn't run it.
 
 ## Contributing
 
