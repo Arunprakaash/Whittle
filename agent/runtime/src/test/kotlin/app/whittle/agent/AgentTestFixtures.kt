@@ -124,6 +124,7 @@ internal val testMessages = AgentMessages(
     diagnosticsFromPreview = "preview of {{name}}",
     diagnosticsFromScreen = "screen of {{name}}",
     screenUnknownApp = "an app",
+    screenshotUntrusted = "screenshot {{path}} of {{source}}",
     appNoProject = "no project {{project}}",
     appSharedUserId = "shared user id",
     appPackageMismatch = "package must be {{expected}}",

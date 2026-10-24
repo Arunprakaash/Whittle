@@ -449,7 +449,7 @@ class AgentRunner(
 
     private suspend fun steer(checkpoint: RunCheckpoint, input: RunInput.Steer): Outcome<RunCheckpoint> {
         telemetry.event(TelemetryEvent.RUN_STEERED, runAttributes(checkpoint))
-        val blocks = listOf(ContentBlock.Text(input.text)) + input.pasted + input.images.map(ContentBlock::ImageFile)
+        val blocks = listOf(ContentBlock.Text(input.text)) + input.pasted + input.images
         val tainted = checkpoint.tainted || Message(Role.USER, blocks).carriesUntrustedContent()
         return persist(checkpoint.copy(conversation = checkpoint.conversation.withUserContent(*blocks.toTypedArray()), tainted = tainted))
     }
