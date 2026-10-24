@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Keeps Whittle running while a task works and the user is elsewhere. It holds no run itself: the app's chat
- * session does. It mirrors the session's status in the ongoing notification and ends when the task does.
+ * sessions do. It mirrors the running task's status in the ongoing notification and ends when no task is left.
  */
 class AgentRunService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -26,7 +26,7 @@ class AgentRunService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            app.chat.stop()
+            app.chat.stopAll()
             stopSelf()
             return START_NOT_STICKY
         }
@@ -38,7 +38,7 @@ class AgentRunService : Service() {
         // Started again for the same task (by the app and by an automation's alarm): one mirror is enough.
         if (mirroring?.isActive == true) return START_NOT_STICKY
         mirroring = scope.launch {
-            app.chat.state.map { app.runProgress() }.distinctUntilChanged().collect { current ->
+            app.chat.runs.map { app.runProgress() }.distinctUntilChanged().collect { current ->
                 if (current == null) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()

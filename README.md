@@ -14,9 +14,10 @@ The phone talks straight to the model provider you pick, using your own key.
 
 <table>
   <tr>
-    <td align="center"><img src="docs/media/web-task.gif" width="240" alt="A web research task: thinking, searching, answering with a source"><br>Research with sources</td>
-    <td align="center"><img src="docs/media/build-app.gif" width="240" alt="Whittle building a tip calculator app, sped up"><br>Builds an app (4× speed)</td>
-    <td align="center"><img src="docs/media/use-app.gif" width="240" alt="Using the tip calculator it built"><br>…that you use right away</td>
+    <td align="center"><img src="docs/media/home.png" width="200" alt="A new chat: the beaver asks what to get done"><br>Say what you need</td>
+    <td align="center"><img src="docs/media/asks-first.png" width="200" alt="Cards asking to set a 6:30 alarm and a reminder to call the bank"><br>Asks before it acts</td>
+    <td align="center"><img src="docs/media/research.png" width="200" alt="An answer about India's wettest place, with Britannica sources"><br>Research with sources</td>
+    <td align="center"><img src="docs/media/builds-apps.png" width="200" alt="A counter app Whittle built, installed, with Open and Remove"><br>Builds real Android apps</td>
   </tr>
 </table>
 

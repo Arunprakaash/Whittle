@@ -16,6 +16,7 @@ import app.whittle.background.RunProgress
 import app.whittle.apps.AppToolchainService
 import app.whittle.chat.ChatEvent
 import app.whittle.chat.ChatViewModel
+import app.whittle.storage.chats.ChatId
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -52,7 +53,7 @@ class WhittleApplication : Application() {
             // Started with the task, while Whittle is on screen (Android refuses it once in the background).
             // Its notification waits a few seconds, so a quick answer never shows one. An automation that starts in
             // the background starts the service itself, before its alarm lets the process go.
-            chat.state.map { it.running }.distinctUntilChanged().collect { running -> if (running && keepRunningInBackground()) startRunService() }
+            chat.runs.map { it.isNotEmpty() }.distinctUntilChanged().collect { running -> if (running && keepRunningInBackground()) startRunService() }
         }
         // Alarms don't survive a force stop or a restore from backup; setting them at each launch costs nothing.
         graph.appScope.launch { graph.automations.rescheduleAll() }
@@ -71,18 +72,19 @@ class WhittleApplication : Application() {
         scope.launch {
             chat.events.collect { event ->
                 if (inForeground) return@collect
-                val title = runProgress()?.chatTitle ?: currentChatTitle()
+                val title = titleOf(event.chat)
                 when (event) {
-                    ChatEvent.NeedsYou -> notifications.needsYou(title)
+                    is ChatEvent.NeedsYou -> notifications.needsYou(title)
                     is ChatEvent.Finished -> notifications.finished(title, event.failed)
                 }
             }
         }
     }
 
-    /** The running task as the ongoing notification shows it; null when nothing runs. */
+    /** The running task as the ongoing notification shows it, the open chat's first; null when nothing runs. */
     fun runProgress(): RunProgress? {
-        val status = chat.state.value.status ?: return null
+        val run = chat.runs.value.firstOrNull() ?: return null
+        val status = run.status
         val plan = status.plan?.let { steps ->
             PlanProgress(
                 done = steps.count { it.status == PlanStatus.COMPLETED },
@@ -90,10 +92,10 @@ class WhittleApplication : Application() {
                 current = steps.firstOrNull { it.status == PlanStatus.IN_PROGRESS }?.content,
             )
         }
-        return RunProgress(chatTitle = currentChatTitle(), activity = status.verb, startedAtMillis = status.startedAtMillis, plan = plan)
+        return RunProgress(chatTitle = titleOf(run.chat), activity = status.verb, startedAtMillis = status.startedAtMillis, plan = plan)
     }
 
-    private fun currentChatTitle(): String? = chat.state.value.let { state -> state.chats.firstOrNull { it.id == state.currentChat }?.title }
+    private fun titleOf(id: ChatId?): String? = chat.state.value.chats.firstOrNull { it.id == id }?.title
 
     private fun keepRunningInBackground(): Boolean =
         graph.currentSettings.value?.keepRunningInBackground ?: graph.defaultKeepRunningInBackground

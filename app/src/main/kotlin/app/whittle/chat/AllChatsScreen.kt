@@ -57,6 +57,7 @@ fun AllChatsScreen(state: ChatState, viewModel: ChatViewModel, onBack: () -> Uni
             ChatGroupList(
                 groups = groups,
                 current = state.currentChat,
+                working = state.workingElsewhere,
                 onOpen = onOpen,
                 onPin = viewModel::setPinned,
                 onDelete = viewModel::deleteChat,

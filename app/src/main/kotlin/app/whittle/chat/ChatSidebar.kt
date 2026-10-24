@@ -49,6 +49,8 @@ import java.time.ZoneId
 fun ChatSidebar(
     chats: List<ChatListItem>,
     current: ChatId?,
+    /** Chats with a task working in the background. */
+    working: Set<ChatId>,
     maxChats: Int,
     onNewChat: () -> Unit,
     onOpen: (ChatId) -> Unit,
@@ -90,6 +92,7 @@ fun ChatSidebar(
                 ChatGroupList(
                     groups = groups,
                     current = current,
+                    working = working,
                     onOpen = onOpen,
                     onPin = onPin,
                     onDelete = onDelete,

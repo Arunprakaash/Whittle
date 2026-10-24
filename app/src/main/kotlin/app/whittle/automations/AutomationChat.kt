@@ -23,7 +23,7 @@ class SessionAutomationChat(private val chat: ChatViewModel) : AutomationChat {
     override suspend fun awaitRestored(timeoutMillis: Long): Boolean =
         withTimeoutOrNull(timeoutMillis) { chat.state.first { !it.restoring } } != null
 
-    override val isRunning: Boolean get() = chat.state.value.running
+    override val isRunning: Boolean get() = chat.working
 
     override val hasModel: Boolean get() = chat.state.value.model != null
 
