@@ -37,6 +37,9 @@ class McpConnectionTest {
 
     /** The MCP server answers 503, as when it's down. */
     private var serverDown = false
+
+    /** The MCP server answers 401 to requests with this access token, as to one it no longer takes. */
+    @Volatile private var refusedToken: String? = null
     private val store = object : McpCredentialStore {
         var saved: McpCredentials? = null
         override suspend fun load() = saved
@@ -67,12 +70,22 @@ class McpConnectionTest {
                         """{"authorization_endpoint":"$base/authorize","token_endpoint":"$base/token","registration_endpoint":"$base/register"}""",
                     )
                     "/register" -> json("""{"client_id":"client-1","client_secret":"secret-1"}""")
-                    "/token" -> if (body.contains("grant_type=refresh_token") && refreshStatus != 200) {
-                        json("""{"error":"invalid_grant"}""").setResponseCode(refreshStatus)
+                    "/token" -> if (body.contains("grant_type=refresh_token")) {
+                        if (refreshStatus != 200) {
+                            json("""{"error":"invalid_grant"}""").setResponseCode(refreshStatus)
+                        } else {
+                            json("""{"access_token":"access-refreshed","refresh_token":"refresh-refreshed","expires_in":3600}""")
+                        }
                     } else {
-                        json("""{"access_token":"access-1","refresh_token":"refresh-1","expires_in":3600}""")
+                        // Each sign-in gets tokens of its own: code-2 gives access-2.
+                        val n = Regex("code=code-(\\d+)").find(body)?.groupValues?.get(1) ?: "1"
+                        json("""{"access_token":"access-$n","refresh_token":"refresh-$n","expires_in":3600}""")
                     }
-                    else -> if (serverDown) MockResponse().setResponseCode(503) else mcp(body)
+                    else -> when {
+                        serverDown -> MockResponse().setResponseCode(503)
+                        refusedToken != null && request.getHeader("Authorization") == "Bearer $refusedToken" -> MockResponse().setResponseCode(401)
+                        else -> mcp(body)
+                    }
                 }
             }
         }
@@ -201,6 +214,44 @@ class McpConnectionTest {
         connection.disconnect()
         assertEquals(ConnectorState.Disconnected, connection.state.value)
         assertEquals(false, store.saved?.signedOut)
+    }
+
+    @Test
+    fun `a 401 when a session opens refreshes the token and keeps a sign-in that still works`() = runTest {
+        signedIn()
+        // The token isn't seen as expiring (no expires_in, or a clock behind), but the server no longer takes it.
+        refusedToken = "access-1"
+        val restarted = connection()
+        restarted.restore()
+        assertEquals(ConnectorState.Connected(3), restarted.state.value)
+        assertEquals("access-refreshed", store.saved?.tokens?.accessToken)
+        assertEquals(false, store.saved?.signedOut)
+        // A session opens without a session id; the last one opened is the one in use.
+        val opened = requests.last { it.path!!.startsWith("/mcp") && it.getHeader("Mcp-Session-Id") == null }
+        assertEquals("Bearer access-refreshed", opened.getHeader("Authorization"))
+    }
+
+    @Test
+    fun `a 401 when a session opens signs out only once the refresh is refused`() = runTest {
+        signedIn()
+        refusedToken = "access-1"
+        refreshStatus = 400
+        val restarted = connection()
+        restarted.restore()
+        assertEquals(ConnectorState.SignInExpired, restarted.state.value)
+        assertEquals(true, store.saved?.signedOut)
+    }
+
+    @Test
+    fun `a 401 when a session opens, with the sign-in server down, keeps the sign-in`() = runTest {
+        signedIn()
+        refusedToken = "access-1"
+        refreshStatus = 503
+        val restarted = connection()
+        restarted.restore()
+        assertIs<ConnectorState.Connected>(restarted.state.value)
+        assertEquals(false, store.saved?.signedOut)
+        assertEquals("access-1", store.saved?.tokens?.accessToken)
     }
 
     private suspend fun signedIn(): McpConnection {
