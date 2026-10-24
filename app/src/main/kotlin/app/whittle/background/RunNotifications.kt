@@ -9,9 +9,11 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import androidx.core.net.toUri
 import android.os.Build
 import app.whittle.MainActivity
 import app.whittle.R
+import app.whittle.updates.Release
 
 /** What the ongoing notification shows about the running task. */
 /** The running task as its notification shows it. [plan] is set when the agent wrote one (done, total, current step). */
@@ -100,6 +102,25 @@ class RunNotifications(private val context: Context) {
     )
 
     /** The user is back: the notes about what happened while they were away have done their job. */
+    /** A newer Whittle is out; tapping opens its release page, with what's new and the APK. */
+    fun updateAvailable(release: Release) {
+        if (!manager.areNotificationsEnabled()) return
+        val open = PendingIntent.getActivity(
+            context,
+            REQUEST_UPDATE,
+            Intent(Intent.ACTION_VIEW, release.pageUrl.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val notification = Notification.Builder(context, CHANNEL_UPDATES)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.notify_update_title, release.version))
+            .setContentText(context.getString(R.string.notify_update_text))
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        manager.notify(ID_UPDATE, notification)
+    }
+
     /** A reminder the user asked for; its words show only once the phone is unlocked. */
     fun reminder(id: String, text: String) {
         if (!manager.areNotificationsEnabled()) return
@@ -242,6 +263,7 @@ class RunNotifications(private val context: Context) {
         const val ID_LINUX_SETUP = 4
         const val ID_PROCESSES = 5
         const val ID_APP_TOOLCHAIN = 6
+        private const val ID_UPDATE = 7
         private const val PERCENT = 100
         private const val ID_FINISHED = 2
         private const val ID_NEEDS_YOU = 3
@@ -254,5 +276,6 @@ class RunNotifications(private val context: Context) {
         private const val REQUEST_OPEN = 1
         private const val REQUEST_STOP = 2
         private const val REQUEST_STOP_ALL = 3
+        private const val REQUEST_UPDATE = 4
     }
 }

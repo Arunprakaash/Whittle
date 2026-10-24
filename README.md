@@ -183,6 +183,9 @@ Tokens are kept in the vault and never pass through the chat.
   `DocumentsProvider`.
 - **Telemetry.** `observability:api` is vendor-neutral with consent filtering, and `observability:posthog`
   adapts it. Events carry metadata only. Session replays mask messages, answers, chat titles and apps.
+- **Updates.** Whittle is installed from GitHub, so once a day it asks GitHub's Releases for the latest version
+  (`updates` in app-defaults.json). A newer one shows under Settings › About and in one notification per version,
+  opening its release page. Only that request leaves the phone, and Settings › Check for updates turns it off.
 - **Design system.** W3C DTCG tokens in `docs/design/tokens` generate the Compose colors, type, spacing and
   Material 3 Expressive motion springs. A sprite file generates the beaver's animation and the launcher icon;
   the themed and notification icons are a W, since Android tints them one colour.

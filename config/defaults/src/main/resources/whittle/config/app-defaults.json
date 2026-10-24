@@ -105,5 +105,11 @@
     "thumbnailSidePx": 256,
     "memoryEntries": 24,
     "cameraDirectoryName": "camera"
+  },
+  "updates": {
+    "check": true,
+    "latestReleaseUrl": "https://api.github.com/repos/Arunprakaash/Whittle/releases/latest",
+    "everyHours": 24,
+    "fileName": "update-check.json"
   }
 }

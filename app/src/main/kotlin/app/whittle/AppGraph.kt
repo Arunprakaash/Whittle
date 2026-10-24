@@ -85,6 +85,7 @@ import app.whittle.observability.posthog.PostHogTelemetry
 import app.whittle.policy.PolicyRuleSet
 import app.whittle.policy.RuleBasedPolicyEngine
 import app.whittle.settings.AppDefaults
+import app.whittle.updates.UpdateCheck
 import app.whittle.settings.ConnectionStore
 import app.whittle.storage.chats.ChatStore
 import app.whittle.storage.chats.RoomChatStore
@@ -161,6 +162,7 @@ class AppGraph(context: Context) {
             screenRecordings = harness.telemetry.sessionReplay.enabled,
             keepRunningInBackground = appDefaults.background.keepRunning,
             themeMode = appDefaults.appearance.theme,
+            checkForUpdates = appDefaults.updates.check,
         ),
     )
 
@@ -172,6 +174,9 @@ class AppGraph(context: Context) {
         .readTimeout(harness.network.readTimeoutMillis, TimeUnit.MILLISECONDS)
         .writeTimeout(harness.network.writeTimeoutMillis, TimeUnit.MILLISECONDS)
         .build()
+
+    /** Whether a newer Whittle is out on GitHub; see [UpdateCheck]. */
+    val updates = UpdateCheck(httpClient, appDefaults.updates, BuildConfig.VERSION_NAME, File(context.cacheDir, appDefaults.updates.fileName), clock)
 
     private val cipher = TinkContentCipher(context, harness.secrets)
     val secrets: SecretStore = EncryptedSecretStore(context, harness.secrets, cipher)
