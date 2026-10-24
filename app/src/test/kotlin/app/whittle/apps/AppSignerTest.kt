@@ -26,7 +26,7 @@ class AppSignerTest {
         val unsigned = unsignedApk()
         val signed = File(directory, "signed.apk")
 
-        assertIs<Outcome.Success<Unit>>(signer.sign(unsigned, signed, PACKAGE))
+        assertIs<Outcome.Success<Unit>>(signer.sign(unsigned, signed, PACKAGE, 26))
 
         val result = ApkVerifier.Builder(signed)
             .setMinCheckedPlatformVersion(26)
@@ -39,6 +39,30 @@ class AppSignerTest {
     }
 
     @Test
+    fun `signs with v1 as well below Android 7, and the APK verifies from that minSdk`() {
+        val signed = File(directory, "signed-v1.apk")
+
+        assertIs<Outcome.Success<Unit>>(signer.sign(unsignedApk(), signed, PACKAGE, 23))
+
+        val result = ApkVerifier.Builder(signed).setMinCheckedPlatformVersion(23).setMaxCheckedPlatformVersion(36).build().verify()
+        assertTrue(result.isVerified, result.errors.joinToString())
+        assertTrue(result.isVerifiedUsingV1Scheme)
+        assertTrue(result.isVerifiedUsingV2Scheme)
+        assertEquals(listOf(fake.certificate), result.signerCertificates)
+    }
+
+    @Test
+    fun `signs with v2 only from Android 7, so a v1 signature is not written`() {
+        val signed = File(directory, "signed-v2.apk")
+
+        assertIs<Outcome.Success<Unit>>(signer.sign(unsignedApk(), signed, PACKAGE, 24))
+
+        val result = ApkVerifier.Builder(signed).setMinCheckedPlatformVersion(24).setMaxCheckedPlatformVersion(36).build().verify()
+        assertTrue(result.isVerified, result.errors.joinToString())
+        assertTrue(!result.isVerifiedUsingV1Scheme)
+    }
+
+    @Test
     fun `reports the certificate that signs a package`() {
         assertEquals(fake.certificate, signer.existingCertificate(PACKAGE))
     }
@@ -48,7 +72,7 @@ class AppSignerTest {
         val refusing = AppSigner(FakeKeys(Outcome.Failure(app.whittle.core.common.HarnessError.Storage("no key"))))
         val signed = File(directory, "refused.apk")
 
-        assertIs<Outcome.Failure>(refusing.sign(unsignedApk(), signed, PACKAGE))
+        assertIs<Outcome.Failure>(refusing.sign(unsignedApk(), signed, PACKAGE, 26))
         assertTrue(!signed.exists())
         assertNull(refusing.existingCertificate(PACKAGE))
     }
@@ -58,7 +82,7 @@ class AppSignerTest {
         val notAnApk = File(directory, "garbage.apk").apply { writeText("not a zip") }
         val signed = File(directory, "garbage-signed.apk")
 
-        assertIs<Outcome.Failure>(signer.sign(notAnApk, signed, PACKAGE))
+        assertIs<Outcome.Failure>(signer.sign(notAnApk, signed, PACKAGE, 26))
         assertTrue(!signed.exists())
     }
 

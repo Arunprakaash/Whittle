@@ -38,7 +38,7 @@ class KeystoreSigningTest {
         }
         val signer = AppSigner(AndroidKeystoreKeys())
 
-        assertIs<Outcome.Success<Unit>>(signer.sign(unsigned, signed, packageName))
+        assertIs<Outcome.Success<Unit>>(signer.sign(unsigned, signed, packageName, 26))
 
         val result = ApkVerifier.Builder(signed)
             .setMinCheckedPlatformVersion(26)

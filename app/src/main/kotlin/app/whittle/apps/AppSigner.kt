@@ -25,8 +25,11 @@ interface SigningKeys {
 
 /** Signs generated apps with the key [keys] holds for their package, so an app keeps one identity across updates. */
 class AppSigner(private val keys: SigningKeys) {
-    /** Signs [unsigned] into [signed] with the v2 scheme, which every supported Android version checks. */
-    fun sign(unsigned: File, signed: File, packageName: String): Outcome<Unit> {
+    /**
+     * Signs [unsigned] into [signed] for Androids from [minSdk] up: with the v2 scheme, which Android 7 and later check,
+     * and the v1 (JAR) scheme too below that, which Android 6 and earlier need.
+     */
+    fun sign(unsigned: File, signed: File, packageName: String, minSdk: Int): Outcome<Unit> {
         val key = when (val found = keys.keyFor(packageName)) {
             is Outcome.Failure -> return found
             is Outcome.Success -> found.value
@@ -36,8 +39,8 @@ class AppSigner(private val keys: SigningKeys) {
             ApkSigner.Builder(listOf(config))
                 .setInputApk(unsigned)
                 .setOutputApk(signed)
-                .setMinSdkVersion(MIN_SDK)
-                .setV1SigningEnabled(false)
+                .setMinSdkVersion(minSdk)
+                .setV1SigningEnabled(minSdk < V2_SDK)
                 .setV2SigningEnabled(true)
                 .setV3SigningEnabled(false)
                 .build()
@@ -63,6 +66,7 @@ class AppSigner(private val keys: SigningKeys) {
 
     private companion object {
         const val SIGNER_NAME = "whittle"
-        const val MIN_SDK = 26
+        /** The first Android that checks v2 signatures; older ones check only the JAR signature. */
+        const val V2_SDK = 24
     }
 }
