@@ -76,16 +76,18 @@ fun ConnectionsSection(graph: AppGraph, onBrowse: () -> Unit, onChooseTools: (Mc
                 logoHost = connectors.logoHost(connection),
                 title = connection.server.name,
                 subtitle = when {
+                    (state as? ConnectorState.Connected)?.reachable == false -> stringResource(R.string.connector_unreachable)
                     connected -> stringResource(R.string.connector_connected)
                     state == ConnectorState.Connecting -> stringResource(R.string.connector_connecting)
+                    state == ConnectorState.SignInExpired -> stringResource(R.string.connector_signed_out)
                     connection.server.auth == McpAuthMode.TOKEN -> stringResource(R.string.connector_needs_token)
                     else -> null
                 },
                 shape = segmentedShape(index, count),
                 // Services the user added open their details (rename, tools, remove) even before they connect.
-                onClick = { if (connected || connectors.isCustom(connection)) managing = connection else connect() },
+                onClick = { if (connected || connectors.isCustom(connection) || state == ConnectorState.SignInExpired) managing = connection else connect() },
                 trailing = if (connected || state == ConnectorState.Connecting) null else {
-                    { TextButton(onClick = connect) { Text(stringResource(R.string.connector_connect)) } }
+                    { TextButton(onClick = connect) { Text(stringResource(connectLabel(state))) } }
                 },
             )
         }
@@ -129,6 +131,10 @@ fun ConnectionsSection(graph: AppGraph, onBrowse: () -> Unit, onChooseTools: (Mc
         }
     }
 }
+
+/** Connect, or Sign in again for a connection the service signed out. */
+private fun connectLabel(state: ConnectorState): Int =
+    if (state == ConnectorState.SignInExpired) R.string.connector_sign_in_again else R.string.connector_connect
 
 /** After a server is added: its sign-in page, its keys, or nothing when it needs no sign-in. */
 internal fun connectAdded(graph: AppGraph, context: android.content.Context, added: McpConnection, askKeys: (McpConnection) -> Unit) {
@@ -187,8 +193,10 @@ private fun ManageDialog(graph: AppGraph, connection: McpConnection, onConnect: 
                 Detail(
                     stringResource(R.string.connector_detail_status),
                     when {
+                        (state as? ConnectorState.Connected)?.reachable == false -> stringResource(R.string.connector_unreachable)
                         connected -> pluralStringResource(R.plurals.connector_tools_on, connection.tools.size, connection.tools.size, connection.offered.size)
                         state == ConnectorState.Connecting -> stringResource(R.string.connector_connecting)
+                        state == ConnectorState.SignInExpired -> stringResource(R.string.connector_signed_out)
                         else -> stringResource(R.string.connector_not_connected)
                     },
                 )
@@ -206,9 +214,10 @@ private fun ManageDialog(graph: AppGraph, connection: McpConnection, onConnect: 
                     if (connected) {
                         OutlinedButton(onClick = onChooseTools) { Text(stringResource(R.string.connector_choose_tools)) }
                     } else if (state != ConnectorState.Connecting) {
-                        OutlinedButton(onClick = onConnect) { Text(stringResource(R.string.connector_connect)) }
+                        OutlinedButton(onClick = onConnect) { Text(stringResource(connectLabel(state))) }
                     }
-                    if (custom || connected) {
+                    // A connection the service signed out can be let go, so Whittle stops asking to sign in again.
+                    if (custom || connected || state == ConnectorState.SignInExpired) {
                         TextButton(onClick = { confirmingRemove = true }) {
                             Text(stringResource(if (custom) R.string.connector_remove else R.string.connector_disconnect), color = MaterialTheme.colorScheme.error)
                         }

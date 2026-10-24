@@ -19,9 +19,12 @@ import app.whittle.chat.ChatEvent
 import app.whittle.chat.ChatViewModel
 import app.whittle.storage.chats.ChatId
 import app.whittle.quickstart.QuickStart
+import app.whittle.connectors.mcp.ConnectorState
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -76,6 +79,18 @@ class WhittleApplication : Application() {
             // Servers the agent started keep running while the user is elsewhere, under their own notification.
             graph.processes.processes.map { list -> list.any { it.live } }.distinctUntilChanged().collect { live ->
                 if (live && keepRunningInBackground()) startService(ProcessesService::class.java)
+            }
+        }
+        scope.launch {
+            // A service that signs Whittle out while the user is away (an automation's run, say) says so once.
+            graph.connectors.all.collectLatest { connections ->
+                connections.forEach { connection ->
+                    launch {
+                        connection.state.map { it == ConnectorState.SignInExpired }.distinctUntilChanged().drop(1).collect { expired ->
+                            if (expired && !inForeground) notifications.signInAgain(connection.server.name)
+                        }
+                    }
+                }
             }
         }
         scope.launch {

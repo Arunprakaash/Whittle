@@ -182,6 +182,11 @@ Settings › Automations, or asks in a chat and approves the `schedule_task` car
 
 Tokens are kept in the vault and never pass through the chat.
 
+A connection says when it stops working. If the service refuses Whittle's sign-in (a refresh token it no longer
+takes, a key it rejects), the connection stays listed as signed out with Sign in again, even after a restart, and a
+notification says so if it happens while the user is away. A server that doesn't answer keeps its tools and shows
+Can't reach it right now until it answers again; a sign-in server that is down never signs the user out.
+
 ### Storage, telemetry, design
 
 - **Storage.** Keys and tokens are in a Tink vault keyed by the Android Keystore. Chats and run checkpoints
