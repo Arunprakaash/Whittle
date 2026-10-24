@@ -11,7 +11,11 @@ import app.whittle.attachments.Attachment
 import app.whittle.design.components.ComposerAttach
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.content.ContextCompat
+import app.whittle.apps.APP_BUILDING
+import app.whittle.apps.ToolchainFailure
+import app.whittle.apps.shortReason
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.rememberUpdatedState
@@ -81,6 +85,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
@@ -456,12 +461,26 @@ private fun ThreadRow(
             modifier = content,
             answer = item.answer,
         )
-        is ThreadItem.Capability -> DecisionCard(
-            item.presentation.toUi(item.key),
-            onApprove = { requestCapability(item) },
-            onDecline = { viewModel.answer(item, granted = false) },
-            modifier = modifier,
-        )
+        is ThreadItem.Capability -> {
+            val settingUp by viewModel.appBuildingSetup.collectAsStateWithLifecycle()
+            Column(modifier, verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+                DecisionCard(
+                    item.presentation.toUi(item.key),
+                    onApprove = { requestCapability(item) },
+                    onDecline = { viewModel.answer(item, granted = false) },
+                    // Setup is under way; its end answers the card.
+                    declineEnabled = settingUp != item.key,
+                )
+                if (settingUp == item.key) {
+                    Text(
+                        stringResource(R.string.app_building_setting_up),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = WhittleSpace.m),
+                    )
+                }
+            }
+        }
         is ThreadItem.Interrupted -> Row(
             modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -489,6 +508,7 @@ private fun ThreadRow(
             }
         }
         is ThreadItem.Process -> ProcessCard(item, viewModel, onPreview = LocalOpenPreview.current, modifier = content)
+        is ThreadItem.App -> AppCard(item, viewModel, modifier = content)
         is ThreadItem.Plan -> PlanChecklist(
             title = stringResource(R.string.plan_title, item.steps.count { it.status == PlanStatus.COMPLETED }, item.steps.size),
             steps = item.steps.map { it.toUi() },
@@ -742,11 +762,12 @@ private fun ChatMenu(pinned: Boolean?, onPin: (Boolean) -> Unit, onDelete: () ->
 
 /**
  * Allow on a capability card shows Android's own permission prompt, then reports the result. If access
- * was already granted (say, in system settings), it reports straight away.
+ * was already granted (say, in system settings), it reports straight away. App building has no prompt: Allow sets it up.
  */
 @Composable
 private fun rememberCapabilityRequest(items: List<ThreadItem>, viewModel: ChatViewModel): (ThreadItem.Capability) -> Unit {
     val context = LocalContext.current
+    val resources = LocalResources.current
     var requestingKey by rememberSaveable { mutableStateOf<String?>(null) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         items.firstOrNull { it.key == requestingKey }?.let { viewModel.answer(it as ThreadItem.Capability, granted) }
@@ -754,13 +775,32 @@ private fun rememberCapabilityRequest(items: List<ThreadItem>, viewModel: ChatVi
     }
     return { item ->
         val permission = AndroidCapabilities.permissionFor(item.capability)
-        if (permission == null || AndroidCapabilities.isGranted(context, item.capability)) {
-            viewModel.answer(item, granted = true)
-        } else {
-            requestingKey = item.key
-            launcher.launch(permission)
+        when {
+            item.capability == APP_BUILDING -> viewModel.setUpAppBuilding(
+                item,
+                needsLinux = resources.getString(R.string.app_building_needs_linux),
+                failed = { kind, detail ->
+                    val why = if (kind == ToolchainFailure.Output && detail != null) shortReason(detail) else resources.getString(setupFailureWords(kind))
+                    resources.getString(R.string.app_building_setup_failed, why)
+                },
+            )
+            permission == null || AndroidCapabilities.isGranted(context, item.capability) -> viewModel.answer(item, granted = true)
+            else -> {
+                requestingKey = item.key
+                launcher.launch(permission)
+            }
         }
     }
+}
+
+/** The card's words for why app building's setup failed. */
+private fun setupFailureWords(kind: ToolchainFailure): Int = when (kind) {
+    ToolchainFailure.TimedOut -> R.string.app_setup_timed_out
+    ToolchainFailure.Interrupted -> R.string.app_setup_interrupted
+    ToolchainFailure.NotConfirmed -> R.string.app_setup_not_confirmed
+    ToolchainFailure.NotStarted -> R.string.app_setup_not_started
+    ToolchainFailure.InUse -> R.string.app_setup_in_use
+    ToolchainFailure.Output -> R.string.app_setup_output
 }
 
 /** Ticks while the status line is visible. */

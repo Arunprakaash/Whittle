@@ -1,6 +1,7 @@
 package app.whittle.chat
 
 import app.whittle.agent.PlanItem
+import app.whittle.apps.PowerfulDeclaration
 import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.tools.api.CapabilityId
@@ -10,6 +11,9 @@ import app.whittle.tools.presentation.QuestionText
 import app.whittle.attachments.Attachment
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+
+/** Whether the card [key] in [items] is still a capability card waiting for an answer; answered cards are left as they are. */
+fun stillAsking(items: List<ThreadItem>, key: String): Boolean = items.any { it is ThreadItem.Capability && it.key == key }
 
 /**
  * One entry in the conversation, in the order the user reads it. Saved with the chat, so it holds
@@ -104,6 +108,24 @@ sealed interface ThreadItem {
         val port: Int?,
         /** The chat's project when it started, so Restart runs it from the same folder. */
         val project: String? = null,
+    ) : ThreadItem
+
+    /**
+     * An app Whittle built, with what it needs to install it. [apkPath] is relative to the workspace and [versionCode]
+     * is the build's own, so the card only ever installs what it was made for.
+     */
+    @Serializable
+    @SerialName("app")
+    data class App(
+        override val key: String,
+        val name: String,
+        val packageName: String,
+        val versionCode: Int,
+        val apkPath: String,
+        val permissions: List<String>,
+        val powerful: List<PowerfulDeclaration>,
+        /** The run read content from the web before this was built. */
+        val fromTaintedRun: Boolean,
     ) : ThreadItem
 
     /** The pages the answer above cites, shown as a pill that opens into a list. */

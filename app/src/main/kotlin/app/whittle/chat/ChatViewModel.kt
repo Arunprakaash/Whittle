@@ -17,13 +17,16 @@ import androidx.lifecycle.viewModelScope
 import app.whittle.AppGraph
 import app.whittle.agent.DecisionAnswer
 import app.whittle.agent.DecisionKind
+import app.whittle.agent.PastedKind
 import app.whittle.agent.PauseReason
 import app.whittle.agent.RunEvent
 import app.whittle.agent.RunInput
 import app.whittle.agent.RunRequest
 import app.whittle.agent.RunStatus
 import app.whittle.agent.SystemPromptVariables
+import app.whittle.agent.pastedOutput
 import app.whittle.core.common.HarnessError
+import app.whittle.core.common.Outcome
 import app.whittle.core.common.getOrNull
 import app.whittle.core.model.Message
 import app.whittle.core.model.ContentBlock
@@ -58,6 +61,8 @@ import app.whittle.tools.workspace.UseProjectTool
 import app.whittle.tools.workspace.commandIn
 import app.whittle.tools.presentation.StepText
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlinx.coroutines.FlowPreview
@@ -67,11 +72,22 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import app.whittle.apps.BuildAppTool
+import app.whittle.apps.InstallResult
+import app.whittle.apps.PowerfulDeclaration
+import app.whittle.apps.SetupOutcome
+import app.whittle.apps.prepareAppBuilding
+import app.whittle.apps.ToolchainFailure
+import app.whittle.apps.setupReasonForModel
+import app.whittle.linux.LinuxState
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.update
@@ -155,7 +171,11 @@ enum class StatusPhase {
  * The chat is saved on this phone as it changes and restored at launch. A run that was still working
  * when the app closed shows as interrupted; continuing it is the user's call.
  */
-class ChatViewModel(private val graph: AppGraph) : ViewModel() {
+class ChatViewModel(
+    private val graph: AppGraph,
+    /** Starts the app-building setup as a foreground service (the app passes the real one). */
+    private val startToolchainSetup: () -> Unit = {},
+) : ViewModel() {
     private val _state = MutableStateFlow(ChatState())
     val state: StateFlow<ChatState> = _state.asStateFlow()
 
@@ -310,7 +330,10 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     }
 
     /** Starts a task, or adds to the one that's running without stopping it. */
-    fun send() {
+    fun send() = send(pasted = emptyList())
+
+    /** [send], with output the user [pasted] from a card going beside their words as untrusted content. */
+    private fun send(pasted: List<ContentBlock.Text>) {
         val state = _state.value
         val text = state.input.trim()
         val attachments = state.attachments
@@ -322,11 +345,11 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val images = attachments.filter { it.isImage && model.capabilities.vision }.map { it.path }
         val running = activeRunId
         if (activeJob?.isActive == true && running != null) {
-            graph.inbox.submit(running, RunInput.Steer(forModel, images))
+            graph.inbox.submit(running, RunInput.Steer(forModel, images, pasted))
             append(ThreadItem.User(key(), text, steer = true, attachments = attachments))
             return
         }
-        start(text, RunMode.LIVE, preApprovedTools = emptySet(), forModel = forModel, images = images, attachments = attachments)
+        start(text, RunMode.LIVE, preApprovedTools = emptySet(), forModel = forModel, images = images, attachments = attachments, pasted = pasted)
     }
 
     /** Tells the model where the attached files are saved, so it can open them with its tools. */
@@ -355,7 +378,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
 
     /**
      * Runs [text], as the user wrote it; the model gets [forModel], which adds the attachment note, with the
-     * [images] (workspace paths) it can see.
+     * [images] (workspace paths) it can see and any output [pasted] from a card as untrusted content.
      */
     private fun start(
         text: String,
@@ -364,6 +387,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         forModel: String = text,
         images: List<String> = emptyList(),
         attachments: List<Attachment> = emptyList(),
+        pasted: List<ContentBlock.Text> = emptyList(),
     ) {
         val model = _state.value.model ?: return
         val runId = RunId(graph.idGenerator.newId())
@@ -376,7 +400,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val request = RunRequest(
             runId = runId,
             model = model,
-            userMessage = Message(Role.USER, listOf(ContentBlock.Text(forModel)) + images.map(ContentBlock::ImageFile)),
+            userMessage = userMessage(forModel, pasted, images),
             priorMessages = history,
             // The workspace is shared; this id ties the run's processes, outputs and changes to this chat.
             workspace = WorkspaceId(chat.value),
@@ -414,9 +438,53 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
 
     /** Called with the system permission result; either way the paused run continues and hears it. */
     fun answer(item: ThreadItem.Capability, granted: Boolean) {
+        // A card already answered (Decline while setup ran, say) keeps its answer; the run hears one answer per card.
+        if (!stillAsking(_state.value.items, item.key)) return
         val presentation = item.presentation
         replace(item.key) { ThreadItem.Resolved(item.key, if (granted) presentation.grantedOutcome else presentation.deniedOutcome, declined = !granted) }
         submit(item.runId, RunInput.CapabilityChanged(item.capability, granted))
+    }
+
+    private var settingUpAppBuilding: Job? = null
+    private val _appBuildingSetup = MutableStateFlow<String?>(null)
+
+    /** The key of the app-building card whose setup is running, or null; the card says so while it runs. */
+    val appBuildingSetup: StateFlow<String?> = _appBuildingSetup.asStateFlow()
+
+    /**
+     * Allow on the app-building card. Nothing starts until Linux is set up; otherwise the toolchain is set up in a
+     * service. The run hears that it's ready, or that setup failed and why, never that the user said no. [needsLinux]
+     * and [failed] (given the kind and its raw detail) are the card's words for the two failures. A second tap does
+     * nothing, and a card answered meanwhile is left alone.
+     */
+    fun setUpAppBuilding(item: ThreadItem.Capability, needsLinux: String, failed: (ToolchainFailure, String?) -> String) {
+        if (settingUpAppBuilding?.isActive == true) return
+        settingUpAppBuilding = viewModelScope.launch {
+            _appBuildingSetup.value = item.key
+            try {
+                val linuxReady = graph.linux.state.value is LinuxState.Ready
+                val timeout = graph.nativeApps.setupStartTimeoutSeconds.seconds
+                when (val outcome = prepareAppBuilding(linuxReady, graph.appToolchain, startToolchainSetup, timeout)) {
+                    SetupOutcome.Ready -> answer(item, granted = true)
+                    SetupOutcome.NeedsLinux -> setupFailed(item, needsLinux, graph.agentMessages.appBuildingNeedsLinux)
+                    is SetupOutcome.Failed -> setupFailed(
+                        item,
+                        failed(outcome.kind, outcome.detail),
+                        setupReasonForModel(graph.agentMessages, outcome.kind, outcome.detail),
+                    )
+                }
+            } finally {
+                _appBuildingSetup.value = null
+                settingUpAppBuilding = null
+            }
+        }
+    }
+
+    /** Setting up [item]'s capability failed: the card shows [outcome], and the run hears [reason] as a failure. */
+    private fun setupFailed(item: ThreadItem.Capability, outcome: String, reason: String) {
+        if (!stillAsking(_state.value.items, item.key)) return
+        replace(item.key) { ThreadItem.Resolved(item.key, outcome, declined = true) }
+        submit(item.runId, RunInput.CapabilityChanged(item.capability, granted = false, setupFailure = reason))
     }
 
     private fun submit(runId: RunId, input: RunInput) {
@@ -691,6 +759,8 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         val id = event.result.toolCallId.value
         // A server that ended at once still gets its card: its output and Ask to fix are on it.
         if (callTools[id] == StartProcessTool.DEFINITION.id.value) showProcess(event.result.content, stepArguments[id] ?: EMPTY_ARGUMENTS)
+        // The card is built from what build_app returned, not from the model's possibly shortened copy.
+        if (callTools[id] == BuildAppTool.DEFINITION.id.value && !event.result.isError) showApp(event.fullContent)
         if (id in quietCalls) {
             refreshProjects()
             return
@@ -718,6 +788,7 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
     /** The card already shows the user's choice; a server started from it still needs its own card. */
     private fun onDecisionResolved(event: RunEvent.DecisionResolved) {
         val output = event.output ?: return
+        if (event.decision.toolId == BuildAppTool.DEFINITION.id && !output.isError) showApp(output.content)
         if (event.decision.toolId != StartProcessTool.DEFINITION.id) return
         showProcess(output.content, arguments(event.decision.toolCall.argumentsJson))
     }
@@ -737,6 +808,84 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
             }
             state.copy(items = items)
         }
+    }
+
+    /** build_app succeeded: its app gets a card to install from, the one card per package in this chat, moved to the end on a rebuild. */
+    private fun showApp(result: String) {
+        val runId = activeRunId
+        viewModelScope.launch {
+            // If the run can't be checked, the card says it may have read the web.
+            val tainted = runId?.let { graph.checkpoints.load(it).getOrNull()?.tainted } ?: true
+            val card = appCardFromBuild(key(), result, tainted) ?: return@launch
+            _state.update { it.copy(items = placeAppCard(it.items, card)) }
+        }
+    }
+
+    private val _appStates = MutableStateFlow<Map<String, AppUiState>>(emptyMap())
+
+    /** What each app card shows about its install, by card key; kept here so it survives scrolling. */
+    val appStates: StateFlow<Map<String, AppUiState>> = _appStates.asStateFlow()
+
+    private fun updateApp(key: String, change: (AppUiState) -> AppUiState) = _appStates.update { it + (key to change(it[key] ?: AppUiState())) }
+
+    /** The last crash of each app Whittle built, by package; the card shows its own. */
+    val appCrashes: StateFlow<Map<String, String>> get() = graph.appCrashes.latest
+
+    fun permissionWords(card: ThreadItem.App): String = permissionWords(card.permissions, graph.nativeApps.permissionWords)
+
+    /** Re-reads the installed version, so the buttons follow installs and removals that happened outside the chat. */
+    fun refreshApp(card: ThreadItem.App) {
+        viewModelScope.launch {
+            val (installed, live) = withContext(Dispatchers.IO) { graph.appInstaller.installedVersion(card.packageName) to graph.appInstaller.liveSessions() }
+            updateApp(card.key) { it.copy(installed = installed, installing = stillInstalling(it.installing, installed, card.versionCode, it.sessionId, live)) }
+        }
+    }
+
+    /**
+     * The user tapped Install or Update. Calls [needsAllow] when Android hasn't allowed Whittle to install apps, [confirm] with
+     * the powerful declarations the user must see first, or installs at once.
+     */
+    fun beginInstall(card: ThreadItem.App, needsAllow: () -> Unit, confirm: (List<PowerfulDeclaration>) -> Unit) {
+        if (_appStates.value[card.key]?.installing == true) return
+        viewModelScope.launch {
+            val (can, warn) = withContext(Dispatchers.IO) {
+                graph.appInstaller.canInstall() to addedPowerful(card, graph.appInstaller.installedPowerful(card.packageName))
+            }
+            when {
+                !can -> needsAllow()
+                warn.isEmpty() -> installApp(card)
+                else -> confirm(warn)
+            }
+        }
+    }
+
+    /** Installs the card's own APK after checking it is still what the card showed. A second tap while one runs does nothing. */
+    fun installApp(card: ThreadItem.App) {
+        if (_appStates.value[card.key]?.installing == true) return
+        updateApp(card.key) { it.copy(installing = true, result = null, sessionId = null) }
+        graph.appScope.launch {
+            var outcome = InstallResult.FAILED
+            try {
+                val root = (graph.workspaces.folder() as? Outcome.Success)?.value
+                val apk = root?.let { withContext(Dispatchers.IO) { resolveApk(it, card.apkPath) } }?.takeIf { it.isFile }
+                outcome = if (apk == null) InstallResult.CHANGED else graph.appInstaller.install(card, apk) { id -> updateApp(card.key) { it.copy(sessionId = id) } }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                outcome = InstallResult.FAILED
+            } finally {
+                // A newer build is on the phone now, so the last crash was the old one's.
+                if (outcome == InstallResult.INSTALLED) graph.appCrashes.clear(card.packageName)
+                // Whatever happened, the card leaves installing.
+                val installed = withContext(NonCancellable + Dispatchers.IO) { runCatching { graph.appInstaller.installedVersion(card.packageName) }.getOrNull() }
+                updateApp(card.key) { it.copy(installing = false, result = outcome, installed = installed, sessionId = null) }
+            }
+        }
+    }
+
+    /** Drops the last install message, when the user starts something else on the card. */
+    fun clearAppResult(card: ThreadItem.App) {
+        updateApp(card.key) { it.copy(result = null) }
     }
 
     /** Every process this run of the app knows; a card whose process isn't here isn't running. */
@@ -761,11 +910,35 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         }
     }
 
-    /** Sends [text] as the user's message, as if typed: Ask to fix on a card that stopped. */
+    /** Sends [text] as the user's message, as if typed. */
     fun sendText(text: String) {
         _state.update { it.copy(input = text) }
         send()
     }
+
+    /**
+     * Ask to fix on a card: sends [request] as the user's message, which is all the chat shows, with the [output] of the program
+     * called [name] (a crash, a log, a console) beside it as untrusted content. The program controls that output's words, so
+     * the model reads it as data and the run is tainted, as with web pages and files.
+     */
+    fun askToFix(request: String, kind: PastedKind, name: String, output: String) {
+        val state = _state.value
+        // The button is off then ([askToFixReady]); a tap that slips through sends nothing rather than losing the output.
+        if (!canAskToFix(state.attaching, state.model != null)) return
+        val pasted = pastedOutput(graph.agentMessages, kind, fixName(name), output, graph.maxPastedOutputChars)
+        _state.update { it.copy(input = request) }
+        send(listOf(pasted))
+    }
+
+    /** Whether Ask to fix can send now ([canAskToFix]); the cards turn the button off when it can't. */
+    val askToFixReady: StateFlow<Boolean> = _state.map { canAskToFix(it.attaching, it.model != null) }.distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, canAskToFix(_state.value.attaching, _state.value.model != null))
+
+    /** [name] (an app's or a process's, from the workspace) as an Ask to fix request may show it: one short line. */
+    fun fixName(name: String): String = requestName(name, graph.maxPastedNameChars)
+
+    /** The card's project folder for its Ask to fix request, or null when it isn't the one build_app checked. */
+    fun fixFolder(card: ThreadItem.App): String? = fixProject(card, graph.nativeApps.packagePrefix)
 
     /** The current run's plan replaces the previous one in place; the status line follows the active step. */
     private fun showPlan(steps: List<PlanItem>) = _state.update { state ->
@@ -1086,3 +1259,10 @@ class ChatViewModel(private val graph: AppGraph) : ViewModel() {
         const val TOO_MANY_REQUESTS = 429
     }
 }
+
+/**
+ * The user's message as the model gets it: their words ([forModel], with any attachment note), then output they [pasted] from a
+ * card as untrusted content ([pastedOutput]), then their photos by workspace path.
+ */
+internal fun userMessage(forModel: String, pasted: List<ContentBlock.Text>, images: List<String>): Message =
+    Message(Role.USER, listOf(ContentBlock.Text(forModel)) + pasted + images.map(ContentBlock::ImageFile))

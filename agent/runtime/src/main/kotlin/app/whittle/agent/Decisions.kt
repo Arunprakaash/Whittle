@@ -40,10 +40,10 @@ enum class DecisionAnswer { APPROVED, DECLINED }
 /** What the user can send to a run while it works or while it waits. */
 sealed interface RunInput {
     /**
-     * Extra instructions typed into the composer mid-run, with the workspace paths of any photos attached to them.
-     * Applied at the next step boundary.
+     * Extra instructions typed into the composer mid-run, with the workspace paths of any photos attached to them, and any
+     * output the user [pasted] with them as untrusted content ([pastedOutput]). Applied at the next step boundary.
      */
-    data class Steer(val text: String, val images: List<String> = emptyList()) : RunInput
+    data class Steer(val text: String, val images: List<String> = emptyList(), val pasted: List<ContentBlock.Text> = emptyList()) : RunInput
 
     /** The user's choice on a decision card. */
     data class Decision(val toolCallId: ToolCallId, val answer: DecisionAnswer) : RunInput
@@ -51,8 +51,11 @@ sealed interface RunInput {
     /** The option the user picked on a question card. */
     data class Answer(val toolCallId: ToolCallId, val choice: String) : RunInput
 
-    /** The user granted or refused a capability a tool asked for, such as reading contacts. */
-    data class CapabilityChanged(val capability: CapabilityId, val granted: Boolean) : RunInput
+    /**
+     * The user granted or refused a capability a tool asked for, such as reading contacts. [setupFailure] is set, with
+     * [granted] false, when the user allowed it but setting it up failed; it says why.
+     */
+    data class CapabilityChanged(val capability: CapabilityId, val granted: Boolean, val setupFailure: String? = null) : RunInput
 }
 
 /**

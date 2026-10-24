@@ -47,7 +47,7 @@ class LinuxWorkspaceTest {
 
     @After
     fun cleanUp() {
-        graph.workspaces.delete(id)
+        (graph.workspaces.directory(id) as? Outcome.Success)?.value?.deleteRecursively()
     }
 
     @Test

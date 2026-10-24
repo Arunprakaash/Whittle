@@ -63,6 +63,9 @@ import app.whittle.design.components.segmentedShape
 import app.whittle.design.tokens.WhittleRadius
 import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
+import app.whittle.apps.ToolchainFailure
+import app.whittle.apps.ToolchainState
+import app.whittle.apps.canRemoveToolchain
 import app.whittle.onboarding.ONBOARDING_STEPS
 import app.whittle.onboarding.OnboardingSteps
 import kotlinx.coroutines.launch
@@ -207,6 +210,7 @@ fun LinuxWorkspaceScreen(graph: AppGraph, onBack: () -> Unit) {
                     if (live.isNotEmpty()) item {
                         RunningRow(live.map { it.name }) { graph.appScope.launch { graph.processes.stopAll() } }
                     }
+                    item { AppBuildingRow(graph) }
                     item { ManageRows(graph, used) { confirming = it } }
                 }
             }
@@ -214,6 +218,62 @@ fun LinuxWorkspaceScreen(graph: AppGraph, onBack: () -> Unit) {
     }
     confirming?.let { confirm -> ConfirmDialog(confirm, graph, onDone = { confirming = null }) }
 }
+
+/**
+ * The app-building toolchain: whether it's set up (the ready marker, not just files on disk) and its size, with Remove
+ * confirmed in its own dialog. A setup that never finished can be removed too; nothing can while an app is building.
+ */
+@Composable
+private fun AppBuildingRow(graph: AppGraph) {
+    val toolchain = graph.appToolchain
+    val state by toolchain.state.collectAsStateWithLifecycle()
+    val building by toolchain.building.collectAsStateWithLifecycle()
+    var confirming by remember { mutableStateOf(false) }
+    var refresh by remember { mutableIntStateOf(0) }
+    var removeFailed by remember { mutableStateOf<ToolchainFailure?>(null) }
+    LaunchedEffect(state) { removeFailed = null }
+    val installed by produceState<Installed?>(null, state, refresh) {
+        value = if (state is ToolchainState.Installing) null else Installed(toolchain.isReady(), toolchain.size())
+    }
+    val ready = installed?.ready == true
+    val size = installed?.size
+    val removable = canRemoveToolchain(ready, size, installing = state is ToolchainState.Installing, building = building)
+    SettingsRow(
+        icon = "build",
+        title = stringResource(R.string.app_toolchain_row_title),
+        subtitle = when {
+            state is ToolchainState.Installing -> stringResource(R.string.app_toolchain_row_installing)
+            building || removeFailed == ToolchainFailure.InUse -> stringResource(R.string.app_toolchain_row_building)
+            removeFailed != null -> stringResource(R.string.app_toolchain_remove_failed)
+            ready -> size?.let { stringResource(R.string.app_toolchain_row_installed, it) } ?: stringResource(R.string.app_toolchain_row_ready)
+            size != null -> stringResource(R.string.app_toolchain_row_partial, size)
+            else -> stringResource(R.string.app_toolchain_row_missing)
+        },
+        shape = RoundedCornerShape(WhittleRadius.l),
+        destructive = removable,
+        onClick = { if (removable) confirming = true },
+    )
+    if (confirming) {
+        AlertDialog(
+            onDismissRequest = { confirming = false },
+            title = { Text(stringResource(R.string.app_toolchain_remove_title)) },
+            text = { Text(stringResource(R.string.app_toolchain_remove_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirming = false
+                    graph.appScope.launch {
+                        removeFailed = toolchain.remove()
+                        refresh++
+                    }
+                }) { Text(stringResource(R.string.app_toolchain_remove), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.app_toolchain_remove_cancel)) } },
+        )
+    }
+}
+
+/** What the app-building row shows: whether setup finished, and the size on disk when it can be read. */
+private data class Installed(val ready: Boolean, val size: String?)
 
 /** Repair, reset and remove, from least to most drastic. */
 @Composable

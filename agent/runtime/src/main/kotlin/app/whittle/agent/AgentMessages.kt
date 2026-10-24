@@ -31,6 +31,8 @@ data class AgentMessages(
     val capabilityMissing: String,
     val capabilityGranted: String,
     val capabilityDenied: String,
+    /** The user allowed a capability but setting it up failed; [REASON] says why. Not a refusal: they may ask again. */
+    val capabilitySetupFailed: String,
     val interruptedToolCall: String,
     val toolFailed: String,
     val outputTruncated: String,
@@ -76,6 +78,40 @@ data class AgentMessages(
     val attachmentImagesUnseen: String,
     /** Stands in for an attached image that can no longer be read from the workspace. */
     val imageUnavailable: String,
+    /** create_app made a project; [NAME], [PROJECT] (its folder) and [PACKAGE] say which. */
+    val appCreated: String,
+    val appNameEmpty: String,
+    val appNoWorkspace: String,
+    /** create_app or build_app in a chat confined to [PROJECT], reaching outside it; worded like use_project's refusal. */
+    val appConfined: String,
+    val appNoProject: String,
+    val appSharedUserId: String,
+    val appPackageMismatch: String,
+    val appBuildFailed: String,
+    val appBuildLogSaved: String,
+    val appBuildNoApk: String,
+    val appBuildTimedOut: String,
+    /** build_app's APK carries a version other than the one Whittle set. */
+    val appVersionMismatch: String,
+    /** build_app's APK carries a minimum or target SDK other than the ones Whittle sets. */
+    val appSdkMismatch: String,
+    /** The reason given with [capabilitySetupFailed] when app building can't be set up because Linux isn't. */
+    val appBuildingNeedsLinux: String,
+    /** Why app building's setup failed, one per kind; any raw output follows on its own line. */
+    val appSetupTimedOut: String,
+    val appSetupInterrupted: String,
+    val appSetupNotConfirmed: String,
+    val appSetupNotStarted: String,
+    val appSetupInUse: String,
+    val appSetupOutput: String,
+    /**
+     * Output the user passed on with Ask to fix (a crash, a process's output, a preview's console), sent beside their request as
+     * untrusted content; [SOURCE] is one of the three below.
+     */
+    val diagnosticsUntrusted: String,
+    val diagnosticsFromAppCrash: String,
+    val diagnosticsFromProcess: String,
+    val diagnosticsFromPreview: String,
 ) : VersionedConfig {
     init {
         requirePlaceholders(attachments, FILES)
@@ -95,6 +131,7 @@ data class AgentMessages(
         requirePlaceholders(capabilityMissing, TOOL, CAPABILITY)
         requirePlaceholders(capabilityGranted, CAPABILITY)
         requirePlaceholders(capabilityDenied, CAPABILITY)
+        requirePlaceholders(capabilitySetupFailed, CAPABILITY, REASON)
         requirePlaceholders(interruptedToolCall, TOOL)
         requirePlaceholders(toolFailed, TOOL, DETAIL)
         requirePlaceholders(outputTruncated, LIMIT)
@@ -126,6 +163,30 @@ data class AgentMessages(
         requirePlaceholders(automationTimeInvalid)
         requirePlaceholders(automationDaysInvalid)
         requirePlaceholders(automationSaveFailed, DETAIL)
+        requirePlaceholders(appCreated, NAME, PROJECT, PACKAGE)
+        requirePlaceholders(appNameEmpty)
+        requirePlaceholders(appNoWorkspace)
+        requirePlaceholders(appConfined, PROJECT)
+        requirePlaceholders(appNoProject, PROJECT)
+        requirePlaceholders(appSharedUserId)
+        requirePlaceholders(appPackageMismatch, EXPECTED)
+        requirePlaceholders(appBuildFailed, ERRORS)
+        requirePlaceholders(appBuildLogSaved, PATH)
+        requirePlaceholders(appBuildNoApk)
+        requirePlaceholders(appBuildTimedOut, SECONDS)
+        requirePlaceholders(appVersionMismatch)
+        requirePlaceholders(appSdkMismatch)
+        requirePlaceholders(appBuildingNeedsLinux)
+        requirePlaceholders(appSetupTimedOut)
+        requirePlaceholders(appSetupInterrupted)
+        requirePlaceholders(appSetupNotConfirmed)
+        requirePlaceholders(appSetupNotStarted)
+        requirePlaceholders(appSetupInUse)
+        requirePlaceholders(appSetupOutput)
+        requirePlaceholders(diagnosticsUntrusted, SOURCE, TEXT)
+        requirePlaceholders(diagnosticsFromAppCrash, NAME)
+        requirePlaceholders(diagnosticsFromProcess, NAME)
+        requirePlaceholders(diagnosticsFromPreview, NAME)
     }
 
     fun unknownTool(tool: String): String = render(unknownTool, TOOL to tool)
@@ -154,6 +215,9 @@ data class AgentMessages(
     fun capabilityGranted(capability: String): String = render(capabilityGranted, CAPABILITY to capability)
 
     fun capabilityDenied(capability: String): String = render(capabilityDenied, CAPABILITY to capability)
+
+    fun capabilitySetupFailed(capability: String, reason: String): String =
+        render(capabilitySetupFailed, CAPABILITY to capability, REASON to reason)
 
     fun interruptedToolCall(tool: String): String = render(interruptedToolCall, TOOL to tool)
 
@@ -209,15 +273,42 @@ data class AgentMessages(
 
     fun imageUnavailable(path: String): String = render(imageUnavailable, PATH to path)
 
+    fun appCreated(name: String, project: String, packageName: String): String =
+        render(appCreated, NAME to name, PROJECT to project, PACKAGE to packageName)
+
+    fun appConfined(project: String): String = render(appConfined, PROJECT to project)
+
+    fun appNoProject(project: String): String = render(appNoProject, PROJECT to project)
+
+    fun appPackageMismatch(expected: String): String = render(appPackageMismatch, EXPECTED to expected)
+
+    fun appBuildFailed(errors: String): String = render(appBuildFailed, ERRORS to errors)
+
+    fun appBuildTimedOut(seconds: Int): String = render(appBuildTimedOut, SECONDS to seconds.toString())
+
+    fun appBuildLogSaved(path: String): String = render(appBuildLogSaved, PATH to path)
+
+    fun diagnosticsUntrusted(source: String, text: String): String = render(diagnosticsUntrusted, SOURCE to source, TEXT to text)
+
+    fun diagnosticsFromAppCrash(name: String): String = render(diagnosticsFromAppCrash, NAME to name)
+
+    fun diagnosticsFromProcess(name: String): String = render(diagnosticsFromProcess, NAME to name)
+
+    fun diagnosticsFromPreview(name: String): String = render(diagnosticsFromPreview, NAME to name)
+
     /** The memory section of the system prompt: one line per remembered fact, as (id, text) pairs. */
     fun memories(items: List<Pair<String, String>>): String =
         if (items.isEmpty()) noMemories else items.joinToString("\n") { (id, text) -> render(memoryLine, ID to id, TEXT to text) }
 
     companion object {
-        const val SCHEMA_VERSION = 11
+        const val SCHEMA_VERSION = 12
         private const val FILES = "files"
         private const val SIZE = "size"
         private const val TOOL = "tool"
+        private const val PACKAGE = "package"
+        private const val EXPECTED = "expected"
+        private const val ERRORS = "errors"
+        private const val SECONDS = "seconds"
         private const val DETAIL = "detail"
         private const val LIMIT = "limit"
         private const val OUTPUT = "output"
@@ -225,6 +316,7 @@ data class AgentMessages(
         private const val QUESTION = "question"
         private const val ANSWER = "answer"
         private const val CAPABILITY = "capability"
+        private const val REASON = "reason"
         private const val STEPS = "steps"
         private const val HEAD = "head"
         private const val TAIL = "tail"

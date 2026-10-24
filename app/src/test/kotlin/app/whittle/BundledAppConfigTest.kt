@@ -1,5 +1,7 @@
 package app.whittle
 
+import app.whittle.apps.NativeAppsConfig
+import app.whittle.apps.PowerfulKind
 import app.whittle.automations.AutomationsConfig
 import app.whittle.claudecode.ClaudeCodeConfig
 import app.whittle.config.defaults.BundledConfigSource
@@ -9,6 +11,8 @@ import app.whittle.connectors.matches
 import app.whittle.connectors.mcp.ConnectorsConfig
 import app.whittle.core.common.Outcome
 import app.whittle.core.config.ConfigFiles
+import app.whittle.core.config.ConfigName
+import app.whittle.core.config.HarnessConfig
 import app.whittle.core.config.ConfigLoader
 import app.whittle.design.icons.MaterialSymbols
 import app.whittle.linux.LinuxBaseSetup
@@ -194,6 +198,146 @@ class BundledAppConfigTest {
         config.servers.forEach { server ->
             assertTrue(server.category in groups, "${server.name} needs a library category, or it shows nowhere until connected")
             assertFalse(server.description.isNullOrBlank(), "${server.name} needs a description for the library")
+        }
+    }
+
+    @Test
+    fun `native apps config refuses duplicate or empty entries`() {
+        val config = assertIs<Outcome.Success<NativeAppsConfig>>(
+            loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),
+        ).value
+        val word = config.permissionWords.first()
+        assertFailsWith<IllegalArgumentException> { config.copy(permissionWords = config.permissionWords + word) }
+        assertFailsWith<IllegalArgumentException> { config.copy(permissionWords = listOf(word.copy(words = " "))) }
+        assertFailsWith<IllegalArgumentException> { config.copy(powerful = config.powerful + config.powerful.first()) }
+        assertFailsWith<IllegalArgumentException> { config.copy(maxCrashChars = 0) }
+        assertFailsWith<IllegalArgumentException> { config.copy(keptApks = 0) }
+        assertFailsWith<IllegalArgumentException> { config.copy(maxReasonChars = 0) }
+    }
+
+    @Test
+    fun `setup retries apt-get update, which takes the lists lock without waiting`() {
+        val config = assertIs<Outcome.Success<NativeAppsConfig>>(
+            loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),
+        ).value
+        val update = config.toolchain.setupScript.lines().single { "apt-get update" in it }
+        assertTrue(update.startsWith("n=0; until apt-get update "), update)
+        // Run the line under the script's own shell options, with apt-get and sleep faked: the lock is busy twice, then free.
+        val retried = bash("set -euo pipefail\ncalls=0\napt-get() { calls=${'$'}((calls+1)); [ ${'$'}calls -ge 3 ]; }\nsleep() { :; }\n$update\necho \"after ${'$'}calls\"")
+        assertEquals(0 to "after 3", retried, "a failed try doesn't end the script under set -e; the third goes through")
+        val stuck = bash("set -euo pipefail\ncalls=0\napt-get() { calls=${'$'}((calls+1)); return 100; }\nsleep() { :; }\ntrap 'echo tries ${'$'}calls' EXIT\n$update\necho after")
+        assertEquals(1 to "tries 30", stuck, "a lock that never frees fails setup after the last try")
+    }
+
+    /** Runs [script] in bash; its exit code and its output's last line. */
+    private fun bash(script: String): Pair<Int, String> {
+        val process = ProcessBuilder("bash", "-c", script).redirectErrorStream(true).start()
+        val output = process.inputStream.bufferedReader().readText().trim().lines().last()
+        return process.waitFor() to output
+    }
+
+    @Test
+    fun `a kept crash fits whole in what Ask to fix passes on`() {
+        val apps = assertIs<Outcome.Success<NativeAppsConfig>>(
+            loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),
+        ).value
+        val agent = assertIs<Outcome.Success<HarnessConfig>>(loader.load(ConfigFiles.harness, HarnessConfig.serializer(), HarnessConfig.SCHEMA_VERSION)).value.agent
+        assertTrue(agent.maxPastedOutputChars >= apps.maxCrashChars)
+        assertFailsWith<IllegalArgumentException> { agent.copy(maxPastedOutputChars = 0) }
+        assertTrue(agent.maxPastedNameChars in 1..agent.maxPastedOutputChars)
+        assertFailsWith<IllegalArgumentException> { agent.copy(maxPastedNameChars = 0) }
+    }
+
+    @Test
+    fun `an install session is stale only well after its prompt has timed out`() {
+        val config = assertIs<Outcome.Success<NativeAppsConfig>>(
+            loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),
+        ).value
+        assertTrue(config.installPromptTimeoutMinutes > 0)
+        assertTrue(config.staleInstallSessionMinutes > config.installPromptTimeoutMinutes)
+        assertFailsWith<IllegalArgumentException> { config.copy(installPromptTimeoutMinutes = 0) }
+        // A launch must never abandon a session whose prompt may still be on screen.
+        assertFailsWith<IllegalArgumentException> { config.copy(staleInstallSessionMinutes = config.installPromptTimeoutMinutes) }
+    }
+
+    @Test
+    fun `native apps config lists the newer powerful declarations, each with a sentence`() {
+        val config = assertIs<Outcome.Success<NativeAppsConfig>>(
+            loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),
+        ).value
+        val kinds = config.powerful.associate { it.name.removePrefix("android.permission.") to it.kind }
+        listOf("RECEIVE_MMS", "RECEIVE_WAP_PUSH", "PACKAGE_USAGE_STATS", "ACCESS_BACKGROUND_LOCATION").forEach {
+            assertEquals(PowerfulKind.PERMISSION, kinds[it], it)
+        }
+        assertEquals(PowerfulKind.SERVICE_PERMISSION, kinds["BIND_CREDENTIAL_PROVIDER_SERVICE"])
+        config.powerful.forEach { assertTrue(it.sentence.isNotBlank(), it.name) }
+    }
+
+    @Test
+    fun `the build lets Whittle set the version, whatever the manifest says`() {
+        val config = assertIs<Outcome.Success<NativeAppsConfig>>(
+            loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),
+        ).value
+        val link = config.buildScript.lines().single { it.startsWith("aapt2 link") }
+        assertTrue("--replace-version" in link.split(" "), link)
+    }
+
+    @Test
+    fun `apps target the API level they are compiled against`() {
+        val config = assertIs<Outcome.Success<NativeAppsConfig>>(
+            loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),
+        ).value
+        // Ubuntu's arm64 aapt2 can't read a newer android.jar, so the platform is pinned and the target follows it.
+        val platform = Regex("android-(\\d+)/android\\.jar").find(config.toolchain.setupScript)!!.groupValues[1].toInt()
+        assertEquals(platform, config.targetSdk)
+    }
+
+    @Test
+    fun `the app template reports whole stacks once and keeps clear of the system bars`() {
+        val source = BundledConfigSource()
+        val reporter = assertIs<Outcome.Success<String>>(source.read(ConfigName("native-app-template/src/CrashReporter.kt"))).value
+        assertFalse("getStackTraceString(" in reporter, "Log.getStackTraceString drops chains with an UnknownHostException")
+        assertTrue("printStackTrace" in reporter)
+        assertTrue("if (installed) return" in reporter, "a second onCreate must not wrap the handler again")
+        val activity = assertIs<Outcome.Success<String>>(source.read(ConfigName("native-app-template/src/MainActivity.kt"))).value
+        assertTrue("fitsSystemWindows = true" in activity)
+    }
+
+    @Test
+    fun `native apps config loads with pinned downloads and a powerful list`() {
+        val config = assertIs<Outcome.Success<NativeAppsConfig>>(
+            loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),
+        ).value
+        val toolchain = config.toolchain
+        toolchain.downloads.forEach {
+            assertTrue(Regex("^[0-9a-f]{64}$").matches(it.sha256), "${it.url} must be pinned by its SHA-256")
+            assertTrue(it.url.startsWith("https://"))
+            val file = it.saveAs.substringAfterLast('/')
+            assertTrue(it.saveAs.startsWith("/opt/whittle-apps/downloads/"), "the script saves downloads in that folder")
+            assertTrue("curl -fsSL -o $file ${it.url}\n" in toolchain.setupScript, "the setup script must fetch ${it.url} as $file")
+            assertTrue("'${it.sha256}  $file'" in toolchain.setupScript, "the setup script must check $file against its pin")
+        }
+        // Other things run apt in the same Linux (top-ups at launch, Claude Code's update), so every call waits for dpkg's lock.
+        val aptCalls = Regex("apt-get [^;\n]*").findAll(toolchain.setupScript).map { it.value.trim() }.toList()
+        assertEquals(listOf("update", "install"), aptCalls.map { it.split(" ")[1] }, "setup runs apt-get update, then apt-get install")
+        aptCalls.forEach { assertTrue(" -o DPkg::Lock::Timeout=300 " in "$it ", "apt-get must wait for the lock: $it") }
+        val aptLine = aptCalls.single { it.startsWith("apt-get install") }
+        toolchain.aptPackages.forEach { assertTrue(Regex("(^| )${Regex.escape(it)}( |$)").containsMatchIn(aptLine), "apt line lacks $it") }
+        // The words left once the options (and an -o option's value) are dropped are "apt-get install" and the packages.
+        val words = aptLine.replace(Regex(" -o \\S+"), "").split(" ").filter { !it.startsWith("-") }
+        assertEquals(listOf("apt-get", "install") + toolchain.aptPackages, words)
+        val placeholder = Regex("\\{\\{(\\w+)}}")
+        val buildAllowed = setOf("project", "slug", "versionCode", "minSdk", "targetSdk")
+        assertTrue(placeholder.findAll(config.buildScript).map { it.groupValues[1] }.toSet().all { it in buildAllowed })
+        assertEquals(setOf("pinsHash"), placeholder.findAll(toolchain.setupScript).map { it.groupValues[1] }.toSet())
+        assertTrue(config.palette.size >= 4)
+        val named = config.powerful.map { it.name }
+        listOf("BIND_ACCESSIBILITY_SERVICE", "BIND_NOTIFICATION_LISTENER_SERVICE", "SYSTEM_ALERT_WINDOW", "READ_SMS").forEach {
+            assertTrue("android.permission.$it" in named, it)
+        }
+        val source = BundledConfigSource()
+        config.template.forEach { path ->
+            assertIs<Outcome.Success<String>>(source.read(ConfigName("native-app-template/$path")), path)
         }
     }
 }

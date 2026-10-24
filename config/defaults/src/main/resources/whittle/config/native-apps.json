@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 1,
+  "packagePrefix": "app.whittle.made.",
+  "minSdk": 26,
+  "targetSdk": 34,
+  "toolchain": {
+    "aptPackages": [
+      "openjdk-21-jdk-headless",
+      "aapt",
+      "zipalign",
+      "zip",
+      "unzip"
+    ],
+    "downloads": [
+      {
+        "url": "https://github.com/JetBrains/kotlin/releases/download/v2.3.20/kotlin-compiler-2.3.20.zip",
+        "sha256": "222ba516cdc4052ce0be9d2ec6adf3c5c64fc53156d7dd91d1f5317809431b98",
+        "saveAs": "/opt/whittle-apps/downloads/kotlin-compiler.zip"
+      },
+      {
+        "url": "https://dl.google.com/android/repository/platform-34-ext7_r03.zip",
+        "sha256": "16fdb74c55e59ae3ef52def135aec713508467bd56d7dabcd8c9be31fa8b20f3",
+        "saveAs": "/opt/whittle-apps/downloads/platform-34.zip"
+      },
+      {
+        "url": "https://dl.google.com/dl/android/maven2/com/android/tools/r8/8.13.25/r8-8.13.25.jar",
+        "sha256": "0d4f2f68c4fcbc9434eff122f41feb6fb1d98efd2faa530cec1abacab1cea03d",
+        "saveAs": "/opt/whittle-apps/downloads/r8.jar"
+      }
+    ],
+    "setupScript": "set -euo pipefail\nD=/opt/whittle-apps\nrm -f $D/ready\nexport DEBIAN_FRONTEND=noninteractive\nn=0; until apt-get update -q -o DPkg::Lock::Timeout=300; do n=$((n+1)); [ $n -ge 30 ] && exit 1; sleep 10; done\napt-get install -y -q -o DPkg::Lock::Timeout=300 --no-install-recommends openjdk-21-jdk-headless aapt zipalign zip unzip\nmkdir -p $D/downloads $D/stdlib-dex\ncd $D/downloads\ncurl -fsSL -o kotlin-compiler.zip https://github.com/JetBrains/kotlin/releases/download/v2.3.20/kotlin-compiler-2.3.20.zip\necho '222ba516cdc4052ce0be9d2ec6adf3c5c64fc53156d7dd91d1f5317809431b98  kotlin-compiler.zip' | sha256sum -c -\ncurl -fsSL -o platform-34.zip https://dl.google.com/android/repository/platform-34-ext7_r03.zip\necho '16fdb74c55e59ae3ef52def135aec713508467bd56d7dabcd8c9be31fa8b20f3  platform-34.zip' | sha256sum -c -\ncurl -fsSL -o r8.jar https://dl.google.com/dl/android/maven2/com/android/tools/r8/8.13.25/r8-8.13.25.jar\necho '0d4f2f68c4fcbc9434eff122f41feb6fb1d98efd2faa530cec1abacab1cea03d  r8.jar' | sha256sum -c -\nrm -rf $D/kotlinc\nunzip -q -o kotlin-compiler.zip -d $D\nunzip -q -o -j platform-34.zip android-34/android.jar -d $D\ncp r8.jar $D/d8.jar\nrm -rf $D/stdlib-dex && mkdir -p $D/stdlib-dex\njava -cp $D/d8.jar com.android.tools.r8.D8 --min-api 26 --lib $D/android.jar --output $D/stdlib-dex $D/kotlinc/lib/kotlin-stdlib.jar\ntest -f $D/stdlib-dex/classes.dex\ntest -x $D/kotlinc/bin/kotlinc\nrm -f kotlin-compiler.zip platform-34.zip\nprintf '%s' '{{pinsHash}}' > $D/ready\n",
+    "setupTimeoutSeconds": 1800
+  },
+  "buildScript": "set -euo pipefail\nT=/opt/whittle-apps\ncd \"/workspace/{{project}}\"\nrm -rf build/tmp && mkdir -p build/tmp/classes build/tmp/dex\naapt2 compile --dir res -o build/tmp/res.zip\naapt2 link -I $T/android.jar --manifest AndroidManifest.xml --min-sdk-version {{minSdk}} --target-sdk-version {{targetSdk}} --version-code {{versionCode}} --version-name {{versionCode}} --replace-version -o build/tmp/base.apk build/tmp/res.zip\n$T/kotlinc/bin/kotlinc src -cp $T/android.jar -d build/tmp/classes -jvm-target 11 -no-reflect -nowarn\njava -cp $T/d8.jar com.android.tools.r8.D8 --min-api {{minSdk}} --lib $T/android.jar --classpath $T/kotlinc/lib/kotlin-stdlib.jar --output build/tmp/dex $(find build/tmp/classes -name '*.class')\ncp $T/stdlib-dex/classes.dex build/tmp/dex/classes2.dex\n(cd build/tmp/dex && zip -q -u ../base.apk classes.dex classes2.dex)\nzipalign -f -p 4 build/tmp/base.apk \"build/{{slug}}-{{versionCode}}-unsigned.apk\"\nrm -rf build/tmp\n",
+  "buildTimeoutSeconds": 600,
+  "setupStartTimeoutSeconds": 15,
+  "maxErrors": 20,
+  "maxErrorChars": 4000,
+  "keptApks": 3,
+  "maxReasonChars": 400,
+  "template": [
+    "AndroidManifest.xml",
+    "src/MainActivity.kt",
+    "src/CrashReporter.kt",
+    "res/values/strings.xml",
+    "res/values/themes.xml",
+    "res/values-v29/themes.xml",
+    "res/drawable/ic_launcher.xml"
+  ],
+  "permissionWords": [
+    {"name": "android.permission.INTERNET", "words": "the internet"},
+    {"name": "android.permission.CAMERA", "words": "the camera"},
+    {"name": "android.permission.RECORD_AUDIO", "words": "the microphone"},
+    {"name": "android.permission.ACCESS_FINE_LOCATION", "words": "your precise location"},
+    {"name": "android.permission.ACCESS_COARSE_LOCATION", "words": "your approximate location"},
+    {"name": "android.permission.READ_CONTACTS", "words": "your contacts"},
+    {"name": "android.permission.WRITE_CONTACTS", "words": "your contacts, to change them"},
+    {"name": "android.permission.READ_CALENDAR", "words": "your calendar"},
+    {"name": "android.permission.WRITE_CALENDAR", "words": "your calendar, to change it"},
+    {"name": "android.permission.POST_NOTIFICATIONS", "words": "notifications"},
+    {"name": "android.permission.VIBRATE", "words": "vibration"},
+    {"name": "android.permission.SCHEDULE_EXACT_ALARM", "words": "exact alarms"},
+    {"name": "android.permission.USE_EXACT_ALARM", "words": "exact alarms"},
+    {"name": "android.permission.READ_MEDIA_IMAGES", "words": "your photos"},
+    {"name": "android.permission.READ_MEDIA_VIDEO", "words": "your videos"},
+    {"name": "android.permission.READ_EXTERNAL_STORAGE", "words": "your files"},
+    {"name": "android.permission.BLUETOOTH_CONNECT", "words": "Bluetooth devices"}
+  ],
+  "powerful": [
+    {
+      "name": "android.permission.BIND_ACCESSIBILITY_SERVICE",
+      "kind": "SERVICE_PERMISSION",
+      "sentence": "Can see and control everything on your screen"
+    },
+    {
+      "name": "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE",
+      "kind": "SERVICE_PERMISSION",
+      "sentence": "Can read every notification you get"
+    },
+    {
+      "name": "android.permission.BIND_DEVICE_ADMIN",
+      "kind": "SERVICE_PERMISSION",
+      "sentence": "Can lock the phone and set its security rules"
+    },
+    {
+      "name": "android.permission.BIND_VPN_SERVICE",
+      "kind": "SERVICE_PERMISSION",
+      "sentence": "Can route all of your network traffic"
+    },
+    {
+      "name": "android.permission.BIND_AUTOFILL_SERVICE",
+      "kind": "SERVICE_PERMISSION",
+      "sentence": "Can see and fill in fields in other apps"
+    },
+    {
+      "name": "android.permission.BIND_INPUT_METHOD",
+      "kind": "SERVICE_PERMISSION",
+      "sentence": "Can see everything you type as a keyboard"
+    },
+    {
+      "name": "android.permission.BIND_WALLPAPER",
+      "kind": "SERVICE_PERMISSION",
+      "sentence": "Can replace your wallpaper"
+    },
+    {
+      "name": "android.permission.SYSTEM_ALERT_WINDOW",
+      "kind": "PERMISSION",
+      "sentence": "Can draw over other apps"
+    },
+    {
+      "name": "android.permission.REQUEST_INSTALL_PACKAGES",
+      "kind": "PERMISSION",
+      "sentence": "Can ask to install other apps"
+    },
+    {
+      "name": "android.permission.MANAGE_EXTERNAL_STORAGE",
+      "kind": "PERMISSION",
+      "sentence": "Can read and change every file on the phone"
+    },
+    {
+      "name": "android.permission.READ_SMS",
+      "kind": "PERMISSION",
+      "sentence": "Can read your text messages"
+    },
+    {
+      "name": "android.permission.RECEIVE_SMS",
+      "kind": "PERMISSION",
+      "sentence": "Can see text messages as they arrive"
+    },
+    {
+      "name": "android.permission.SEND_SMS",
+      "kind": "PERMISSION",
+      "sentence": "Can send text messages, which may cost money"
+    },
+    {
+      "name": "android.permission.READ_CALL_LOG",
+      "kind": "PERMISSION",
+      "sentence": "Can read your call history"
+    },
+    {
+      "name": "android.permission.WRITE_CALL_LOG",
+      "kind": "PERMISSION",
+      "sentence": "Can change your call history"
+    },
+    {
+      "name": "android.permission.RECEIVE_MMS",
+      "kind": "PERMISSION",
+      "sentence": "Can see picture messages as they arrive"
+    },
+    {
+      "name": "android.permission.RECEIVE_WAP_PUSH",
+      "kind": "PERMISSION",
+      "sentence": "Can see messages your carrier pushes to the phone"
+    },
+    {
+      "name": "android.permission.PACKAGE_USAGE_STATS",
+      "kind": "PERMISSION",
+      "sentence": "Can see which apps you use and for how long"
+    },
+    {
+      "name": "android.permission.ACCESS_BACKGROUND_LOCATION",
+      "kind": "PERMISSION",
+      "sentence": "Can see where you are even when you're not using it"
+    },
+    {
+      "name": "android.permission.BIND_CREDENTIAL_PROVIDER_SERVICE",
+      "kind": "SERVICE_PERMISSION",
+      "sentence": "Can see and fill in your passwords and passkeys in other apps"
+    }
+  ],
+  "crashAuthoritySuffix": ".apps.crashes",
+  "maxCrashChars": 4000,
+  "installPromptTimeoutMinutes": 10,
+  "staleInstallSessionMinutes": 30,
+  "palette": ["#2E7D32", "#1565C0", "#6A1B9A", "#C62828", "#EF6C00", "#00838F", "#AD1457", "#4E342E"]
+}

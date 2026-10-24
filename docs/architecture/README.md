@@ -23,8 +23,8 @@ the [README](../../README.md) and [Linux workspace](../linux-workspace.md) descr
 | d08 Mini-app runtime and bridge | Replaced | Apps are Vite servers in Linux, opened from `127.0.0.1` in a WebView |
 | d09 Trust boundaries | Holds | Except APK export, which no longer exists |
 | d10 Automations | Not built yet | In review |
-| d11 React Native apps and widgets | Replaced | No React Native, widgets or shortcuts |
-| d12 Native APK export | Replaced | Removed in 0.10.0 |
+| d11 React Native apps and widgets | Replaced | No React Native, widgets or shortcuts; mobile apps are native Kotlin, see [native-apps.md](../native-apps.md) |
+| d12 Native APK export | Replaced | Removed in 0.10.0; apps are now built and signed on the phone, see [native-apps.md](../native-apps.md) |
 | d13 Connectors | Holds | Sign-in returns to a loopback redirect on `127.0.0.1`, not an App Link. MCP over Streamable HTTP and SSE |
 | d14 Run lifecycle | Partly | No auto-fix or roll back, and no WorkManager: background runs use the foreground service |
 | d15 Data and storage | Partly | Nothing is backed up. One shared workspace, plus Ubuntu, in the app's files. No signing key or mini-app data |

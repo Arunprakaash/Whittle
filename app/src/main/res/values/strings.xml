@@ -203,6 +203,9 @@
     <string name="notify_failed_public">A Whittle task stopped</string>
     <string name="notify_needs_you_title">Whittle needs your answer</string>
     <string name="notify_needs_you_public">Whittle is waiting for you</string>
+    <string name="notify_install_prompt_title">Tap to finish installing %1$s</string>
+    <string name="notify_install_prompt_title_unnamed">Tap to finish installing your app</string>
+    <string name="notify_install_prompt_public">Tap to finish installing an app</string>
     <!-- Settings -->
     <string name="settings_title">Settings</string>
     <string name="settings_back">Back</string>
@@ -429,6 +432,30 @@
     <string name="linux_reset_title">Reset Linux?</string>
     <string name="linux_reset_confirm_body">Linux starts fresh: tools you added go, your chats and their files stay. It downloads again.</string>
     <string name="linux_settings_row">Linux workspace</string>
+    <string name="notify_app_toolchain_title">Setting up app building</string>
+    <string name="notify_app_toolchain_text">Installing the compiler and tools</string>
+    <string name="notify_app_toolchain_public">Whittle is setting up app building</string>
+    <string name="app_toolchain_row_title">App building</string>
+    <string name="app_toolchain_row_installed">Installed, %1$s</string>
+    <string name="app_toolchain_row_installing">Setting up…</string>
+    <string name="app_toolchain_row_missing">Not set up. Whittle asks the first time you want an app.</string>
+    <string name="app_toolchain_remove_failed">Couldn\'t remove app building</string>
+    <string name="app_toolchain_remove">Remove</string>
+    <string name="app_toolchain_remove_title">Remove app building?</string>
+    <string name="app_toolchain_remove_cancel">Cancel</string>
+    <string name="app_toolchain_row_ready">Installed</string>
+    <string name="app_toolchain_row_building">An app is building. You can remove this once it\'s done.</string>
+    <string name="app_building_setting_up">Setting up app building…</string>
+    <string name="app_building_needs_linux">Set up Linux first, in Settings › Linux</string>
+    <string name="app_building_setup_failed">Couldn\'t set up app building: %1$s</string>
+    <string name="app_setup_timed_out">it took too long</string>
+    <string name="app_setup_interrupted">it was interrupted</string>
+    <string name="app_setup_not_confirmed">the tools weren\'t ready afterwards</string>
+    <string name="app_setup_not_started">it didn\'t start</string>
+    <string name="app_setup_in_use">an app is building</string>
+    <string name="app_setup_output">it stopped with an error</string>
+    <string name="app_toolchain_row_partial">Setup didn\'t finish, %1$s on disk. Tap to remove it.</string>
+    <string name="app_toolchain_remove_body">The compiler and tools go. Your apps\' projects stay, and Whittle asks again before it builds one.</string>
     <string name="notify_linux_title">Setting up Linux</string>
     <string name="notify_linux_public">Whittle is setting up Linux</string>
     <!-- Processes the agent starts, and the live preview of what they serve -->
@@ -451,7 +478,7 @@
     <string name="process_restart">Restart</string>
     <string name="process_ask_fix">Ask to fix</string>
     <string name="process_no_output">No output yet.</string>
-    <string name="process_fix_message">%1$s stopped. Here\'s its latest output:\n\n%2$s\n\nPlease fix it and start it again.</string>
+    <string name="process_fix_message">Fix the error in %1$s and start it again</string>
     <string name="preview_reload">Reload</string>
     <string name="preview_open_browser">Open in browser</string>
     <string name="preview_stop">Stop</string>
@@ -461,7 +488,7 @@
     <string name="preview_console_empty">Nothing logged yet.</string>
     <string name="preview_clear">Clear</string>
     <string name="preview_ask_fix">Ask to fix</string>
-    <string name="preview_fix_message">The preview of %1$s shows these errors:\n\n%2$s\n\nPlease fix them.</string>
+    <string name="preview_fix_message">Fix the errors in the preview of %1$s</string>
     <string name="preview_not_running_title">%1$s isn\'t running</string>
     <string name="preview_not_running_body">The page can\'t load until it runs again.</string>
     <string name="preview_no_browser">No app on this phone can open it.</string>
@@ -609,4 +636,46 @@
     </plurals>
     <string name="automation_busy">A task is running. Try again when it\'s done.</string>
     <string name="automation_no_model">Connect a model first.</string>
+
+    <!-- The card for an app Whittle built -->
+    <string name="app_card_version_status">Version %1$d · %2$s</string>
+    <string name="app_card_not_installed">Not installed</string>
+    <string name="app_card_installed">Installed</string>
+    <string name="app_card_update_available">Update available</string>
+    <string name="app_card_newer_installed">Newer build installed</string>
+    <string name="app_card_uses">Uses %1$s</string>
+    <string name="app_card_no_permissions">Uses no special permissions</string>
+    <plurals name="app_card_powerful_title">
+        <item quantity="one">This app can do something powerful</item>
+        <item quantity="other">This app can do %1$d powerful things</item>
+    </plurals>
+    <string name="app_card_tainted">Made after reading outside content, such as a web page, a file or an app\'s output; check what it does before installing</string>
+    <string name="app_card_install">Install</string>
+    <string name="app_card_update">Update</string>
+    <string name="app_card_open">Open</string>
+    <string name="app_card_remove">Remove</string>
+    <string name="app_card_installing">Installing…</string>
+    <string name="app_card_allow_installs">Allow Whittle to install apps, then tap Install again.</string>
+    <string name="app_card_installed_done">Installed.</string>
+    <string name="app_card_cancelled">Not installed. You cancelled it.</string>
+    <string name="app_card_key_changed">Android won\'t update this app because it was signed differently. Remove it and install again.</string>
+    <string name="app_card_blocked">Android blocked the install. Check that installing apps is allowed for Whittle.</string>
+    <string name="app_card_failed">The install failed. Ask Whittle to build it again.</string>
+    <string name="app_card_changed">This app changed since it was built. Ask Whittle to build it again.</string>
+    <string name="app_card_settings_failed">Couldn\'t open the settings to allow installs. Allow Whittle to install apps in Android\'s settings.</string>
+    <string name="app_card_remove_failed">Couldn\'t ask Android to remove this app. Remove it from your launcher.</string>
+    <string name="app_card_crash_title">Last crash</string>
+    <string name="app_card_crash_more">Show more</string>
+    <string name="app_card_crash_less">Show less</string>
+    <string name="app_card_ask_fix">Ask to fix</string>
+    <string name="app_fix_message">Fix the crash in %1$s (%2$s) and build it again</string>
+    <string name="app_card_open_failed">This app has nothing to open.</string>
+    <string name="app_powerful_dialog_title">Before you install</string>
+    <plurals name="app_powerful_dialog_body">
+        <item quantity="one">%1$s asks for something powerful. It would be able to:</item>
+        <item quantity="other">%1$s asks for %2$d powerful things. It would be able to:</item>
+    </plurals>
+    <string name="app_powerful_dialog_item">• %1$s</string>
+    <string name="app_powerful_dialog_continue">Continue</string>
+    <string name="app_powerful_dialog_cancel">Cancel</string>
 </resources>

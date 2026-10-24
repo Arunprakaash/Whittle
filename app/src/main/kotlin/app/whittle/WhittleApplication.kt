@@ -13,6 +13,7 @@ import app.whittle.background.AgentRunService
 import app.whittle.background.ProcessesService
 import app.whittle.background.RunNotifications
 import app.whittle.background.RunProgress
+import app.whittle.apps.AppToolchainService
 import app.whittle.chat.ChatEvent
 import app.whittle.chat.ChatViewModel
 import kotlinx.coroutines.MainScope
@@ -27,7 +28,7 @@ class WhittleApplication : Application() {
      * One chat session for the app's whole life, not tied to a screen: a task keeps going when the user
      * leaves or swipes the app away, and the screen shows it live again when they come back.
      */
-    val chat: ChatViewModel by lazy { ChatViewModel(graph) }
+    val chat: ChatViewModel by lazy { ChatViewModel(graph, startToolchainSetup = { AppToolchainService.start(this) }) }
 
     /** Starts automations in [chat] when they're due, or when the user taps Run now. */
     val automationRunner: AutomationRunner by lazy {
