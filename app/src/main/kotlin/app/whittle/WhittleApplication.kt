@@ -26,7 +26,6 @@ import app.whittle.assistant.ScreenContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -87,12 +86,14 @@ class WhittleApplication : Application() {
             }
         }
         scope.launch {
-            // A service that signs Whittle out while the user is away (an automation's run, say) says so once.
+            // A service that signs Whittle out while the user is away (an automation's run, say) says so once per sign-out.
+            // Every process start reports a signed-out connection again, so whether it was told is kept with the sign-in;
+            // one that happened while the user was in Whittle, where its row says so, counts as told.
             graph.connectors.all.collectLatest { connections ->
                 connections.forEach { connection ->
                     launch {
-                        connection.state.map { it == ConnectorState.SignInExpired }.distinctUntilChanged().drop(1).collect { expired ->
-                            if (expired && !inForeground) notifications.signInAgain(connection.server.name)
+                        connection.state.map { it == ConnectorState.SignInExpired }.distinctUntilChanged().collect { expired ->
+                            if (expired && connection.takeSignOutNotice() && !inForeground) notifications.signInAgain(connection.server.name)
                         }
                     }
                 }
