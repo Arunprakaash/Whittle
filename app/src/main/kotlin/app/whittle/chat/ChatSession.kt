@@ -564,15 +564,9 @@ class ChatSession(
         val call = event.decision.toolCall
         val text = graph.presenter.decision(call.toolName, event.arguments, origin(call.toolName))
         val runId = activeRunId ?: return
-        append(
-            ThreadItem.Decision(
-                key = "decision-${call.id.value}",
-                runId = runId,
-                toolCallId = call.id,
-                text = text,
-            ),
-        )
-        cardShown()
+        val key = "decision-${call.id.value}"
+        append(ThreadItem.Decision(key = key, runId = runId, toolCallId = call.id, text = text))
+        cardShown(ChatEvent.ApprovalNeeded(chatId, key, text, event.tool.riskTier))
     }
 
     private fun onQuestionRequested(event: RunEvent.DecisionRequested) {
@@ -602,9 +596,9 @@ class ChatSession(
     }
 
     /** A card is waiting for the user's choice; the run carries on regardless. */
-    private fun cardShown() {
+    private fun cardShown(event: ChatEvent = ChatEvent.NeedsYou(chatId)) {
         listener.haptic(this, WhittleHaptic.DecisionShown)
-        listener.event(this, ChatEvent.NeedsYou(chatId))
+        listener.event(this, event)
     }
 
     private fun onCompleted() {

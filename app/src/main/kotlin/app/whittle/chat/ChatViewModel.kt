@@ -34,10 +34,12 @@ import app.whittle.settings.AttachmentDefaults
 import app.whittle.settings.FilesDefaults
 import app.whittle.storage.chats.ChatId
 import app.whittle.storage.secrets.SecretKey
+import app.whittle.tools.api.RiskTier
 import app.whittle.tools.api.ToolId
 import app.whittle.tools.api.WorkspaceId
 import app.whittle.tools.workspace.ChatProjects
 import app.whittle.tools.workspace.ProcessInfo
+import app.whittle.tools.presentation.DecisionText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -97,8 +99,11 @@ sealed interface ChatEvent {
     /** The chat it happened in; null only before a chat is saved. */
     val chat: ChatId?
 
-    /** A question, approval or access card appeared. */
+    /** A question or access card appeared. */
     data class NeedsYou(override val chat: ChatId?) : ChatEvent
+
+    /** The approval card [key] appeared, asking in [text]'s words about a call at [tier]. */
+    data class ApprovalNeeded(override val chat: ChatId?, val key: String, val text: DecisionText, val tier: RiskTier) : ChatEvent
 
     /** The task ended: done, or stopped by an error or a limit ([failed]). */
     data class Finished(override val chat: ChatId?, val failed: Boolean) : ChatEvent
@@ -368,6 +373,19 @@ class ChatViewModel(
 
     /** The user's choice on a card. Applied at the run's next step, or continues a finished run. */
     fun answer(item: ThreadItem.Decision, approve: Boolean) = current.value.answer(item, approve)
+
+    /**
+     * The user's choice from the approval card [key]'s notification, applied as a tap on the card would be, in whichever
+     * chat it waits. False when the card was answered already or its chat is closed; nothing changes then.
+     */
+    fun answerDecision(key: String, approve: Boolean): Boolean {
+        for (session in listOf(current.value) + background.value.values) {
+            val item = waitingDecision(session.state.value.items, key) ?: continue
+            session.answer(item, approve)
+            return true
+        }
+        return false
+    }
 
     /** The card stays in the thread with the choice marked; only the first tap counts. */
     fun answer(item: ThreadItem.Question, choice: String) = current.value.answer(item, choice)

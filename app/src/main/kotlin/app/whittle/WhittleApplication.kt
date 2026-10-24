@@ -10,6 +10,7 @@ import android.os.Bundle
 import app.whittle.automations.AutomationRunner
 import app.whittle.automations.SessionAutomationChat
 import app.whittle.background.AgentRunService
+import app.whittle.background.ApprovalActivity
 import app.whittle.background.ProcessesService
 import app.whittle.background.RunNotifications
 import app.whittle.background.RunProgress
@@ -75,6 +76,8 @@ class WhittleApplication : Application() {
                 val title = titleOf(event.chat)
                 when (event) {
                     is ChatEvent.NeedsYou -> notifications.needsYou(title)
+                    is ChatEvent.ApprovalNeeded ->
+                        notifications.approval(event.key, title, event.text, buttons = graph.notificationApprovals.buttonsFor(event.tier))
                     is ChatEvent.Finished -> notifications.finished(title, event.failed)
                 }
             }
@@ -112,13 +115,16 @@ class WhittleApplication : Application() {
         }
     }
 
+    /** Answering from a notification opens a screen the user never sees; that isn't them coming back. */
     private inner class VisibilityTracker : ActivityLifecycleCallbacks {
         override fun onActivityStarted(activity: Activity) {
+            if (activity is ApprovalActivity) return
             visibleActivities++
             notifications.clearUpdates()
         }
 
         override fun onActivityStopped(activity: Activity) {
+            if (activity is ApprovalActivity) return
             visibleActivities--
         }
 

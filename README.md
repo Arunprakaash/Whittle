@@ -155,7 +155,9 @@ Settings › Automations, or asks in a chat and approves the `schedule_task` car
   time zone change, and at every launch.
 - **Running.** `AutomationRunner` starts the automation in a new chat titled after it, in `RunMode.UNATTENDED`,
   and starts the run's foreground service before the alarm lets the process go. The policy engine then allows
-  only the tools the user pre-approved for it; anything else pauses the run with a Needs you notification.
+  only the tools the user pre-approved for it; anything else pauses the run with a notification. For an approval it
+  shows the card's words and its own Approve and Decline buttons, which answer the card once the phone is unlocked.
+  Deleting and paying are only decided in the app (`background.approvals` in app-defaults.json).
 - **What runs without asking.** automations.json lists what can be pre-approved: web reads, the clock, the
   calendar, contacts and the workspace's files, never anything that sends data out. A new automation may only
   read; changing files is a separate choice, off by default. A test keeps both rules.

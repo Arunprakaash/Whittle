@@ -12,6 +12,7 @@ import android.content.Intent
 import android.os.Build
 import app.whittle.MainActivity
 import app.whittle.R
+import app.whittle.tools.presentation.DecisionText
 
 /** What the ongoing notification shows about the running task. */
 /** The running task as its notification shows it. [plan] is set when the agent wrote one (done, total, current step). */
@@ -99,7 +100,45 @@ class RunNotifications(private val context: Context) {
         publicText = R.string.notify_needs_you_public,
     )
 
+    /**
+     * The approval card [key] waits while the user is away, in its own words. With [buttons], its Approve and Decline
+     * buttons answer it as the card would, once the phone is unlocked (see [ApprovalActivity]); otherwise tapping opens
+     * the chat. One per card, so several waiting cards are answered one by one.
+     */
+    fun approval(key: String, chatTitle: String?, text: DecisionText, buttons: Boolean) {
+        if (!manager.areNotificationsEnabled()) return
+        // What the call would send or change, as the card shows it, so the answer isn't given blind.
+        val details = text.payload?.let { payload -> text.payloadLabel?.let { "$it: $payload" } ?: payload }
+        val builder = Notification.Builder(context, CHANNEL_UPDATES)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(text.title)
+            .setContentText(text.body)
+            .setStyle(Notification.BigTextStyle().bigText(listOfNotNull(text.body, details).joinToString("\n\n")))
+            .apply { chatTitle?.let(::setSubText) }
+            .setContentIntent(openApp())
+            .setAutoCancel(true)
+            .setCategory(Notification.CATEGORY_REMINDER)
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicVersion(CHANNEL_UPDATES, R.string.notify_approval_public))
+        if (buttons) {
+            builder.addAction(answerAction(key, text.decline, approve = false))
+            builder.addAction(answerAction(key, text.approve, approve = true))
+        }
+        manager.notify(TAG_APPROVAL, key.hashCode(), builder.build())
+    }
+
+    /** The card [key] has its answer; its notification has nothing left to ask. */
+    fun clearApproval(key: String) {
+        manager.cancel(TAG_APPROVAL, key.hashCode())
+    }
+
     /** The user is back: the notes about what happened while they were away have done their job. */
+    fun clearUpdates() {
+        manager.cancel(ID_FINISHED)
+        manager.cancel(ID_NEEDS_YOU)
+        manager.activeNotifications.filter { it.tag == TAG_APPROVAL }.forEach { manager.cancel(TAG_APPROVAL, it.id) }
+    }
+
     /** A reminder the user asked for; its words show only once the phone is unlocked. */
     fun reminder(id: String, text: String) {
         if (!manager.areNotificationsEnabled()) return
@@ -113,11 +152,6 @@ class RunNotifications(private val context: Context) {
             .setPublicVersion(publicVersion(CHANNEL_REMINDERS, R.string.notify_reminder_public))
             .build()
         manager.notify(TAG_REMINDER, id.hashCode(), notification)
-    }
-
-    fun clearUpdates() {
-        manager.cancel(ID_FINISHED)
-        manager.cancel(ID_NEEDS_YOU)
     }
 
     private fun post(id: Int, title: String, text: String?, publicText: Int) {
@@ -230,6 +264,18 @@ class RunNotifications(private val context: Context) {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
+    /** Opens [ApprovalActivity], which Android shows only after the phone is unlocked; Android 12+ also asks before the tap counts. */
+    private fun answerAction(key: String, label: String, approve: Boolean): Notification.Action {
+        val intent = Intent(context, ApprovalActivity::class.java)
+            .setAction(if (approve) ApprovalActivity.ACTION_APPROVE else ApprovalActivity.ACTION_DECLINE)
+            .putExtra(ApprovalActivity.EXTRA_KEY, key)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val open = PendingIntent.getActivity(context, key.hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        return Notification.Action.Builder(null, label, open)
+            .apply { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) setAuthenticationRequired(true) }
+            .build()
+    }
+
     private fun stopRun(): PendingIntent = PendingIntent.getService(
         context,
         REQUEST_STOP,
@@ -251,6 +297,7 @@ class RunNotifications(private val context: Context) {
         /** Reminders are told apart by tag, so their ids never meet the fixed ones above. */
         private const val TAG_REMINDER = "reminder"
         private const val TAG_INSTALL_PROMPT = "install_prompt"
+        private const val TAG_APPROVAL = "approval"
         private const val REQUEST_OPEN = 1
         private const val REQUEST_STOP = 2
         private const val REQUEST_STOP_ALL = 3
