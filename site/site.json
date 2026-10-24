@@ -45,6 +45,11 @@
     "apkPattern": "^Whittle-.*\\.apk$"
   },
   "requirements": "64-bit Android 8 or later",
+  "stage": {
+    "$description": "While Whittle is in beta: a label beside the name, and a word beside the version. Remove the block to drop both.",
+    "label": "Beta",
+    "word": "beta"
+  },
   "chores": {
     "$description": "The hero's to-do list. Each chore's steps play in turn under it; the last step stays as its receipt once the chore is struck through.",
     "title": "Saturday",

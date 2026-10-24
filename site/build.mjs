@@ -156,6 +156,12 @@ const ogImage = await readFile(ogImageSource);
 const ogImageName = ogImageSource.pathname.split('/').at(-1);
 const firstQuestion = config.questions[0];
 
+// The version and the APK, each with the release stage beside it when the site has one: "v0.21.0 · beta".
+const stageWord = config.stage?.word;
+const apkName = apk?.name ?? `Whittle ${versionOf(latest)}`;
+const versionLine = [`v${versionOf(latest)}`, stageWord].filter(Boolean).join(' · ');
+const fileLine = [apkName, stageWord, dateFormat.format(new Date(latest.published_at))].filter(Boolean).join(' · ');
+
 const raw = {
   choresHtml,
   firstSources: firstQuestion.sources.map(sourceHtml).join(''),
@@ -170,16 +176,19 @@ const raw = {
     terminal: config.terminal,
   }).replace(/</g, '\\u003c'),
   fontLinks: '',
+  stageLabel: config.stage ? `<span class="stage-label">${escapeHtml(config.stage.label)}</span>` : '',
+  // Download buttons say it's a beta too.
+  stagePill: stageWord ? `<span class="pill-price">${escapeHtml(stageWord)}</span>` : '',
 };
+
 const text = {
   url: config.url,
   repoUrl,
   releasesUrl: `${repoUrl}/releases`,
   issuesUrl: `${repoUrl}/issues`,
   downloadUrl: apk?.browser_download_url ?? `${repoUrl}/releases/latest`,
-  apkName: apk?.name ?? `Whittle ${versionOf(latest)}`,
-  apkDate: dateFormat.format(new Date(latest.published_at)),
-  version: versionOf(latest),
+  fileLine,
+  versionLine,
   requirements: config.requirements,
   choresTitle: config.chores.title,
   choresLeft: `${config.chores.items.length} to go`,
