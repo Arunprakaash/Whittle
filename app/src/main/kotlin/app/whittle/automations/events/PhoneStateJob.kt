@@ -8,7 +8,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Wakes Whittle on the charger and every [app.whittle.automations.EventsConfig.placeCheckMinutes] minutes, even from
- * a fresh process, and looks at the phone. Arming first covers a restart, which forgets everything but persisted jobs.
+ * a fresh process, and looks at the phone. check() arms again at the end, which covers a restart; arming first could cancel the charging job while it runs.
  */
 class PhoneStateJob : JobService() {
     private var running: Job? = null
@@ -17,7 +17,6 @@ class PhoneStateJob : JobService() {
         val watch = (application as WhittleApplication).phoneStateWatch
         running = (application as WhittleApplication).graph.appScope.launch {
             try {
-                watch.arm()
                 watch.check()
             } finally {
                 jobFinished(params, false)

@@ -34,11 +34,18 @@ class AndroidPhoneReader(private val context: Context) : PhoneReader {
         return battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0
     }
 
+    override fun wifi(): String? = wifiState(onWifi(), ssid())
+
+    /** Whether the phone is on Wi-Fi; needs no location, unlike the network's name. */
+    private fun onWifi(): Boolean {
+        val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return false
+        val capabilities = connectivity.getNetworkCapabilities(connectivity.activeNetwork ?: return false) ?: return false
+        return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+    }
+
     @Suppress("DEPRECATION") // connectionInfo is the one call that works on every version from 26 on without a callback
-    override fun wifi(): String? = try {
-        val manager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-        val info = manager.connectionInfo
-        if (info == null || info.networkId == -1) null else wifiName(info.ssid)
+    private fun ssid(): String? = try {
+        (context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager).connectionInfo?.ssid
     } catch (_: SecurityException) {
         null
     }
@@ -70,6 +77,9 @@ class AndroidPhoneReader(private val context: Context) : PhoneReader {
         const val LOCATION_TIMEOUT_MILLIS = 30_000L
     }
 }
+
+/** Null when not on Wi-Fi; the network's name, or "" when on one whose name Android hides (no location permission). */
+fun wifiState(onWifi: Boolean, ssid: String?): String? = if (!onWifi) null else wifiName(ssid) ?: ""
 
 /** An SSID as Android returns it: in quotes, or "<unknown ssid>" when it won't say. */
 fun wifiName(ssid: String?): String? {

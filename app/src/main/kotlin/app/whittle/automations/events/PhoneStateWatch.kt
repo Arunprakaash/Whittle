@@ -62,7 +62,7 @@ class PhoneStateWatch(
 
     private suspend fun arm(needs: PhoneNeeds) = lock.withLock {
         // Nothing watched means nothing saved: watching later starts from where things stand then.
-        if (!needs.any) store.save(null)
+        if (!needs.any) store.save(null) else if (store.load() == null) store.save(read(null, needs))
         scheduler.arm(needs)
     }
 
@@ -84,7 +84,12 @@ class PhoneStateWatch(
     suspend fun placeCrossed(name: String, entering: Boolean) = lock.withLock {
         val needs = needs()
         if (needs.places.none { it.name == name }) return@withLock
-        val before = store.load() ?: PhoneState(reader.charging(), reader.wifi(), emptySet())
+        val before = store.load()
+        if (before == null) {
+            // Nothing seen yet, so this only records where things stand.
+            store.save(PhoneState(reader.charging(), reader.wifi(), if (entering) setOf(name) else emptySet()))
+            return@withLock
+        }
         val after = before.copy(inside = if (entering) before.inside + name else before.inside - name)
         if (after == before) return@withLock
         edges(before, after, needs.places, clock.nowMillis()).forEach { dispatch(it) }

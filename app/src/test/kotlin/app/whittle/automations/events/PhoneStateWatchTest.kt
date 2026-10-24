@@ -5,6 +5,7 @@ import app.whittle.automations.Edge
 import app.whittle.automations.EventKind
 import app.whittle.automations.PhoneEvent
 import app.whittle.automations.Trigger
+import app.whittle.automations.matches
 import app.whittle.automations.MemoryBackend
 import app.whittle.automations.RecordingAlarms
 import app.whittle.automations.testAutomationsConfig
@@ -172,5 +173,44 @@ class PhoneStateWatchTest {
         watch.placeCrossed("Elsewhere", entering = true)
 
         assertEquals(listOf(Edge.START), events.map { it.edge })
+    }
+
+    @Test
+    fun joiningAHiddenNameNetworkStartsWifiForAnyNetworkTrigger() {
+        val joined = idle.copy(wifi = wifiState(onWifi = true, ssid = "<unknown ssid>"))
+
+        assertEquals("", joined.wifi)
+        assertNull(wifiState(onWifi = false, ssid = "\"Home\""))
+        assertEquals("Home", wifiState(onWifi = true, ssid = "\"Home\""))
+        val event = edges(idle, joined, emptyList(), now).single()
+        assertEquals(Edge.START, event.edge)
+        assertTrue(Trigger.Wifi(null, Edge.START).matches(event))
+        assertTrue(!Trigger.Wifi("Home", Edge.START).matches(event))
+    }
+
+    @Test
+    fun armingRecordsABaselineSoTheFirstChangeFires() = runTest {
+        val fake = Fake()
+        val events = mutableListOf<PhoneEvent>()
+        val watch = watch(fake, this, listOf(Trigger.Charging(Edge.START)), events = events)
+
+        watch.arm()
+        assertEquals(idle, fake.saved)
+        fake.state = idle.copy(charging = true)
+        watch.check()
+
+        assertEquals(listOf(EventKind.CHARGING), events.map { it.kind })
+    }
+
+    @Test
+    fun aProximityAlertWithNoSavedStateOnlyRecords() = runTest {
+        val fake = Fake()
+        val events = mutableListOf<PhoneEvent>()
+        val watch = watch(fake, this, listOf(home), events = events)
+
+        watch.placeCrossed("Home", entering = true)
+
+        assertTrue(events.isEmpty())
+        assertEquals(setOf("Home"), fake.saved?.inside)
     }
 }
