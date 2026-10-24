@@ -131,17 +131,17 @@
     },
     "set_alarm": {
       "icon": "alarm",
-      "running": "Setting an alarm for {{time}}",
-      "done": "Alarm set for {{time}}",
+      "running": "Setting an alarm for {{time_when}}",
+      "done": "Alarm set for {{time_when}}",
       "decision": {
         "icon": "alarm",
-        "title": "Set an alarm for {{time}}?",
+        "title": "Set an alarm for {{time_when}}?",
         "body": "Sets it in your clock app. Change or remove it there.",
         "payloadArgument": "label",
         "approve": "Set alarm",
         "approveIcon": "check",
         "decline": "Not now",
-        "approvedOutcome": "Alarm set for {{time}}",
+        "approvedOutcome": "Alarm set for {{time_when}}",
         "declinedOutcome": "No alarm set"
       }
     },
@@ -164,10 +164,10 @@
     "remind_me": {
       "icon": "notifications",
       "running": "Setting a reminder",
-      "done": "Reminder at {{at}}",
+      "done": "Reminder {{at_when}}",
       "decision": {
         "icon": "notifications",
-        "title": "Remind you at {{at}}?",
+        "title": "Remind you {{at_when}}?",
         "body": "Whittle shows this as a notification then.",
         "payloadArgument": "text",
         "approve": "Remind me",
@@ -204,7 +204,7 @@
       "decision": {
         "icon": "event",
         "title": "Add {{title}} to your calendar?",
-        "body": "Adds it to your calendar on this phone at {{start}}.",
+        "body": "Adds it to your calendar on this phone for {{start_when}}.",
         "payloadArgument": "location",
         "approve": "Add",
         "approveIcon": "check",
@@ -787,5 +787,23 @@
         "declinedOutcome": "Not allowed"
       }
     }
+  },
+  "times": {
+    "dateTime": {
+      "today": "today at {{time}}",
+      "tomorrow": "tomorrow at {{time}}",
+      "week": "{{weekday}} at {{time}}",
+      "later": "{{date}} at {{time}}"
+    },
+    "date": {
+      "today": "today",
+      "tomorrow": "tomorrow",
+      "week": "{{weekday}}",
+      "later": "{{date}}"
+    },
+    "weekdayPattern": "EEEE",
+    "datePattern": "EEE d MMM",
+    "time12Pattern": "h:mm a",
+    "time24Pattern": "HH:mm"
   }
 }

@@ -6,7 +6,8 @@ import kotlinx.serialization.Serializable
 /**
  * How each tool appears to the user: an icon, the step-row label while it runs and after it finishes,
  * and the decision card when it needs the user's choice. Plain language only; tool ids and arguments
- * are never shown raw. Placeholders are the call's argument names, plus `<argument>_host` for URLs.
+ * are never shown raw. Placeholders are the call's argument names, plus `<argument>_host` for URLs and, with
+ * [times], `<argument>_when` for times and dates in plain words.
  */
 @Serializable
 data class ToolPresentationConfig(
@@ -18,6 +19,8 @@ data class ToolPresentationConfig(
     val toolPrefixes: Map<String, ToolPresentation> = emptyMap(),
     /** Cards asking for a capability a tool needs, keyed by capability id. */
     val capabilities: Map<String, CapabilityPresentation> = emptyMap(),
+    /** How times and dates read on cards and steps; without it, they show as the model wrote them. */
+    val times: TimeWords? = null,
 ) : VersionedConfig {
     companion object {
         const val SCHEMA_VERSION = 1
@@ -74,3 +77,24 @@ data class DecisionPresentation(
     /** Sentences added to [body] when the named yes/no argument is true, e.g. a command that uses the internet. */
     val flagNotes: Map<String, String> = emptyMap(),
 )
+
+/**
+ * Times in plain words, by how far off they are. Each set has a phrase for today, tomorrow, the coming week and
+ * later, filled with {{time}}, {{weekday}} and {{date}} as the patterns ([java.time.format.DateTimeFormatter])
+ * write them in the phone's language.
+ */
+@Serializable
+data class TimeWords(
+    /** A date with a time, e.g. "tomorrow at {{time}}". */
+    val dateTime: DayPhrases,
+    /** A date alone, e.g. "tomorrow". */
+    val date: DayPhrases,
+    val weekdayPattern: String,
+    val datePattern: String,
+    /** The time on a phone set to a 12-hour clock, and on one set to 24 hours. */
+    val time12Pattern: String,
+    val time24Pattern: String,
+)
+
+@Serializable
+data class DayPhrases(val today: String, val tomorrow: String, val week: String, val later: String)
