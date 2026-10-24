@@ -27,11 +27,11 @@
 <div class="page">
 
   <header class="wrap nav">
-    <a class="brand" href="#top"><img src="beaver.svg" alt="" width="34" height="30">whittle</a>
+    <a class="brand" href="#top"><img src="beaver.svg" alt="" width="34" height="30">whittle{{{stageLabel}}}</a>
     <nav class="links" aria-label="Main">
       <a class="link" href="#new">What's new</a>
       <a class="link" href="{{repoUrl}}">GitHub</a>
-      <a class="btn btn-ink btn-sm" href="{{downloadUrl}}"><span class="ms" aria-hidden="true">android</span>Get the APK</a>
+      <a class="btn btn-ink btn-sm" href="{{downloadUrl}}"><span class="ms" aria-hidden="true">android</span>Get the APK{{{stagePill}}}</a>
     </nav>
   </header>
 
@@ -40,10 +40,10 @@
       <h1 class="display h1 rise">Whittle down<br>your <span class="marker">to-do list.</span></h1>
       <p class="lede rise rise-2">An AI agent that lives on your Android phone and actually does the stuff. Any model, your own keys, and no Whittle server in between.</p>
       <div class="cta rise rise-3">
-        <a class="btn btn-ink" href="{{downloadUrl}}"><span class="ms" aria-hidden="true">android</span>Download for Android<span class="pill-price">free</span></a>
+        <a class="btn btn-ink" href="{{downloadUrl}}"><span class="ms" aria-hidden="true">android</span>Download for Android{{{stagePill}}}</a>
         <a class="btn btn-paper" href="{{repoUrl}}"><span class="ms" aria-hidden="true">code</span>Read the code</a>
       </div>
-      <span class="small mono rise rise-4">v{{version}} · {{requirements}} · not on the Play Store, yet</span>
+      <span class="small mono rise rise-4">{{versionLine}} · {{requirements}} · not on the Play Store, yet</span>
     </section>
 
     <section class="wrap bench" aria-label="Whittle working through a to-do list">
@@ -193,9 +193,9 @@
       <div class="beaver" data-beaver="outro" aria-hidden="true"><img src="beaver.svg" alt=""></div>
       <h2 class="display h2">Now ask it something real.</h2>
       <div class="cta">
-        <a class="btn btn-ink" href="{{downloadUrl}}"><span class="ms" aria-hidden="true">android</span>Download for Android</a>
+        <a class="btn btn-ink" href="{{downloadUrl}}"><span class="ms" aria-hidden="true">android</span>Download for Android{{{stagePill}}}</a>
       </div>
-      <span class="small mono">{{apkName}} · {{apkDate}}</span>
+      <span class="small mono">{{fileLine}}</span>
       <nav class="foot" aria-label="Footer">
         <a class="link" href="{{repoUrl}}">GitHub</a>
         <a class="link" href="{{releasesUrl}}">Releases</a>
