@@ -118,8 +118,7 @@ const choresHtml = config.chores.items.map((chore) => `
             <span class="box" aria-hidden="true"><span class="ms">check</span></span>
             <span class="chore-body">
               <span class="chore-text"><span class="strike">${escapeHtml(chore.text)}</span></span>
-              <span class="chore-steps" data-steps></span>
-              <span class="receipt" data-receipt hidden>→ ${escapeHtml(chore.steps.at(-1))}</span>
+              <span class="chore-line off" data-line><span class="ms" data-line-icon aria-hidden="true"></span><span class="chore-line-text" data-line-text></span></span>
             </span>
           </button></li>`).join('');
 
