@@ -1,6 +1,7 @@
 package app.whittle.automations
 
 import app.whittle.core.common.Outcome
+import app.whittle.core.model.ContentBlock
 import app.whittle.tools.api.ToolId
 
 internal val testCodeMaskConfig = CodeMaskConfig(
@@ -76,12 +77,14 @@ internal class FakeChat(
     override var hasModel: Boolean = true,
 ) : AutomationChat {
     val started = mutableListOf<Pair<Automation, Set<ToolId>>>()
+    val pasted = mutableListOf<List<ContentBlock.Text>>()
 
     override suspend fun awaitRestored(timeoutMillis: Long): Boolean = restored
 
-    override suspend fun start(automation: Automation, preApprovedTools: Set<ToolId>): String? {
+    override suspend fun start(automation: Automation, preApprovedTools: Set<ToolId>, pasted: List<ContentBlock.Text>): String? {
         if (isRunning) return null
         started += automation to preApprovedTools
+        this.pasted += pasted
         return "chat-${started.size}"
     }
 }

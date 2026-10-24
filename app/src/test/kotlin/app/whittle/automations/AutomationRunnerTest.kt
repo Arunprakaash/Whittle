@@ -1,6 +1,12 @@
 package app.whittle.automations
 
+import app.whittle.agent.AgentMessages
+import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.core.common.EpochClock
+import app.whittle.core.common.Outcome
+import app.whittle.core.config.ConfigFiles
+import app.whittle.core.config.ConfigLoader
+import app.whittle.core.model.Provenance
 import app.whittle.core.common.IdGenerator
 import app.whittle.tools.api.ToolId
 import kotlinx.coroutines.test.TestScope
@@ -23,10 +29,28 @@ class AutomationRunnerTest {
     private val chat = FakeChat()
     private var inForeground = false
     private var protections = 0
+    private lateinit var gate: EventGate
+    private val messages = assertIs<Outcome.Success<AgentMessages>>(
+        ConfigLoader(BundledConfigSource()).load(ConfigFiles.agentMessages, AgentMessages.serializer(), AgentMessages.SCHEMA_VERSION),
+    ).value
+
+    private suspend fun Automations.savedEvent(): Automation {
+        val draft = draft("Bank", "Log the spend").copy(schedule = null, trigger = Trigger.Sms(senders = listOf("HDFCBK")))
+        val result = assertIs<SaveResult.Saved>(save(draft))
+        alarms.set.clear()
+        return result.automation
+    }
+
+    private fun sms(text: String, at: Long = now) = PhoneEvent(EventKind.SMS, "HDFCBK", text, at)
 
     private fun TestScope.setUp(): Pair<Automations, AutomationRunner> {
         val automations = Automations(backend, alarms, testAutomationsConfig, EpochClock { now }, IdGenerator { "brief" }, { zone }, this)
-        val runner = AutomationRunner(automations, chat, EpochClock { now }, { inForeground }, { protections++ }, EmptyCoroutineContext)
+        val gate = EventGate(MemoryEventBackend(), testEventsConfig, CodeMask(testCodeMaskConfig), EpochClock { now }, { zone }, this)
+        this@AutomationRunnerTest.gate = gate
+        val runner = AutomationRunner(
+            automations, chat, EpochClock { now }, { inForeground }, { protections++ },
+            gate, messages, maxPastedChars = 8_000, zones = { zone }, main = EmptyCoroutineContext,
+        )
         return automations to runner
     }
 
@@ -138,5 +162,54 @@ class AutomationRunnerTest {
         chat.isRunning = true
         assertEquals(RunNowResult.BUSY, runner.runNow(automation.id))
         assertTrue(chat.started.isEmpty())
+    }
+
+    @Test
+    fun eventRunCarriesEventsAsUntrustedPaste() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.savedEvent()
+        gate.offer(automation.id, sms("Spent 250 at Cafe"))
+        runner.due(automation.id, now)
+        assertEquals("Log the spend", chat.started.single().first.prompt)
+        val block = chat.pasted.single().single()
+        assertIs<Provenance.Untrusted>(block.provenance)
+        assertTrue("Text from HDFCBK at 07:00: Spent 250 at Cafe" in block.text, block.text)
+        assertEquals(1, protections)
+        assertTrue(gate.pending().isEmpty())
+    }
+
+    @Test
+    fun eventRunThatCantStartPutsEventsBack() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.savedEvent()
+        gate.offer(automation.id, sms("one"))
+        chat.isRunning = true
+        runner.due(automation.id, now)
+        assertTrue(chat.started.isEmpty())
+        assertEquals(Alarm(automation.id, now + testAutomationsConfig.retryAfterMillis, now, retry = true), alarms.set.single { it.retry })
+        assertEquals(listOf("one"), gate.take(automation.id).map { it.text })
+    }
+
+    @Test
+    fun emptyQueueStartsNothing() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.savedEvent()
+        runner.due(automation.id, now)
+        assertTrue(chat.started.isEmpty())
+        assertEquals(0, protections)
+    }
+
+    @Test
+    fun eventsArrivingNowRunNowAndLaterOnesSetTheDrain() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.savedEvent()
+        gate.offer(automation.id, sms("first"))
+        runner.eventsArrived(automation.id)
+        assertEquals(1, chat.started.size)
+        gate.offer(automation.id, sms("second"))
+        runner.eventsArrived(automation.id)
+        assertEquals(1, chat.started.size)
+        val at = now + testEventsConfig.cooldownMillis
+        assertEquals(Alarm(automation.id, at, at, retry = true), alarms.set.last())
     }
 }

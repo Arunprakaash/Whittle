@@ -118,6 +118,14 @@ data class AgentMessages(
     val screenUnknownApp: String,
     /** Names the screenshot at [PATH], of [SOURCE], as data; it goes beside it, so a model that sees images reads both. */
     val screenshotUntrusted: String,
+    /** Where an automation's events come from, for the pasted block's label; [NAME] is the first event's source. */
+    val diagnosticsFromEvent: String,
+    /** One thing that happened on the phone; [KIND] is its [eventKinds] words. */
+    val eventLine: String,
+    /** The plain words for each kind of event, by the kind's name (SMS, NOTIFICATION, PLACE, CHARGING, WIFI). */
+    val eventKinds: Map<String, String>,
+    /** Starts the pasted events, so the model knows why it was started and that the lines are data. */
+    val automationEventsIntro: String,
 ) : VersionedConfig {
     init {
         requirePlaceholders(attachments, FILES)
@@ -196,6 +204,10 @@ data class AgentMessages(
         requirePlaceholders(diagnosticsFromPreview, NAME)
         requirePlaceholders(diagnosticsFromScreen, NAME)
         requirePlaceholders(screenshotUntrusted, SOURCE, PATH)
+        requirePlaceholders(diagnosticsFromEvent, NAME)
+        requirePlaceholders(eventLine, KIND, SOURCE, TIME, TEXT)
+        requirePlaceholders(automationEventsIntro)
+        eventKinds.values.forEach { requirePlaceholders(it) }
     }
 
     fun unknownTool(tool: String): String = render(unknownTool, TOOL to tool)
@@ -310,6 +322,11 @@ data class AgentMessages(
     fun diagnosticsFromScreen(name: String): String = render(diagnosticsFromScreen, NAME to name)
 
     fun screenshotUntrusted(source: String, path: String): String = render(screenshotUntrusted, SOURCE to source, PATH to path)
+    fun diagnosticsFromEvent(source: String): String = render(diagnosticsFromEvent, NAME to source)
+
+    /** [kind] is an event kind's name; one with no words in config is named as it is. */
+    fun eventLine(kind: String, source: String, time: String, text: String): String =
+        render(eventLine, KIND to (eventKinds[kind] ?: kind), SOURCE to source, TIME to time, TEXT to text)
 
     /** The memory section of the system prompt: one line per remembered fact, as (id, text) pairs. */
     fun memories(items: List<Pair<String, String>>): String =
@@ -341,6 +358,7 @@ data class AgentMessages(
         private const val TEXT = "text"
         private const val NAME = "name"
         private const val TIME = "time"
+        private const val KIND = "kind"
         private const val DAYS = "days"
         private const val NEXT = "next"
         private const val PLACE = "place"

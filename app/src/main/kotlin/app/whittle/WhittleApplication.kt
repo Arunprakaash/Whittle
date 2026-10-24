@@ -74,7 +74,10 @@ class WhittleApplication : Application() {
 
     /** Starts automations in [chat] when they're due, or when the user taps Run now. */
     val automationRunner: AutomationRunner by lazy {
-        AutomationRunner(graph.automations, SessionAutomationChat(chat), graph.clock, inForeground = { inForeground }, protect = ::startRunService)
+        AutomationRunner(
+            graph.automations, SessionAutomationChat(chat), graph.clock, inForeground = { inForeground }, protect = ::startRunService,
+            gate = graph.eventGate, messages = graph.agentMessages, maxPastedChars = graph.maxPastedOutputChars,
+        )
     }
 
     val notifications: RunNotifications by lazy { RunNotifications(this) }

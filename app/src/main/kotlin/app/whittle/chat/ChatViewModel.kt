@@ -424,9 +424,10 @@ class ChatViewModel(
     /**
      * Starts an automation in a new chat titled [name], unattended: only [preApprovedTools] run without asking.
      * With a [project], the chat is confined to it: its file tools reach nothing else until the user picks another.
+     * [pasted] goes beside the prompt as untrusted content, as the events of an event automation do.
      * The chat it leaves is saved first, as when the user opens another. Null while a task is working in any chat.
      */
-    suspend fun startAutomation(name: String, prompt: String, preApprovedTools: Set<ToolId>, project: String?): ChatId? {
+    suspend fun startAutomation(name: String, prompt: String, preApprovedTools: Set<ToolId>, project: String?, pasted: List<ContentBlock.Text> = emptyList()): ChatId? {
         val model = _state.value.model
         if (working || model == null) return null
         newChat()
@@ -434,7 +435,7 @@ class ChatViewModel(
         session.automationName = name
         val chat = session.ensureId()
         project?.let { graph.chatProjects.confine(WorkspaceId(chat.value), it) }
-        session.start(prompt, model, RunMode.UNATTENDED, preApprovedTools)
+        session.start(prompt, model, RunMode.UNATTENDED, preApprovedTools, pasted = pasted)
         return chat
     }
 
