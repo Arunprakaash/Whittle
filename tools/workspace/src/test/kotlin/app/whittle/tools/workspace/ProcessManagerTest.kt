@@ -9,7 +9,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -29,7 +31,7 @@ class ProcessManagerTest {
     private val workspaces = Workspaces(root)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val limits = ProcessLimits(maxPerChat = 2, startWaitSeconds = 10, noPortWaitSeconds = 2, keptOutputChars = 4_000, readLines = 20, stopGraceMillis = 2_000)
-    private val environment = ShellEnvironment(shell = "/bin/sh", path = "/usr/bin:/bin", launcher = null, killProcessGroup = null)
+    private val environment = testShellEnvironment()
     private val manager = ProcessManager(environment, limits, scope)
     private val chat = WorkspaceId("chat-1")
     private val directory = (workspaces.directory(chat) as Outcome.Success).value
@@ -49,7 +51,7 @@ class ProcessManagerTest {
         assertEquals("http://127.0.0.1:$port/", info.url)
         val stopped = manager.stop(info.id)!!
         assertEquals(ProcessStatus.Stopped, stopped.status)
-        assertFalse(answers(port), "the server must be gone after a stop")
+        assertTrue(goneWithin(port, millis = 2_000), "the server must be gone after a stop")
     }
 
     @Test
@@ -107,6 +109,13 @@ class ProcessManagerTest {
     private fun server(port: Int) = "python3 -m http.server $port --bind 127.0.0.1"
 
     private fun freePort(): Int = ServerSocket(0).use { it.localPort }
+
+    /** A killed server can hold its port for a moment after its shell is reaped, so this waits a little. */
+    private suspend fun goneWithin(port: Int, millis: Long): Boolean =
+        withTimeoutOrNull(millis) {
+            while (answers(port)) delay(50)
+            true
+        } ?: false
 
     private fun answers(port: Int): Boolean = try {
         java.net.Socket("127.0.0.1", port).close()
