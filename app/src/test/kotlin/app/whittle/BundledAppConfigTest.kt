@@ -73,7 +73,7 @@ class BundledAppConfigTest {
     }
 
     @Test
-    fun `what the policy always asks about and tainted runs are decided in the app`() {
+    fun `what the policy always asks about, hand-offs and tainted runs are decided in the app`() {
         val (approvals, policy) = approvalsAndPolicy()
         fun buttons(id: String, tainted: Boolean = false): Boolean {
             val tool = ToolCatalog.definitions.single { it.id.value == id }
@@ -84,6 +84,8 @@ class BundledAppConfigTest {
         // Memory written after outside content could be poisoned; before it, the notification may answer.
         assertFalse(buttons("remember", tainted = true))
         assertTrue(buttons("remember"))
+        // Hand-offs open another app, which Android may block from the background while the tool reports success.
+        listOf("open_app", "open_link", "open_map", "share", "set_alarm", "set_timer").forEach { assertFalse(buttons(it), "$it got buttons") }
         // A run that read untrusted content keeps every approval in the app.
         assertTrue(buttons("write_file"))
         assertFalse(buttons("write_file", tainted = true))
