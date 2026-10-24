@@ -100,6 +100,11 @@
       { "icon": "short_text", "title": "How you like answers", "example": "“Short, main point first.”", "start": "I like answers that are " }
     ]
   },
+  "starters": [
+    { "icon": "calendar_month", "title": "What's on today", "prompt": "What's on my calendar today?", "feature": "calendar" },
+    { "icon": "alarm", "title": "A reminder", "prompt": "Remind me to stretch in 30 minutes.", "feature": "reminders" },
+    { "icon": "sms", "title": "A quick text", "prompt": "Draft a text saying I'm running 10 minutes late." }
+  ],
   "attachments": {
     "directoryName": "uploads",
     "maxPerMessage": 5,

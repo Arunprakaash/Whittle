@@ -1,6 +1,7 @@
 package app.whittle.chat
 
 import app.whittle.settings.VoiceDefaults
+import app.whittle.settings.Starter
 import app.whittle.design.components.ComposerVoice
 import android.Manifest
 import android.content.pm.PackageManager
@@ -347,7 +348,15 @@ private fun ChatLayout(
                 state.restoring -> Unit
                 // Before the first message, the note stands where the welcome would.
                 state.items.isEmpty() && unseen != null -> Box(Modifier.fillMaxSize().padding(bottom = dockSpace), contentAlignment = Alignment.Center) { unseen(Modifier) }
-                state.items.isEmpty() -> EmptyThread(state, recentProjects, viewModel::chooseProject, Modifier.padding(bottom = dockSpace))
+                state.items.isEmpty() -> EmptyThread(
+                    state,
+                    recentProjects,
+                    viewModel::chooseProject,
+                    // Only before the first chat: three things to try that work right away.
+                    starters = if (state.chats.isEmpty()) viewModel.starters else emptyList(),
+                    onStart = viewModel::sendText,
+                    modifier = Modifier.padding(bottom = dockSpace),
+                )
                 // One list per chat: switching replaces the thread instead of animating one chat into another.
                 else -> key(state.currentChat) { Thread(state.items, state.running, viewModel, requestCapability, dockSpace, unseen) }
             }
@@ -693,7 +702,14 @@ private fun rememberVoice(defaults: VoiceDefaults, input: String, onInput: (Stri
 }
 
 @Composable
-private fun EmptyThread(state: ChatState, recentProjects: Int, onPickProject: (String) -> Unit, modifier: Modifier = Modifier) {
+private fun EmptyThread(
+    state: ChatState,
+    recentProjects: Int,
+    onPickProject: (String) -> Unit,
+    starters: List<Starter>,
+    onStart: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier.fillMaxSize().padding(horizontal = WhittleSpace.xxl),
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.s, Alignment.CenterVertically),
@@ -704,6 +720,7 @@ private fun EmptyThread(state: ChatState, recentProjects: Int, onPickProject: (S
             Text(stringResource(R.string.chat_empty_body, it.displayName), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (state.project == null) CarryOn(state.projects.take(recentProjects), onPickProject)
+        Starters(starters, onStart)
     }
 }
 
