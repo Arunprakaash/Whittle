@@ -88,6 +88,8 @@ data class ChatState(
     val attachments: List<Attachment> = emptyList(),
     /** The app card whose preview opens now, asked for from outside the chat (its home-screen shortcut). */
     val openPreview: String? = null,
+    /** The mic should start listening now, asked for from outside the app (Speak on the launcher icon). */
+    val listenNow: Boolean = false,
     /** How many picked items are still being saved. */
     val attaching: Int = 0,
 ) {
@@ -449,8 +451,14 @@ class ChatViewModel(
 
     fun toggleSummary(key: String) = current.value.toggleSummary(key)
 
-    /** Starts a fresh chat; a task working in the one on screen keeps going. */
-    fun newChat() = switchTo(newSession())
+    /** Starts a fresh chat; a task working in the one on screen keeps going. With [listen], the mic starts at once. */
+    fun newChat(listen: Boolean = false) {
+        switchTo(newSession())
+        if (listen) _state.update { it.copy(listenNow = true) }
+    }
+
+    /** The screen started the listening [newChat] asked for. */
+    fun listenStarted() = _state.update { it.copy(listenNow = false) }
 
     /** Opens a saved chat, live if its task is still working; a task working in the one on screen keeps going. */
     fun openChat(id: ChatId) {
