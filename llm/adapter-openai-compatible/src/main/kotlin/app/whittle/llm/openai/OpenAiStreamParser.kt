@@ -60,7 +60,7 @@ internal class OpenAiStreamParser(
     }
 
     private fun accumulate(delta: ToolCallDelta) {
-        val pending = pendingToolCalls.getOrPut(delta.index) { PendingToolCall() }
+        val pending = pendingToolCalls.getOrPut(delta.index ?: (pendingToolCalls.keys.maxOrNull()?.plus(1) ?: 0)) { PendingToolCall() }
         delta.id?.let { pending.id = it }
         delta.function?.name?.let { pending.name.append(it) }
         delta.function?.arguments?.let { pending.arguments.append(it) }

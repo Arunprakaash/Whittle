@@ -349,6 +349,103 @@
           }
         }
       ]
+    },
+    {
+      "id": "gemini",
+      "displayName": "Google Gemini",
+      "tagline": "Your API key from Google AI Studio",
+      "keysUrl": "https://aistudio.google.com/app/apikey",
+      "apiFormat": "OPENAI_CHAT_COMPLETIONS",
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai/",
+      "generationPath": "chat/completions",
+      "modelsPath": "models",
+      "listedModelIdPatterns": [
+        "*gemini-2*-pro",
+        "*gemini-2*-flash",
+        "*gemini-2*-flash-lite",
+        "*gemini-2*-pro-preview",
+        "*gemini-2*-flash-preview",
+        "*gemini-2*-flash-lite-preview",
+        "*gemini-2*-argon",
+        "*gemini-3*-pro",
+        "*gemini-3*-flash",
+        "*gemini-3*-flash-lite",
+        "*gemini-3*-pro-preview",
+        "*gemini-3*-flash-preview",
+        "*gemini-3*-flash-lite-preview",
+        "*gemini-3*-argon",
+        "*gemini-4*-pro",
+        "*gemini-4*-flash",
+        "*gemini-4*-flash-lite",
+        "*gemini-4*-pro-preview",
+        "*gemini-4*-flash-preview",
+        "*gemini-4*-flash-lite-preview",
+        "*gemini-4*-argon",
+        "*gemini-5*-pro",
+        "*gemini-5*-flash",
+        "*gemini-5*-flash-lite",
+        "*gemini-5*-pro-preview",
+        "*gemini-5*-flash-preview",
+        "*gemini-5*-flash-lite-preview",
+        "*gemini-5*-argon",
+        "*gemini-6*-pro",
+        "*gemini-6*-flash",
+        "*gemini-6*-flash-lite",
+        "*gemini-6*-pro-preview",
+        "*gemini-6*-flash-preview",
+        "*gemini-6*-flash-lite-preview",
+        "*gemini-6*-argon",
+        "*gemini-7*-pro",
+        "*gemini-7*-flash",
+        "*gemini-7*-flash-lite",
+        "*gemini-7*-pro-preview",
+        "*gemini-7*-flash-preview",
+        "*gemini-7*-flash-lite-preview",
+        "*gemini-7*-argon",
+        "*gemini-8*-pro",
+        "*gemini-8*-flash",
+        "*gemini-8*-flash-lite",
+        "*gemini-8*-pro-preview",
+        "*gemini-8*-flash-preview",
+        "*gemini-8*-flash-lite-preview",
+        "*gemini-8*-argon",
+        "*gemini-9*-pro",
+        "*gemini-9*-flash",
+        "*gemini-9*-flash-lite",
+        "*gemini-9*-pro-preview",
+        "*gemini-9*-flash-preview",
+        "*gemini-9*-flash-lite-preview",
+        "*gemini-9*-argon"
+      ],
+      "keyCheckPath": "models",
+      "auth": {
+        "headerName": "Authorization",
+        "valuePrefix": "Bearer "
+      },
+      "maxOutputTokensParameter": "max_tokens",
+      "reasoning": {
+        "effortFieldPath": [
+          "reasoning_effort"
+        ],
+        "effortValues": {
+          "NONE": "minimal",
+          "LOW": "low",
+          "MEDIUM": "medium",
+          "HIGH": "high"
+        }
+      },
+      "capabilityOverrides": [
+        {
+          "modelIdPattern": "*gemini-*",
+          "capabilities": {
+            "toolCalling": true,
+            "parallelToolCalls": true,
+            "vision": true,
+            "promptCaching": false,
+            "reasoning": true
+          }
+        }
+      ]
     }
   ]
 }
