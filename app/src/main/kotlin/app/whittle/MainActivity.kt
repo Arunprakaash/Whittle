@@ -98,11 +98,14 @@ class MainActivity : ComponentActivity() {
     /** Set when the assistant opened Whittle, until the chat takes the screen it read. */
     private val assisting = MutableStateFlow(false)
 
+    /** The assistant opened Whittle: through [QuickStart.ENTRY], which only Whittle can start, like the quick starts. */
+    private fun isAssist(intent: Intent): Boolean = intent.action == ACTION_ASSIST && intent.component?.className == QuickStart.ENTRY
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         QuickStart.from(intent.action, intent.component?.className)?.let { quickStart.value = it }
         if (intent.action == ACTION_SHOW_CONNECTIONS) openingConnections.value = true
-        if (intent.action == ACTION_ASSIST) assisting.value = true
+        if (isAssist(intent)) assisting.value = true
         SharedItems.from(intent)?.let { shared.value = it }
         AppShortcuts.opening(intent)?.let { openingApp.value = it }
     }
@@ -114,7 +117,7 @@ class MainActivity : ComponentActivity() {
             openingApp.value = AppShortcuts.opening(intent)
             quickStart.value = QuickStart.from(intent?.action, intent?.component?.className)
             openingConnections.value = intent?.action == ACTION_SHOW_CONNECTIONS
-            assisting.value = intent?.action == ACTION_ASSIST
+            assisting.value = intent?.let(::isAssist) == true
         }
         drawBehindSystemBars(dark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES)
         super.onCreate(savedInstanceState)

@@ -2,6 +2,7 @@ package app.whittle.assistant
 
 import android.app.assist.AssistContent
 import android.app.assist.AssistStructure
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -15,6 +16,7 @@ import android.text.InputType
 import android.view.View
 import androidx.annotation.RequiresApi
 import app.whittle.MainActivity
+import app.whittle.quickstart.QuickStart
 import app.whittle.settings.AssistantDefaults
 import java.io.File
 import java.io.IOException
@@ -101,7 +103,11 @@ class AssistSession(
         opened = true
         handler.removeCallbacksAndMessages(null)
         deliver(ScreenContext(appName, text, screenshot))
-        startAssistantActivity(Intent(context, MainActivity::class.java).setAction(MainActivity.ACTION_ASSIST).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
+        // Whittle's own window, not startAssistantActivity's: that one opens a second Whittle in an assistant task.
+        context.startActivity(
+            Intent().setComponent(ComponentName(context, QuickStart.ENTRY)).setAction(MainActivity.ACTION_ASSIST)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        )
         hide()
     }
 

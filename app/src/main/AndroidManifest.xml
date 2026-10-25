@@ -54,9 +54,9 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
-        <!-- How the launcher icon's New chat and Speak and the Quick Settings tile reach MainActivity. MainActivity is
-             exported, so another app could send it these actions; this alias isn't, so only Whittle's own shortcuts
-             and tile (which start activities as Whittle) can use it. -->
+        <!-- How the launcher icon's New chat and Speak, the Quick Settings tile and the assistant reach MainActivity.
+             MainActivity is exported, so another app could send it these actions; this alias isn't, so only Whittle's
+             own shortcuts, tile and assistant session (which start activities as Whittle) can use it. -->
         <activity-alias
             android:name=".QuickStartEntry"
             android:exported="false"
