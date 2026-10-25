@@ -218,17 +218,24 @@ class BundledAppConfigTest {
     }
 
     @Test
-    fun `automation ideas only read, and their icons are bundled`() {
+    fun `automation ideas only read, bar the bank recipe writing a file, and their icons are bundled`() {
         val config = assertIs<Outcome.Success<AutomationsConfig>>(
             loader.load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
         ).value
         assertTrue(config.ideas.isNotEmpty())
         val tiers = ToolCatalog.definitions.associate { it.id.value to it.riskTier } + (HostedTool.WEB_SEARCH.toolName to RiskTier.WEB_READ)
         val readOnly = setOf(RiskTier.READ, RiskTier.WEB_READ)
-        // An idea is one tap from saved, so like a new automation it never starts able to change anything. The exception
-        // is a recipe on an event: the user chose it for its job (the bank-text one appends to a file), and spec says so.
-        val changing = config.ideas.filter { it.trigger == null }.associate { it.name to config.toolIdsFor(it).filter { id -> tiers.getValue(id) !in readOnly } }.filterValues { it.isNotEmpty() }
+        // An idea is one tap from saved, so like a new automation it never starts able to change anything, whatever
+        // starts it: an event recipe runs on untrusted texts. The one exception is spec'd: the bank-text recipe appends
+        // to expenses.csv, so it may have the workspace file choice, and nothing stronger than that.
+        val allowedChoices = mapOf("Log bank texts" to setOf("changeFiles"))
+        val changing = config.ideas.associate { idea ->
+            val allowedIds = config.tools.filter { it.key in allowedChoices[idea.name].orEmpty() }.flatMap { it.toolIds }.toSet()
+            idea.name to config.toolIdsFor(idea).filter { id -> tiers.getValue(id) !in readOnly && id !in allowedIds }
+        }.filterValues { it.isNotEmpty() }
         assertTrue(changing.isEmpty(), "These ideas would change things without asking: $changing")
+        val beyondWorkspace = config.ideas.associate { it.name to config.toolIdsFor(it).filter { id -> tiers.getValue(id) !in readOnly + RiskTier.WORKSPACE } }.filterValues { it.isNotEmpty() }
+        assertTrue(beyondWorkspace.isEmpty(), "No idea may delete, send or share: $beyondWorkspace")
         val missingIcons = config.ideas.map { it.icon }.toSet() - WhittleIcons.names
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
     }
