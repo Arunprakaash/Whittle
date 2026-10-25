@@ -89,11 +89,21 @@ data class CodeMaskConfig(
     val nearChars: Int,
     /** What a hidden code is replaced with; says a code was there. */
     val replacement: String,
+    /** Numbers that are money or dates, never hidden, even beside a keyword; each compiled as given. */
+    val amountPattern: String,
+    val datePattern: String,
+    /** What may stand just before a number to make it an amount (a currency sign or word); anchored at its end. */
+    val currencyBeforePattern: String,
+    /** A lone number with this many digits is hidden with no keyword, in a message of at most [shortMessageWords] words. */
+    val loneCodeDigits: Int,
+    val shortMessageWords: Int,
 ) {
     init {
         require(keywords.isNotEmpty() && keywords.all { it.isNotBlank() }) { "code keywords can't be empty" }
         require(nearChars > 0 && replacement.isNotEmpty()) { "code mask needs a distance and a replacement" }
-        require(runCatching { Regex(codePattern) }.isSuccess) { "codePattern isn't a valid regular expression" }
+        require(loneCodeDigits > 0 && shortMessageWords > 0) { "code mask needs a digit count and a word count" }
+        mapOf("codePattern" to codePattern, "amountPattern" to amountPattern, "datePattern" to datePattern, "currencyBeforePattern" to currencyBeforePattern)
+            .forEach { (name, pattern) -> require(runCatching { Regex(pattern) }.isSuccess) { "$name isn't a valid regular expression" } }
     }
 }
 

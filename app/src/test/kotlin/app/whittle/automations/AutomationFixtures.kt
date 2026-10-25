@@ -1,15 +1,16 @@
 package app.whittle.automations
 
+import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.core.common.Outcome
+import app.whittle.core.config.ConfigLoader
 import app.whittle.core.model.ContentBlock
 import app.whittle.tools.api.ToolId
+import kotlin.test.assertIs
 
-internal val testCodeMaskConfig = CodeMaskConfig(
-    keywords = listOf("otp", "code", "verification", "verify", "pin", "password", "passcode", "one time", "one-time", "2fa", "login"),
-    codePattern = "\\b(?:[A-Z]-)?\\d{4,8}\\b",
-    nearChars = 40,
-    replacement = "[code hidden]",
-)
+/** The code mask as shipped, so the tests run against what the app uses. */
+internal val testCodeMaskConfig: CodeMaskConfig = assertIs<Outcome.Success<AutomationsConfig>>(
+    ConfigLoader(BundledConfigSource()).load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
+).value.events.codeMask
 
 internal val testEventsConfig = EventsConfig(
     cooldownMillis = 120_000,

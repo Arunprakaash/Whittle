@@ -10,6 +10,9 @@ import java.util.regex.Pattern
  */
 class CodeMask(private val config: CodeMaskConfig) {
     private val code = Pattern.compile(config.codePattern, Pattern.CASE_INSENSITIVE)
+    private val amount = Pattern.compile(config.amountPattern)
+    private val date = Pattern.compile(config.datePattern)
+    private val currencyBefore = Pattern.compile(config.currencyBeforePattern, Pattern.CASE_INSENSITIVE)
     // A keyword starts a word but may carry a suffix ("codes", "passcodes"), so only its start is anchored.
     private val keyword = Pattern.compile(
         config.keywords.joinToString("|", prefix = "(?<![\\p{L}\\p{N}])(?:", postfix = ")") { Pattern.quote(it) },
@@ -22,7 +25,7 @@ class CodeMask(private val config: CodeMaskConfig) {
             while (found.find()) if (!isAmountOrDate(text, found.start(), found.end())) add(found.start() to found.end())
         }
         if (candidates.isEmpty()) return text
-        val loneSixDigits = candidates.size == 1 && wordCount(text) <= SHORT_MESSAGE_WORDS && isSixDigits(text, candidates.single())
+        val loneSixDigits = candidates.size == 1 && wordCount(text) <= config.shortMessageWords && isSixDigits(text, candidates.single())
         val hidden = candidates.filter { (start, end) -> loneSixDigits || keywordNear(text, start, end) }
         if (hidden.isEmpty()) return text
         val out = StringBuilder()
@@ -42,7 +45,7 @@ class CodeMask(private val config: CodeMaskConfig) {
     }
 
     private fun isAmountOrDate(text: String, start: Int, end: Int): Boolean =
-        overlaps(AMOUNT, text, start, end) || overlaps(DATE, text, start, end) || CURRENCY_BEFORE.matcher(text).region(maxOf(0, start - CURRENCY_LOOKBACK), start).find()
+        overlaps(amount, text, start, end) || overlaps(date, text, start, end) || currencyBefore.matcher(text).region(maxOf(0, start - CURRENCY_LOOKBACK), start).find()
 
     private fun overlaps(pattern: Pattern, text: String, start: Int, end: Int): Boolean {
         val m = pattern.matcher(text)
@@ -51,17 +54,12 @@ class CodeMask(private val config: CodeMaskConfig) {
     }
 
     private fun isSixDigits(text: String, span: Pair<Int, Int>): Boolean =
-        text.substring(span.first, span.second).count { it.isDigit() } == SIX
+        text.substring(span.first, span.second).count { it.isDigit() } == config.loneCodeDigits
 
     private fun wordCount(text: String): Int = text.trim().split(WHITESPACE).count { it.isNotEmpty() }
 
     private companion object {
-        const val SHORT_MESSAGE_WORDS = 12
-        const val SIX = 6
         const val CURRENCY_LOOKBACK = 8
-        val AMOUNT: Pattern = Pattern.compile("[\\d,]+\\.\\d{2}")
-        val DATE: Pattern = Pattern.compile("\\d{2}[-/]\\d{2}[-/]\\d{2,4}")
-        val CURRENCY_BEFORE: Pattern = Pattern.compile("(?<!\\p{L})(?:rs\\.?|₹|inr)\\s*$", Pattern.CASE_INSENSITIVE)
         val WHITESPACE = Regex("\\s+")
     }
 }

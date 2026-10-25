@@ -73,7 +73,8 @@ class EventGate(
     val saveError: StateFlow<HarnessError?> = _saveError.asStateFlow()
 
     suspend fun offer(automationId: String, event: PhoneEvent): GateDecision = changes.withLock {
-        val kept = event.copy(text = mask.mask(event.text.take(config.maxEventChars)))
+        // Masked with room past the cut, so a code just inside it still finds its keyword; the first cut bounds the work.
+        val kept = event.copy(text = mask.mask(event.text.take(config.maxEventChars + config.codeMask.nearChars)).take(config.maxEventChars))
         val queue = today(automationId)
         val decision = if (queue.runsToday >= config.maxRunsPerDay) {
             put(queue.copy(events = emptyList(), droppedToday = queue.droppedToday + 1))

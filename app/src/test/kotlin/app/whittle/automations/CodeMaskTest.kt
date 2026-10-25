@@ -17,6 +17,8 @@ class CodeMaskTest {
             "G-123456 is your Google verification code" to "123456",
             "Use 908712 to log in to Swiggy" to "908712",
             "OTP: 7781. Do not share" to "7781",
+            "Your WhatsApp code: 123-456. Don't share it" to "123-456",
+            "123 456 is your verification code" to "123 456",
         ).forEach { (message, digits) ->
             val masked = mask.mask(message)
             assertFalse(digits in masked, masked)
@@ -59,7 +61,17 @@ class CodeMaskTest {
     }
 
     @Test
+    fun aSplitNumberWithoutAKeywordIsLeftAlone() {
+        val message = "Call me on 555 123 or 555-123 after the long meeting about the roadmap and then the budget review"
+        assertEquals(message, mask.mask(message))
+    }
+
+    @Test
     fun badPatternIsRejected() {
         assertFailsWith<IllegalArgumentException> { testCodeMaskConfig.copy(codePattern = "(") }
+        assertFailsWith<IllegalArgumentException> { testCodeMaskConfig.copy(amountPattern = "(") }
+        assertFailsWith<IllegalArgumentException> { testCodeMaskConfig.copy(datePattern = "(") }
+        assertFailsWith<IllegalArgumentException> { testCodeMaskConfig.copy(currencyBeforePattern = "(") }
+        assertFailsWith<IllegalArgumentException> { testCodeMaskConfig.copy(shortMessageWords = 0) }
     }
 }

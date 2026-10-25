@@ -24,6 +24,17 @@ class EventGateTest {
     private fun event(text: String, at: Long = now) = PhoneEvent(EventKind.SMS, "HDFCBK", text, at)
 
     @Test
+    fun aCodeThatStraddlesTheCutIsHiddenWholeNotLeftInPart() = runTest {
+        val gate = gate()
+        // The keyword is well inside the cut, the code starts just before it and ends after it.
+        val text = "x".repeat(config.maxEventChars - 12) + " OTP: " + "   " + "987654"
+        gate.offer("a", event(text))
+        val kept = gate.take("a").single().text
+        assertTrue(kept.length <= config.maxEventChars)
+        assertFalse("987" in kept, kept)
+    }
+
+    @Test
     fun firstEventRunsNow() = runTest {
         assertEquals(GateDecision.RunAt(now), gate().offer("a", event("Spent 10")))
     }
