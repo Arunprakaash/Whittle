@@ -402,6 +402,7 @@ class AppGraph(context: Context) {
         zones = ZoneId::systemDefault,
         scope = appScope,
         pendingDrains = eventGate::pending,
+        forgetEvents = eventGate::forget,
     )
 
     /** The phone tools' settings: where maps open, reminders and sharing. */

@@ -35,6 +35,20 @@ class EventGateTest {
     }
 
     @Test
+    fun forgettingDropsTheQueueFromMemoryAndDisk() = runTest {
+        val gate = gate()
+        gate.offer("a", event("Spent 10"))
+        gate.offer("b", event("Spent 20"))
+        gate.forget("a")
+        assertTrue(gate.take("a").isEmpty())
+        assertEquals(setOf("b"), gate.pending().keys)
+        assertEquals(listOf("b"), backend.stored.map { it.automationId })
+        // Forgetting what isn't there changes nothing.
+        gate.forget("a")
+        assertEquals(listOf("b"), backend.stored.map { it.automationId })
+    }
+
+    @Test
     fun firstEventRunsNow() = runTest {
         assertEquals(GateDecision.RunAt(now), gate().offer("a", event("Spent 10")))
     }

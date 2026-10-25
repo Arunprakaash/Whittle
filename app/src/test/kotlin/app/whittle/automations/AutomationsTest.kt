@@ -142,6 +142,15 @@ class AutomationsTest {
     }
 
     @Test
+    fun `deleting also drops the events queued for it`() = runTest {
+        val forgotten = mutableListOf<String>()
+        val automations = Automations(backend, alarms, config, EpochClock { now }, IdGenerator { "a${nextId++}" }, { zone }, this, forgetEvents = { forgotten += it })
+        val saved = assertIs<SaveResult.Saved>(automations.save(automations.draft("Brief", "Brief me"))).automation
+        automations.delete(saved.id)
+        assertEquals(listOf(saved.id), forgotten)
+    }
+
+    @Test
     fun `refuses what automations json doesn't allow`() = runTest {
         val automations = automations()
         val draft = automations.draft("Brief", "Brief me")

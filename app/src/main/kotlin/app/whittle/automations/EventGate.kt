@@ -109,6 +109,15 @@ class EventGate(
         persist()
     }
 
+    /** Drops everything kept for [automationId]: its waiting events and counts, for an automation that is deleted. */
+    suspend fun forget(automationId: String) = changes.withLock {
+        loaded.await()
+        if (queues.remove(automationId) != null) {
+            publishDropped()
+            persist()
+        }
+    }
+
     /** When each automation with events waiting may run them. */
     suspend fun pending(): Map<String, Long> = changes.withLock {
         loaded.await()

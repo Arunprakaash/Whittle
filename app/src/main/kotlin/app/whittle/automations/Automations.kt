@@ -58,6 +58,8 @@ class Automations(
     scope: CoroutineScope,
     /** When each automation's waiting events may run, from the event gate; its drain alarms are set again with the rest. */
     private val pendingDrains: suspend () -> Map<String, Long> = { emptyMap() },
+    /** Drops what the event gate holds for a deleted automation: queued texts must not outlive it. */
+    private val forgetEvents: suspend (String) -> Unit = {},
 ) {
     private val changes = Mutex()
     private val _all = MutableStateFlow<List<Automation>>(emptyList())
@@ -125,7 +127,7 @@ class Automations(
 
     suspend fun delete(id: String): Outcome<Unit> = changes.withLock {
         alarms.cancel(id)
-        store(current().filterNot { it.id == id })
+        store(current().filterNot { it.id == id }).also { if (it is Outcome.Success) forgetEvents(id) }
     }
 
     /** Notes that [id] ran into [chatId], for the list and for Open last run. */
