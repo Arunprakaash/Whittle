@@ -25,7 +25,16 @@
     "maxFolders": 10,
     "scanMillis": 8000,
     "maxResults": 200,
-    "oldDays": 90
+    "oldDays": 90,
+    "maxHashBytes": 2147483648,
+    "types": {
+      "image": ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "bmp", "raw", "dng"],
+      "video": ["mp4", "mkv", "mov", "avi", "webm", "3gp", "m4v"],
+      "audio": ["mp3", "m4a", "aac", "wav", "flac", "ogg", "opus", "amr"],
+      "document": ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "rtf", "odt", "csv", "epub"],
+      "apk": ["apk", "apks", "xapk"],
+      "archive": ["zip", "rar", "7z", "tar", "gz", "bz2", "xz"]
+    }
   },
   "switches": [
     {

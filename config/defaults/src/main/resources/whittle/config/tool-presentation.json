@@ -87,6 +87,11 @@
       "running": "Checking what's using your storage",
       "done": "Checked your storage"
     },
+    "find_files": {
+      "icon": "folder",
+      "running": "Looking through your files",
+      "done": "Looked through your files"
+    },
     "contacts_search": {
       "icon": "person_search",
       "running": "Looking up {{query}}",

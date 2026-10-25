@@ -5,6 +5,8 @@ import app.whittle.core.config.VersionedConfig
 import app.whittle.reminders.Reminders
 import app.whittle.tools.android.HealthConnect
 import app.whittle.tools.android.HealthLimits
+import app.whittle.tools.android.FileTypes
+import app.whittle.tools.android.FindFilesLimits
 import app.whittle.tools.android.MapLinks
 import app.whittle.tools.android.StorageLimits
 import app.whittle.tools.workspace.Workspaces
@@ -68,10 +70,15 @@ data class PhoneActionsConfig(
         }
     }
 
-    /** The storage tools: [maxFolders] listed by the overview, scans stop after [scanMillis], lists hold [maxResults], [oldDays] is "old". */
+    /**
+     * The storage tools: [maxFolders] listed by the overview, scans stop after [scanMillis], lists hold [maxResults],
+     * [oldDays] is "old", at most [maxHashBytes] are read looking for copies, and [types] maps each kind of file to its extensions.
+     */
     @Serializable
-    data class Storage(val maxFolders: Int, val scanMillis: Long, val maxResults: Int, val oldDays: Int) {
+    data class Storage(val maxFolders: Int, val scanMillis: Long, val maxResults: Int, val oldDays: Int, val maxHashBytes: Long, val types: Map<String, List<String>>) {
         val limits: StorageLimits get() = StorageLimits(maxFolders, scanMillis, oldDays)
+        val findLimits: FindFilesLimits get() = FindFilesLimits(maxResults, scanMillis, maxHashBytes)
+        val fileTypes: FileTypes get() = FileTypes(types)
     }
 
     init {
@@ -80,10 +87,12 @@ data class PhoneActionsConfig(
         require(switches.map { it.id }.toSet().size == switches.size) { "phone-actions.json switch ids must be unique" }
         require(offMessage.contains("{{feature}}")) { "offMessage must take {{feature}}" }
         require(reminders.maxReminders > 0 && reminders.maxTextChars > 0 && share.maxFileBytes > 0) { "phone-actions.json limits must be positive" }
-        require(storage.maxFolders > 0 && storage.scanMillis > 0 && storage.maxResults > 0 && storage.oldDays > 0) { "phone-actions.json storage limits must be positive" }
+        require(storage.maxFolders > 0 && storage.scanMillis > 0 && storage.maxResults > 0 && storage.oldDays > 0 && storage.maxHashBytes > 0) { "phone-actions.json storage limits must be positive" }
+        require(storage.types.keys == STORAGE_TYPES) { "phone-actions.json storage.types must list exactly $STORAGE_TYPES" }
     }
 
     companion object {
+        private val STORAGE_TYPES = setOf("image", "video", "audio", "document", "apk", "archive")
         const val SCHEMA_VERSION = 1
         val FILE = ConfigName("phone-actions.json")
     }
