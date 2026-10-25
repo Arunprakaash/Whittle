@@ -4,6 +4,7 @@ import app.whittle.automations.Automations
 import app.whittle.automations.EventGate
 import app.whittle.automations.GateDecision
 import app.whittle.automations.PhoneEvent
+import app.whittle.automations.Trigger
 import app.whittle.automations.matches
 
 /**
@@ -19,7 +20,9 @@ class EventDispatch(
     suspend fun dispatch(event: PhoneEvent) {
         for (automation in automations.loadedAll()) {
             if (!automation.enabled || !automation.isEvent || automation.trigger?.matches(event) != true) continue
-            if (gate.offer(automation.id, event) is GateDecision.RunAt) eventsArrived(automation.id)
+            // The trigger knows the app by the name the user picked it by; the event only has its package.
+            val named = (automation.trigger as? Trigger.Notification)?.let { event.copy(sourceLabel = it.appLabel) } ?: event
+            if (gate.offer(automation.id, named) is GateDecision.RunAt) eventsArrived(automation.id)
         }
     }
 }

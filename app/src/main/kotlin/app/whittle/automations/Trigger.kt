@@ -13,7 +13,7 @@ enum class EventKind { SMS, NOTIFICATION, PLACE, CHARGING, WIFI }
 /**
  * Something that happened on the phone. [source] is who or where it came from (a sender, an app package, a place
  * or network name); [text] is what it said, with any one-time code already masked. [edge] is set for the kinds
- * that have one.
+ * that have one. [sourceLabel] is what the user knows [source] as when that differs (an app's name for its package).
  */
 @Serializable
 data class PhoneEvent(
@@ -22,6 +22,7 @@ data class PhoneEvent(
     val text: String,
     val atMillis: Long,
     val edge: Edge? = null,
+    val sourceLabel: String = "",
 )
 
 /** What starts an automation when it isn't a time of day: an interval, or a [PhoneEvent] that passes the filters. */

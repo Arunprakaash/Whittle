@@ -16,6 +16,7 @@ import java.time.ZoneId
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -212,6 +213,56 @@ class AutomationRunnerTest {
         assertTrue("Text from HDFCBK at 07:00: Spent 250 at Cafe" in block.text, block.text)
         assertEquals(1, protections)
         assertTrue(gate.pending().isEmpty())
+    }
+
+    private suspend fun Automations.savedWith(trigger: Trigger): Automation {
+        val result = assertIs<SaveResult.Saved>(save(draft("Watch", "React").copy(schedule = null, trigger = trigger)))
+        alarms.set.clear()
+        return result.automation
+    }
+
+    private suspend fun blockText(runner: AutomationRunner, id: String): String {
+        runner.due(id, now)
+        return chat.pasted.single().single().text
+    }
+
+    @Test
+    fun aChargingEventSaysPluggedInWithoutGapsOrAColon() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.savedWith(Trigger.Charging(Edge.START))
+        gate.offer(automation.id, PhoneEvent(EventKind.CHARGING, "", "", now, Edge.START))
+        val text = blockText(runner, automation.id)
+        assertTrue("\nPlugged in at 07:00\n" in text, text)
+        assertTrue("from the phone" in text, text)
+    }
+
+    @Test
+    fun aHiddenWifiNameIsSaidAndTheEdgeIsStated() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.savedWith(Trigger.Wifi(null, Edge.END))
+        gate.offer(automation.id, PhoneEvent(EventKind.WIFI, "", "", now, Edge.END))
+        val text = blockText(runner, automation.id)
+        assertTrue("\nLeft Wi-Fi network (name hidden by Android) at 07:00\n" in text, text)
+    }
+
+    @Test
+    fun aPlaceEventNamesTheEdgeAndThePlace() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.savedWith(Trigger.Place("Home", 12.0, 77.0, 200, Edge.START))
+        gate.offer(automation.id, PhoneEvent(EventKind.PLACE, "Home", "", now, Edge.START))
+        val text = blockText(runner, automation.id)
+        assertTrue("\nArrived at Home at 07:00\n" in text, text)
+        assertTrue("from Home" in text, text)
+    }
+
+    @Test
+    fun aNotificationShowsTheAppsNameNotItsPackage() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.savedWith(Trigger.Notification("com.whatsapp", "WhatsApp"))
+        gate.offer(automation.id, PhoneEvent(EventKind.NOTIFICATION, "com.whatsapp", "Hi", now, sourceLabel = "WhatsApp"))
+        val text = blockText(runner, automation.id)
+        assertTrue("Notification from WhatsApp at 07:00: Hi" in text, text)
+        assertFalse("com.whatsapp" in text, text)
     }
 
     @Test

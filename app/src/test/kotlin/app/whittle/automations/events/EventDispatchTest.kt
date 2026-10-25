@@ -50,6 +50,19 @@ class EventDispatchTest {
     }
 
     @Test
+    fun aNotificationReachesTheQueueWithTheAppsName() = runTest {
+        val automations = Automations(
+            MemoryBackend(), RecordingAlarms(), testAutomationsConfig, EpochClock { now }, IdGenerator { "x" }, { zone }, this,
+        )
+        automations.save(automations.draft("chat", "Do it").copy(id = "chat", schedule = null, trigger = Trigger.Notification("com.whatsapp", "WhatsApp")))
+        val gate = EventGate(MemoryEventBackend(), testEventsConfig, CodeMask(testCodeMaskConfig), EpochClock { now }, { zone }, this)
+        EventDispatch(automations, gate) {}.dispatch(PhoneEvent(EventKind.NOTIFICATION, "com.whatsapp", "Hi", now))
+        val queued = gate.take("chat").single()
+        assertEquals("WhatsApp", queued.sourceLabel)
+        assertEquals("com.whatsapp", queued.source)
+    }
+
+    @Test
     fun dispatchWaitsForAutomationsStillLoading() = runTest {
         val saved = Automations(
             MemoryBackend(), RecordingAlarms(), testAutomationsConfig, EpochClock { now }, IdGenerator { "x" }, { zone }, this,

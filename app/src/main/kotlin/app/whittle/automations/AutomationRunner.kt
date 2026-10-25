@@ -82,10 +82,11 @@ class AutomationRunner(
         val zone = zones()
         val lines = events.map {
             val time = Instant.ofEpochMilli(it.atMillis).atZone(zone).toLocalTime().format(TIME)
-            messages.eventLine(it.kind.name, it.source, time, it.text)
+            messages.eventLine(it.kind.name, it.edge?.name, it.sourceLabel.ifBlank { it.source }, time, it.text)
         }
         val text = (listOf(messages.automationEventsIntro) + lines).joinToString("\n")
-        return pastedOutput(messages, PastedKind.PHONE_EVENT, events.first().source, text, maxPastedChars)
+        val label = events.map { it.sourceLabel.ifBlank { it.source } }
+        return pastedOutput(messages, PastedKind.PHONE_EVENT, label.firstOrNull { it.isNotBlank() }.orEmpty(), text, maxPastedChars)
     }
 
     private suspend fun start(automation: Automation, pasted: List<ContentBlock.Text> = emptyList()): RunNowResult {

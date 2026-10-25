@@ -120,9 +120,22 @@ data class AgentMessages(
     val screenshotUntrusted: String,
     /** Where an automation's events come from, for the pasted block's label; [NAME] is the first event's source. */
     val diagnosticsFromEvent: String,
-    /** One thing that happened on the phone; [KIND] is its [eventKinds] words. */
+    /** Where the pasted block's label says events come from when none has a source (a charging change has none). */
+    val eventSourcePhone: String,
+    /** One thing that happened on the phone, with a [SOURCE] and some [TEXT]; [KIND] is its [eventKinds] words. */
     val eventLine: String,
-    /** The plain words for each kind of event, by the kind's name (SMS, NOTIFICATION, PLACE, CHARGING, WIFI). */
+    /** An event with a source but no text, such as arriving at a place. */
+    val eventLineNoText: String,
+    /** An event with text but no source. */
+    val eventLineNoSource: String,
+    /** An event with neither, such as plugging in. */
+    val eventLineBare: String,
+    /** Stands for the name of a Wi-Fi network Android hides (no location permission, or location off). */
+    val eventUnnamedNetwork: String,
+    /**
+     * The plain words for each kind of event, by the kind's name (SMS, NOTIFICATION, PLACE, CHARGING, WIFI). A kind
+     * with an edge may have its own words under the kind and edge ("CHARGING_START"), which win.
+     */
     val eventKinds: Map<String, String>,
     /** Starts the pasted events, so the model knows why it was started and that the lines are data. */
     val automationEventsIntro: String,
@@ -218,6 +231,11 @@ data class AgentMessages(
         requirePlaceholders(screenshotUntrusted, SOURCE, PATH)
         requirePlaceholders(diagnosticsFromEvent, NAME)
         requirePlaceholders(eventLine, KIND, SOURCE, TIME, TEXT)
+        requirePlaceholders(eventLineNoText, KIND, SOURCE, TIME)
+        requirePlaceholders(eventLineNoSource, KIND, TIME, TEXT)
+        requirePlaceholders(eventLineBare, KIND, TIME)
+        requirePlaceholders(eventSourcePhone)
+        requirePlaceholders(eventUnnamedNetwork)
         requirePlaceholders(automationEventsIntro)
         requirePlaceholders(automationWatching, NAME, EVENT, PLACE, TOOLS)
         requirePlaceholders(automationNeedsPermission, PERMISSIONS)
@@ -354,11 +372,24 @@ data class AgentMessages(
     fun diagnosticsFromScreen(name: String): String = render(diagnosticsFromScreen, NAME to name)
 
     fun screenshotUntrusted(source: String, path: String): String = render(screenshotUntrusted, SOURCE to source, PATH to path)
-    fun diagnosticsFromEvent(source: String): String = render(diagnosticsFromEvent, NAME to source)
+    /** [source] is the first source any event has; the label is never empty, falling back to the phone itself. */
+    fun diagnosticsFromEvent(source: String): String = render(diagnosticsFromEvent, NAME to source.ifBlank { eventSourcePhone })
 
-    /** [kind] is an event kind's name; one with no words in config is named as it is. */
-    fun eventLine(kind: String, source: String, time: String, text: String): String =
-        render(eventLine, KIND to (eventKinds[kind] ?: kind), SOURCE to source, TIME to time, TEXT to text)
+    /**
+     * One event as a line. [kind] and [edge] are the names of an event's kind and edge (null for a kind with none); words
+     * for the pair win over the kind's, and one with no words in config is named as it is. The template follows
+     * what the event has: a [source], some [text], both or neither.
+     */
+    fun eventLine(kind: String, edge: String?, source: String, time: String, text: String): String {
+        val words = edge?.let { eventKinds["${kind}_$it"] } ?: eventKinds[kind] ?: kind
+        val from = if (source.isBlank() && kind == WIFI_KIND) eventUnnamedNetwork else source
+        return when {
+            from.isBlank() && text.isBlank() -> render(eventLineBare, KIND to words, TIME to time)
+            from.isBlank() -> render(eventLineNoSource, KIND to words, TIME to time, TEXT to text)
+            text.isBlank() -> render(eventLineNoText, KIND to words, SOURCE to from, TIME to time)
+            else -> render(eventLine, KIND to words, SOURCE to from, TIME to time, TEXT to text)
+        }
+    }
 
     /** The memory section of the system prompt: one line per remembered fact, as (id, text) pairs. */
     fun memories(items: List<Pair<String, String>>): String =
@@ -397,6 +428,7 @@ data class AgentMessages(
         private const val TOOLS = "tools"
         private const val PROJECT = "project"
         private const val EVENT = "event"
+        private const val WIFI_KIND = "WIFI"
         private const val PERMISSIONS = "permissions"
         private const val APPS = "apps"
     }
