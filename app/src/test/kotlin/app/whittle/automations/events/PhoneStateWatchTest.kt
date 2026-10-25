@@ -213,4 +213,25 @@ class PhoneStateWatchTest {
         assertTrue(events.isEmpty())
         assertEquals(setOf("Home"), fake.saved?.inside)
     }
+
+    @Test
+    fun aNameThatGetsHiddenWhileStillOnWifiIsNotLeavingIt() = runTest {
+        val fake = Fake(idle.copy(wifi = "Home"))
+        val events = mutableListOf<PhoneEvent>()
+        val watch = watch(fake, this, listOf(Trigger.Wifi(null, Edge.START), Trigger.Wifi("Home", Edge.END)), events = events)
+
+        watch.check()
+        fake.state = idle.copy(wifi = "")
+        watch.check()
+        assertEquals("Home", fake.saved?.wifi)
+        fake.state = idle.copy(wifi = "Home")
+        watch.check()
+        assertTrue(events.isEmpty(), events.toString())
+
+        fake.state = idle.copy(wifi = "")
+        watch.check()
+        fake.state = idle
+        watch.check()
+        assertEquals(listOf(PhoneEvent(EventKind.WIFI, "Home", "", now, Edge.END)), events)
+    }
 }

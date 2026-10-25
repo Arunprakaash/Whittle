@@ -109,6 +109,15 @@ class PhoneStateWatch(
         } else {
             last
         }
-        return PhoneState(reader.charging(), reader.wifi(), inside)
+        return PhoneState(reader.charging(), wifiKeepingName(before?.wifi), inside)
+    }
+
+    /**
+     * Still on Wi-Fi with the name now hidden (location turned off or taken away) is the same network, not one left and
+     * another joined: unknown means unchanged, as it does for charging.
+     */
+    private fun wifiKeepingName(saved: String?): String? {
+        val now = reader.wifi()
+        return if (now == "" && !saved.isNullOrEmpty()) saved else now
     }
 }
