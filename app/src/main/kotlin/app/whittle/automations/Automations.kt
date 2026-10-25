@@ -166,15 +166,30 @@ class Automations(
         alarms.set(id, clock.nowMillis() + config.retryAfterMillis, scheduledForMillis, retry = true)
     }
 
-    /** When [automation] runs next, or null while it's off. An interval counts from its last run or [handledMillis], if later. */
-    fun nextRunMillis(automation: Automation, handledMillis: Long = 0): Long? {
+    /**
+     * When [automation] next runs, or null while it's off, for the list: an interval that is behind shows its next slot,
+     * not now.
+     */
+    fun nextRunMillis(automation: Automation): Long? = nextRun(automation, 0, overdueIsNow = false)
+
+    /**
+     * An interval counts from its last run or [handledMillis], if later. One that is already overdue is due [overdueIsNow]
+     * (a launch or a save finding it late) or at the first slot still ahead.
+     */
+    private fun nextRun(automation: Automation, handledMillis: Long, overdueIsNow: Boolean): Long? {
         if (!automation.enabled) return null
         val now = clock.nowMillis()
         val trigger = automation.trigger
         return when {
             trigger is Trigger.Every -> {
+                val every = trigger.minutes * MILLIS_PER_MINUTE
                 val from = maxOf(automation.lastRunAtMillis ?: 0, handledMillis).takeIf { it > 0 } ?: now
-                maxOf(now, from + trigger.minutes * MILLIS_PER_MINUTE)
+                val due = from + every
+                when {
+                    due >= now -> due
+                    overdueIsNow -> now
+                    else -> due + ((now - due) / every + 1) * every
+                }
             }
             automation.schedule != null -> automation.schedule.nextAfter(Instant.ofEpochMilli(now), zone).toEpochMilli()
             else -> null
@@ -194,7 +209,7 @@ class Automations(
         backend.save(automations).also { if (it is Outcome.Success) _all.value = automations }
 
     private fun schedule(automation: Automation, handledMillis: Long = 0): Long? {
-        val next = nextRunMillis(automation, handledMillis)
+        val next = nextRun(automation, handledMillis, overdueIsNow = true)
         if (next == null) {
             // An event automation has no next run, but may have a drain alarm waiting that a save mustn't wipe.
             if (automation.isEvent) alarms.cancelNext(automation.id) else alarms.cancel(automation.id)
@@ -216,7 +231,7 @@ class Automations(
         else -> null
     }
 
-    private companion object {
+    companion object {
         const val MILLIS_PER_MINUTE = 60_000L
     }
 }

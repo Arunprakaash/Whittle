@@ -38,8 +38,9 @@ class AutomationsTest {
         val every = Automation("e", "Poll", "Check", schedule = null, trigger = Trigger.Every(30), tools = emptySet())
         assertEquals(now + 30 * 60_000, automations.nextRunMillis(every))
         assertEquals(now + 10 * 60_000, automations.nextRunMillis(every.copy(lastRunAtMillis = now - 20 * 60_000)))
-        // A run long overdue is due now, not in the past.
-        assertEquals(now, automations.nextRunMillis(every.copy(trigger = Trigger.Every(30), lastRunAtMillis = now - 90 * 60_000)))
+        // One behind (blocked, say) shows the next slot after now, not now: slots at last run + 30, 60, 90, 120 min.
+        assertEquals(now + 30 * 60_000, automations.nextRunMillis(every.copy(lastRunAtMillis = now - 90 * 60_000)))
+        assertEquals(now + 10 * 60_000, automations.nextRunMillis(every.copy(lastRunAtMillis = now - 80 * 60_000)))
     }
 
     @Test

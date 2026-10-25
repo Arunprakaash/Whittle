@@ -50,14 +50,31 @@ class AutomationRunner(
             !inForeground() && !chat.isRunning && start(automation, pasted) == RunNowResult.STARTED
         }
         when {
-            started -> protect()
+            started -> {
+                protect()
+                // A retry that got through late: the next run counts from now, so two runs never sit closer than the interval.
+                if (automation.trigger is Trigger.Every && clock.nowMillis() - scheduledForMillis >= automations.config.retryAfterMillis) {
+                    automations.scheduleNext(id, clock.nowMillis())
+                }
+            }
             else -> {
                 // Put back, never lost: even once given up on, the events stay queued for the next event or drain.
                 gate.putBack(id, events)
-                if (clock.nowMillis() - scheduledForMillis < automations.config.giveUpAfterMillis) automations.retryLater(id, scheduledForMillis)
+                if (stillWorthRetrying(automation, scheduledForMillis)) automations.retryLater(id, scheduledForMillis)
                 else automations.recordMissed(id, scheduledForMillis)
             }
         }
+    }
+
+    /**
+     * Whether a run due at [slot] that couldn't start gets another try. An interval has one retry alarm for all its
+     * slots, so a retry past the next slot would only be replaced by that slot's own: it stops there, and the miss is noted.
+     */
+    private fun stillWorthRetrying(automation: Automation, slot: Long): Boolean {
+        val now = clock.nowMillis()
+        if (now - slot >= automations.config.giveUpAfterMillis) return false
+        val every = automation.trigger as? Trigger.Every ?: return true
+        return now + automations.config.retryAfterMillis < slot + every.minutes * Automations.MILLIS_PER_MINUTE
     }
 
     /**

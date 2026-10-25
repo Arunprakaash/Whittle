@@ -89,23 +89,61 @@ class AutomationRunnerTest {
         return result.automation
     }
 
+    /** Fires the retry alarm the runner last set, as the system would, until it sets none; returns the times it fired. */
+    private suspend fun AutomationRunner.followRetries(id: String, slot: Long): List<Long> {
+        val fired = mutableListOf<Long>()
+        while (true) {
+            val retry = alarms.set.lastOrNull { it.retry } ?: return fired
+            alarms.set.removeAll { it.retry }
+            now = retry.atMillis
+            fired += now
+            due(id, retry.scheduledForMillis)
+            check(fired.size < 1_000) { "never gives up" }
+        }
+    }
+
     @Test
-    fun `an interval that can't start keeps its next run a slot later, retries, then notes the miss`() = runTest {
+    fun `an interval that can't start retries only until its next slot, then notes the miss`() = runTest {
+        listOf(15, 60).forEach { minutes ->
+            now = due
+            alarms.set.clear()
+            val (automations, runner) = setUp()
+            val every = automations.savedEvery(minutes)
+            chat.hasModel = false
+            val slot = minutes * 60_000L
+            runner.due(every.id, due)
+            assertEquals(due + slot, alarms.set.single { !it.retry }.atMillis)
+            val retries = runner.followRetries(every.id, due)
+            assertTrue(retries.isNotEmpty())
+            assertTrue(retries.all { it < due + slot }, "$minutes min: a retry reached the next slot")
+            assertEquals(due, automations.all.value.single().missedAtMillis)
+            // Still one alarm for the next slot, which takes over.
+            assertEquals(due + slot, alarms.set.last { !it.retry }.atMillis)
+        }
+    }
+
+    @Test
+    fun `an interval's retry that starts late keeps the interval before the next run`() = runTest {
         val (automations, runner) = setUp()
         val every = automations.savedEvery(30)
         chat.hasModel = false
-        val slot = 30 * 60_000L
         runner.due(every.id, due)
-        assertEquals(due + slot, alarms.set.single { !it.retry }.atMillis)
-        assertEquals(Alarm(every.id, now + testAutomationsConfig.retryAfterMillis, due, retry = true), alarms.set.single { it.retry })
+        chat.hasModel = true
         alarms.set.clear()
-        now = due + testAutomationsConfig.retryAfterMillis
+        now = due + 5 * 60_000L
         runner.due(every.id, due)
-        assertEquals(due + slot, alarms.set.single { !it.retry }.atMillis)
-        alarms.set.clear()
-        now = due + testAutomationsConfig.giveUpAfterMillis
-        runner.due(every.id, due)
-        assertTrue(alarms.set.none { it.retry })
+        assertEquals(1, chat.started.size)
+        assertEquals(now + 30 * 60_000L, alarms.set.last { !it.retry }.atMillis)
+    }
+
+    @Test
+    fun `a time automation still retries until the give up time`() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.saved()
+        chat.hasModel = false
+        runner.due(automation.id, due)
+        val retries = runner.followRetries(automation.id, due)
+        assertTrue(retries.last() >= due + testAutomationsConfig.giveUpAfterMillis - testAutomationsConfig.retryAfterMillis)
         assertEquals(due, automations.all.value.single().missedAtMillis)
     }
 
