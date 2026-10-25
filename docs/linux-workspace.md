@@ -191,6 +191,22 @@ card for untrusted models and tainted runs.
   - Whether a foreground service exempts us is unclear. Measure it on a real phone.
 - **System prompt:** for servers, use `start_process`, then show the preview.
 
+## Use from your computer
+
+Settings › Linux workspace › Your computer lets the user's own computers sign in to Linux over SSH, for a terminal,
+VS Code or Cursor over Remote-SSH, and the phone's dev servers through `ssh -L`. Settings are in
+`computer-access.json`.
+
+- **Off until turned on.** The first time, OpenSSH's server is installed without recommended extras.
+- **Wi-Fi only.** It listens on the phone's Wi-Fi address (and on the phone itself), turns itself off when the phone
+  leaves Wi-Fi, and moves when the address changes.
+- **Keys only.** Computers are added by pasting their public key; passwords and keyboard-interactive sign-in are off.
+  Keys live in `/etc/whittle/computers`, one per line, with no `authorized_keys` options.
+- **The user's shell, not the agent's.** The agent never uses an SSH session.
+- **Kept alive** by a foreground notification with Turn off while it's on. Reset and Remove turn it off first.
+- **Under proot** sshd needs `/run/sshd` made before it starts and `StrictModes=no`, as proot reports every file as
+  root's.
+
 ## Localhost preview
 
 - The process card opens `http://127.0.0.1:<port>` in a sheet with a WebView.

@@ -19,6 +19,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class AppToolchainTest {
@@ -236,11 +237,11 @@ class AppToolchainTest {
 
     @Test
     fun `Remove is offered for a set-up toolchain or a half-finished one, but not during setup or a build`() {
-        assertTrue(canRemoveToolchain(ready = true, size = "400M", installing = false, building = false))
-        assertTrue(canRemoveToolchain(ready = false, size = "120M", installing = false, building = false), "a broken setup can be cleared")
+        assertTrue(canRemoveToolchain(ready = true, size = 400_000_000L, installing = false, building = false))
+        assertTrue(canRemoveToolchain(ready = false, size = 120_000_000L, installing = false, building = false), "a broken setup can be cleared")
         assertFalse(canRemoveToolchain(ready = false, size = null, installing = false, building = false))
-        assertFalse(canRemoveToolchain(ready = true, size = "400M", installing = true, building = false))
-        assertFalse(canRemoveToolchain(ready = true, size = "400M", installing = false, building = true))
+        assertFalse(canRemoveToolchain(ready = true, size = 400_000_000L, installing = true, building = false))
+        assertFalse(canRemoveToolchain(ready = true, size = 400_000_000L, installing = false, building = true))
     }
 
     @Test
@@ -301,5 +302,12 @@ class AppToolchainTest {
         present = false
         setMarker(false)
         toolchain
+    }
+
+    @Test
+    fun `du's kibibytes become bytes, and odd output none`() {
+        assertEquals(153_600L * 1024, duBytes("153600\t/opt/whittle-apps\n"))
+        assertNull(duBytes("du: cannot access '/opt/whittle-apps'"))
+        assertNull(duBytes(""))
     }
 }

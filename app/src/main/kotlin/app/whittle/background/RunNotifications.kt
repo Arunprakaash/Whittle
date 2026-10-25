@@ -295,6 +295,21 @@ class RunNotifications(private val context: Context) {
             .build()
     }
 
+    /** While computers may sign in to Linux over SSH: how ([signIn]), with Turn off. */
+    fun computerAccess(signIn: String): Notification =
+        Notification.Builder(context, CHANNEL_RUNNING)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.notify_computer_title))
+            .setContentText(signIn)
+            .setContentIntent(openApp())
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setCategory(Notification.CATEGORY_SERVICE)
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicVersion(CHANNEL_RUNNING, R.string.notify_computer_title))
+            .addAction(Notification.Action.Builder(null, context.getString(R.string.notify_computer_turn_off), turnOffComputerAccess()).build())
+            .build()
+
     /** Linux setup while it downloads, unpacks and installs: a quiet line with real progress where there is some. */
     fun linuxSetup(state: LinuxState.SettingUp, imageName: String): Notification =
         Notification.Builder(context, CHANNEL_RUNNING)
@@ -335,6 +350,13 @@ class RunNotifications(private val context: Context) {
         context,
         REQUEST_OPEN,
         Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
+    private fun turnOffComputerAccess(): PendingIntent = PendingIntent.getService(
+        context,
+        REQUEST_COMPUTER_OFF,
+        Intent(context, ComputerAccessService::class.java).setAction(ComputerAccessService.ACTION_TURN_OFF),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
@@ -380,6 +402,7 @@ class RunNotifications(private val context: Context) {
         const val ID_APP_TOOLCHAIN = 6
         private const val ID_UPDATE = 7
         private const val ID_UPDATE_PROGRESS = 8
+        const val ID_COMPUTER_ACCESS = 9
         private const val PERCENT = 100
         private const val ID_FINISHED = 2
         private const val ID_NEEDS_YOU = 3
@@ -398,6 +421,7 @@ class RunNotifications(private val context: Context) {
         private const val REQUEST_STOP_ALL = 3
         private const val REQUEST_UPDATE = 4
         private const val REQUEST_UPDATE_NOW = 6
+        private const val REQUEST_COMPUTER_OFF = 7
         private const val REQUEST_CONNECTIONS = 5
     }
 }

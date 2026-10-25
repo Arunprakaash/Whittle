@@ -131,6 +131,15 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Keeps local development servers the user's AI agent started running, listed in a notification with a Stop all button." />
         </service>
+        <!-- Keeps the SSH server in Linux running while the user's own computers may sign in, with Turn off; ends with it. -->
+        <service
+            android:name=".background.ComputerAccessService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps an SSH server the user turned on running, so their own computer on the same Wi-Fi can use the app's Linux workspace; listed in a notification with a Turn off button." />
+        </service>
         <!-- Automations: woken by their own alarms, and by the system to set those alarms again. Not exported;
              system broadcasts still arrive, and no other app can start a run. -->
         <receiver

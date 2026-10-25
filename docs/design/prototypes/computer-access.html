@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Use from your computer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..24,400,0..1,0&display=swap">
+<style>
+  :root {
+    --page: #EEF0EE; --ink: #171D1A; --ink-2: #404944; --ink-3: #707973; --line: #D6DBD7; --card: #FFFFFF;
+    --accent: #2B6A55; --accent-soft: #CDE9DC;
+    /* The phones use the neutral wallpaper colors seen on the emulator. */
+    --p-bg: #F9F9F9; --p-row: #F1F1F1; --p-ink: #1F1F1F; --p-ink-2: #5E5E5E; --p-icon-bg: #E3E3E3; --p-on: #5A5A5A; --p-off: #E3E3E3;
+    --p-field: #FFFFFF; --p-shade: #DADDE0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --page: #0F1512; --ink: #DEE4DF; --ink-2: #C0C9C3; --ink-3: #8A938D; --line: #303633; --card: #171D1A; --accent: #97D4BA; --accent-soft: #1F3A30; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --page: #0F1512; --ink: #DEE4DF; --ink-2: #C0C9C3; --ink-3: #8A938D; --line: #303633; --card: #171D1A; --accent: #97D4BA; --accent-soft: #1F3A30; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 400 15px/1.5 Figtree, system-ui, sans-serif; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding-block: 40px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  h1 { font-weight: 600; font-size: 30px; line-height: 1.2; margin: 0 0 8px; text-wrap: balance; }
+  .lede { color: var(--ink-2); max-width: 72ch; margin: 0 0 24px; }
+  .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 0 0 28px; padding: 0; list-style: none; }
+  .rules li { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+  .rules b { display: block; font-weight: 600; margin-bottom: 2px; }
+  .rules span { color: var(--ink-2); font-size: 14px; }
+  .states { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 20px; }
+  .states .label { font: 500 12px/1 "Geist Mono", monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-right: 4px; }
+  .chip { font: 500 14px Figtree, sans-serif; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; cursor: pointer; }
+  .chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+  .compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 24px; justify-items: center; }
+  .col { width: 100%; max-width: 390px; min-width: 0; }
+  .col h2 { font: 600 16px Figtree, sans-serif; margin: 0 0 2px; }
+  .col p { margin: 0 0 8px; color: var(--ink-3); font-size: 13.5px; }
+  .phone { background: var(--p-bg); color: var(--p-ink); border-radius: 36px; border: 8px solid #1d1d1f; height: 780px; max-width: 100%; overflow-y: auto; overscroll-behavior: contain; padding: 18px 14px 28px; box-shadow: 0 20px 40px -24px rgba(0,0,0,.4); position: relative; }
+  .phone::-webkit-scrollbar { width: 0; }
+  .bar { display: flex; align-items: center; gap: 14px; padding: 6px 2px 14px; }
+  .back { width: 40px; height: 40px; border-radius: 50%; background: #EAEAEA; display: grid; place-items: center; flex: none; }
+  .bar h3 { margin: 0; font: 600 20px Figtree, sans-serif; }
+  .sec { margin: 0 0 18px; }
+  .sec-title { font: 500 13px Figtree, sans-serif; color: var(--p-ink-2); margin: 0 0 8px 12px; }
+  .foot { font-size: 12.5px; color: var(--p-ink-2); margin: 8px 12px 0; line-height: 1.45; }
+  .group { display: flex; flex-direction: column; gap: 3px; }
+  .row { display: flex; align-items: center; gap: 12px; background: var(--p-row); padding: 12px 14px; min-height: 58px; border-radius: 6px; }
+  .group .row:first-child { border-top-left-radius: 20px; border-top-right-radius: 20px; }
+  .group .row:last-child { border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; }
+  .ic { width: 36px; height: 36px; border-radius: 50%; background: var(--p-icon-bg); display: grid; place-items: center; flex: none; }
+  .ms { font-family: "Material Symbols Rounded"; font-size: 20px; line-height: 1; color: var(--p-ink-2); font-variation-settings: "opsz" 20; }
+  .txt { flex: 1; min-width: 0; }
+  .t { font: 500 15.5px/1.3 Figtree, sans-serif; }
+  .t.mono { font: 500 13.5px/1.35 "Geist Mono", monospace; word-break: break-all; }
+  .s { font-size: 13.5px; color: var(--p-ink-2); line-height: 1.35; margin-top: 2px; }
+  .sw { width: 46px; height: 28px; border-radius: 999px; background: var(--p-off); border: 2px solid #8E8E8E; position: relative; flex: none; }
+  .sw::after { content: ""; position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; border-radius: 50%; background: #8E8E8E; }
+  .sw.on { background: var(--p-on); border-color: var(--p-on); }
+  .sw.on::after { left: 22px; top: 2px; width: 20px; height: 20px; background: #fff; }
+  .sw.dis { opacity: .45; }
+  .textbtn { font: 500 14px Figtree, sans-serif; color: var(--p-ink); padding: 6px 8px; flex: none; }
+  .iconbtn { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+  .new { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 22px; }
+  .card { background: var(--p-row); border-radius: 20px; padding: 14px; margin: 0 0 18px; display: flex; gap: 12px; align-items: center; }
+  .muted { color: var(--p-ink-2); font-size: 13.5px; }
+  /* Sheet */
+  .scrim { position: absolute; inset: 0; background: rgba(0,0,0,.32); border-radius: 28px; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--p-bg); border-radius: 28px 28px 22px 22px; padding: 10px 18px 22px; display: flex; flex-direction: column; gap: 14px; }
+  .handle { width: 36px; height: 4px; border-radius: 2px; background: #C4C4C4; align-self: center; }
+  .sheet h4 { margin: 4px 0 0; font: 600 22px/1.25 Figtree, sans-serif; }
+  .code { background: var(--p-field); border-radius: 14px; padding: 10px 6px 10px 12px; display: flex; align-items: center; gap: 8px; font: 400 13.5px "Geist Mono", monospace; }
+  .code span { flex: 1; min-width: 0; word-break: break-all; }
+  .field { background: var(--p-field); border: 1px solid #8E8E8E; border-radius: 16px; padding: 8px 14px 12px; }
+  .field label { display: block; font-size: 12px; color: var(--p-ink-2); }
+  .field div { font: 400 13.5px/1.4 "Geist Mono", monospace; word-break: break-all; min-height: 58px; }
+  .btn { background: #3D3D3D; color: #fff; border-radius: 999px; padding: 14px; text-align: center; font: 500 15px Figtree, sans-serif; }
+  /* Shade */
+  .shade { background: var(--p-shade); }
+  .notif { background: #F3F3F3; border-radius: 26px; padding: 14px 16px; display: flex; gap: 12px; margin-top: 8px; }
+  .notif .app { width: 36px; height: 36px; border-radius: 50%; background: #2C5E4A; display: grid; place-items: center; flex: none; }
+  .notif .app .ms { color: #fff; }
+  .notif .meta { font-size: 13px; color: var(--p-ink-2); }
+  .notif .nt { font: 500 15px Figtree, sans-serif; margin-top: 2px; }
+  .notif .nb { font-size: 14px; color: var(--p-ink-2); }
+  .notif .acts { display: flex; gap: 8px; margin-top: 10px; }
+  .notif .acts span { background: #E4E4E4; border-radius: 999px; padding: 7px 14px; font: 500 13.5px Figtree, sans-serif; }
+  /* Below */
+  h2.sec-h { font: 600 18px Figtree, sans-serif; margin: 44px 0 6px; }
+  .sub { color: var(--ink-2); margin: 0 0 12px; font-size: 14px; max-width: 72ch; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; }
+  .cards div { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+  .cards b { display: block; margin-bottom: 4px; }
+  .cards span { color: var(--ink-2); font-size: 14px; }
+  .cards code { font: 400 12.5px "Geist Mono", monospace; background: var(--page); padding: 1px 5px; border-radius: 5px; word-break: break-all; }
+  .note { color: var(--ink-3); font-size: 13px; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Use the Linux workspace from your computer</h1>
+  <p class="lede">The phone does the running; your computer does the typing. One new section on the Linux workspace screen turns on an SSH server inside the phone's Ubuntu. From any computer on the same Wi-Fi you get a terminal, your projects, VS Code or Cursor over Remote-SSH, and the phone's dev servers. No new screens: the section reuses Settings rows, and adding a computer uses the add-connection sheet.</p>
+  <ul class="rules">
+    <li><b>Off until you turn it on</b><span>Nothing listens on the network until you switch it on, and it switches itself off when you leave Wi-Fi.</span></li>
+    <li><b>Only computers you add</b><span>Sign-in is by key, never a password. You paste the computer's public key once; Remove takes it back.</span></li>
+    <li><b>Wi-Fi only</b><span>It listens on the phone's Wi-Fi address, not on mobile data.</span></li>
+    <li><b>Your shell, not the agent's</b><span>An SSH session is you at the keyboard, like the Linux terminal. Whittle's agent can't use it and doesn't see it.</span></li>
+  </ul>
+
+  <div class="states" role="group" aria-label="Try states">
+    <span class="label">Try</span>
+    <button class="chip" data-state="off" aria-pressed="false">Off</button>
+    <button class="chip" data-state="on" aria-pressed="true">On, one computer</button>
+    <button class="chip" data-state="nowifi" aria-pressed="false">Not on Wi-Fi</button>
+  </div>
+
+  <div class="compare">
+    <div class="col">
+      <h2>Settings › Linux workspace</h2>
+      <p>One new section, dashed, between App building and Repair.</p>
+      <div class="phone" id="linux"></div>
+    </div>
+    <div class="col">
+      <h2>Add a computer</h2>
+      <p>The add-connection sheet, with a key instead of a URL.</p>
+      <div class="phone" id="add"></div>
+    </div>
+    <div class="col">
+      <h2>While it's on</h2>
+      <p>The ongoing notification Whittle already uses, with Turn off.</p>
+      <div class="phone shade" id="notif"></div>
+    </div>
+  </div>
+
+  <h2 class="sec-h">What it's for, on the computer</h2>
+  <div class="cards">
+    <div><b>A terminal</b><span>Copy the row's command: <code>ssh -p 8022 root@192.168.1.23</code>. You land in the same Ubuntu Whittle uses, with its projects in <code>/workspace</code>.</span></div>
+    <div><b>VS Code or Cursor</b><span>Remote-SSH › Connect to Host, with the same address. Edit the phone's projects with the computer's editor; servers you start get forwarded automatically.</span></div>
+    <div><b>Dev servers</b><span>A server Whittle runs on the phone, say Vite on 5173, opens on the computer with <code>ssh -p 8022 -L 5173:localhost:5173 root@192.168.1.23</code>, then <code>localhost:5173</code>.</span></div>
+    <div><b>Files</b><span><code>scp</code> and <code>sftp</code> work too, so copying a project in or a build out is one command.</span></div>
+  </div>
+
+  <h2 class="sec-h">Checked on the emulator</h2>
+  <div class="cards">
+    <div><b>OpenSSH runs under proot</b><span>sshd started in the phone's Ubuntu 24.04 (aarch64) once its <code>/run/sshd</code> folder existed, and listened on 8022.</span></div>
+    <div><b>Login, terminal, tunnel</b><span>From this Mac (through an adb port forward): key login in 0.3 s, a real terminal (<code>/dev/pts/1</code>), the workspace with git and Node, and a server on the phone reached through <code>ssh -L</code>.</span></div>
+    <div><b>Install lean</b><span>A plain <code>apt install openssh-server</code> pulled in 66 packages, Python included. The build installs it without recommends.</span></div>
+    <div><b>Not checked yet</b><span>VS Code's Remote-SSH server running under proot, and reaching the phone's real Wi-Fi address (the emulator is behind its own network). Both get checked on a real phone before merging.</span></div>
+  </div>
+
+  <h2 class="sec-h">Still to choose</h2>
+  <div class="cards">
+    <div><b>Turn off after a while?</b><span>Proposed: no timer. It stays on while the notification shows and switches off when you leave Wi-Fi or tap Turn off.</span></div>
+    <div><b>Port</b><span>8022 by default, in config, as Termux uses. Change it in config only.</span></div>
+    <div><b>Name</b><span>"Use from your computer" for the switch, "Your computer" for the section. Short, and says what it does without saying SSH first.</span></div>
+  </div>
+  <p class="note">Wording follows the Settings rule: a row's second line says its state, and only when there is one.</p>
+</div>
+
+<script>
+const state = { mode: "on" };
+const row = (icon, title, sub, trail = "", cls = "", mono = false) =>
+  `<div class="row ${cls}"><div class="ic"><span class="ms">${icon}</span></div><div class="txt"><div class="t${mono ? " mono" : ""}">${title}</div>${sub ? `<div class="s">${sub}</div>` : ""}</div>${trail}</div>`;
+const sw = (on, dis) => `<span class="sw${on ? " on" : ""}${dis ? " dis" : ""}"></span>`;
+const sec = (title, rows, opts = {}) =>
+  `<section class="sec${opts.cls ? " " + opts.cls : ""}">${title ? `<div class="sec-title">${title}</div>` : ""}<div class="group">${rows.join("")}</div>${opts.foot ? `<div class="foot">${opts.foot}</div>` : ""}</section>`;
+const bar = t => `<div class="bar"><div class="back"><span class="ms">arrow_back</span></div><h3>${t}</h3></div>`;
+const copy = `<span class="iconbtn"><span class="ms">content_copy</span></span>`;
+
+function linux() {
+  const on = state.mode === "on", nowifi = state.mode === "nowifi";
+  const toggle = row("computer", "Use from your computer", on ? "On · 192.168.1.23" : nowifi ? "Needs Wi-Fi" : "", sw(on, nowifi));
+  const rows = on ? [
+    toggle,
+    row("terminal", "ssh -p 8022 root@192.168.1.23", "", copy, "", true),
+    row("laptop_mac", "arun@macbook", "Added today", `<span class="textbtn">Remove</span>`),
+    row("add", "Add a computer", ""),
+  ] : [toggle];
+  return bar("Linux workspace") +
+    `<div class="card"><div class="ic"><span class="ms">check_circle</span></div><div><div class="t">Ubuntu 24.04 LTS</div><div class="muted">Ready · 1.4 GB</div></div></div>` +
+    sec("", [row("build", "App building", "Set up · 820 MB")]) +
+    sec("Your computer", rows, { cls: "new", foot: on ? "Same Wi-Fi only. Only computers you add can sign in." : "Sign in over SSH from a computer on the same Wi-Fi." }) +
+    sec("", [row("build", "Repair", "Re-runs setup. Keeps everything."), row("restart_alt", "Reset to a fresh Ubuntu", "Removes added tools. Chat files stay."), row("delete", "Remove", "Frees 1.4 GB.")]);
+}
+
+function add() {
+  return linux() + `<div class="scrim"></div><div class="sheet">
+    <div class="handle"></div>
+    <h4>Add a computer</h4>
+    <div class="muted">On the computer, run this and paste what it prints.</div>
+    <div class="code"><span>cat ~/.ssh/id_ed25519.pub</span>${copy}</div>
+    <div class="field"><label>Public key</label><div>ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFmJqqwNIzYR… arun@macbook</div></div>
+    <div class="muted">No key yet? Run <span style="font-family:'Geist Mono',monospace">ssh-keygen</span> first.</div>
+    <div class="btn">Add</div>
+  </div>`;
+}
+
+function notif() {
+  return `<div style="height:8px"></div><div class="notif"><div class="app"><span class="ms">computer</span></div><div style="flex:1;min-width:0">
+    <div class="meta">Whittle · now</div>
+    <div class="nt">Your computer can connect</div>
+    <div class="nb">ssh -p 8022 root@192.168.1.23</div>
+    <div class="acts"><span>Copy</span><span>Turn off</span></div></div></div>`;
+}
+
+function render() {
+  for (const [id, fn] of [["linux", linux], ["add", add], ["notif", notif]]) {
+    const el = document.getElementById(id);
+    const top = el.scrollTop;
+    el.innerHTML = fn();
+    el.scrollTop = top;
+  }
+}
+
+document.querySelectorAll(".chip").forEach(chip => chip.addEventListener("click", () => {
+  state.mode = chip.dataset.state;
+  document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", String(c === chip)));
+  render();
+}));
+render();
+</script>
+</body>
+</html>

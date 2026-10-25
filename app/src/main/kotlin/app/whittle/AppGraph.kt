@@ -90,6 +90,10 @@ import app.whittle.policy.PolicyRuleSet
 import app.whittle.policy.RuleBasedPolicyEngine
 import app.whittle.settings.AppDefaults
 import app.whittle.tools.android.HealthConnect
+import app.whittle.linux.ComputerAccess
+import app.whittle.linux.ComputerAccessConfig
+import app.whittle.linux.WifiAddress
+import app.whittle.background.ComputerAccessService
 import app.whittle.updates.SelfUpdate
 import app.whittle.updates.SelfUpdateHost
 import app.whittle.updates.UpdateCheck
@@ -404,6 +408,17 @@ class AppGraph(context: Context) {
             connectors::tools,
         )
     }
+
+    /** The user's own computers signing in to Linux over SSH, from Settings › Linux workspace. */
+    val computerAccess = ComputerAccess(
+        config = load(ComputerAccessConfig.FILE, ComputerAccessConfig.serializer(), ComputerAccessConfig.SCHEMA_VERSION),
+        environment = linux.environment,
+        linuxFile = { path -> linux.root()?.let { File(it, path.removePrefix("/")) } },
+        folder = { workspaces.folder().getOrNull() },
+        wifi = WifiAddress(context)::address,
+        scope = appScope,
+        serving = { on -> if (on) ComputerAccessService.start(context) },
+    )
 
     /** Claude Code, run in Linux with the user's own Claude plan, as another way to bring a model. */
     val claudeCode = ClaudeCodeConfig.FILE.let { file ->
