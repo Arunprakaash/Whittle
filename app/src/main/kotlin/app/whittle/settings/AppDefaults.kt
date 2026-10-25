@@ -207,9 +207,34 @@ data class MemoryDefaults(
     val fileName: String,
     /** Kinds of thing to remember, offered while there are none; each opens the editor started for it. */
     val ideas: List<MemoryIdea> = emptyList(),
+    val review: MemoryReviewDefaults,
 ) {
     init {
         require(fileName.isNotBlank()) { "memory.fileName must be set" }
+    }
+}
+
+/**
+ * The memory review: after a chat goes quiet for [quietMillis], one model call reads at most [maxInputChars] of it and
+ * proposes up to [maxSuggestions] facts (answering in at most [maxOutputTokens]); they wait in [fileName] (encrypted)
+ * for the user. What's remembered about past reviews is capped so it can't grow forever: the last [maxDismissed] texts
+ * the user dismissed and the last [maxReviewedChats] chats reviewed.
+ */
+@Serializable
+data class MemoryReviewDefaults(
+    val fileName: String,
+    val quietMillis: Long,
+    val maxSuggestions: Int,
+    val maxInputChars: Int,
+    val maxOutputTokens: Int,
+    val maxDismissed: Int,
+    val maxReviewedChats: Int,
+) {
+    init {
+        require(fileName.isNotBlank()) { "memory.review.fileName must be set" }
+        require(quietMillis > 0 && maxSuggestions > 0 && maxInputChars > 0 && maxOutputTokens > 0 && maxDismissed > 0 && maxReviewedChats > 0) {
+            "memory.review limits must be positive"
+        }
     }
 }
 

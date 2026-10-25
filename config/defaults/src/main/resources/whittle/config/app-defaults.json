@@ -95,6 +95,15 @@
   },
   "memory": {
     "fileName": "memory.bin",
+    "review": {
+      "fileName": "memory-suggestions.bin",
+      "quietMillis": 60000,
+      "maxSuggestions": 3,
+      "maxInputChars": 6000,
+      "maxOutputTokens": 400,
+      "maxDismissed": 200,
+      "maxReviewedChats": 200
+    },
     "ideas": [
       { "icon": "person", "title": "What to call you", "example": "“Call me Sam.”", "start": "Call me " },
       { "icon": "language", "title": "Units and language", "example": "“Use metric units and British English.”", "start": "Use " },

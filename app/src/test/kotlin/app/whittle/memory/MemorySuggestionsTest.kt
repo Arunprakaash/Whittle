@@ -1,0 +1,163 @@
+package app.whittle.memory
+
+import app.whittle.agent.AgentMessages
+import app.whittle.agent.Memory
+import app.whittle.agent.MemoryBackend
+import app.whittle.agent.MemoryStore
+import app.whittle.config.defaults.BundledConfigSource
+import app.whittle.core.common.EpochClock
+import app.whittle.core.common.HarnessError
+import app.whittle.core.common.IdGenerator
+import app.whittle.core.common.Outcome
+import app.whittle.core.config.ConfigFiles
+import app.whittle.core.config.ConfigLoader
+import app.whittle.core.config.MemoryPolicy
+import app.whittle.settings.MemoryReviewDefaults
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertTrue
+
+class MemorySuggestionsTest {
+    private class MemoryList(var saved: List<Memory> = emptyList()) : MemoryBackend {
+        override suspend fun load() = saved
+
+        override suspend fun save(memories: List<Memory>): Outcome<Unit> {
+            saved = memories
+            return Outcome.Success(Unit)
+        }
+    }
+
+    private class StateBox(var saved: SuggestionsState = SuggestionsState(emptyList(), emptyList(), emptyMap())) : SuggestionsBackend {
+        override suspend fun load() = saved
+
+        override suspend fun save(state: SuggestionsState): Outcome<Unit> {
+            saved = state
+            return Outcome.Success(Unit)
+        }
+    }
+
+    private val messages = assertIs<Outcome.Success<AgentMessages>>(
+        ConfigLoader(BundledConfigSource()).load(ConfigFiles.agentMessages, AgentMessages.serializer(), AgentMessages.SCHEMA_VERSION),
+    ).value
+    private val memoryBackend = MemoryList()
+    private val box = StateBox()
+    private var next = 0
+    private val ids = IdGenerator { "id-${next++}-padding" }
+    private val review = MemoryReviewDefaults(
+        fileName = "x.bin", quietMillis = 1, maxSuggestions = 3, maxInputChars = 10, maxOutputTokens = 10, maxDismissed = 2, maxReviewedChats = 2,
+    )
+
+    private fun memory(scope: CoroutineScope, items: Int = 5, chars: Int = 40) =
+        MemoryStore(memoryBackend, MemoryPolicy(items, chars, 8), messages, EpochClock { 7L }, ids, scope)
+
+    private fun suggestions(scope: CoroutineScope, memory: MemoryStore = memory(scope)) =
+        MemorySuggestions(box, memory, review, EpochClock { 9L }, ids, scope)
+
+    @Test
+    fun `keepSavesMemoryAndClears`() = runTest {
+        val memory = memory(this)
+        val s = suggestions(this, memory)
+        s.add("chat", listOf("Prefers metric units" to null))
+        val id = s.pending.value.single().id
+        val kept = assertIs<Outcome.Success<Memory>>(s.keep(id, "Prefers metric units, always")).value
+        assertEquals("Prefers metric units, always", kept.text)
+        assertEquals(listOf(kept), memory.current())
+        assertTrue(s.pending.value.isEmpty())
+        assertTrue(box.saved.pending.isEmpty())
+    }
+
+    @Test
+    fun `keepWithReplacesChangesOld`() = runTest {
+        val memory = memory(this)
+        val old = assertIs<Outcome.Success<Memory>>(memory.remember("Lives in Chennai")).value
+        val s = suggestions(this, memory)
+        s.add("chat", listOf("Lives in Pune" to old.id))
+        s.keep(s.pending.value.single().id, "Lives in Pune")
+        assertEquals(listOf(Memory(old.id, "Lives in Pune", 7L)), memory.current())
+    }
+
+    @Test
+    fun `a replaced memory that is gone falls back to saving the new one`() = runTest {
+        val memory = memory(this)
+        val s = suggestions(this, memory)
+        s.add("chat", listOf("Lives in Pune" to "missing"))
+        assertIs<Outcome.Success<Memory>>(s.keep(s.pending.value.single().id, "Lives in Pune"))
+        assertEquals(listOf("Lives in Pune"), memory.current().map { it.text })
+    }
+
+    @Test
+    fun `a failed keep leaves the suggestion pending and says why`() = runTest {
+        val memory = memory(this, items = 1)
+        memory.remember("Has a dog")
+        val s = suggestions(this, memory)
+        s.add("chat", listOf("Likes tea" to null))
+        assertIs<Outcome.Failure>(s.keep(s.pending.value.single().id, "Likes tea"))
+        assertEquals(1, s.pending.value.size)
+        assertIs<HarnessError.NotFound>(assertIs<Outcome.Failure>(s.keep("nope", "x")).error)
+    }
+
+    @Test
+    fun `dismissedNeverReturns`() = runTest {
+        val s = suggestions(this)
+        s.add("chat", listOf("Likes tea" to null))
+        s.dismiss(s.pending.value.single().id)
+        assertTrue(s.pending.value.isEmpty())
+        s.add("chat", listOf("  likes TEA " to null))
+        assertTrue(s.pending.value.isEmpty())
+        assertEquals(listOf("likes tea"), box.saved.dismissed)
+    }
+
+    @Test
+    fun `duplicatesOfMemoriesSkipped`() = runTest {
+        val memory = memory(this)
+        memory.remember("Has a dog")
+        val s = suggestions(this, memory)
+        s.add("chat", listOf("has a DOG" to null, "Likes tea" to null, "likes tea" to null, "x".repeat(41) to null, "  " to null))
+        assertEquals(listOf("Likes tea"), s.pending.value.map { it.text })
+        s.add("chat", listOf("LIKES TEA" to null))
+        assertEquals(1, s.pending.value.size)
+    }
+
+    @Test
+    fun `what is kept in mind is capped and survives a restart`() = runTest {
+        val s = suggestions(this)
+        listOf("a", "b", "c").forEach { text ->
+            s.add("chat", listOf(text to null))
+            s.dismiss(s.pending.value.single().id)
+        }
+        assertEquals(listOf("b", "c"), box.saved.dismissed)
+        s.markReviewed("one", 10)
+        s.markReviewed("two", 20)
+        s.markReviewed("three", 30)
+        s.markReviewed("two", 25)
+        assertEquals(0, s.reviewedCount("one"))
+        assertEquals(25, s.reviewedCount("two"))
+        assertEquals(30, suggestions(this).reviewedCount("three"))
+    }
+
+    @Test
+    fun `the encrypted file keeps the state and the bundled review limits are the planned ones`() = runTest {
+        val dir = java.nio.file.Files.createTempDirectory("whittle-suggestions").toFile()
+        try {
+            val cipher = object : app.whittle.core.common.ContentCipher {
+                override fun encrypt(plaintext: ByteArray, associatedData: ByteArray): Outcome<ByteArray> = Outcome.Success(plaintext.reversedArray())
+
+                override fun decrypt(ciphertext: ByteArray, associatedData: ByteArray): Outcome<ByteArray> = Outcome.Success(ciphertext.reversedArray())
+            }
+            val state = SuggestionsState(listOf(MemorySuggestion("a", "Likes tea", null, "c", 1L)), listOf("x"), mapOf("c" to 4))
+            EncryptedFileSuggestions(java.io.File(dir, "s.bin"), cipher).save(state)
+            assertEquals(state, EncryptedFileSuggestions(java.io.File(dir, "s.bin"), cipher).load())
+        } finally {
+            dir.deleteRecursively()
+        }
+        val defaults = assertIs<Outcome.Success<app.whittle.settings.AppDefaults>>(
+            ConfigLoader(BundledConfigSource()).load(
+                app.whittle.settings.AppDefaults.FILE, app.whittle.settings.AppDefaults.serializer(), app.whittle.settings.AppDefaults.SCHEMA_VERSION,
+            ),
+        ).value.memory.review
+        assertEquals(MemoryReviewDefaults("memory-suggestions.bin", 60_000, 3, 6_000, 400, 200, 200), defaults)
+    }
+}

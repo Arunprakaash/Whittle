@@ -14,6 +14,8 @@ import app.whittle.attachments.AttachmentImporter
 import app.whittle.attachments.WorkspaceImages
 import app.whittle.settings.AttachmentDefaults
 import app.whittle.memory.EncryptedFileMemory
+import app.whittle.memory.EncryptedFileSuggestions
+import app.whittle.memory.MemorySuggestions
 import app.whittle.tools.workspace.WorkspaceOutputs
 import app.whittle.settings.MemoryIdea
 import app.whittle.settings.Starter
@@ -366,6 +368,16 @@ class AppGraph(context: Context) {
         EncryptedFileMemory(File(context.filesDir, appDefaults.memory.fileName), cipher),
         harness.agent.memory,
         agentMessages,
+        clock,
+        idGenerator,
+        appScope,
+    )
+
+    /** Facts the memory review proposed, kept (encrypted) until the user keeps or dismisses each. */
+    val memorySuggestions = MemorySuggestions(
+        EncryptedFileSuggestions(File(context.filesDir, appDefaults.memory.review.fileName), cipher),
+        memory,
+        appDefaults.memory.review,
         clock,
         idGenerator,
         appScope,
