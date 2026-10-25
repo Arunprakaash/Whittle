@@ -7,7 +7,8 @@ import kotlinx.serialization.Serializable
  * How each tool appears to the user: an icon, the step-row label while it runs and after it finishes,
  * and the decision card when it needs the user's choice. Plain language only; tool ids and arguments
  * are never shown raw. Placeholders are the call's argument names, plus `<argument>_host` for URLs and, with
- * [times], `<argument>_when` for times and dates in plain words. A tool that previews its call fills its own too.
+ * [times], `<argument>_when` for times and dates in plain words. A tool that previews its call fills its own too, and
+ * can pick another of its cards, keyed `<tool>.<variant>`.
  */
 @Serializable
 data class ToolPresentationConfig(
@@ -39,6 +40,11 @@ data class ToolPresentation(
     val question: QuestionPresentation? = null,
     /** The argument holding the web address a step reads; its site's icon is shown on the step. */
     val siteArgument: String? = null,
+    /**
+     * Placeholders the tool fills from its own check of the call ([app.whittle.tools.api.CallPreview]). Arguments of
+     * these names are ignored, so a call can't fill them when the preview is missing.
+     */
+    val previewed: List<String> = emptyList(),
 )
 
 @Serializable

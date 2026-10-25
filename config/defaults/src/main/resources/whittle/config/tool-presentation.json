@@ -96,6 +96,7 @@
       "icon": "delete",
       "running": "Deleting files",
       "done": "Finished deleting",
+      "previewed": ["listing", "count", "total"],
       "decision": {
         "icon": "delete",
         "title": "Delete these files for good?",
@@ -106,6 +107,23 @@
         "decline": "Keep",
         "approvedOutcome": "Deleted",
         "declinedOutcome": "Kept"
+      }
+    },
+    "delete_files.nothing": {
+      "icon": "delete",
+      "running": "Deleting files",
+      "done": "Finished deleting",
+      "previewed": ["listing", "count", "total"],
+      "decision": {
+        "icon": "delete",
+        "title": "Nothing here can be deleted",
+        "body": "None of these files can go, and each says why. Nothing will be deleted.",
+        "payloadArgument": "listing",
+        "approve": "OK",
+        "approveIcon": "check",
+        "decline": "Dismiss",
+        "approvedOutcome": "Nothing deleted",
+        "declinedOutcome": "Nothing deleted"
       }
     },
     "contacts_search": {

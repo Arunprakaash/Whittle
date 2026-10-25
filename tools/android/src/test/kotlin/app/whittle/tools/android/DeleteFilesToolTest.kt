@@ -39,9 +39,14 @@ class DeleteFilesToolTest {
     private fun file(dir: File, path: String, bytes: Int = 10): File =
         File(dir, path).also { it.parentFile.mkdirs() }.apply { writeBytes(ByteArray(bytes)) }
 
-    private fun run(vararg paths: String, maxPaths: Int = 10): ToolOutput {
-        val args = JsonObject(mapOf("paths" to JsonArray(paths.map { JsonPrimitive(it) })))
-        return runBlocking { DeleteFilesTool(storage, DeleteFilesLimits(maxPaths, NOT_DELETED)) { scanned += it }.execute(args, ctx) }
+    private fun tool(maxPaths: Int = 10) = DeleteFilesTool(storage, DeleteFilesLimits(maxPaths, NOT_DELETED)) { scanned += it }
+
+    private fun args(vararg paths: String) = JsonObject(mapOf("paths" to JsonArray(paths.map { JsonPrimitive(it) })))
+
+    /** The call as the runner makes it: previewed when parked, then run with what that card approved. */
+    private fun run(vararg paths: String, maxPaths: Int = 10): ToolOutput = runBlocking {
+        val approved = tool(maxPaths).preview(args(*paths)).approved
+        tool(maxPaths).execute(args(*paths), ctx.copy(approved = approved))
     }
 
     private fun results(vararg paths: String): Map<String, JsonObject> {
@@ -158,7 +163,7 @@ class DeleteFilesToolTest {
         val notAList = JsonObject(mapOf("paths" to JsonPrimitive("a.jpg")))
 
         listOf(notStrings, notAList, JsonObject(emptyMap())).forEach { args ->
-            assertTrue(runBlocking { DeleteFilesTool(storage, DeleteFilesLimits(10, NOT_DELETED)) {}.execute(args, ctx) }.isError)
+            assertTrue(runBlocking { DeleteFilesTool(storage, DeleteFilesLimits(10, NOT_DELETED)) {}.execute(args, ctx.copy(approved = emptyList())) }.isError)
         }
         assertTrue(File(root, "a.jpg").exists())
     }
@@ -182,9 +187,53 @@ class DeleteFilesToolTest {
         assertEquals(AndroidCapabilities.STORAGE, out.missingCapability)
     }
 
-    private fun preview(vararg paths: String, maxPaths: Int = 10): Map<String, String> {
-        val args = JsonObject(mapOf("paths" to JsonArray(paths.map { JsonPrimitive(it) })))
-        return runBlocking { DeleteFilesTool(storage, DeleteFilesLimits(maxPaths, NOT_DELETED)) { scanned += it }.preview(args) }
+    private fun preview(vararg paths: String, maxPaths: Int = 10): Map<String, String> = runBlocking { tool(maxPaths).preview(args(*paths)).card }
+
+    @Test
+    fun aFileThatAppearsAfterTheCardIsNotDeleted() {
+        val listed = file(root, "a.jpg")
+        val approved = runBlocking { tool().preview(args("a.jpg", "late.jpg")) }.approved
+        val late = file(root, "late.jpg")
+
+        val out = runBlocking { tool().execute(args("a.jpg", "late.jpg"), ctx.copy(approved = approved)) }
+
+        val files = Json.parseToJsonElement(out.content).jsonObject.getValue("files").jsonArray.map { it.jsonObject.getValue("status").jsonPrimitive.content }
+        assertEquals(listOf("deleted", "refused"), files)
+        assertFalse(listed.exists())
+        assertTrue(late.exists())
+    }
+
+    @Test
+    fun withoutAnApprovedCardNothingIsDeleted() {
+        val target = file(root, "a.jpg")
+
+        val out = runBlocking { tool().execute(args("a.jpg"), ctx) }
+
+        assertTrue(out.isError)
+        assertTrue("nothing was deleted" in out.content)
+        assertTrue(target.exists())
+        assertTrue(scanned.isEmpty())
+    }
+
+    @Test
+    fun aCallWhereNothingCanGoGetsTheNothingCard() {
+        val preview = runBlocking { tool().preview(args("/sdcard/gone.jpg", "/etc/hosts")) }
+        assertEquals(DeleteFilesTool.NOTHING, preview.variant)
+        assertTrue(preview.approved.isEmpty())
+        assertEquals("0", preview.card.getValue(DeleteFilesTool.COUNT))
+
+        file(root, "a.jpg")
+        assertEquals(null, runBlocking { tool().preview(args("a.jpg")) }.variant)
+    }
+
+    @Test
+    fun namesThatCouldReorderOrBreakALineShowAsQuestionMarks() {
+        file(root, "photo\u202Egpj.exe", bytes = 10)
+
+        assertEquals("/sdcard/photo?gpj.exe  ·  10 B", preview("photo\u202Egpj.exe").getValue(DeleteFilesTool.LISTING))
+        assertEquals("a?b  ·  $NOT_DELETED: doesn't exist", preview("a\u2028b").getValue(DeleteFilesTool.LISTING))
+        assertEquals("x?y", shown("x\u2029y"))
+        assertEquals("x?y", shown("x\uDB40\uDC01y"))
     }
 
     @Test

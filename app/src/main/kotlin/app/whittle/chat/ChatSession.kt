@@ -20,7 +20,6 @@ import app.whittle.core.common.getOrNull
 import app.whittle.core.model.ContentBlock
 import app.whittle.core.model.Message
 import app.whittle.core.model.RunId
-import app.whittle.core.model.ToolCallId
 import app.whittle.design.components.AgentState
 import app.whittle.design.tokens.WhittleHaptic
 import app.whittle.design.tokens.WhittleMotion
@@ -29,11 +28,9 @@ import app.whittle.llm.api.ModelDescriptor
 import app.whittle.policy.PolicyDecision
 import app.whittle.policy.RunMode
 import app.whittle.storage.chats.ChatId
-import app.whittle.tools.api.ApprovalPreview
 import app.whittle.tools.api.ToolId
 import app.whittle.tools.api.ToolOrigin
 import app.whittle.tools.api.WorkspaceId
-import app.whittle.tools.presentation.DecisionText
 import app.whittle.tools.presentation.StepText
 import app.whittle.tools.workspace.EditFileTool
 import app.whittle.tools.workspace.StartProcessTool
@@ -58,7 +55,6 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerializationException
@@ -69,7 +65,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
-import java.io.IOException
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
@@ -565,26 +560,13 @@ class ChatSession(
     private fun onDecisionRequested(event: RunEvent.DecisionRequested) {
         if (event.decision.kind == DecisionKind.QUESTION) return onQuestionRequested(event)
         val call = event.decision.toolCall
+        // The runner made the tool's preview when it parked the call, so the card shows what an approval covers.
+        val text = graph.presenter.decision(call.toolName, event.arguments, origin(call.toolName), event.decision.preview)
         val runId = activeRunId ?: return
-        val previewing = graph.tools.find(ToolId(call.toolName)) as? ApprovalPreview
-            ?: return showDecision(runId, call.id, graph.presenter.decision(call.toolName, event.arguments, origin(call.toolName)), event)
-        // The tool checks the call first (a delete looks at every file), so off the main thread; the run waits for the card.
-        scope.launch {
-            val preview = try {
-                withContext(Dispatchers.IO) { previewing.preview(event.arguments) }
-            } catch (unchecked: IOException) {
-                // Without a preview the card shows the exact call instead.
-                emptyMap()
-            }
-            showDecision(runId, call.id, graph.presenter.decision(call.toolName, event.arguments, origin(call.toolName), preview), event)
-        }
-    }
-
-    private fun showDecision(runId: RunId, toolCallId: ToolCallId, text: DecisionText, event: RunEvent.DecisionRequested) {
         // The run's id too: some providers reuse tool-call ids (call_0) from one turn to the next.
-        val key = "decision-${runId.value}-${toolCallId.value}"
+        val key = "decision-${runId.value}-${call.id.value}"
         val fromNotification = graph.approvableFromNotification(event.tool, event.tainted)
-        append(ThreadItem.Decision(key = key, runId = runId, toolCallId = toolCallId, text = text, fromNotification = fromNotification))
+        append(ThreadItem.Decision(key = key, runId = runId, toolCallId = call.id, text = text, fromNotification = fromNotification))
         cardShown(ChatEvent.ApprovalNeeded(chatId, key, text, buttons = fromNotification))
     }
 

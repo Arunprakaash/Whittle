@@ -3,9 +3,10 @@ package app.whittle.tools.android
 import android.content.Context
 import android.media.MediaScannerConnection
 import app.whittle.core.model.Provenance
-import app.whittle.tools.api.ApprovalPreview
+import app.whittle.tools.api.CallPreview
 import app.whittle.tools.api.ExecutionSite
 import app.whittle.tools.api.RiskTier
+import app.whittle.tools.api.Tool
 import app.whittle.tools.api.ToolDefinition
 import app.whittle.tools.api.ToolExecutionContext
 import app.whittle.tools.api.ToolId
@@ -46,18 +47,19 @@ data class DeleteFilesLimits(val maxPaths: Int, val notDeleted: String)
  * Deletes files in shared storage for good. The policy engine asks before every call, and the card lists what [check]
  * finds for each path the model sent: the file's real `/sdcard/...` path and size, or why it won't be deleted. Only
  * those may go: each must name a regular file inside shared storage by its own path. Folders, links, paths through a
- * linked folder, `..` and anything outside are refused, one by one. [execute] checks again, so the card is display only.
+ * linked folder, `..` and anything outside are refused, one by one. [execute] checks again and deletes only files the
+ * approved card listed as going ([ToolExecutionContext.approved]), so a file that appears after the card stays.
  */
 class DeleteFilesTool(
     private val storage: SharedStorage,
     private val limits: DeleteFilesLimits,
     private val mediaScan: MediaScan,
-) : ApprovalPreview {
+) : Tool {
     override val definition = DEFINITION
 
-    override suspend fun preview(arguments: JsonObject): Map<String, String> = withContext(Dispatchers.IO) {
+    override suspend fun preview(arguments: JsonObject): CallPreview = withContext(Dispatchers.IO) {
         val paths = when (val request = request(arguments)) {
-            is Request.Invalid -> return@withContext card(listOf("${limits.notDeleted}: ${request.reason}"), emptyList())
+            is Request.Invalid -> return@withContext card(listOf(shown("${limits.notDeleted}: ${request.reason}")), emptyList())
             is Request.Paths -> request.paths
         }
         val root = storage.root() ?: return@withContext card(paths.map { refusedLine(it, NO_ACCESS) }, emptyList())
@@ -65,19 +67,21 @@ class DeleteFilesTool(
         val checks = paths.map { path -> path to check(root, path, seen) }
         val lines = checks.map { (path, check) ->
             when (check) {
-                is Check.Ready -> "${displayPath(root, check.file)}$GAP${readableSize(check.bytes)}"
+                is Check.Ready -> shown("${displayPath(root, check.file)}$GAP${readableSize(check.bytes)}")
                 is Check.Refused -> refusedLine(path, check.reason)
             }
         }
-        card(lines, checks.mapNotNull { (it.second as? Check.Ready)?.bytes })
+        card(lines, checks.mapNotNull { it.second as? Check.Ready })
     }
 
-    /** A control character in a refused path shows as `?`, so the line can't break into what looks like another file. */
-    private fun refusedLine(path: String, reason: String) =
-        "${path.map { if (it.isISOControl()) '?' else it }.joinToString("")}$GAP${limits.notDeleted}: $reason"
+    private fun refusedLine(path: String, reason: String) = shown("$path$GAP${limits.notDeleted}: $reason")
 
-    private fun card(lines: List<String>, sizes: List<Long>) =
-        mapOf(LISTING to lines.joinToString("\n"), COUNT to sizes.size.toString(), TOTAL to readableSize(sizes.sum()))
+    /** The card's values, and the files an approval of it covers. With none, the card says nothing will be deleted. */
+    private fun card(lines: List<String>, ready: List<Check.Ready>) = CallPreview(
+        card = mapOf(LISTING to lines.joinToString("\n"), COUNT to ready.size.toString(), TOTAL to readableSize(ready.sumOf { it.bytes })),
+        approved = ready.map { it.file.path },
+        variant = NOTHING.takeIf { ready.isEmpty() },
+    )
 
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
         val root = storage.root() ?: return ToolJson.missing(AndroidCapabilities.STORAGE)
@@ -85,13 +89,20 @@ class DeleteFilesTool(
             is Request.Invalid -> return ToolJson.error(request.reason)
             is Request.Paths -> request.paths
         }
+        // Only files the approved card listed as going may go; without that list, nothing does.
+        val approved = context.approved?.toSet()
+            ?: return ToolJson.error("nothing was deleted: the user hasn't approved a list of files for this call; call delete_files again so they see it")
 
         val body = withContext(Dispatchers.IO) {
             val seen = mutableSetOf<File>()
             val results = paths.map { path ->
                 when (val check = check(root, path, seen)) {
                     is Check.Refused -> Result(path, REFUSED, check.reason)
-                    is Check.Ready -> if (check.file.delete()) Result(path, DELETED, file = check.file, bytes = check.bytes) else Result(path, FAILED, "Android didn't let it be deleted")
+                    is Check.Ready -> when {
+                        check.file.path !in approved -> Result(path, REFUSED, "wasn't on the list the user approved")
+                        check.file.delete() -> Result(path, DELETED, file = check.file, bytes = check.bytes)
+                        else -> Result(path, FAILED, "Android didn't let it be deleted")
+                    }
                 }
             }
             val deleted = results.filter { it.status == DELETED }
@@ -181,6 +192,9 @@ class DeleteFilesTool(
         const val COUNT = "count"
         const val TOTAL = "total"
         val PREVIEW = setOf(LISTING, COUNT, TOTAL)
+
+        /** The card for a call where no file will go: `delete_files.nothing` in the presentation config. */
+        const val NOTHING = "nothing"
         private val PROVENANCE = Provenance.Trusted
 
         val DEFINITION = ToolDefinition(
@@ -217,3 +231,16 @@ fun readableSize(bytes: Long): String {
 
 private const val SIZE_STEP = 1000.0
 private val SIZE_UNITS = listOf("KB", "MB", "GB", "TB")
+
+/**
+ * [text] with control, format (bidi and the like) and line-separator characters shown as `?`, so a line on a card can't
+ * break into what looks like another file, or read in a different order than it is.
+ */
+fun shown(text: String): String = buildString {
+    text.codePoints().forEach { point ->
+        val hidden = Character.isISOControl(point) || Character.getType(point).toByte().let {
+            it == Character.FORMAT || it == Character.LINE_SEPARATOR || it == Character.PARAGRAPH_SEPARATOR
+        }
+        if (hidden) append('?') else appendCodePoint(point)
+    }
+}

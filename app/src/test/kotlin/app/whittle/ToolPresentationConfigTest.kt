@@ -14,6 +14,7 @@ import app.whittle.tools.presentation.ToolPresentationConfig
 import app.whittle.tools.presentation.ToolPresenter
 import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -49,12 +50,17 @@ class ToolPresentationConfigTest {
     @Test
     fun `templates only use the tool's own arguments`() {
         builtInTools.forEach { tool ->
-            val presentation = config.tools.getValue(tool.id.value)
+            // The tool's card and any variant a preview can pick (`<tool>.<variant>`).
+            val presentations = config.tools.filterKeys { it == tool.id.value || it.startsWith("${tool.id.value}.") }
             val properties = tool.inputSchema["properties"]?.jsonObject?.keys.orEmpty()
             val allowed = properties + properties.map { it + ToolPresenter.HOST_SUFFIX } + properties.map { it + ToolPresenter.WHEN_SUFFIX } +
                 previewed[tool.id.value].orEmpty()
-            val unknown = templates(presentation).flatMap { PromptTemplate(NAME, it).placeholders }.toSet() - allowed
-            assertTrue(unknown.isEmpty(), "${tool.id.value} uses unknown placeholders $unknown")
+            presentations.forEach { (key, presentation) ->
+                val unknown = templates(presentation).flatMap { PromptTemplate(NAME, it).placeholders }.toSet() - allowed
+                assertTrue(unknown.isEmpty(), "$key uses unknown placeholders $unknown")
+                // Arguments named like the preview's values are ignored only if the config says which they are.
+                assertEquals(previewed[tool.id.value].orEmpty(), presentation.previewed.toSet(), "$key must list its preview's names in previewed")
+            }
         }
     }
 

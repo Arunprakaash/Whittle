@@ -1,5 +1,6 @@
 package app.whittle.tools.presentation
 
+import app.whittle.tools.api.CallPreview
 import app.whittle.tools.api.ToolOrigin
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonObject
@@ -8,6 +9,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ToolPresenterTest {
     private val decision = DecisionPresentation(
@@ -38,6 +40,14 @@ class ToolPresenterTest {
                     "Deleting files",
                     "Done",
                     decision.copy(title = "Delete these files for good?", body = "{{total}} in all.", payloadArgument = "listing", payloadLabelArgument = null),
+                    previewed = listOf("listing", "count", "total"),
+                ),
+                "delete_files.nothing" to ToolPresentation(
+                    "delete",
+                    "Deleting files",
+                    "Done",
+                    decision.copy(title = "Nothing here can be deleted", body = "", payloadArgument = "listing", payloadLabelArgument = null),
+                    previewed = listOf("listing", "count", "total"),
                 ),
             ),
             toolPrefixes = mapOf(
@@ -111,17 +121,29 @@ class ToolPresenterTest {
 
     @Test
     fun `a delete card shows what the tool found, and no argument can change it`() {
-        val preview = mapOf("listing" to "/sdcard/a.jpg  ·  1.5 KB\n/sdcard/b.pdf  ·  2.5 KB", "count" to "2", "total" to "4.0 KB")
+        val values = mapOf("listing" to "/sdcard/a.jpg  ·  1.5 KB\n/sdcard/b.pdf  ·  2.5 KB", "count" to "2", "total" to "4.0 KB")
+        val preview = CallPreview(values, approved = listOf("/storage/a.jpg", "/storage/b.pdf"))
         val card = presenter.decision("delete_files", args("""{"paths":["/sdcard/a.jpg","/sdcard/b.pdf"],"listing":"nothing much","count":"1","total":"1 B"}"""), preview = preview)
         assertEquals("Delete these files for good?", card.title)
         assertEquals("4.0 KB in all.", card.body)
-        assertEquals(preview["listing"], card.payload)
+        assertEquals(values["listing"], card.payload)
     }
 
     @Test
-    fun `a card whose payload can't be filled shows the exact call`() {
-        val card = presenter.decision("delete_files", args("""{"paths":["/sdcard/a.jpg","/sdcard/b.pdf"]}"""))
-        assertEquals("paths: [\"/sdcard/a.jpg\",\"/sdcard/b.pdf\"]", card.payload)
+    fun `without a preview, arguments can't fill what the tool fills, and the card shows the exact call`() {
+        val card = presenter.decision("delete_files", args("""{"paths":["/sdcard/a.jpg"],"listing":"/sdcard/x.jpg  ·  1 B","total":"1 B"}"""))
+        assertEquals("paths: [\"/sdcard/a.jpg\"]", card.payload)
+        assertTrue("1 B" !in card.title + card.body + card.payload)
+    }
+
+    @Test
+    fun `a preview can pick the tool's card for when nothing will happen`() {
+        val preview = CallPreview(mapOf("listing" to "/sdcard/gone.jpg  ·  won't be deleted: doesn't exist", "count" to "0", "total" to "0 B"), emptyList(), variant = "nothing")
+        val card = presenter.decision("delete_files", args("""{"paths":["/sdcard/gone.jpg"]}"""), preview = preview)
+        assertEquals("Nothing here can be deleted", card.title)
+        assertEquals(preview.card["listing"], card.payload)
+        // An unknown variant keeps the tool's own card.
+        assertEquals("Delete these files for good?", presenter.decision("delete_files", args("{}"), preview = preview.copy(variant = "other")).title)
     }
 
     @Test

@@ -4,6 +4,7 @@ import app.whittle.core.model.ContentBlock
 import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.policy.ApprovalScope
+import app.whittle.tools.api.CallPreview
 import app.whittle.tools.api.CapabilityId
 import app.whittle.tools.api.ToolId
 import kotlinx.serialization.Serializable
@@ -23,6 +24,8 @@ data class PendingDecision(
     /** The step that proposed the call; lets the UI place the card in the thread. */
     val step: Int,
     val kind: DecisionKind = DecisionKind.APPROVAL,
+    /** The tool's own account of the call, made when it was parked: what the card shows and all an approval covers. */
+    val preview: CallPreview? = null,
 )
 
 @Serializable

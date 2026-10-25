@@ -4,6 +4,7 @@ import kotlinx.serialization.json.booleanOrNull
 import app.whittle.core.config.ConfigName
 import app.whittle.core.config.PromptTemplate
 import app.whittle.core.common.getOrElse
+import app.whittle.tools.api.CallPreview
 import app.whittle.tools.api.ToolOrigin
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
@@ -40,8 +41,8 @@ data class QuestionText(val icon: String, val question: String, val options: Lis
  * argument is missing), the tool's fallback text is used instead of showing a placeholder. A tool from
  * elsewhere ([ToolOrigin]) also fills {{toolTitle}} and {{toolSource}} with its provider's own names.
  * Every argument also fills `<argument>_when`: in plain words when it's a time ([PlainTime]), as written otherwise.
- * An argument can't set those derived names itself. A tool that checks what a call would do ([app.whittle.tools.api.ApprovalPreview]) passes
- * its findings as `preview`, filled after every argument so none can stand in for them.
+ * An argument can't set those derived names itself. A tool that checks what a call would do passes its [CallPreview],
+ * filled after every argument; the names it fills ([ToolPresentation.previewed]) are never taken from arguments at all.
  */
 class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock = UserClock()) {
     private val plainTime = config.times?.let { PlainTime(it, clock) }
@@ -51,7 +52,7 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
 
     fun step(toolId: String, arguments: JsonObject, origin: ToolOrigin? = null): StepText {
         val presentation = presentation(toolId) ?: config.fallback
-        val variables = variables(arguments, origin)
+        val variables = variables(own(presentation, arguments), origin)
         return StepText(
             icon = presentation.icon,
             running = fill(presentation.running, variables, config.fallback.running),
@@ -60,11 +61,14 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
         )
     }
 
-    fun decision(toolId: String, arguments: JsonObject, origin: ToolOrigin? = null, preview: Map<String, String> = emptyMap()): DecisionText {
-        val decision = presentation(toolId)?.decision ?: config.fallback.decision
-            ?: error("tool-presentation.json must define fallback.decision")
+    fun decision(toolId: String, calledWith: JsonObject, origin: ToolOrigin? = null, preview: CallPreview? = null): DecisionText {
+        val presentation = presentation(toolId)
+        val arguments = own(presentation, calledWith)
+        // A preview may pick another of the tool's cards, such as one saying nothing will happen.
+        val decision = preview?.variant?.let { config.tools["$toolId$VARIANT_SEPARATOR$it"]?.decision } ?: presentation?.decision
+            ?: config.fallback.decision ?: error("tool-presentation.json must define fallback.decision")
         val fallback = config.fallback.decision ?: decision
-        val variables = variables(arguments, origin, preview)
+        val variables = variables(arguments, origin, preview?.card.orEmpty())
         return DecisionText(
             icon = decision.icon,
             title = fill(decision.title, variables, fallback.title),
@@ -102,6 +106,12 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
     private fun fill(template: String, variables: Map<String, String>, fallback: String): String =
         PromptTemplate(TEMPLATE_NAME, template).render(variables).getOrElse { fallback }
 
+    /** [arguments] without those named like values the tool fills from its own preview, which no call may set. */
+    private fun own(presentation: ToolPresentation?, arguments: JsonObject): JsonObject {
+        val reserved = presentation?.previewed.orEmpty()
+        return if (reserved.isEmpty()) arguments else JsonObject(arguments.filterKeys { it !in reserved })
+    }
+
     /** The fallback card still shows the exact call, one argument per line. */
     private fun describe(arguments: JsonObject): String? =
         arguments.entries.joinToString("\n") { (name, value) -> "$name: ${(value as? JsonPrimitive)?.contentOrNull ?: value}" }
@@ -136,6 +146,7 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
         const val TOOL_TITLE = "toolTitle"
         const val TOOL_SOURCE = "toolSource"
         private const val SENTENCE_GAP = " "
+        private const val VARIANT_SEPARATOR = "."
         private const val WWW_PREFIX = "www."
         private val TEMPLATE_NAME = ConfigName("tool-presentation.json")
     }

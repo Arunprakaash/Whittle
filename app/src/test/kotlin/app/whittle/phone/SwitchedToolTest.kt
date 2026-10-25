@@ -5,6 +5,7 @@ import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.tools.api.ExecutionSite
 import app.whittle.tools.api.RiskTier
+import app.whittle.tools.api.CallPreview
 import app.whittle.tools.api.Tool
 import app.whittle.tools.api.ToolDefinition
 import app.whittle.tools.api.ToolExecutionContext
@@ -25,6 +26,8 @@ class SwitchedToolTest {
         )
 
         override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext) = ToolOutput("set", isError = false, provenance = Provenance.Trusted)
+
+        override suspend fun preview(arguments: JsonObject) = CallPreview(mapOf("time" to "7:00"), approved = listOf("7:00"))
     }
     private val config = PhoneActionsConfig(
         schemaVersion = 1,
@@ -47,5 +50,11 @@ class SwitchedToolTest {
         assertTrue(refused.isError && "Alarms and timers is off" in refused.content)
         on = true
         assertFalse(tool.execute(JsonObject(emptyMap()), context).isError)
+    }
+
+    @Test
+    fun `a switched tool keeps its own preview`() = runTest {
+        val tool = switched(setOf(alarm), config) { true }.single()
+        assertEquals(alarm.preview(JsonObject(emptyMap())), tool.preview(JsonObject(emptyMap())))
     }
 }
