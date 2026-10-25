@@ -35,6 +35,16 @@ class UpdateCheck(
     /** A release newer than this build, once a check has found one; null otherwise. */
     val available: StateFlow<Release?> = _available.asStateFlow()
 
+    private val _answeredAt = MutableStateFlow<Long?>(null)
+
+    /** When GitHub last answered a check, so the user can see it's working; a failed check doesn't count. Null before any. */
+    val answeredAt: StateFlow<Long?> = _answeredAt.asStateFlow()
+
+    private val _lastFailed = MutableStateFlow(false)
+
+    /** The latest check got no answer (no network, GitHub down or rate limited). */
+    val lastFailed: StateFlow<Boolean> = _lastFailed.asStateFlow()
+
     /**
      * Asks GitHub when the last check is older than [UpdateDefaults.everyHours], or when [force]d, and returns the newer
      * release to tell the user about: once per version, so a release already announced returns null. A failed request,
@@ -44,17 +54,26 @@ class UpdateCheck(
         withContext(Dispatchers.IO) {
             val saved = load()
             _available.value = saved.latest?.takeIf { isNewer(it.version, currentVersion) }
-            val checkedAt = saved.checkedAtMillis
+            _answeredAt.value = saved.answeredAtMillis
+            _lastFailed.value = saved.checkedAtMillis != null && saved.checkedAtMillis != saved.answeredAtMillis
+            // A release saved with no answer time was saved by an older version, before answers were recorded: check now,
+            // so the user sees when it last worked. A first check that failed has no release, and waits as usual.
+            val upgraded = saved.latest != null && saved.answeredAtMillis == null
+            val checkedAt = saved.checkedAtMillis.takeUnless { upgraded }
             if (!force && checkedAt != null && !due(checkedAt, clock.nowMillis(), defaults.everyHours)) return@withContext null
             val latest = fetch()
             if (latest == null) {
+                _lastFailed.value = true
                 save(saved.copy(checkedAtMillis = clock.nowMillis()))
                 return@withContext null
             }
             val newer = latest.takeIf { isNewer(it.version, currentVersion) }
             _available.value = newer
+            val now = clock.nowMillis()
+            _answeredAt.value = now
+            _lastFailed.value = false
             val announce = newer?.takeIf { it.version != saved.announced }
-            save(Saved(checkedAtMillis = clock.nowMillis(), latest = latest, announced = announce?.version ?: saved.announced))
+            save(Saved(checkedAtMillis = now, answeredAtMillis = now, latest = latest, announced = announce?.version ?: saved.announced))
             announce
         }
     }
@@ -89,7 +108,14 @@ class UpdateCheck(
     }
 
     @Serializable
-    private data class Saved(val checkedAtMillis: Long? = null, val latest: Release? = null, val announced: String? = null)
+    private data class Saved(
+        /** The last check, answered or not; it sets when the next one is due. */
+        val checkedAtMillis: Long? = null,
+        /** The last check GitHub answered. */
+        val answeredAtMillis: Long? = null,
+        val latest: Release? = null,
+        val announced: String? = null,
+    )
 
     private companion object {
         val json = Json { ignoreUnknownKeys = true }
