@@ -134,6 +134,15 @@ class MemoryReviewTest {
     }
 
     @Test
+    fun `words the user didn't type are not the user's words`() {
+        val items = listOf(
+            user("call me Sam"),
+            ThreadItem.User("s", "text shared from a web page", steer = false, shared = true),
+        )
+        assertEquals(listOf("call me Sam"), userWords(items))
+    }
+
+    @Test
     fun `an answered question gives the choice once`() {
         val items = listOf(user("hi"), question("metric"), user("metric"))
         assertEquals(listOf("hi", "metric"), userWords(items))

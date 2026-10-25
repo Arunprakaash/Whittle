@@ -186,14 +186,15 @@ class ChatSession(
         images: List<ContentBlock.ImageFile>,
         attachments: List<Attachment>,
         pasted: List<ContentBlock.Text>,
+        shared: Boolean = false,
     ) {
         val running = activeRunId
         if (activeJob?.isActive == true && running != null) {
             graph.inbox.submit(running, RunInput.Steer(forModel, images, pasted))
-            append(ThreadItem.User(key(), text, steer = true, attachments = attachments))
+            append(ThreadItem.User(key(), text, steer = true, attachments = attachments, shared = shared))
             return
         }
-        start(text, model, RunMode.LIVE, preApprovedTools = emptySet(), forModel = forModel, images = images, attachments = attachments, pasted = pasted)
+        start(text, model, RunMode.LIVE, preApprovedTools = emptySet(), forModel = forModel, images = images, attachments = attachments, pasted = pasted, shared = shared)
     }
 
     /**
@@ -209,11 +210,12 @@ class ChatSession(
         images: List<ContentBlock.ImageFile> = emptyList(),
         attachments: List<Attachment> = emptyList(),
         pasted: List<ContentBlock.Text> = emptyList(),
+        shared: Boolean = false,
     ) {
         val runId = RunId(graph.idGenerator.newId())
         val chat = ensureId()
         runIds = runIds + runId
-        append(ThreadItem.User(key(), text, steer = false, attachments = attachments))
+        append(ThreadItem.User(key(), text, steer = false, attachments = attachments, shared = shared))
         val request = RunRequest(
             runId = runId,
             model = model,

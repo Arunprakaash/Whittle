@@ -335,7 +335,10 @@ class ChatViewModel(
     /** A share from another app: a new chat with what was shared attached and any words in the composer. */
     fun startShared(shared: SharedItems) {
         newChat()
-        shared.text?.let(::updateInput)
+        shared.text?.let {
+            updateInput(it)
+            composerShared = true
+        }
         attach(shared.uris)
     }
 
@@ -372,6 +375,9 @@ class ChatViewModel(
         _state.update { it.withoutScreen() }
         screenshot?.let { graph.appScope.launch { graph.attachments.discard(it) } }
     }
+
+    /** The composer holds text shared from another app, which isn't the user's own words; it goes with the first message sent. */
+    private var composerShared = false
 
     /** Attached photos, for thumbnails and the viewer. */
     val images: WorkspaceImages get() = graph.images
@@ -413,7 +419,9 @@ class ChatViewModel(
         val images = if (model.capabilities.vision) messageImages(attachments, screenshot, screen) else emptyList()
         claimPendingProject()
         current.value.chatId?.let { quiet.returned(it.value) }
-        current.value.send(text, model, forModel, images, attachments, pasted)
+        val shared = composerShared
+        composerShared = false
+        current.value.send(text, model, forModel, images, attachments, pasted, shared)
     }
 
     /** A project picked before the first message belongs to the chat from now on. */
@@ -573,6 +581,7 @@ class ChatViewModel(
         _state.value.attachments.forEach { attachment -> graph.appScope.launch { graph.attachments.discard(attachment) } }
         _state.update { it.copy(input = "", attachments = emptyList(), screen = null, screenshot = null) }
         pendingProject = null
+        composerShared = false
         current.value = next
         syncProject()
         refreshProjects()

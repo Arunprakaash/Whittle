@@ -12,11 +12,11 @@ import kotlinx.serialization.json.Json
 
 /**
  * What the user themselves said in a chat, in order: what they typed, and the options they picked on question cards,
- * which the chat already records as their own message. Never narration, steps, tool output, pasted content, screen text or what attachments hold: the agent's side of a chat
+ * which the chat already records as their own message. Never text shared in from another app, narration, steps, tool output, pasted content, screen text or what attachments hold: the agent's side of a chat
  * can carry words a web page or a file planted, and only the user's own words may teach it about them.
  */
 fun userWords(items: List<ThreadItem>): List<String> =
-    items.filterIsInstance<ThreadItem.User>().map { it.text }.filter(String::isNotBlank)
+    items.filterIsInstance<ThreadItem.User>().filterNot { it.shared }.map { it.text }.filter(String::isNotBlank)
 
 /**
  * The memory review: after a chat, one model call reads the user's own words and proposes lasting facts about them.

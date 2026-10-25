@@ -49,6 +49,8 @@ sealed interface ThreadItem {
         val steer: Boolean,
         /** Photos and files sent with it, saved in the workspace. */
         val attachments: List<Attachment> = emptyList(),
+        /** Words the user didn't type: text shared in from another app. The memory review leaves them out. */
+        val shared: Boolean = false,
     ) : ThreadItem
 
     /** The agent's words: narration between steps while streaming; the last one in a run is its answer. */
