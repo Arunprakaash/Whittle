@@ -112,6 +112,10 @@ proot -r <rootfs> -b /dev -b /proc -b /sys -b <workspace>:/workspace -w /workspa
   - the seccomp filter: no ptrace, no process_vm, no io_uring, and no sockets when offline;
   - the policy engine's approvals.
 - **Checked on the device:** a guest process can't ptrace Whittle or read its memory through `/proc/<pid>/mem`.
+- **Checked on the device, with all-files access granted** (vivo V2558, Android 16, 2026-10-25): `ls` on `/sdcard`,
+  `/storage/emulated/0`, `/proc/self/root/storage/emulated/0` and `/proc/1/root/sdcard` from `run_command` all fail
+  with "No such file or directory". Shared storage isn't reachable from the guest, so the storage tools'
+  `delete_files` card (which always asks) is the only way Whittle deletes the user's files.
 - The guest runs as fake root (`proot -0`), so apt works. That gives no extra power outside the guest.
 
 ## Shared workspace and projects
