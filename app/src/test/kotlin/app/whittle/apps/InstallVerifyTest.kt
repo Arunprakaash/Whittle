@@ -99,7 +99,7 @@ class InstallVerifyTest {
 
     private fun signed(key: SigningKey, name: String): File {
         val out = File(directory, name)
-        assertIs<Outcome.Success<Unit>>(AppSigner(FakeKeys(Outcome.Success(key))).sign(unsignedApk(), out, "app.whittle.made.notes"))
+        assertIs<Outcome.Success<Unit>>(AppSigner(FakeKeys(Outcome.Success(key))).sign(unsignedApk(), out, "app.whittle.made.notes", MIN))
         return out
     }
 

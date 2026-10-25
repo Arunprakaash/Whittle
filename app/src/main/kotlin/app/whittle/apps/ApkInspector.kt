@@ -43,8 +43,12 @@ const val FACT_FLAGS = PackageManager.GET_PERMISSIONS or PackageManager.GET_SERV
 /** Asks Android's own parser, so what is checked is what the system would install. */
 class AndroidApkInspector(private val packageManager: PackageManager) : ApkInspector {
     override fun inspect(apk: File): Outcome<ApkFacts> {
-        val info = packageManager.getPackageArchiveInfo(apk.path, FACT_FLAGS)
-            ?: return Outcome.Failure(HarnessError.Storage("Android couldn't read ${apk.name}"))
+        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.getPackageArchiveInfo(apk.path, PackageManager.PackageInfoFlags.of(FACT_FLAGS.toLong()))
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageArchiveInfo(apk.path, FACT_FLAGS)
+        } ?: return Outcome.Failure(HarnessError.Storage("Android couldn't read ${apk.name}"))
         return Outcome.Success(apkFactsOf(info))
     }
 }

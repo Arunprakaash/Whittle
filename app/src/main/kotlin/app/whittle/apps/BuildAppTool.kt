@@ -98,7 +98,7 @@ class BuildAppTool(
             if (ran.timedOut) return reply(messages.appBuildTimedOut(config.buildTimeoutSeconds), error = true)
             if (ran.exitCode != 0) return buildFailed(chat, context, ran)
             if (!unsigned.isFile) return reply(messages.appBuildNoApk, error = true)
-            val signed = withContext(Dispatchers.IO) { signer.sign(unsigned, apk, project.packageName) }
+            val signed = withContext(Dispatchers.IO) { signer.sign(unsigned, apk, project.packageName, config.minSdk) }
             if (signed is Outcome.Failure) return failed(signed.error.message)
             // The signed APK is what gets installed, so it is what is checked.
             val facts = when (val inspected = withContext(Dispatchers.IO) { inspector.inspect(apk) }) {

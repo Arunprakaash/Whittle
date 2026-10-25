@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -156,6 +157,8 @@ private fun PreviewPage(url: String, reloads: Int, live: Boolean, onConsole: (Co
         modifier = modifier,
         factory = {
             WebView(it).apply {
+                // Sized to its box, not its content: a web view that wraps its content gives pages a viewport 0vh tall.
+                layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.allowFileAccess = false

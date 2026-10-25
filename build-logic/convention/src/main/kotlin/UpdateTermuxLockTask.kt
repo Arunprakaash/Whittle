@@ -28,7 +28,7 @@ abstract class UpdateTermuxLockTask : DefaultTask() {
         val spec = TermuxSpec.read(specFile.get().asFile)
         val lock = spec.abis.toSortedMap().mapValues { (_, arch) ->
             val url = "${spec.repository.trimEnd('/')}/dists/stable/main/binary-$arch/Packages"
-            val index = TermuxIndex.parse(String(Debs.download(url)))
+            val index = TermuxIndex.parse(String(Debs.download(url, spec)))
             index.resolve(spec.packages).map { mapOf("name" to it.name, "version" to it.version, "filename" to it.filename, "sha256" to it.sha256) }
         }
         lockFile.get().asFile.writeText(JsonOutput.prettyPrint(JsonOutput.toJson(lock)) + "\n")

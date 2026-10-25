@@ -14,6 +14,14 @@ import java.util.zip.GZIPInputStream
  */
 internal class TermuxSpec(
     val repository: String,
+    /**
+     * Where else a pinned .deb is found, by its file name, when Termux has dropped it (it keeps only current versions):
+     * Whittle's own copies, uploaded by CI from the lock file. Each download is checked against the pinned SHA-256.
+     */
+    val mirrors: List<String>,
+    /** How long a download waits to connect, and then between bytes, before it counts as failed, so a stalled server can't hang the build. */
+    val connectTimeoutSeconds: Int,
+    val readTimeoutSeconds: Int,
     /** Termux's own install prefix, compiled into its programs; rewritten to Whittle's at build time. */
     val termuxPrefix: String,
     /** Folder in the app's data directory the tools live in; padded so the new prefix is as long as Termux's. */
@@ -43,6 +51,9 @@ internal class TermuxSpec(
             val json = JsonSlurper().parse(file) as Map<String, Any?>
             return TermuxSpec(
                 repository = json["repository"] as String,
+                mirrors = (json["mirrors"] as List<String>?).orEmpty(),
+                connectTimeoutSeconds = json["connectTimeoutSeconds"] as Int,
+                readTimeoutSeconds = json["readTimeoutSeconds"] as Int,
                 termuxPrefix = json["termuxPrefix"] as String,
                 installDirectory = json["installDirectory"] as String,
                 packages = json["packages"] as List<String>,
@@ -105,12 +116,48 @@ internal sealed interface TarEntry {
 }
 
 internal object Debs {
-    fun download(url: String): ByteArray = URI(url).toURL().openStream().use(InputStream::readBytes)
-
-    fun verify(bytes: ByteArray, sha256: String, what: String) {
-        val actual = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-        if (!actual.equals(sha256, ignoreCase = true)) throw GradleException("$what doesn't match its pinned SHA-256: expected $sha256, got $actual")
+    fun download(url: String, spec: TermuxSpec): ByteArray {
+        val connection = URI(url).toURL().openConnection().apply {
+            connectTimeout = spec.connectTimeoutSeconds * MILLIS
+            readTimeout = spec.readTimeoutSeconds * MILLIS
+        }
+        return connection.getInputStream().use(InputStream::readBytes)
     }
+
+    /**
+     * The pinned [locked] .deb: from [cache] when it's there and intact, else from Termux, else from the first of the
+     * spec's mirrors that has it. Whatever is downloaded must match the pinned SHA-256, and is kept in [cache]; a source
+     * that fails or serves other bytes (a captive portal's page, a changed file) is skipped for the next one.
+     * [download] is how a URL is read.
+     */
+    fun fetch(spec: TermuxSpec, locked: LockedPackage, cache: File, download: (String) -> ByteArray = { download(it, spec) }): ByteArray {
+        val name = locked.filename.substringAfterLast('/')
+        val file = File(cache.apply { mkdirs() }, name)
+        val what = "${locked.name} ${locked.version}"
+        file.takeIf { it.isFile }?.readBytes()?.takeIf { sha256(it).equals(locked.sha256, ignoreCase = true) }?.let { return it }
+        val sources = listOf(spec.repository.trimEnd('/') + "/" + locked.filename) + spec.mirrors.map { it.trimEnd('/') + "/" + name }
+        val failures = mutableListOf<String>()
+        for (url in sources) {
+            val bytes = try {
+                download(url)
+            } catch (exception: java.io.IOException) {
+                failures += "$url: ${exception.javaClass.simpleName}"
+                continue
+            }
+            if (!sha256(bytes).equals(locked.sha256, ignoreCase = true)) {
+                failures += "$url: doesn't match the pinned SHA-256"
+                continue
+            }
+            file.writeBytes(bytes)
+            return bytes
+        }
+        throw GradleException(
+            "Neither Termux nor a mirror has $what (${failures.joinToString("; ")}). Run ./gradlew :app:updateTermuxLock to pin " +
+                "what Termux has now, then test Linux on a phone before committing the new lock.",
+        )
+    }
+
+    fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
     /** The entries of a .deb's data archive (an ar archive holding data.tar.xz, .gz or plain .tar). */
     fun dataEntries(deb: ByteArray, what: String): List<TarEntry> {
@@ -190,6 +237,7 @@ internal object Debs {
     private fun field(header: ByteArray, offset: Int, length: Int): String =
         String(header, offset, length, Charsets.UTF_8).substringBefore('\u0000')
 
+    private const val MILLIS = 1000
     private const val AR_MAGIC = "!<arch>\n"
     private const val AR_HEADER = 60
     private const val AR_NAME = 16
