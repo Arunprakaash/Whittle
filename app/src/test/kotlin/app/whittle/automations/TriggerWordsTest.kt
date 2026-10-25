@@ -66,4 +66,12 @@ class TriggerWordsTest {
         assertEquals(emptyList(), needed(Trigger.Charging(Edge.START)))
         assertEquals(emptyList(), needed(Trigger.Every(60)))
     }
+
+    @Test
+    fun whatIsMissingAfterSaveComesFromTheSavedTrigger() {
+        val sms = Trigger.Sms()
+        val lookup = { trigger: Trigger -> TriggerPermission.needed(trigger) }
+        assertEquals(listOf(TriggerPermission.SMS), missingAfterSave(sms, lookup))
+        assertEquals(emptyList(), missingAfterSave(null, lookup))
+    }
 }

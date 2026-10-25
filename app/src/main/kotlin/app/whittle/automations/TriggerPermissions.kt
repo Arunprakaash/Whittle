@@ -43,3 +43,7 @@ private fun isGranted(context: Context, permission: TriggerPermission): Boolean 
 }
 
 private fun granted(context: Context, permission: String) = context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+
+/** What is still missing for the trigger that was just saved; nothing for a time, which needs no permission. */
+fun missingAfterSave(saved: Trigger?, missingFor: (Trigger) -> List<TriggerPermission>): List<TriggerPermission> =
+    saved?.let(missingFor).orEmpty()
