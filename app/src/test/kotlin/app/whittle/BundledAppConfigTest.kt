@@ -26,6 +26,9 @@ import app.whittle.settings.AppDefaults
 import app.whittle.settings.NotificationApprovalDefaults
 import app.whittle.policy.PolicyRuleSet
 import app.whittle.tools.presentation.ToolPresentationConfig
+import app.whittle.tools.presentation.ToolPresenter
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -91,6 +94,19 @@ class BundledAppConfigTest {
         // A run that read untrusted content keeps every approval in the app.
         assertTrue(buttons("write_file"))
         assertFalse(buttons("write_file", tainted = true))
+    }
+
+    @Test
+    fun `the watch_for card says the interval, the sender and the words`() {
+        val config = assertIs<Outcome.Success<ToolPresentationConfig>>(
+            loader.load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION),
+        ).value
+        val presenter = ToolPresenter(config)
+        fun body(json: String) = presenter.decision("watch_for", Json.parseToJsonElement(json).jsonObject).body
+        assertTrue("Every 30 minutes." in body("""{"event":"every","minutes":30,"prompt":"p"}"""))
+        val text = body("""{"event":"text","from":"HDFCBK","words":"debited","prompt":"p"}""")
+        assertTrue("Only for HDFCBK." in text && "debited" in text, text)
+        assertFalse("Only for" in body("""{"event":"text","prompt":"p"}"""))
     }
 
     @Test

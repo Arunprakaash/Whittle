@@ -567,10 +567,14 @@
         "title": "Watch for this?",
         "body": "Whittle will run this by itself {{event}}, in a new chat each time. On its own it may use only the tools you allow in Settings › Automations.",
         "payloadArgument": "prompt",
-        "payloadLabelArgument": "from",
+        "argumentNotes": {
+          "minutes": "Every {{minutes}} minutes.",
+          "from": "Only for {{from}}.",
+          "words": "Only when it mentions {{words}}."
+        },
         "argumentWords": {
           "event": {
-            "every": "every few minutes",
+            "every": "on a repeating timer",
             "text": "when a text arrives",
             "notification": "when an app posts a notification",
             "charging_start": "when the phone starts charging",
