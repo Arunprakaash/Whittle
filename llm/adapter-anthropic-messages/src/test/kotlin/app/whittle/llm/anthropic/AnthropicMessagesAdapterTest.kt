@@ -180,6 +180,16 @@ class AnthropicMessagesAdapterTest {
     }
 
     @Test
+    fun `an error sent mid-stream fails with the status its type stands for, so it can be retried`() = runTest {
+        for ((type, status) in listOf("overloaded_error" to 529, "rate_limit_error" to 429, "api_error" to 500)) {
+            server.enqueue(sse(START + event("error", "{\"type\":\"error\",\"error\":{\"type\":\"$type\",\"message\":\"Busy\"}}")))
+            val failed = adapter.stream(request(), provider(), Secret("sk-test")).toList().last()
+            assertEquals(status, assertIs<HarnessError.Provider>(assertIs<ModelEvent.Failed>(failed).error).statusCode, type)
+            server.takeRequest()
+        }
+    }
+
+    @Test
     fun `models without reasoning or caching get neither`() = runTest {
         server.enqueue(sse(TEXT_TURN))
         val plain = ModelCapabilities(toolCalling = true, parallelToolCalls = true, vision = true, promptCaching = false, reasoning = false)
