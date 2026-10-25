@@ -15,6 +15,7 @@ import app.whittle.attachments.WorkspaceImages
 import app.whittle.settings.AttachmentDefaults
 import app.whittle.memory.EncryptedFileMemory
 import app.whittle.memory.EncryptedFileSuggestions
+import app.whittle.memory.MemoryReview
 import app.whittle.memory.MemorySuggestions
 import app.whittle.tools.workspace.WorkspaceOutputs
 import app.whittle.settings.MemoryIdea
@@ -483,6 +484,16 @@ class AppGraph(context: Context) {
 
     /** One model call outside a run, for the memory review. */
     val oneShot = OneShot(modelAdapters, providers, modelCredentials)
+
+    /** Proposes memories from the user's own words after a chat. The setting that turns it off comes later; until then it is always on. */
+    val memoryReview = MemoryReview(
+        oneShot,
+        memorySuggestions,
+        memory,
+        PromptTemplate.load(configSource, ConfigFiles.memoryReviewPrompt).orThrow(ConfigFiles.memoryReviewPrompt),
+        appDefaults.memory.review,
+        settings = { true },
+    )
 
     /** schedule_task: an automation takes the chat's project unless the model names another that exists. */
     private fun scheduleTask() = ScheduleTaskTool(

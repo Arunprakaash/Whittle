@@ -76,6 +76,13 @@ class BundledConfigTest {
     }
 
     @Test
+    fun `memory review prompt declares only the suggestion limit`() {
+        val template = PromptTemplate.load(source, ConfigFiles.memoryReviewPrompt)
+        assertIs<Outcome.Success<PromptTemplate>>(template)
+        assertEquals(setOf("maxSuggestions"), template.value.placeholders)
+    }
+
+    @Test
     fun `models that can't chat with tools never reach the picker`() {
         val catalog = assertIs<Outcome.Success<ProviderCatalog>>(
             loader.load(ConfigFiles.providerCatalog, ProviderCatalog.serializer(), ProviderCatalog.SCHEMA_VERSION),
