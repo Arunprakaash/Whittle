@@ -90,6 +90,7 @@ internal val testMessages = AgentMessages(
     memoryEmpty = "empty",
     memoryTooLong = "too long, limit {{limit}}",
     memoryFull = "full at {{limit}}",
+    memoryDeclined = "declined",
     memoryForgotten = "forgotten",
     memoryNotFound = "no {{id}}",
     automationScheduled = "scheduled {{name}} {{time}} {{days}} {{next}} {{place}} {{tools}}",

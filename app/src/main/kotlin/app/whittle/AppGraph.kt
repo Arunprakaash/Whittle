@@ -417,7 +417,7 @@ class AppGraph(context: Context) {
     val tools = appTools(context).let { (createApp, buildApp) ->
         ToolRegistry(
             ToolCatalog.create(
-                context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, agentMessages, scheduleTask(),
+                context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, memorySuggestions::wasDismissed, agentMessages, scheduleTask(),
                 PhoneTools(phoneActions, reminders, workspaces, healthConnect) { id -> currentSettings.value?.phoneOff?.contains(id) != true },
                 createApp,
                 buildApp,

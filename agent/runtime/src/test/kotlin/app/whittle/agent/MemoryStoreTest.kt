@@ -3,8 +3,13 @@ package app.whittle.agent
 import app.whittle.core.common.EpochClock
 import app.whittle.core.common.IdGenerator
 import app.whittle.core.common.Outcome
+import app.whittle.core.model.RunId
+import app.whittle.core.model.ToolCallId
+import app.whittle.tools.api.ToolExecutionContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -69,5 +74,23 @@ class MemoryStoreTest {
         // Rewritten into another fact's words, the two become one.
         assertEquals(dog, assertIs<Outcome.Success<Memory?>>(memory.change(tea.id, "has a dog")).value)
         assertEquals(listOf(dog), memory.current())
+    }
+
+    @Test
+    fun `remember declines a fact the user already turned down and saves the rest`() = runTest {
+        val memory = store(this)
+        val tool = RememberTool(memory, testMessages, declined = { it.contains("markdrop", ignoreCase = true) })
+        val context = ToolExecutionContext(RunId("run"), ToolCallId("call"))
+        fun args(text: String) = JsonObject(mapOf("text" to JsonPrimitive(text)))
+
+        val no = tool.execute(args("Works at Markdrop"), context)
+        assertEquals("declined", no.content)
+        assertTrue(no.isError)
+        assertTrue(memory.current().isEmpty())
+        assertTrue(backend.saved.isEmpty())
+
+        val yes = tool.execute(args("Likes tea"), context)
+        assertEquals("saved id-0-pad", yes.content)
+        assertEquals(listOf("Likes tea"), memory.current().map { it.text })
     }
 }

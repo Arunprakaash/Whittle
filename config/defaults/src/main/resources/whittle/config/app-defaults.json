@@ -103,7 +103,10 @@
       "maxOutputTokens": 1200,
       "maxDismissed": 200,
       "maxDeclinedInInput": 20,
-      "maxReviewedChats": 200
+      "maxReviewedChats": 200,
+      "declinedContainment": 0.6,
+      "declinedShare": 0.5,
+      "declinedFillerWords": ["the", "an", "user", "users", "my", "me", "is", "are", "was", "am", "at", "as", "of", "to", "and", "in", "on", "for", "with", "has", "have", "work", "works", "working", "he", "she", "they", "their", "his", "her", "this", "that"]
     },
     "ideas": [
       { "icon": "person", "title": "What to call you", "example": "“Call me Sam.”", "start": "Call me " },

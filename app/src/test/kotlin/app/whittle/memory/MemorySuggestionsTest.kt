@@ -17,6 +17,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -50,7 +51,8 @@ class MemorySuggestionsTest {
     private var next = 0
     private val ids = IdGenerator { "id-${next++}-padding" }
     private val review = MemoryReviewDefaults(
-        fileName = "x.bin", quietMillis = 1, maxSuggestions = 3, maxInputChars = 10, maxOutputTokens = 10, maxDismissed = 2, maxDeclinedInInput = 1, maxReviewedChats = 2,
+        fileName = "x.bin", quietMillis = 1, maxSuggestions = 3, maxInputChars = 10, maxOutputTokens = 10, maxDismissed = 2, maxDeclinedInInput = 1, maxReviewedChats = 2, declinedContainment = 0.6, declinedShare = 0.5,
+        declinedFillerWords = listOf("the", "an", "user", "users", "my", "me", "is", "are", "was", "am", "at", "as", "of", "to", "and", "in", "on", "for", "with", "has", "have", "work", "works", "working", "he", "she", "they", "their", "his", "her", "this", "that"),
     )
 
     private fun memory(scope: CoroutineScope, items: Int = 5, chars: Int = 40) =
@@ -70,6 +72,45 @@ class MemorySuggestionsTest {
         assertEquals(listOf("is vegetarian"), box.saved.dismissed)
         s.add("chat", listOf("Is vegetarian" to null))
         assertTrue(s.pending.value.isEmpty())
+    }
+
+    @Test
+    fun `a dismissed fact is recognised in other words, and only then`() = runTest {
+        val s = suggestions(this)
+        s.add("chat", listOf("works at markdrop" to null, "Likes tea" to null, "Lives in Chennai" to null))
+        s.pending.value.forEach { s.dismiss(it.id) }
+        // maxDismissed is 2 in this fixture: only the last two remain.
+        assertTrue(s.wasDismissed("Likes tea"))
+        assertTrue(s.wasDismissed("  LIKES   Tea "))
+        assertTrue(s.wasDismissed("The user likes tea in the morning"))
+        assertTrue(s.wasDismissed("Lives in Chennai, India"))
+        assertFalse(s.wasDismissed("Likes coffee"))
+        assertTrue(s.wasDismissed("Lives in Chennai"))
+        assertFalse(s.wasDismissed("Works at Markdrop"), "the oldest was capped away")
+    }
+
+    @Test
+    fun `rewording of a one-word fact matches, a long different fact sharing the word does not`() = runTest {
+        val s = MemorySuggestions(box, memory(this), review.copy(maxDismissed = 5), EpochClock { 9L }, ids, this)
+        s.add("chat", listOf("works at markdrop" to null, "Likes tea" to null))
+        s.pending.value.forEach { s.dismiss(it.id) }
+        assertTrue(s.wasDismissed("works at markdrop"))
+        assertTrue(s.wasDismissed("The user works at Markdrop as a founder"))
+        assertTrue(s.wasDismissed("User's employer: Markdrop"))
+        assertFalse(s.wasDismissed("Markdrop's office is near the airport in Chennai"))
+        assertFalse(s.wasDismissed("Likes coffee"))
+        assertFalse(s.wasDismissed("   "))
+        assertFalse(s.wasDismissed(""))
+        assertFalse(s.wasDismissed("The user"), "only filler words")
+    }
+
+    @Test
+    fun `a fact the user kept or never saw is not dismissed`() = runTest {
+        val s = suggestions(this)
+        s.add("chat", listOf("Likes tea" to null))
+        assertFalse(s.wasDismissed("Likes tea"))
+        s.keep(s.pending.value.single().id, "Likes tea")
+        assertFalse(s.wasDismissed("Likes tea"))
     }
 
     @Test
@@ -221,6 +262,6 @@ class MemorySuggestionsTest {
                 app.whittle.settings.AppDefaults.FILE, app.whittle.settings.AppDefaults.serializer(), app.whittle.settings.AppDefaults.SCHEMA_VERSION,
             ),
         ).value.memory.review
-        assertEquals(MemoryReviewDefaults("memory-suggestions.bin", 60_000, 3, 6_000, 1_200, 200, 20, 200), defaults)
+        assertEquals(MemoryReviewDefaults("memory-suggestions.bin", 60_000, 3, 6_000, 1_200, 200, 20, 200, 0.6, 0.5, listOf("the", "an", "user", "users", "my", "me", "is", "are", "was", "am", "at", "as", "of", "to", "and", "in", "on", "for", "with", "has", "have", "work", "works", "working", "he", "she", "they", "their", "his", "her", "this", "that")), defaults)
     }
 }

@@ -132,13 +132,19 @@ class MemoryStore(
 /**
  * Saves a lasting fact about the user for future chats. It changes only the agent's own data; once a task has
  * read outside content, policy asks the user first (memory-after-outside-content-confirms), so a web page can't
- * plant a memory.
+ * plant a memory. [declined] says whether the user already turned this fact down (a dismissed suggestion, possibly in
+ * other words); then nothing is saved and the model is told so. Only this tool asks: the user's own additions aren't blocked.
  */
-class RememberTool(private val memory: MemoryStore, private val messages: AgentMessages) : Tool {
+class RememberTool(
+    private val memory: MemoryStore,
+    private val messages: AgentMessages,
+    private val declined: suspend (String) -> Boolean = { false },
+) : Tool {
     override val definition = DEFINITION
 
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
         val text = (arguments[TEXT] as? JsonPrimitive)?.contentOrNull.orEmpty()
+        if (declined(text)) return ToolOutput(messages.memoryDeclined, isError = true, provenance = Provenance.Trusted)
         return when (val saved = memory.remember(text)) {
             is Outcome.Success -> ToolOutput(messages.memorySaved(saved.value.id), isError = false, provenance = Provenance.Trusted)
             is Outcome.Failure -> ToolOutput(saved.error.message, isError = true, provenance = Provenance.Trusted)

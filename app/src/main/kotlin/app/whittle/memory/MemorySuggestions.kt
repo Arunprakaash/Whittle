@@ -119,6 +119,25 @@ class MemorySuggestions(
         return SeenSuggestions(current.pending.map { it.text }, current.dismissed.takeLast(limits.maxDeclinedInInput))
     }
 
+    /**
+     * Whether the user already dismissed this fact, in these words or others: [text] equals a dismissed text, or its key
+     * words (lower case, without filler like "the user" and "works at") cover the dismissed one's by
+     * [MemoryReviewDefaults.declinedContainment] while being mostly about it ([MemoryReviewDefaults.declinedShare]).
+     * What the user kept, or added in Settings, never counts. Blank text matches nothing.
+     */
+    suspend fun wasDismissed(text: String): Boolean {
+        val wanted = normal(text)
+        if (wanted.isEmpty()) return false
+        val words = keyWords(wanted)
+        return load().dismissed.any { it == wanted || matches(keyWords(it), words) }
+    }
+
+    private fun matches(dismissed: Set<String>, words: Set<String>): Boolean {
+        if (dismissed.isEmpty() || words.isEmpty()) return false
+        val shared = dismissed.intersect(words).size.toDouble()
+        return shared / dismissed.size >= limits.declinedContainment && shared / words.size >= limits.declinedShare
+    }
+
     /** The chat was deleted: its waiting suggestions and its review count go. */
     suspend fun forgetChat(chatId: String): Outcome<Unit> = changes.withLock {
         val current = load()
@@ -156,7 +175,17 @@ class MemorySuggestions(
 
     private fun withDismissed(dismissed: List<String>, text: String) = (dismissed - normal(text) + normal(text)).takeLast(limits.maxDismissed)
 
+    private val filler = limits.declinedFillerWords.map { it.lowercase() }.toSet()
+
+    /** The words that carry the fact: lower case, [MemoryReviewDefaults.declinedFillerWords] dropped, a plural "s" trimmed so "likes" meets "like". */
+    private fun keyWords(text: String): Set<String> = text.split(NOT_WORD).asSequence()
+        .filter { it.length > 1 && it !in filler }
+        .map { if (it.length > 3 && it.endsWith("s") && !it.endsWith("ss")) it.dropLast(1) else it }
+        .filter { it !in filler }
+        .toSet()
+
     private companion object {
         val WHITESPACE = Regex("""\s+""")
+        val NOT_WORD = Regex("""[^\p{L}\p{N}]+""")
     }
 }

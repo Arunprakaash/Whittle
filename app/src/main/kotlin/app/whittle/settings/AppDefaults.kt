@@ -219,7 +219,10 @@ data class MemoryDefaults(
  * proposes up to [maxSuggestions] facts (answering in at most [maxOutputTokens]); they wait in [fileName] (encrypted)
  * for the user. What's remembered about past reviews is capped so it can't grow forever: the last [maxDismissed] texts
  * the user dismissed and the last [maxReviewedChats] chats reviewed. The newest [maxDeclinedInInput] dismissed texts
- * go back to the model with each review so it doesn't propose them again in other words.
+ * go back to the model with each review so it doesn't propose them again in other words. The remember tool refuses a
+ * fact that matches a dismissed text: at least [declinedContainment] of the dismissed text's key words appear in the new
+ * one, and at least [declinedShare] of the new one's key words are the dismissed text's (so one shared word in a long,
+ * different fact doesn't count). Words in [declinedFillerWords] ("the", "user", "works") don't count as key words.
  */
 @Serializable
 data class MemoryReviewDefaults(
@@ -231,11 +234,17 @@ data class MemoryReviewDefaults(
     val maxDismissed: Int,
     val maxDeclinedInInput: Int,
     val maxReviewedChats: Int,
+    val declinedContainment: Double,
+    val declinedShare: Double,
+    val declinedFillerWords: List<String>,
 ) {
     init {
         require(fileName.isNotBlank()) { "memory.review.fileName must be set" }
         require(quietMillis > 0 && maxSuggestions > 0 && maxInputChars > 0 && maxOutputTokens > 0 && maxDismissed > 0 && maxDeclinedInInput > 0 && maxReviewedChats > 0) {
             "memory.review limits must be positive"
+        }
+        require(declinedContainment in 0.0..1.0 && declinedContainment > 0.0 && declinedShare in 0.0..1.0 && declinedShare > 0.0) {
+            "memory.review declinedContainment and declinedShare must be above 0 and at most 1"
         }
     }
 }

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 13,
+  "schemaVersion": 14,
   "unknownTool": "There is no tool named \"{{tool}}\". Use only the tools you were given.",
   "invalidArguments": "The arguments for \"{{tool}}\" were not valid: {{detail}}. Fix them and try again.",
   "policyDenied": "\"{{tool}}\" is not allowed by the user's safety settings. Do not retry it; tell the user what you could not do.",
@@ -25,6 +25,7 @@
   "memoryEmpty": "There's nothing to remember: give the fact as text.",
   "memoryTooLong": "Keep it under {{limit}} characters: one short fact.",
   "memoryFull": "Memory is full ({{limit}} facts). Forget one that no longer matters, then try again.",
+  "memoryDeclined": "Not saved: the user already said no to remembering this. Don't try again in other words. If they've changed their mind, they can add it themselves in Settings › Memory.",
   "memoryForgotten": "Forgotten.",
   "memoryNotFound": "Nothing is remembered with id {{id}}.",
   "automationScheduled": "Scheduled \"{{name}}\" at {{time}} on {{days}}; the next run is {{next}}. {{place}} Each run starts a new chat, and the user gets a notification when it's done. It may {{tools}} without asking; anything else waits for the user's approval. The user can change it or turn it off in Settings › Automations.",

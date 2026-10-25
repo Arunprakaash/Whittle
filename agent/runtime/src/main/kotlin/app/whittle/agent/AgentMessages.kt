@@ -49,6 +49,8 @@ data class AgentMessages(
     val memoryEmpty: String,
     val memoryTooLong: String,
     val memoryFull: String,
+    /** What remember answers when the user already said no to this fact in Settings › Memory. */
+    val memoryDeclined: String,
     val memoryForgotten: String,
     val memoryNotFound: String,
     /** schedule_task saved an automation; [PLACE] is [automationInProject] or [automationInWorkspace]. */
@@ -148,6 +150,7 @@ data class AgentMessages(
         requirePlaceholders(memoryEmpty)
         requirePlaceholders(memoryTooLong, LIMIT)
         requirePlaceholders(memoryFull, LIMIT)
+        requirePlaceholders(memoryDeclined)
         requirePlaceholders(memoryForgotten)
         requirePlaceholders(memoryNotFound, ID)
         requirePlaceholders(automationScheduled, NAME, TIME, DAYS, NEXT, PLACE, TOOLS)
@@ -312,7 +315,7 @@ data class AgentMessages(
         if (items.isEmpty()) noMemories else items.joinToString("\n") { (id, text) -> render(memoryLine, ID to id, TEXT to text) }
 
     companion object {
-        const val SCHEMA_VERSION = 13
+        const val SCHEMA_VERSION = 14
         private const val FILES = "files"
         private const val SIZE = "size"
         private const val TOOL = "tool"
