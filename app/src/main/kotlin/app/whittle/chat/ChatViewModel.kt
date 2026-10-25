@@ -587,7 +587,8 @@ class ChatViewModel(
         refreshProjects()
     }
 
-    private var appVisible = true
+    // False until the first screen starts: this is created before any is, possibly in a process nobody opened.
+    private var appVisible = false
 
     /** The user left Whittle: the chat on screen, if its task has ended, starts going quiet. */
     fun appLeft() {
@@ -663,8 +664,10 @@ class ChatViewModel(
             syncProject()
         }
         _state.update { state -> state.copy(chats = state.chats.filterNot { it.id == id }) }
+        quiet.returned(id.value)
         graph.appScope.launch {
             saveLock.withLock { purge(id) }
+            graph.memorySuggestions.forgetChat(id.value)
             refreshChats()
         }
     }
@@ -678,8 +681,10 @@ class ChatViewModel(
         deleted.discard()
         syncProject()
         _state.update { it.copy(chats = emptyList()) }
+        quiet.cancelAll()
         graph.appScope.launch {
             saveLock.withLock { graph.chats.list().getOrNull().orEmpty().forEach { purge(it.id) } }
+            graph.memorySuggestions.forgetAllChats()
             refreshChats()
         }
     }
