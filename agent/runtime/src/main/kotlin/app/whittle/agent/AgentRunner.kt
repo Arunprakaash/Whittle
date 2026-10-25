@@ -21,7 +21,6 @@ import app.whittle.llm.api.AssistantTurnAssembler
 import app.whittle.llm.api.CredentialsProvider
 import app.whittle.llm.api.HostedTool
 import app.whittle.llm.api.ModelAdapterRegistry
-import app.whittle.llm.api.ModelDescriptor
 import app.whittle.llm.api.ModelEvent
 import app.whittle.llm.api.ModelRequest
 import app.whittle.llm.api.ProviderCatalog

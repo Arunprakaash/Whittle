@@ -29,6 +29,37 @@ class QuietReviewTest {
     }
 
     @Test
+    fun `a review that throws is dropped and the next leave still reviews`() = runTest {
+        val reviews = QuietReviews(backgroundScope, quietMillis = 1_000) { id ->
+            ran += id
+            if (id == "bad") error("no network stack")
+        }
+        reviews.left("bad")
+        advanceTimeBy(1_000)
+        runCurrent()
+        reviews.left("good")
+        advanceTimeBy(1_000)
+        runCurrent()
+        assertEquals(listOf("bad", "good"), ran)
+    }
+
+    @Test
+    fun `cancelling all leaves no review waiting`() = runTest {
+        val reviews = reviews()
+        reviews.left("a")
+        reviews.left("b")
+        advanceTimeBy(500)
+        reviews.cancelAll()
+        advanceTimeBy(5_000)
+        runCurrent()
+        assertTrue(ran.isEmpty())
+        reviews.left("c")
+        advanceTimeBy(1_000)
+        runCurrent()
+        assertEquals(listOf("c"), ran)
+    }
+
+    @Test
     fun `coming back cancels the review`() = runTest {
         val reviews = reviews()
         reviews.left("a")

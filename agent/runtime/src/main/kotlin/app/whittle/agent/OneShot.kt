@@ -11,7 +11,6 @@ import app.whittle.llm.api.ModelEvent
 import app.whittle.llm.api.ModelRequest
 import app.whittle.llm.api.ProviderCatalog
 import app.whittle.llm.api.ReasoningEffort
-import kotlinx.coroutines.flow.collect
 
 /** A single model call outside an agent run: no tools, low reasoning effort, text back. */
 class OneShot(

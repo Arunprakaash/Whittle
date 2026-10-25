@@ -1,6 +1,7 @@
 package app.whittle.chat
 
 import app.whittle.llm.api.ModelDescriptor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -23,13 +24,25 @@ class QuietReviews(
         pending[chatId] = scope.launch {
             delay(quietMillis)
             pending.remove(chatId)
-            run(chatId)
+            // Nobody is watching: a review that fails is no review this time, never a crash of the app in the background.
+            try {
+                run(chatId)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+            }
         }
     }
 
     /** The user is back in [chatId]: no review is waiting for it. */
     fun returned(chatId: String) {
         pending.remove(chatId)?.cancel()
+    }
+
+    /** No review is waiting for any chat, as when every chat is deleted. */
+    fun cancelAll() {
+        pending.values.forEach(Job::cancel)
+        pending.clear()
     }
 }
 
