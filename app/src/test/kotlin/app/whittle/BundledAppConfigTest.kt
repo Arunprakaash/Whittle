@@ -4,6 +4,7 @@ import app.whittle.apps.NativeAppsConfig
 import app.whittle.apps.PowerfulKind
 import app.whittle.automations.AutomationsConfig
 import app.whittle.linux.ComputerAccessConfig
+import app.whittle.automations.Trigger
 import app.whittle.claudecode.ClaudeCodeConfig
 import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.llm.api.HostedTool
@@ -224,11 +225,29 @@ class BundledAppConfigTest {
         assertTrue(config.ideas.isNotEmpty())
         val tiers = ToolCatalog.definitions.associate { it.id.value to it.riskTier } + (HostedTool.WEB_SEARCH.toolName to RiskTier.WEB_READ)
         val readOnly = setOf(RiskTier.READ, RiskTier.WEB_READ)
-        // An idea is one tap from saved, so like a new automation it never starts able to change anything.
-        val changing = config.ideas.associate { it.name to config.toolIdsFor(it).filter { id -> tiers.getValue(id) !in readOnly } }.filterValues { it.isNotEmpty() }
+        // An idea is one tap from saved, so like a new automation it never starts able to change anything. The exception
+        // is a recipe on an event: the user chose it for its job (the bank-text one appends to a file), and spec says so.
+        val changing = config.ideas.filter { it.trigger == null }.associate { it.name to config.toolIdsFor(it).filter { id -> tiers.getValue(id) !in readOnly } }.filterValues { it.isNotEmpty() }
         assertTrue(changing.isEmpty(), "These ideas would change things without asking: $changing")
         val missingIcons = config.ideas.map { it.icon }.toSet() - WhittleIcons.names
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
+    }
+
+    @Test
+    fun ideasWithTriggersAreValid() {
+        val config = assertIs<Outcome.Success<AutomationsConfig>>(
+            loader.load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
+        ).value
+        val withTriggers = config.ideas.filter { it.trigger != null }
+        assertTrue(withTriggers.size >= 3, "the event recipes are missing")
+        val keys = config.tools.map { it.key }.toSet()
+        withTriggers.forEach { idea ->
+            // A trigger or a time, never both: the idea decoded, so its init already checked, but say it here too.
+            assertTrue(idea.minuteOfDay == null && idea.days == null, "${idea.name} has a trigger and a time")
+            assertTrue(idea.tools.all { it in keys }, "${idea.name} names tool choices that don't exist: ${idea.tools - keys}")
+            assertFalse(idea.trigger is Trigger.Place, "${idea.name}: a place needs the user's own location, so it isn't a recipe")
+            assertTrue(idea.name.length <= config.maxNameChars && idea.prompt.length <= config.maxPromptChars, idea.name)
+        }
     }
 
     @Test

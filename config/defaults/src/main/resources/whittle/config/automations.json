@@ -127,6 +127,27 @@
       "minuteOfDay": 540,
       "days": [1, 2, 3, 4, 5, 6, 7],
       "tools": ["web"]
+    },
+    {
+      "icon": "payments",
+      "name": "Log bank texts",
+      "prompt": "A bank text just arrived. From it, take the date, the amount, the merchant and whether it was a debit or a credit, and append them as one CSV line (date,amount,merchant,debit or credit) to expenses.csv. If expenses.csv doesn't exist, create it first with the header date,amount,merchant,type. Never mention or log any code or one-time password.",
+      "trigger": {"type": "sms", "senders": [], "words": ["debited", "credited", "spent"]},
+      "tools": ["readFiles", "changeFiles"]
+    },
+    {
+      "icon": "package_2",
+      "name": "What's arriving",
+      "prompt": "A text about a delivery just arrived. Tell me in one line what is arriving, from whom, and when.",
+      "trigger": {"type": "sms", "words": ["delivered", "out for delivery", "arriving", "shipped"]},
+      "tools": []
+    },
+    {
+      "icon": "battery_charging_full",
+      "name": "Plugged in at night",
+      "prompt": "Check the time. Only if it's after 9 PM, look at tomorrow's calendar and reminders and tell me, in three lines, the first events and reminders. If it's not after 9 PM, say nothing and stop.",
+      "trigger": {"type": "charging", "edge": "START"},
+      "tools": ["calendar", "clock"]
     }
   ]
 }
