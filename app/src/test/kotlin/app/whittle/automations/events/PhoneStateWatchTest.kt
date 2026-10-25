@@ -95,12 +95,14 @@ class PhoneStateWatchTest {
     private class Fake(var state: PhoneState = PhoneState(false, null, emptySet())) : PhoneReader, PhoneStateStore, PhoneScheduler {
         var saved: PhoneState? = null
         var location: Pair<Double, Double>? = null
+        var lastKnown: Pair<Double, Double>? = null
         var armed: PhoneNeeds? = null
         var locationReads = 0
 
         override fun charging() = state.charging
         override fun wifi() = state.wifi
         override suspend fun location(): Pair<Double, Double>? = location.also { locationReads++ }
+        override fun lastKnownLocation(): Pair<Double, Double>? = lastKnown
         override suspend fun load() = saved
         override suspend fun save(state: PhoneState?) { saved = state }
         override fun arm(needs: PhoneNeeds) { armed = needs }
@@ -233,5 +235,49 @@ class PhoneStateWatchTest {
         fake.state = idle
         watch.check()
         assertEquals(listOf(PhoneEvent(EventKind.WIFI, "Home", "", now, Edge.END)), events)
+    }
+
+    @Test
+    fun aPlaceArmedWhileTheCurrentSpotIsInsideDoesNotFireOnTheFirstEnter() = runTest {
+        val fake = Fake().also { it.lastKnown = 12.9721 to 77.5946 }
+        val events = mutableListOf<PhoneEvent>()
+        val watch = watch(fake, this, listOf(home), events = events)
+
+        watch.arm()
+        assertEquals(setOf("Home"), fake.saved?.inside)
+        watch.placeCrossed("Home", entering = true)
+        assertTrue(events.isEmpty(), events.toString())
+
+        // Leaving and coming back are real.
+        watch.placeCrossed("Home", entering = false)
+        watch.placeCrossed("Home", entering = true)
+        assertEquals(listOf(Edge.END, Edge.START), events.map { it.edge })
+    }
+
+    @Test
+    fun aPlaceAddedLaterIsLookedAtToo() = runTest {
+        val fake = Fake().also { it.saved = idle.copy(baselined = setOf("Work")); it.lastKnown = 12.9721 to 77.5946 }
+        val events = mutableListOf<PhoneEvent>()
+        val watch = watch(fake, this, listOf(Trigger.Place("Work", 1.0, 1.0, 100, Edge.START), home), events = events)
+
+        watch.arm()
+        watch.placeCrossed("Home", entering = true)
+
+        assertEquals(setOf("Home"), fake.saved?.inside)
+        assertEquals(setOf("Work", "Home"), fake.saved?.baselined)
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun withNoLastLocationAnEnterStillFires() = runTest {
+        val fake = Fake().also { it.saved = idle }
+        val events = mutableListOf<PhoneEvent>()
+        val watch = watch(fake, this, listOf(home), events = events)
+
+        watch.arm()
+        assertTrue(fake.saved?.baselined.orEmpty().isEmpty())
+        watch.placeCrossed("Home", entering = true)
+
+        assertEquals(listOf(Edge.START), events.map { it.edge })
     }
 }

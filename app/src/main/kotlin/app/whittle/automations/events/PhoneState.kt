@@ -13,10 +13,11 @@ import kotlin.math.sqrt
 
 /**
  * What the phone was last seen doing, kept so the next look can tell what changed. A null [charging] or [wifi] is
- * unknown or not connected; [inside] holds the names of the places the phone is within the radius of.
+ * unknown or not connected; [inside] holds the names of the places the phone is within the radius of. [baselined]
+ * holds the places whose [inside] was set from a first look at where the phone is, so an old file reads as none.
  */
 @Serializable
-data class PhoneState(val charging: Boolean?, val wifi: String?, val inside: Set<String>)
+data class PhoneState(val charging: Boolean?, val wifi: String?, val inside: Set<String>, val baselined: Set<String> = emptySet())
 
 /** What the enabled automations ask the phone to watch; nothing is armed for a source that is false or empty. */
 data class PhoneNeeds(val charging: Boolean = false, val wifi: Boolean = false, val places: List<Trigger.Place> = emptyList()) {

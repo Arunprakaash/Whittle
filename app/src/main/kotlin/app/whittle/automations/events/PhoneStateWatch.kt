@@ -21,6 +21,9 @@ interface PhoneReader {
 
     /** Where the phone is, latitude then longitude; null without the permission or a fix. */
     suspend fun location(): Pair<Double, Double>?
+
+    /** Where the phone was last seen, without asking for a new fix; null without the permission or any record. */
+    fun lastKnownLocation(): Pair<Double, Double>?
 }
 
 /** Where the last [PhoneState] is kept; saving null forgets it. */
@@ -62,7 +65,13 @@ class PhoneStateWatch(
 
     private suspend fun arm(needs: PhoneNeeds) = lock.withLock {
         // Nothing watched means nothing saved: watching later starts from where things stand then.
-        if (!needs.any) store.save(null) else if (store.load() == null) store.save(read(null, needs))
+        if (!needs.any) {
+            store.save(null)
+        } else {
+            val saved = store.load()
+            // A place armed now is looked up at once, so an alert that fires for a phone already there finds it inside.
+            if (saved == null) store.save(baselined(read(null, needs), needs)) else baselined(saved, needs).takeIf { it != saved }?.let { store.save(it) }
+        }
         scheduler.arm(needs)
     }
 
@@ -70,7 +79,7 @@ class PhoneStateWatch(
     suspend fun check() = lock.withLock {
         val needs = needs()
         if (needs.any) {
-            val before = store.load()
+            val before = store.load()?.let { baselined(it, needs) }
             val after = read(before, needs)
             if (before != null) edges(before, after, needs.places, clock.nowMillis()).forEach { dispatch(it) }
             store.save(after)
@@ -84,7 +93,7 @@ class PhoneStateWatch(
     suspend fun placeCrossed(name: String, entering: Boolean) = lock.withLock {
         val needs = needs()
         if (needs.places.none { it.name == name }) return@withLock
-        val before = store.load()
+        val before = store.load()?.let { baselined(it, needs) }
         if (before == null) {
             // Nothing seen yet, so this only records where things stand.
             store.save(PhoneState(reader.charging(), reader.wifi(), if (entering) setOf(name) else emptySet()))
@@ -104,12 +113,26 @@ class PhoneStateWatch(
     private suspend fun read(before: PhoneState?, needs: PhoneNeeds): PhoneState {
         val known = needs.places.map { it.name }.toSet()
         val last = before?.inside.orEmpty().filter { it in known }.toSet()
-        val inside = if (config.placePolling && needs.places.isNotEmpty()) {
+        val polling = config.placePolling && needs.places.isNotEmpty()
+        val inside = if (polling) {
             reader.location()?.let { (latitude, longitude) -> insideOf(latitude, longitude, needs.places) } ?: last
         } else {
             last
         }
-        return PhoneState(reader.charging(), wifiKeepingName(before?.wifi), inside)
+        val baselined = if (polling) known else before?.baselined.orEmpty().filter { it in known }.toSet()
+        return PhoneState(reader.charging(), wifiKeepingName(before?.wifi), inside, baselined)
+    }
+
+    /**
+     * [state] with each place not yet looked at set from one passive look at where the phone was last seen, no new
+     * fix: Android's proximity alert reports "entering" for a phone that is already there, which would otherwise
+     * read as arriving. Without a last location the place stays unlooked-at and is tried again next time.
+     */
+    private fun baselined(state: PhoneState, needs: PhoneNeeds): PhoneState {
+        val fresh = needs.places.filter { it.name !in state.baselined }
+        if (fresh.isEmpty()) return state
+        val (latitude, longitude) = reader.lastKnownLocation() ?: return state
+        return state.copy(inside = state.inside + insideOf(latitude, longitude, fresh), baselined = state.baselined + fresh.map { it.name })
     }
 
     /**

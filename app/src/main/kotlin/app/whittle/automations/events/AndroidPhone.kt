@@ -71,6 +71,20 @@ class AndroidPhoneReader(private val context: Context) : PhoneReader {
         }
     }
 
+    override fun lastKnownLocation(): Pair<Double, Double>? {
+        if (!granted(Manifest.permission.ACCESS_COARSE_LOCATION) && !granted(Manifest.permission.ACCESS_FINE_LOCATION)) return null
+        val manager = context.getSystemService(LocationManager::class.java) ?: return null
+        return try {
+            // Passive: whatever the phone already knows, newest first; nothing is asked of the radios.
+            val last = manager.getProviders(true).mapNotNull { manager.getLastKnownLocation(it) }.maxByOrNull { it.time }
+            last?.let { it.latitude to it.longitude }
+        } catch (_: SecurityException) {
+            null
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+    }
+
     private fun granted(permission: String) = context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
 
     private companion object {
