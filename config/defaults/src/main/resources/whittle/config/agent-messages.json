@@ -106,7 +106,7 @@
     "LOCATION": "location permission, because Android hides a Wi-Fi network's name without it",
     "BACKGROUND_LOCATION": "location permission all the time"
   },
-  "automationPlaceInSettings": "Places can't be set up from chat. Tell the user to add a place in Settings › Automations, where they pick it on the map.",
+  "automationPlaceInSettings": "Places can't be set up from chat. Tell the user to add a place in Settings › Automations, where they stand at the place and tap \"Use where I am now\".",
   "automationAppNotFound": "No app on this phone is called '{{name}}'. Ask the user which app they mean, using the name under its icon.",
   "automationAppAmbiguous": "More than one app is called '{{name}}': {{apps}}. Ask the user which one.",
   "automationAppRequired": "Say which app to watch (from), using the name under its icon.",
