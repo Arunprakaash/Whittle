@@ -247,6 +247,10 @@
     <string name="settings_update_button">Update</string>
     <string name="settings_version_update">%1$s · %2$s is out</string>
     <string name="settings_updates_title">Check for updates</string>
+    <string name="settings_updates_checked">Checked %1$s</string>
+    <string name="settings_updates_checked_now">Checked just now</string>
+    <string name="settings_updates_not_yet">Not checked yet</string>
+    <string name="settings_updates_failed">Couldn\'t reach GitHub</string>
     <string name="settings_section_connections">Connections</string>
     <string name="memory_none">Empty</string>
     <plurals name="memory_count">

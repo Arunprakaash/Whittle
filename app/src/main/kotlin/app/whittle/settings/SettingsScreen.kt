@@ -18,6 +18,7 @@ import app.whittle.design.theme.WhittleTheme
 import app.whittle.design.theme.ThemeMode
 import app.whittle.background.rememberNotificationPermissionRequest
 import android.os.Build
+import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -258,6 +259,8 @@ fun SettingsScreen(
             }
             item {
                 val update by graph.updates.available.collectAsStateWithLifecycle()
+                val answeredAt by graph.updates.answeredAt.collectAsStateWithLifecycle()
+                val lastFailed by graph.updates.lastFailed.collectAsStateWithLifecycle()
                 val context = LocalContext.current
                 val version = BuildConfig.VERSION_NAME
                 val openRelease: (() -> Unit)? = update?.let { release ->
@@ -281,11 +284,12 @@ fun SettingsScreen(
                     SettingsToggleRow(
                         icon = "download",
                         title = stringResource(R.string.settings_updates_title),
-                        subtitle = null,
+                        subtitle = if (settings?.checkForUpdates == true) lastChecked(answeredAt, lastFailed) else null,
                         checked = settings?.checkForUpdates == true,
                         onCheckedChange = { on ->
                             save { setCheckForUpdates(on) }
-                            if (on) graph.appScope.launch { graph.updates.checkIfDue() }
+                            // Switched on, it checks now: the user expects to see it work, and it's one request.
+                            if (on) graph.appScope.launch { graph.updates.checkIfDue(force = true) }
                         },
                         shape = segmentedShape(1, 2),
                         enabled = settings != null,
@@ -309,6 +313,20 @@ fun SettingsScreen(
     }
 }
 
+
+/**
+ * When the update check last heard from GitHub, in plain words: "Checked 3 hours ago", "Checked yesterday". A check that
+ * got no answer says so only while there's no earlier answer to show.
+ */
+@Composable
+private fun lastChecked(answeredAtMillis: Long?, lastFailed: Boolean): String {
+    answeredAtMillis ?: return stringResource(if (lastFailed) R.string.settings_updates_failed else R.string.settings_updates_not_yet)
+    val now = System.currentTimeMillis()
+    if (now - answeredAtMillis < DateUtils.MINUTE_IN_MILLIS) return stringResource(R.string.settings_updates_checked_now)
+    // Android writes "Yesterday" capitalised, for a line on its own; here it follows "Checked".
+    val ago = DateUtils.getRelativeTimeSpanString(answeredAtMillis, now, DateUtils.MINUTE_IN_MILLIS).toString()
+    return stringResource(R.string.settings_updates_checked, ago.replaceFirstChar { it.lowercase() })
+}
 
 /** System, Light or Dark as one connected button group (M3 Expressive); the choice applies at once. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

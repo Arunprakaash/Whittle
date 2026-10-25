@@ -71,6 +71,37 @@ class UpdateCheckTest {
     }
 
     @Test
+    fun `the last answered check is kept, and a failed one doesn't replace it`() = runTest {
+        server.enqueue(latest("v0.20.0"))
+        server.enqueue(MockResponse().setResponseCode(503))
+        val updates = updates()
+        assertNull(updates.answeredAt.value, "nothing before the first check")
+        now = 1_000L
+        updates.checkIfDue()
+        assertEquals(1_000L, updates.answeredAt.value)
+        assertEquals(false, updates.lastFailed.value)
+        now += 25 * 3_600_000L
+        updates.checkIfDue()
+        assertEquals(1_000L, updates.answeredAt.value, "the failed check isn't shown as a check")
+        assertEquals(true, updates.lastFailed.value)
+        val restarted = updates()
+        restarted.checkIfDue()
+        assertEquals(1_000L, restarted.answeredAt.value, "kept across a restart")
+        assertEquals(true, restarted.lastFailed.value)
+    }
+
+    @Test
+    fun `a check saved by an older version is due again, so the time it worked shows`() = runTest {
+        file.writeText("""{"checkedAtMillis":0,"latest":{"version":"0.20.0","pageUrl":"https://github.com/x/releases/tag/v0.20.0"}}""")
+        server.enqueue(latest("v0.20.0"))
+        now = 60_000L
+        val updates = updates()
+        updates.checkIfDue()
+        assertEquals(1, server.requestCount)
+        assertEquals(60_000L, updates.answeredAt.value)
+    }
+
+    @Test
     fun `a failed request is not retried until the next interval`() = runTest {
         server.enqueue(MockResponse().setResponseCode(403))
         server.enqueue(latest("v0.21.0"))
