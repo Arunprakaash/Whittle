@@ -6,9 +6,9 @@ import app.whittle.tools.api.ToolDefinition
 /**
  * Deterministic policy, independent of the model. Fixed order:
  * 1. hard denylist  2. deny rules  3. model trust tier denials  4. tainted run + outbound tool, or
- * tainted run + personal data + web read  5. unattended runs (pre-approved tools only)
- * 6. trust tier approval threshold  7. ask rules  8. allow rules  9. risk-tier default.
- * Deny always wins; nothing later in the order can turn a deny into an allow.
+ * tainted run + personal data + web read  5. deleting or paying (always asks)  6. unattended runs (pre-approved
+ * tools only)  7. trust tier approval threshold  8. ask rules  9. allow rules  10. risk-tier default.
+ * Deny always wins; nothing later in the order can turn a deny into an allow, or a delete into one nobody saw.
  */
 class RuleBasedPolicyEngine(private val ruleSet: PolicyRuleSet) : PolicyEngine {
     override fun evaluate(tool: ToolDefinition, context: RunContext): PolicyDecision {
@@ -31,6 +31,10 @@ class RuleBasedPolicyEngine(private val ruleSet: PolicyRuleSet) : PolicyEngine {
         // make that address carry the user's contacts or events. With both present, the user decides.
         if (context.tainted && context.personalDataRead && tool.riskTier == RiskTier.WEB_READ) {
             return PolicyDecision.Ask(DecisionReason.TaintedWebReadWithPersonalData, ApprovalScope.EVERY_CALL)
+        }
+        // Checked here, before pre-approval, allow rules and defaults, so none of them can delete or pay unseen.
+        if (tool.riskTier == RiskTier.DELETE_OR_PAY) {
+            return PolicyDecision.Ask(DecisionReason.DeleteOrPay, ApprovalScope.EVERY_CALL)
         }
         if (context.mode == RunMode.UNATTENDED) {
             return if (tool.id in context.preApprovedTools) {
