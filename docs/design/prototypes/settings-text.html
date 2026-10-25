@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings, quieter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..24,400,0..1,0&display=swap">
+<style>
+  :root {
+    --page: #EEF0EE; --ink: #171D1A; --ink-2: #404944; --ink-3: #707973; --line: #D6DBD7; --card: #FFFFFF;
+    --accent: #2B6A55; --accent-soft: #CDE9DC; --cut: #BA1A1A; --cut-soft: #FFDAD6; --keep: #2B6A55;
+    /* The phones use the neutral wallpaper colors seen on the emulator. */
+    --p-bg: #F9F9F9; --p-row: #F1F1F1; --p-ink: #1F1F1F; --p-ink-2: #5E5E5E; --p-icon-bg: #E3E3E3; --p-on: #5A5A5A; --p-off: #E3E3E3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --page: #0F1512; --ink: #DEE4DF; --ink-2: #C0C9C3; --ink-3: #8A938D; --line: #303633; --card: #171D1A; --accent: #97D4BA; --accent-soft: #1F3A30; --cut: #FFB4AB; --cut-soft: #4A1D19; --keep: #97D4BA; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --page: #0F1512; --ink: #DEE4DF; --ink-2: #C0C9C3; --ink-3: #8A938D; --line: #303633; --card: #171D1A; --accent: #97D4BA; --accent-soft: #1F3A30; --cut: #FFB4AB; --cut-soft: #4A1D19; --keep: #97D4BA; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 400 15px/1.5 Figtree, system-ui, sans-serif; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding-block: 40px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  h1 { font-weight: 600; font-size: 30px; line-height: 1.2; margin: 0 0 8px; text-wrap: balance; }
+  .lede { color: var(--ink-2); max-width: 64ch; margin: 0 0 24px; }
+  .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 0 0 28px; padding: 0; list-style: none; }
+  .rules li { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+  .rules b { display: block; font-weight: 600; margin-bottom: 2px; }
+  .rules span { color: var(--ink-2); font-size: 14px; }
+  .states { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 20px; }
+  .states .label { font: 500 12px/1 "Geist Mono", monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-right: 4px; }
+  .chip { font: 500 14px Figtree, sans-serif; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; cursor: pointer; }
+  .chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+  .compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 24px; justify-items: center; }
+  .col { width: 100%; max-width: 390px; min-width: 0; }
+  .col h2 { font: 600 16px Figtree, sans-serif; margin: 0 0 4px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .count { font: 500 13px "Geist Mono", monospace; color: var(--ink-3); }
+  .count b { color: var(--ink); font-weight: 500; }
+  .phone { background: var(--p-bg); color: var(--p-ink); border-radius: 36px; border: 8px solid #1d1d1f; height: 760px; max-width: 100%; overflow-y: auto; overscroll-behavior: contain; padding: 18px 14px 28px; box-shadow: 0 20px 40px -24px rgba(0,0,0,.4); }
+  .phone::-webkit-scrollbar { width: 0; }
+  .bar { display: flex; align-items: center; gap: 14px; padding: 6px 2px 14px; }
+  .back { width: 40px; height: 40px; border-radius: 50%; background: #EAEAEA; display: grid; place-items: center; }
+  .bar h3 { margin: 0; font: 600 22px Figtree, sans-serif; }
+  .sec { margin: 0 0 18px; }
+  .sec-title { font: 500 13px Figtree, sans-serif; color: var(--p-ink-2); margin: 0 0 8px 12px; }
+  .sec-desc { font-size: 13px; color: var(--p-ink-2); margin: -2px 12px 10px; line-height: 1.45; }
+  .foot { font-size: 12.5px; color: var(--p-ink-2); margin: 8px 12px 0; }
+  .group { display: flex; flex-direction: column; gap: 3px; }
+  .row { display: flex; align-items: center; gap: 12px; background: var(--p-row); padding: 12px 14px; min-height: 58px; border-radius: 6px; }
+  .group .row:first-child { border-top-left-radius: 20px; border-top-right-radius: 20px; }
+  .group .row:last-child { border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; }
+  .ic { width: 36px; height: 36px; border-radius: 50%; background: var(--p-icon-bg); display: grid; place-items: center; flex: none; }
+  .ms { font-family: "Material Symbols Rounded"; font-size: 20px; line-height: 1; color: var(--p-ink-2); font-variation-settings: "opsz" 20; }
+  .txt { flex: 1; min-width: 0; }
+  .t { font: 500 15.5px/1.3 Figtree, sans-serif; }
+  .s { font-size: 13.5px; color: var(--p-ink-2); line-height: 1.35; margin-top: 2px; }
+  .s.alert { color: #8C1D18; }
+  .sw { width: 46px; height: 28px; border-radius: 999px; background: var(--p-off); border: 2px solid #8E8E8E; position: relative; flex: none; }
+  .sw::after { content: ""; position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; border-radius: 50%; background: #8E8E8E; }
+  .sw.on { background: var(--p-on); border-color: var(--p-on); }
+  .sw.on::after { left: 22px; top: 2px; width: 20px; height: 20px; background: #fff; }
+  .pill { font: 500 13.5px Figtree, sans-serif; padding: 6px 12px; border-radius: 999px; background: #E3E3E3; color: var(--p-ink); flex: none; }
+  .pill.solid { background: #3D3D3D; color: #fff; }
+  .chev { color: var(--p-ink-2); }
+  .seg { display: flex; gap: 4px; margin-top: 10px; }
+  .seg span { flex: 1; text-align: center; padding: 9px 0; border-radius: 999px; background: #E6E6E6; font-size: 14px; }
+  .seg span.on { background: #4A4A4A; color: #fff; }
+  .row.col-row { flex-direction: column; align-items: stretch; }
+  .danger .t { color: #B3261E; }
+  .danger .ic { background: #F9DEDC; } .danger .ms { color: #B3261E; }
+  .new { outline: 2px dashed var(--accent); outline-offset: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .table-wrap { overflow-x: auto; margin-top: 36px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  th { font: 500 12px "Geist Mono", monospace; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
+  tr:last-child td { border-bottom: none; }
+  td.before { color: var(--ink-2); }
+  td.before s { text-decoration-color: var(--cut); }
+  td.after { color: var(--ink); }
+  td.why { color: var(--ink-2); font-size: 13px; }
+  .tag { font: 500 11px "Geist Mono", monospace; padding: 2px 6px; border-radius: 6px; margin-right: 6px; }
+  .tag.cut { background: var(--cut-soft); color: var(--cut); } .tag.short { background: var(--accent-soft); color: var(--keep); }
+  h2.table-title { font: 600 18px Figtree, sans-serif; margin: 40px 0 0; }
+  .note { color: var(--ink-3); font-size: 13px; margin-top: 12px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Settings, with less to read</h1>
+  <p class="lede">The layout stays. What changes is the small grey text: most rows describe themselves today, so the page reads like a manual. Proposed, a row's second line says only its state, and only when there's something to say.</p>
+  <ul class="rules">
+    <li><b>State, not description</b><span>"Connected", "2 on", "Off". Not what the setting is for.</span></li>
+    <li><b>No line if the label says it</b><span>"Contacts" needs no "Finds who you mean".</span></li>
+    <li><b>Don't repeat the heading</b><span>No "Automations" row under an "Automations" heading.</span></li>
+    <li><b>One line for what must be said</b><span>Trust facts stay, as one short footer.</span></li>
+  </ul>
+
+  <div class="states" role="group" aria-label="Try states">
+    <span class="label">Try</span>
+    <button class="chip" data-state="assistant" aria-pressed="false">Assistant on</button>
+    <button class="chip" data-state="signedOut" aria-pressed="false">A connection signed out</button>
+    <button class="chip" data-state="update" aria-pressed="false">Update available</button>
+    <button class="chip" data-state="reminders" aria-pressed="false">Reminders waiting</button>
+  </div>
+
+  <div class="compare">
+    <div class="col">
+      <h2>Now <span class="count"><b id="wBefore">0</b> words of small print</span></h2>
+      <div class="phone" id="before"></div>
+    </div>
+    <div class="col">
+      <h2>Proposed <span class="count"><b id="wAfter">0</b> words of small print</span></h2>
+      <div class="phone" id="after"></div>
+    </div>
+  </div>
+  <p class="note">Scroll each phone. Dashed outline marks the one layout change: three single-row sections become one, so their headings stop repeating the rows.</p>
+
+  <h2 class="table-title">Every text, before and after</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Where</th><th>Now</th><th>Proposed</th><th>Why</th></tr></thead>
+      <tbody id="changes"></tbody>
+    </table>
+  </div>
+  <p class="note">Guidance: Android's settings pattern, "Keep explanations brief and show the setting status instead of describing the setting" and "If the label is sufficient on its own, don't add secondary text" (<a href="https://developer.android.com/design/ui/mobile/guides/patterns/settings">developer.android.com</a>).</p>
+</div>
+
+<script>
+const state = { assistant: false, signedOut: false, update: false, reminders: false };
+
+const row = (icon, title, sub, trail = "", cls = "") =>
+  `<div class="row ${cls}"><div class="ic"><span class="ms">${icon}</span></div><div class="txt"><div class="t">${title}</div>${sub ? `<div class="s${sub.alert ? " alert" : ""}" data-small>${sub.text ?? sub}</div>` : ""}</div>${trail}</div>`;
+const sw = on => `<span class="sw${on ? " on" : ""}"></span>`;
+const chev = `<span class="ms chev">chevron_right</span>`;
+const sec = (title, rows, opts = {}) =>
+  `<section class="sec${opts.cls ? " " + opts.cls : ""}">${title ? `<div class="sec-title">${title}</div>` : ""}${opts.desc ? `<div class="sec-desc" data-small>${opts.desc}</div>` : ""}<div class="group">${rows.join("")}</div>${opts.foot ? `<div class="foot" data-small>${opts.foot}</div>` : ""}</section>`;
+const bar = `<div class="bar"><div class="back"><span class="ms">arrow_back</span></div><h3>Settings</h3></div>`;
+const theme = `<div class="row col-row"><div style="display:flex;gap:12px;align-items:center"><div class="ic"><span class="ms">contrast</span></div><div class="t">Theme</div></div><div class="seg"><span class="on">System</span><span>Light</span><span>Dark</span></div></div>`;
+
+function before() {
+  const s = state;
+  return bar +
+    sec("Model", [row("smart_toy", "gpt-5.6-luna", "", chev)]) +
+    sec("Connections", [
+      row("extension", "DeepWiki", "Connected"),
+      row("description", "Notion", "", `<span class="pill">Connect</span>`),
+      s.signedOut ? row("extension", "SlashDocs", { text: "Signed out by the service. Sign in again to use it.", alert: true }, `<span class="pill">Sign in again</span>`) : row("extension", "SlashDocs", "Connected"),
+      row("travel_explore", "Browse connections", ""),
+      row("add", "Add a custom connection", ""),
+    ]) +
+    sec("On this phone", [
+      row("contacts", "Contacts", "Finds who you mean", sw(false)),
+      row("calendar_month", "Calendar", "Reads your events", sw(false)),
+      row("edit_calendar", "Adding to your calendar", "Puts events in your calendar for you", sw(false)),
+      row("alarm", "Alarms and timers", "Set in your clock app; change them there", sw(true)),
+      row("notifications", "Reminders", s.reminders ? "2 waiting" : "Whittle's own notifications at a time", sw(true)),
+    ], { desc: "What Whittle can use on this phone. Calls and messages always ask you first. Switching something off stops Whittle using it; Android's settings remove the permission itself." }) +
+    sec("Linux workspace", [row("terminal", "Linux workspace", "Ubuntu 24.04 LTS", chev)]) +
+    sec("Memory", [row("bookmarks", "What Whittle remembers", "0 things, used in every chat", chev)]) +
+    sec("Automations", [row("schedule", "Automations", "Run tasks on a schedule", chev)]) +
+    sec("Appearance", [theme, row("wallpaper", "Wallpaper colors", "", sw(true)), row("vibration", "Haptics", "", sw(true))]) +
+    sec("Tasks", [
+      row("notifications", "Keep working in the background", "", sw(true)),
+      row("assistant", "Use as your assistant", s.assistant
+        ? "Whittle is your assistant. Long-press the power or home button to ask about what's on screen."
+        : "Long-press the power or home button to ask about what's on screen. Choose Whittle as the digital assistant app."),
+    ]) +
+    sec("Privacy", [row("insights", "Share usage data", "", sw(true)), row("screen_record", "Screen recordings", "", sw(true))]) +
+    sec("Data", [row("delete", "Delete all chats", "", "", "danger")]) +
+    sec("About", [
+      row("info", "Version", s.update ? "0.23.0 · Version 0.24.0 is out, tap to get it" : "0.23.0 (27)"),
+      row("update", "Check for updates", "Asks GitHub once a day whether a newer Whittle is out", sw(true)),
+    ]);
+}
+
+function after() {
+  const s = state;
+  return bar +
+    sec("Model", [row("smart_toy", "gpt-5.6-luna", "", chev)]) +
+    sec("Connections", [
+      row("extension", "DeepWiki", "Connected"),
+      row("description", "Notion", "", `<span class="pill">Connect</span>`),
+      s.signedOut ? row("extension", "SlashDocs", { text: "Signed out", alert: true }, `<span class="pill solid">Sign in</span>`) : row("extension", "SlashDocs", "Connected"),
+      row("travel_explore", "Browse connections", ""),
+      row("add", "Add a custom connection", ""),
+    ]) +
+    sec("On this phone", [
+      row("contacts", "Contacts", "", sw(false)),
+      row("calendar_month", "Calendar", "", sw(false)),
+      row("edit_calendar", "Add to calendar", "", sw(false)),
+      row("alarm", "Alarms and timers", "", sw(true)),
+      row("notifications", "Reminders", s.reminders ? "2 waiting" : "", sw(true)),
+    ], { foot: "Calls and messages always ask you first." }) +
+    sec("Workspace", [
+      row("terminal", "Linux", "Ubuntu 24.04 LTS", chev),
+      row("bookmarks", "Memory", "Empty", chev),
+      row("schedule", "Automations", "None", chev),
+    ], { cls: "new" }) +
+    sec("Appearance", [theme, row("wallpaper", "Wallpaper colors", "", sw(true)), row("vibration", "Haptics", "", sw(true))]) +
+    sec("Tasks", [
+      row("notifications", "Keep working in the background", "", sw(true)),
+      row("assistant", "Phone assistant", s.assistant ? "On · hold power or home" : "Off", chev),
+    ]) +
+    sec("Privacy", [row("insights", "Share usage data", "", sw(true)), row("screen_record", "Screen recordings", "", sw(true))]) +
+    sec("Data", [row("delete", "Delete all chats", "", "", "danger")]) +
+    sec("About", [
+      row("info", "Version", s.update ? "0.23.0 · 0.24.0 is out" : "0.23.0", s.update ? `<span class="pill solid">Update</span>` : ""),
+      row("update", "Check for updates", "", sw(true)),
+    ]);
+}
+
+const changes = [
+  ["Connections", "Signed out by the service. Sign in again to use it.", "Signed out, with a Sign in button", "State only; the button already says what to do.", "short"],
+  ["On this phone", "What Whittle can use on this phone. Calls and messages always ask you first. Switching something off stops Whittle using it; Android's settings remove the permission itself.", "Footer: Calls and messages always ask you first.", "Keeps the one trust fact. The rest restates what a switch does.", "short"],
+  ["Contacts", "Finds who you mean", "(none)", "The label says it.", "cut"],
+  ["Calendar", "Reads your events", "(none)", "The label says it.", "cut"],
+  ["Adding to your calendar", "Puts events in your calendar for you", "Title: Add to calendar; no second line", "Shorter label; the second line repeated it.", "cut"],
+  ["Alarms and timers", "Set in your clock app; change them there", "(none)", "Worth saying where the alarm lands, but in the chat when one is set, not here.", "cut"],
+  ["Reminders", "Whittle's own notifications at a time", "(none), or \"2 waiting\"", "Shows state when there is some.", "cut"],
+  ["Linux workspace", "Heading Linux workspace, row Linux workspace, Ubuntu 24.04 LTS", "Row Linux, Ubuntu 24.04 LTS, in Workspace", "Heading no longer repeats the row.", "short"],
+  ["Memory", "Heading Memory, row What Whittle remembers, 0 things, used in every chat", "Row Memory, Empty or 3 things", "State only; one heading for three rows.", "short"],
+  ["Automations", "Heading Automations, row Automations, Run tasks on a schedule", "Row Automations, None or 2 on", "State instead of a description.", "short"],
+  ["Use as your assistant (off)", "Long-press the power or home button to ask about what's on screen. Choose Whittle as the digital assistant app.", "Phone assistant, Off", "Off says it; Android's picker explains the rest.", "short"],
+  ["Use as your assistant (on)", "Whittle is your assistant. Long-press the power or home button to ask about what's on screen.", "On · hold power or home", "State, plus how to use it, in five words.", "short"],
+  ["Version", "0.23.0 (27); or 0.23.0 · Version 0.24.0 is out, tap to get it", "0.23.0; or 0.23.0 · 0.24.0 is out, with an Update button", "The build number is for us; the button replaces \"tap to get it\".", "short"],
+  ["Check for updates", "Asks GitHub once a day whether a newer Whittle is out", "(none)", "The label says it.", "cut"],
+  ["Delete all chats (dialog)", "Every chat and its saved tasks are removed from this phone. Files and apps stay in your workspace. This can't be undone.", "Removes every chat and its tasks. Files and apps stay. This can't be undone.", "A confirmation should explain, but briefly.", "short"],
+];
+
+const words = el => [...el.querySelectorAll("[data-small]")].map(n => n.textContent.trim()).filter(Boolean).join(" ").split(/\s+/).filter(Boolean).length;
+
+function render() {
+  const b = document.getElementById("before"), a = document.getElementById("after");
+  const top = [b.scrollTop, a.scrollTop];
+  b.innerHTML = before(); a.innerHTML = after();
+  [b.scrollTop, a.scrollTop] = top;
+  document.getElementById("wBefore").textContent = words(b);
+  document.getElementById("wAfter").textContent = words(a);
+}
+
+document.getElementById("changes").innerHTML = changes.map(([where, now, next, why, kind]) =>
+  `<tr><td>${where}</td><td class="before"><s>${now}</s></td><td class="after"><span class="tag ${kind}">${kind === "cut" ? "cut" : "shorter"}</span>${next}</td><td class="why">${why}</td></tr>`).join("");
+
+document.querySelectorAll(".chip").forEach(chip => chip.addEventListener("click", () => {
+  const key = chip.dataset.state;
+  state[key] = !state[key];
+  chip.setAttribute("aria-pressed", String(state[key]));
+  render();
+}));
+render();
+</script>
+</body>
+</html>

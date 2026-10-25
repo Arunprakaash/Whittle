@@ -224,9 +224,10 @@
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_wallpaper_title">Wallpaper colors</string>
     <string name="settings_haptics_title">Haptics</string>
+    <string name="settings_section_workspace">Workspace</string>
     <string name="settings_section_tasks">Tasks</string>
     <string name="phone_title">On this phone</string>
-    <string name="phone_description">What Whittle can use on this phone. Calls and messages always ask you first. Switching something off stops Whittle using it; Android\u2019s settings remove the permission itself.</string>
+    <string name="phone_footer">Calls and messages always ask you first.</string>
     <plurals name="phone_reminders_waiting">
         <item quantity="one">%d reminder waiting</item>
         <item quantity="other">%d reminders waiting</item>
@@ -238,20 +239,19 @@
     <string name="settings_section_data">Data</string>
     <string name="settings_delete_all_title">Delete all chats</string>
     <string name="settings_delete_all_confirm_title">Delete all chats?</string>
-    <string name="settings_delete_all_confirm_body">Every chat and its saved tasks are removed from this phone. Files and apps stay in your workspace. This can\'t be undone.</string>
+    <string name="settings_delete_all_confirm_body">Removes every chat and its tasks. Files and apps stay. This can\'t be undone.</string>
     <string name="settings_delete_all_confirm">Delete all</string>
     <string name="settings_cancel">Cancel</string>
     <string name="settings_section_about">About</string>
     <string name="settings_version_title">Version</string>
-    <string name="settings_version_update">%1$s · Version %2$s is out, tap to get it</string>
+    <string name="settings_update_button">Update</string>
+    <string name="settings_version_update">%1$s · %2$s is out</string>
     <string name="settings_updates_title">Check for updates</string>
-    <string name="settings_updates_subtitle">Asks GitHub once a day whether a newer Whittle is out</string>
     <string name="settings_section_connections">Connections</string>
-    <string name="settings_section_memory">Memory</string>
-    <string name="memory_title">What Whittle remembers</string>
+    <string name="memory_none">Empty</string>
     <plurals name="memory_count">
-        <item quantity="one">%1$d thing, used in every chat</item>
-        <item quantity="other">%1$d things, used in every chat</item>
+        <item quantity="one">%1$d thing</item>
+        <item quantity="other">%1$d things</item>
     </plurals>
     <string name="memory_heading">Memory</string>
     <string name="memory_intro">What Whittle knows about you, in every chat.</string>
@@ -296,8 +296,8 @@
     <string name="connector_connected">Connected</string>
     <string name="connector_connecting">Connecting…</string>
     <string name="connector_connect">Connect</string>
-    <string name="connector_sign_in_again">Sign in again</string>
-    <string name="connector_signed_out">Signed out by the service. Sign in again to use it.</string>
+    <string name="connector_sign_in_again">Sign in</string>
+    <string name="connector_signed_out">Signed out</string>
     <string name="connector_unreachable">Can\'t reach it right now</string>
     <string name="connector_disconnect_title">Disconnect %1$s?</string>
     <string name="connector_disconnect_body">Whittle forgets its sign-in on this phone. Your %1$s projects and data stay as they are.</string>
@@ -447,7 +447,6 @@
     <string name="linux_remove_confirm_body">Tools you added go with it. Your chats and their files stay.</string>
     <string name="linux_reset_title">Reset Linux?</string>
     <string name="linux_reset_confirm_body">Linux starts fresh: tools you added go, your chats and their files stay. It downloads again.</string>
-    <string name="linux_settings_row">Linux workspace</string>
     <string name="notify_app_toolchain_title">Setting up app building</string>
     <string name="notify_app_toolchain_text">Installing the compiler and tools</string>
     <string name="notify_app_toolchain_public">Whittle is setting up app building</string>
@@ -590,14 +589,13 @@
     <string name="screen_chip">With the screen of %1$s</string>
     <string name="screen_chip_unnamed">With what was on screen</string>
     <string name="screen_chip_remove">Leave the screen out</string>
-    <string name="settings_assistant_title">Use as your assistant</string>
-    <string name="settings_assistant_body">Long-press the power or home button to ask about what\'s on screen. Choose Whittle as the digital assistant app.</string>
-    <string name="settings_assistant_on">Whittle is your assistant. Long-press the power or home button to ask about what\'s on screen.</string>
+    <string name="settings_assistant_title">Phone assistant</string>
+    <string name="settings_assistant_off">Off</string>
+    <string name="settings_assistant_on">On · hold power or home</string>
 
     <!-- Automations -->
-    <string name="settings_section_automations">Automations</string>
     <string name="automation_title">Automations</string>
-    <string name="automation_settings_idle">Run tasks on a schedule</string>
+    <string name="automation_settings_idle">None</string>
     <string name="automation_settings_on">%1$d on</string>
     <string name="automation_intro">Tasks Whittle runs by itself, each in a new chat.</string>
     <string name="automation_ask_tip">Or ask in any chat: “every weekday at 7, brief me on my calendar.”</string>

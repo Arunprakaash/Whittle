@@ -118,45 +118,43 @@ fun SettingsScreen(
             item {
                 val linux by graph.linux.state.collectAsState()
                 val imageName = graph.linux.image?.name.orEmpty()
-                SettingsSection(stringResource(R.string.linux_title)) {
+                val remembered by graph.memory.all.collectAsState()
+                val enabledCount = graph.automations.all.collectAsStateWithLifecycle().value.count { it.enabled }
+                val chevron: @Composable () -> Unit = { WhittleIcon("chevron_right", size = WhittleSize.Icon.m, tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                // Three places of their own, each row named after the screen it opens and showing only its state.
+                SettingsSection(stringResource(R.string.settings_section_workspace)) {
                     SettingsRow(
                         icon = "terminal",
-                        title = stringResource(R.string.linux_settings_row),
+                        title = stringResource(R.string.linux_title),
                         subtitle = when (linux) {
                             LinuxState.NotSetUp -> stringResource(R.string.linux_status_not_set_up, imageName)
                             is LinuxState.SettingUp -> stringResource(R.string.linux_status_setting_up, imageName)
                             is LinuxState.Ready -> imageName
                             is LinuxState.Failed -> stringResource(R.string.linux_status_failed, imageName)
                         },
-                        shape = segmentedShape(0, 1),
+                        shape = segmentedShape(0, 3),
                         onClick = onLinux,
-                        trailing = { WhittleIcon("chevron_right", size = WhittleSize.Icon.m, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        trailing = chevron,
                     )
-                }
-            }
-            item {
-                val remembered by graph.memory.all.collectAsState()
-                SettingsSection(stringResource(R.string.settings_section_memory)) {
                     SettingsRow(
                         icon = "bookmarks",
-                        title = stringResource(R.string.memory_title),
-                        subtitle = pluralStringResource(R.plurals.memory_count, remembered.size, remembered.size),
-                        shape = segmentedShape(0, 1),
+                        title = stringResource(R.string.memory_heading),
+                        subtitle = if (remembered.isEmpty()) {
+                            stringResource(R.string.memory_none)
+                        } else {
+                            pluralStringResource(R.plurals.memory_count, remembered.size, remembered.size)
+                        },
+                        shape = segmentedShape(1, 3),
                         onClick = onMemory,
-                        trailing = { WhittleIcon("chevron_right", size = WhittleSize.Icon.m, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        trailing = chevron,
                     )
-                }
-            }
-            item {
-                val enabledCount = graph.automations.all.collectAsStateWithLifecycle().value.count { it.enabled }
-                SettingsSection(stringResource(R.string.settings_section_automations)) {
                     SettingsRow(
                         icon = "schedule",
                         title = stringResource(R.string.automation_title),
                         subtitle = if (enabledCount > 0) stringResource(R.string.automation_settings_on, enabledCount) else stringResource(R.string.automation_settings_idle),
-                        shape = segmentedShape(0, 1),
+                        shape = segmentedShape(2, 3),
                         onClick = onAutomations,
-                        trailing = { WhittleIcon("chevron_right", size = WhittleSize.Icon.m, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        trailing = chevron,
                     )
                 }
             }
@@ -216,9 +214,10 @@ fun SettingsScreen(
                     SettingsRow(
                         icon = "assistant",
                         title = stringResource(R.string.settings_assistant_title),
-                        subtitle = stringResource(if (assistant) R.string.settings_assistant_on else R.string.settings_assistant_body),
+                        subtitle = stringResource(if (assistant) R.string.settings_assistant_on else R.string.settings_assistant_off),
                         shape = segmentedShape(1, 2),
                         onClick = { AssistantRole.choose(context) },
+                        trailing = { WhittleIcon("chevron_right", size = WhittleSize.Icon.m, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                     )
                 }
             }
@@ -260,27 +259,29 @@ fun SettingsScreen(
             item {
                 val update by graph.updates.available.collectAsStateWithLifecycle()
                 val context = LocalContext.current
-                val version = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+                val version = BuildConfig.VERSION_NAME
+                val openRelease: (() -> Unit)? = update?.let { release ->
+                    {
+                        try {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, release.pageUrl.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        } catch (_: ActivityNotFoundException) {
+                            // No browser to show the release in.
+                        }
+                    }
+                }
                 SettingsSection(stringResource(R.string.settings_section_about)) {
                     SettingsRow(
                         icon = "info",
                         title = stringResource(R.string.settings_version_title),
                         subtitle = update?.let { stringResource(R.string.settings_version_update, version, it.version) } ?: version,
                         shape = segmentedShape(0, 2),
-                        onClick = update?.let { release ->
-                            {
-                                try {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, release.pageUrl.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                } catch (_: ActivityNotFoundException) {
-                                    // No browser to show the release in.
-                                }
-                            }
-                        },
+                        onClick = openRelease,
+                        trailing = openRelease?.let { open -> { TextButton(onClick = open) { Text(stringResource(R.string.settings_update_button)) } } },
                     )
                     SettingsToggleRow(
                         icon = "download",
                         title = stringResource(R.string.settings_updates_title),
-                        subtitle = stringResource(R.string.settings_updates_subtitle),
+                        subtitle = null,
                         checked = settings?.checkForUpdates == true,
                         onCheckedChange = { on ->
                             save { setCheckForUpdates(on) }

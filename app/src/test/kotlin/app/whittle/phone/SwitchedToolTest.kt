@@ -31,7 +31,7 @@ class SwitchedToolTest {
         maps = PhoneActionsConfig.Maps("geo:0,0?q={{query}}", "https://maps.example/?d={{destination}}&m={{mode}}"),
         reminders = PhoneActionsConfig.Reminders("r.bin", 1, 1),
         share = PhoneActionsConfig.Share("share", 1),
-        switches = listOf(PhoneActionsConfig.Switch("alarms", "alarm", "Alarms and timers", "", emptyList(), listOf("set_alarm"))),
+        switches = listOf(PhoneActionsConfig.Switch("alarms", "alarm", "Alarms and timers", emptyList(), listOf("set_alarm"))),
         offMessage = "{{feature}} is off",
     )
     private val context = ToolExecutionContext(RunId("run"), ToolCallId("call"))
