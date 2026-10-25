@@ -34,9 +34,9 @@ data class MemoryState(
 @Serializable
 data class MemoryEntry(val id: String, val text: String, val savedAtMillis: Long)
 
-/** A suggested fact; [replaces] when keeping it rewrites something already remembered. */
+/** A suggested fact; [replaces] is the id of the memory keeping it rewrites. */
 @Serializable
-data class SuggestedEntry(val id: String, val text: String, val replaces: Boolean)
+data class SuggestedEntry(val id: String, val text: String, val replaces: String? = null)
 
 /** A kind of thing to remember, with an example; [start] is what a new memory begins with. */
 @Serializable

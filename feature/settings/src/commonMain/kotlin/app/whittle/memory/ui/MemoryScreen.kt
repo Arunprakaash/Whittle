@@ -192,6 +192,7 @@ private fun MemoryList(host: MemoryHost, onBack: () -> Unit, onOpen: (MemoryDraf
                     itemsIndexed(suggested, key = { _, suggestion -> "suggested-${suggestion.id}" }) { index, suggestion ->
                         SuggestionRow(
                             suggestion = suggestion,
+                            replaced = memories.firstOrNull { it.id == suggestion.replaces },
                             shape = segmentedShape(index, suggested.size),
                             onKeep = {
                                 keepIssue = null
@@ -276,9 +277,9 @@ private fun EmptyMemory(ideas: List<MemoryIdeaEntry>, onIdea: (MemoryIdeaEntry) 
     }
 }
 
-/** One suggested fact with Dismiss, Edit (opens the editor, where saving keeps it) and Keep. */
+/** One suggested fact, the memory it [replaced] if that still exists, with Dismiss, Edit (opens the editor, where saving keeps it) and Keep. */
 @Composable
-private fun SuggestionRow(suggestion: SuggestedEntry, shape: Shape, onKeep: () -> Unit, onEdit: () -> Unit, onDismiss: () -> Unit) {
+private fun SuggestionRow(suggestion: SuggestedEntry, replaced: MemoryEntry?, shape: Shape, onKeep: () -> Unit, onEdit: () -> Unit, onDismiss: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     Column(
         Modifier
@@ -289,8 +290,14 @@ private fun SuggestionRow(suggestion: SuggestedEntry, shape: Shape, onKeep: () -
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.xs),
     ) {
         Text(suggestion.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.userContent())
-        if (suggestion.replaces) {
-            Text(stringResource(Res.string.memory_suggested_replaces), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        // Keeping this overwrites that memory, so the user sees which one; when it's gone, keeping adds a new memory and there's nothing to say.
+        if (replaced != null) {
+            Text(
+                stringResource(Res.string.memory_suggested_replaces, replaced.text),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+                modifier = Modifier.userContent(),
+            )
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(WhittleSpace.xs, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onDismiss) { Text(stringResource(Res.string.memory_suggested_dismiss)) }
@@ -351,6 +358,7 @@ private fun MemoryEditor(host: MemoryHost, draft: MemoryDraft, onClose: () -> Un
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
     val canSave = !saving && text.isNotBlank() && text.trim() != saved?.text
+    val replaced = state.memories.firstOrNull { it.id == draft.suggestion?.replaces }
 
     fun save() {
         saving = true
@@ -407,6 +415,14 @@ private fun MemoryEditor(host: MemoryHost, draft: MemoryDraft, onClose: () -> Un
                     .padding(start = inset, end = inset, top = WhittleSpace.s, bottom = WhittleSpace.xxxl),
                 verticalArrangement = Arrangement.spacedBy(WhittleSpace.xxl),
             ) {
+                replaced?.let {
+                    Text(
+                        stringResource(Res.string.memory_suggested_replaces, it.text),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurfaceVariant,
+                        modifier = Modifier.userContent(),
+                    )
+                }
                 WhittleFilledField(
                     value = text,
                     onValueChange = { text = if (state.maxItemChars > 0) it.take(state.maxItemChars) else it; issue = null },

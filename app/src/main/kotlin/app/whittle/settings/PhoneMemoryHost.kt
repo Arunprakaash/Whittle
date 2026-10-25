@@ -26,7 +26,7 @@ class PhoneMemoryHost(private val graph: AppGraph) : MemoryHost {
             maxItems = policy.maxItems,
             maxItemChars = policy.maxItemChars,
             ideas = ideas,
-            suggested = suggested.map { SuggestedEntry(id = it.id, text = it.text, replaces = it.replaces != null) },
+            suggested = suggested.map { SuggestedEntry(id = it.id, text = it.text, replaces = it.replaces) },
             suggesting = settings?.suggestMemories,
         )
     }.stateIn(graph.appScope, SharingStarted.Eagerly, MemoryState(maxItems = policy.maxItems, maxItemChars = policy.maxItemChars, ideas = ideas))
