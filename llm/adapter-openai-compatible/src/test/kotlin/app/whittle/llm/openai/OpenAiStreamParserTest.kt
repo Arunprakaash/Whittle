@@ -57,6 +57,22 @@ class OpenAiStreamParserTest {
     }
 
     @Test
+    fun `an empty tool call id is generated too`() {
+        val events = parser.onData("""{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"","function":{"name":"x"}}]},"finish_reason":"tool_calls"}]}""")
+        assertEquals(ToolCallId("generated-id"), assertIs<ModelEvent.ToolCallCompleted>(events.single()).toolCall.id)
+    }
+
+    @Test
+    fun `a later fragment with an empty id keeps the first fragment's id`() {
+        val events = listOf(
+            """{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"x","arguments":"{"}}]}}]}""",
+            """{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"","function":{"arguments":"}"}}]}}]}""",
+            """{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}""",
+        ).flatMap(parser::onData)
+        assertEquals(ToolCallId("call_1"), assertIs<ModelEvent.ToolCallCompleted>(events.first()).toolCall.id)
+    }
+
+    @Test
     fun `error chunk becomes a failure`() {
         assertIs<ModelEvent.Failed>(parser.onData("""{"error":{"message":"rate limited"}}""").single())
     }

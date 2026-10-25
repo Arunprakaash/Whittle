@@ -21,6 +21,8 @@ import app.whittle.phone.PhoneActionsConfig
 import app.whittle.tools.android.AndroidCapabilities
 import app.whittle.tools.api.CapabilityId
 import app.whittle.settings.AppDefaults
+import app.whittle.settings.NotificationApprovalDefaults
+import app.whittle.policy.PolicyRuleSet
 import app.whittle.tools.presentation.ToolPresentationConfig
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -59,6 +61,46 @@ class BundledAppConfigTest {
         val missingIcons = defaults.appIdeas.map { it.icon }.toSet() - MaterialSymbols.names
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
         assertTrue(defaults.appIdeas.all { it.title.isNotBlank() && it.prompt.isNotBlank() })
+    }
+
+    @Test
+    fun `deleting and paying are only approved in the app, never from a notification`() {
+        val approvals = approvalsAndPolicy().first
+        assertTrue(approvals.fromNotification)
+        ToolCatalog.definitions.filter { it.riskTier == RiskTier.DELETE_OR_PAY }.forEach { tool ->
+            assertFalse(approvals.buttonsFor(tool, tainted = false, alwaysAsks = false), "${tool.id.value} got buttons")
+        }
+    }
+
+    @Test
+    fun `what the policy always asks about, hand-offs and tainted runs are decided in the app`() {
+        val (approvals, policy) = approvalsAndPolicy()
+        fun buttons(id: String, tainted: Boolean = false): Boolean {
+            val tool = ToolCatalog.definitions.single { it.id.value == id }
+            return approvals.buttonsFor(tool, tainted, policy.alwaysAsks(tool, tainted))
+        }
+        // An automation that runs unattended, a new connection, a phone call, a message draft.
+        listOf("schedule_task", "add_connection", "call", "compose_message").forEach { assertFalse(buttons(it), "$it got buttons") }
+        // Memory written after outside content could be poisoned; before it, the notification may answer.
+        assertFalse(buttons("remember", tainted = true))
+        assertTrue(buttons("remember"))
+        // Hand-offs open another app, which Android may block from the background while the tool reports success.
+        listOf("open_app", "open_link", "open_map", "share", "set_alarm", "set_timer").forEach { assertFalse(buttons(it), "$it got buttons") }
+        // A run that read untrusted content keeps every approval in the app.
+        assertTrue(buttons("write_file"))
+        assertFalse(buttons("write_file", tainted = true))
+    }
+
+    @Test
+    fun `tools kept in the app are built-in tools`() {
+        val unknown = approvalsAndPolicy().first.inAppOnlyTools - ToolCatalog.definitions.map { it.id.value }.toSet()
+        assertTrue(unknown.isEmpty(), "background.approvals.inAppOnlyTools names no tool: $unknown")
+    }
+
+    private fun approvalsAndPolicy(): Pair<NotificationApprovalDefaults, PolicyRuleSet> {
+        val defaults = assertIs<Outcome.Success<AppDefaults>>(loader.load(AppDefaults.FILE, AppDefaults.serializer(), AppDefaults.SCHEMA_VERSION)).value
+        val policy = assertIs<Outcome.Success<PolicyRuleSet>>(loader.load(ConfigFiles.policyRules, PolicyRuleSet.serializer(), PolicyRuleSet.SCHEMA_VERSION)).value
+        return defaults.background.approvals to policy
     }
 
     @Test

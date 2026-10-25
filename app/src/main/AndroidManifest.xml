@@ -54,9 +54,9 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
-        <!-- How the launcher icon's New chat and Speak and the Quick Settings tile reach MainActivity. MainActivity is
-             exported, so another app could send it these actions; this alias isn't, so only Whittle's own shortcuts
-             and tile (which start activities as Whittle) can use it. -->
+        <!-- How the launcher icon's New chat and Speak, the Quick Settings tile and the assistant reach MainActivity.
+             MainActivity is exported, so another app could send it these actions; this alias isn't, so only Whittle's
+             own shortcuts, tile and assistant session (which start activities as Whittle) can use it. -->
         <activity-alias
             android:name=".QuickStartEntry"
             android:exported="false"
@@ -122,6 +122,51 @@
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+        <!-- Approve or Decline on an approval's notification: answers the card, then closes. Its own task, so Whittle
+             doesn't come forward; not exported, so only Whittle's own notifications open it. -->
+        <activity
+            android:name=".background.ApprovalActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <!-- Whittle as the digital assistant (res/xml/assistant.xml). Only the system binds these. Android keeps the
+             assistant service bound from boot while Whittle holds the role; it does nothing itself, so it waits in the
+             light :recognizer process. The session service, which reads the screen and opens the chat, stays in
+             Whittle's own process. -->
+        <service
+            android:name=".assistant.WhittleAssistantService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_VOICE_INTERACTION"
+            android:process=":recognizer">
+            <meta-data
+                android:name="android.voice_interaction"
+                android:resource="@xml/assistant" />
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".assistant.AssistSessionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION" />
+        <!-- The assistant must also be a speech recognizer; this one hands every request to one already installed. Exported
+             with no permission on purpose: any app may ask the phone's recognizer to listen, as with every recognizer.
+             In a process of its own, so dictation in other apps doesn't run Whittle's start-up work, and can't take
+             running tasks down with it. -->
+        <service
+            android:name=".assistant.ForwardingRecognitionService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:process=":recognizer"
+            tools:ignore="ExportedService">
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </service>
         <!-- Where the installer reports how an install went; only the system's PendingIntent reaches it. -->

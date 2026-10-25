@@ -97,7 +97,7 @@ class ChatSession(
     private val listener: Listener,
     /** The first item key: a new chat carries on the count, so cards keyed by item never collide with the last chat's. */
     firstKey: Long = 0,
-) {
+) : DecisionChat {
     /** What the session tells the app about. */
     interface Listener {
         fun haptic(session: ChatSession, haptic: WhittleHaptic)
@@ -142,7 +142,7 @@ class ChatSession(
     /** The task running now is Claude Code's, not Whittle's own loop. */
     private var claudeCodeRun = false
 
-    var chatId: ChatId? = null
+    override var chatId: ChatId? = null
         private set(value) {
             field = value
             _state.update { it.copy(chatId = value) }
@@ -183,7 +183,7 @@ class ChatSession(
         text: String,
         model: ModelDescriptor,
         forModel: String,
-        images: List<String>,
+        images: List<ContentBlock.ImageFile>,
         attachments: List<Attachment>,
         pasted: List<ContentBlock.Text>,
     ) {
@@ -198,7 +198,7 @@ class ChatSession(
 
     /**
      * Runs [text], as the user wrote it; the model gets [forModel], which adds the attachment note, with the
-     * [images] (workspace paths) it can see and any output [pasted] from a card as untrusted content.
+     * [images] it can see and any output [pasted] from a card or the screen as untrusted content.
      */
     fun start(
         text: String,
@@ -206,7 +206,7 @@ class ChatSession(
         mode: RunMode,
         preApprovedTools: Set<ToolId>,
         forModel: String = text,
-        images: List<String> = emptyList(),
+        images: List<ContentBlock.ImageFile> = emptyList(),
         attachments: List<Attachment> = emptyList(),
         pasted: List<ContentBlock.Text> = emptyList(),
     ) {
@@ -235,8 +235,10 @@ class ChatSession(
         collect(runId, if (claudeCodeRun) graph.claudeCode.runner.start(request) else graph.runner.start(request))
     }
 
+    override val items: List<ThreadItem> get() = _state.value.items
+
     /** The user's choice on a card. Applied at the run's next step, or continues a finished run. */
-    fun answer(item: ThreadItem.Decision, approve: Boolean) {
+    override fun answer(item: ThreadItem.Decision, approve: Boolean) {
         replace(item.key) {
             ThreadItem.Resolved(item.key, if (approve) item.text.approvedOutcome else item.text.declinedOutcome, declined = !approve)
         }
@@ -564,15 +566,11 @@ class ChatSession(
         val call = event.decision.toolCall
         val text = graph.presenter.decision(call.toolName, event.arguments, origin(call.toolName))
         val runId = activeRunId ?: return
-        append(
-            ThreadItem.Decision(
-                key = "decision-${call.id.value}",
-                runId = runId,
-                toolCallId = call.id,
-                text = text,
-            ),
-        )
-        cardShown()
+        // The run's id too: some providers reuse tool-call ids (call_0) from one turn to the next.
+        val key = "decision-${runId.value}-${call.id.value}"
+        val fromNotification = graph.approvableFromNotification(event.tool, event.tainted)
+        append(ThreadItem.Decision(key = key, runId = runId, toolCallId = call.id, text = text, fromNotification = fromNotification))
+        cardShown(ChatEvent.ApprovalNeeded(chatId, key, text, buttons = fromNotification))
     }
 
     private fun onQuestionRequested(event: RunEvent.DecisionRequested) {
@@ -602,9 +600,9 @@ class ChatSession(
     }
 
     /** A card is waiting for the user's choice; the run carries on regardless. */
-    private fun cardShown() {
+    private fun cardShown(event: ChatEvent = ChatEvent.NeedsYou(chatId)) {
         listener.haptic(this, WhittleHaptic.DecisionShown)
-        listener.event(this, ChatEvent.NeedsYou(chatId))
+        listener.event(this, event)
     }
 
     private fun onCompleted() {

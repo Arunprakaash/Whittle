@@ -18,6 +18,7 @@ import kotlinx.serialization.json.JsonObject
 import okhttp3.OkHttpClient
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicLong
 
 /** Where a connector's registration and tokens are kept; the app backs it with its encrypted secret store. */
 interface McpCredentialStore {
@@ -33,7 +34,11 @@ sealed interface ConnectorState {
 
     data object Connecting : ConnectorState
 
-    data class Connected(val toolCount: Int) : ConnectorState
+    /** Signed in. [reachable] is false while the server doesn't answer; its tools stay, from the cached list. */
+    data class Connected(val toolCount: Int, val reachable: Boolean = true) : ConnectorState
+
+    /** The service ended the sign-in (a token it refused): its tools are gone until the user signs in again. */
+    data object SignInExpired : ConnectorState
 }
 
 /**
@@ -53,12 +58,31 @@ class McpConnection(
     private val authorizer = McpAuthorizer(server, config, http, clock)
     private val client = McpClient(server, config, http, ::accessToken, clientVersion, headers = { credentials.load()?.headers.orEmpty() })
     private val tokenLock = Mutex()
+
+    /**
+     * Held while the sign-in changes: a new generation, the credentials read and written back, and the flags set, as one
+     * step, so a sign-in and a sign-out can't interleave. Taken inside [tokenLock] (a refused refresh), never the other way.
+     */
+    private val credentialsLock = Mutex()
     private val _state = MutableStateFlow<ConnectorState>(ConnectorState.Disconnected)
     val state: StateFlow<ConnectorState> = _state.asStateFlow()
 
     @Volatile private var pending: PendingSignIn? = null
 
     @Volatile private var signedIn = false
+
+    /** The service signed Whittle out; see [ConnectorState.SignInExpired]. */
+    @Volatile private var expired = false
+
+    /** The last request couldn't reach the server. */
+    @Volatile private var unreachable = false
+
+    /**
+     * Which sign-in requests are made with; it changes, under [credentialsLock], whenever the user signs in, connects or
+     * disconnects. A refusal only signs the user out when the sign-in it was made with is still the current one, so a
+     * request that was in flight with an old token can't sign out the one the user has just made.
+     */
+    private val generation = AtomicLong()
 
     @Volatile var tools: List<Tool> = emptyList()
         private set
@@ -81,7 +105,11 @@ class McpConnection(
     /** At start-up: the cached tools if the user is signed in, then a fresh list from the server. */
     suspend fun restore() {
         val stored = credentials.load() ?: return
-        if (stored.tokens == null && !stored.open) return
+        if (stored.tokens == null && !stored.open) {
+            expired = stored.signedOut
+            settle()
+            return
+        }
         signedIn = true
         publish(readCache().orEmpty())
         refreshTools()
@@ -95,7 +123,7 @@ class McpConnection(
         return when (val started = authorizer.begin(stored.client, stored.preRegistered)) {
             is Outcome.Success -> {
                 pending = started.value
-                credentials.save(stored.copy(client = started.value.client))
+                credentialsLock.withLock { credentials.save((credentials.load() ?: McpCredentials()).copy(client = started.value.client)) }
                 Outcome.Success(started.value.authorizationUrl)
             }
             is Outcome.Failure -> started.also { settle() }
@@ -114,9 +142,13 @@ class McpConnection(
         }
         return when (tokens) {
             is Outcome.Success -> {
-                credentials.save((credentials.load() ?: McpCredentials()).copy(client = signIn.client, tokens = tokens.value))
-                signedIn = true
-                client.reset()
+                credentialsLock.withLock {
+                    generation.incrementAndGet()
+                    credentials.save((credentials.load() ?: McpCredentials()).copy(client = signIn.client, tokens = tokens.value, signedOut = false))
+                    signedIn = true
+                    expired = false
+                    client.reset()
+                }
                 refreshTools()
             }
             is Outcome.Failure -> tokens.also { settle() }
@@ -127,7 +159,7 @@ class McpConnection(
      * Signs in with a client the user registered with the service themselves (for a service that doesn't let
      * apps register): kept encrypted with the connection's sign-in, and used from the next sign-in on.
      */
-    suspend fun useClient(client: OAuthClientCredentials) {
+    suspend fun useClient(client: OAuthClientCredentials) = credentialsLock.withLock {
         val stored = credentials.load() ?: McpCredentials()
         credentials.save(stored.copy(preRegistered = client, client = stored.client?.takeIf { it.clientId == client.clientId }))
     }
@@ -136,20 +168,20 @@ class McpConnection(
     suspend fun connectWithToken(token: String): Outcome<Unit> = connectWithHeaders(mapOf(AUTHORIZATION to "$BEARER ${token.trim()}"))
 
     /** Connects a server signed in by headers the user gave (an API key header, say): kept encrypted, sent only here. */
-    suspend fun connectWithHeaders(headers: Map<String, String>): Outcome<Unit> {
-        credentials.save(McpCredentials(open = true, headers = headers.mapValues { it.value.trim() }.filterValues { it.isNotEmpty() }))
-        return connected()
-    }
+    suspend fun connectWithHeaders(headers: Map<String, String>): Outcome<Unit> =
+        connected(McpCredentials(open = true, headers = headers.mapValues { it.value.trim() }.filterValues { it.isNotEmpty() }))
 
     /** Connects a server without sign-in. */
-    suspend fun connectOpen(): Outcome<Unit> {
-        credentials.save(McpCredentials(open = true))
-        return connected()
-    }
+    suspend fun connectOpen(): Outcome<Unit> = connected(McpCredentials(open = true))
 
-    private suspend fun connected(): Outcome<Unit> {
-        signedIn = true
-        client.reset()
+    private suspend fun connected(credentials: McpCredentials): Outcome<Unit> {
+        credentialsLock.withLock {
+            generation.incrementAndGet()
+            this.credentials.save(credentials)
+            signedIn = true
+            expired = false
+            client.reset()
+        }
         return refreshTools().also { if (it is Outcome.Failure) disconnect() }
     }
 
@@ -160,12 +192,24 @@ class McpConnection(
     }
 
     /** Forgets the tokens and tools on this phone; the registration stays so connecting again is quick. */
-    suspend fun disconnect() {
-        credentials.load()?.let { credentials.save(it.copy(tokens = null, open = false)) }
+    suspend fun disconnect() = credentialsLock.withLock {
+        generation.incrementAndGet()
+        credentials.load()?.let { credentials.save(it.copy(tokens = null, open = false, signedOut = false)) }
         signedIn = false
+        expired = false
         client.reset()
         withContext(Dispatchers.IO) { toolCache.delete() }
         publish(emptyList())
+    }
+
+    /**
+     * True once per sign-out by the service, for whoever tells the user about it; false until the next one. Kept with the
+     * sign-in, so a restart, which reports the connection signed out again, doesn't tell them again.
+     */
+    suspend fun takeSignOutNotice(): Boolean = credentialsLock.withLock {
+        val stored = credentials.load()?.takeIf { it.signedOut && !it.signOutNoticed } ?: return@withLock false
+        credentials.save(stored.copy(signOutNoticed = true))
+        true
     }
 
     /**
@@ -174,7 +218,7 @@ class McpConnection(
      */
     suspend fun access(): McpAccess? {
         if (!signedIn) return null
-        val token = when (val fresh = accessToken(refresh = false)) {
+        val token = when (val fresh = accessToken(refused = null)) {
             is Outcome.Failure -> return null
             is Outcome.Success -> fresh.value
         }
@@ -182,33 +226,85 @@ class McpConnection(
         return McpAccess(server.id, server.toolPrefix, server.endpoint.toString(), server.transport, headers, excluded)
     }
 
-    suspend fun refreshTools(): Outcome<Unit> = when (val listed = client.listTools()) {
-        is Outcome.Success -> {
-            writeCache(listed.value)
-            publish(listed.value)
-            Outcome.Success(Unit)
+    suspend fun refreshTools(): Outcome<Unit> {
+        val sentWith = generation.get()
+        return when (val listed = client.listTools()) {
+            is Outcome.Success -> {
+                unreachable = false
+                writeCache(listed.value)
+                publish(listed.value)
+                Outcome.Success(Unit)
+            }
+            is Outcome.Failure -> listed.also { noteFailure(it.error, sentWith) }
         }
-        is Outcome.Failure -> listed.also { settle() }
     }
 
-    internal suspend fun call(tool: String, arguments: JsonObject): Outcome<RemoteResult> = client.callTool(tool, arguments)
+    internal suspend fun call(tool: String, arguments: JsonObject): Outcome<RemoteResult> {
+        val sentWith = generation.get()
+        return client.callTool(tool, arguments).also { result ->
+            when (result) {
+                is Outcome.Success -> if (unreachable) { unreachable = false; settle() }
+                is Outcome.Failure -> noteFailure(result.error, sentWith)
+            }
+        }
+    }
 
-    private suspend fun accessToken(refresh: Boolean): Outcome<String?> = tokenLock.withLock {
+    /**
+     * What a request made with the sign-in [sentWith] learned from failing: signed out by the service (a refusal that
+     * outlived a refresh, or a refresh refused), or the server not answering.
+     */
+    private suspend fun noteFailure(error: HarnessError, sentWith: Long) {
+        when {
+            error is HarnessError.Authentication -> if (signedIn) signedOutByService(sentWith)
+            error is HarnessError.Network || (error is HarnessError.Provider && error.statusCode >= HTTP_SERVER_ERROR) -> unreachable = true
+        }
+        settle()
+    }
+
+    /**
+     * The service refused Whittle's sign-in. Its tokens and tools go, as with Disconnect, but the connection says so and
+     * stays listed with Sign in again, even after a restart, instead of quietly disappearing.
+     */
+    private suspend fun signedOutByService(sentWith: Long) = credentialsLock.withLock {
+        // Refused with a sign-in the user has since replaced: the new one stands.
+        if (generation.get() != sentWith) return@withLock
+        generation.incrementAndGet()
+        credentials.load()?.let { credentials.save(it.copy(tokens = null, open = false, signedOut = true, signOutNoticed = false)) }
+        signedIn = false
+        expired = true
+        client.reset()
+        withContext(Dispatchers.IO) { toolCache.delete() }
+        publish(emptyList())
+    }
+
+    /**
+     * The token to send. After a refusal ([refused]), only the refused token is renewed: the refusal says nothing about a
+     * newer one (the user signed in again, or another request already refreshed), which is sent as it is, so a request
+     * that went out with an old token can't renew, or sign out, the sign-in the user has since made.
+     */
+    private suspend fun accessToken(refused: Refused?): Outcome<String?> = tokenLock.withLock {
+        val refresh = refused != null
+        val sentWith = generation.get()
         val stored = credentials.load() ?: return@withLock signedOut()
         if (stored.open) return@withLock Outcome.Success(null)
         val tokens = stored.tokens ?: return@withLock signedOut()
+        if (refused != null && refused.token != tokens.accessToken) return@withLock Outcome.Success(tokens.accessToken)
         // A pasted token can't be renewed; a refused one means the user must paste a new one.
         val client = stored.client ?: return@withLock if (refresh) signedOut() else Outcome.Success(tokens.accessToken)
         val expiring = tokens.expiresAtMillis?.let { it - config.refreshBeforeExpiryMillis <= clock.nowMillis() } == true
         if (!refresh && !expiring) return@withLock Outcome.Success(tokens.accessToken)
         when (val renewed = authorizer.refresh(client, tokens)) {
             is Outcome.Success -> {
-                credentials.save(stored.copy(tokens = renewed.value))
+                // Unless the user signed in again meanwhile: their new tokens are newer than these. Written back onto what
+                // is saved now, not what was read before the refresh.
+                credentialsLock.withLock {
+                    if (generation.get() == sentWith) credentials.load()?.let { credentials.save(it.copy(tokens = renewed.value)) }
+                }
                 Outcome.Success(renewed.value.accessToken)
             }
             is Outcome.Failure -> {
                 // A refused refresh token means the user must sign in again; a network failure doesn't.
-                if (renewed.error is HarnessError.Authentication) disconnect()
+                if (renewed.error is HarnessError.Authentication) signedOutByService(sentWith)
                 renewed
             }
         }
@@ -226,8 +322,9 @@ class McpConnection(
 
     private fun settle() {
         _state.value = when {
-            signedIn -> ConnectorState.Connected(tools.size)
+            signedIn -> ConnectorState.Connected(tools.size, reachable = !unreachable)
             pending != null -> ConnectorState.Connecting
+            expired -> ConnectorState.SignInExpired
             else -> ConnectorState.Disconnected
         }
     }
@@ -258,6 +355,7 @@ class McpConnection(
         val TOOL_NAME = Regex("[A-Za-z0-9_-]+")
         const val AUTHORIZATION = "Authorization"
         const val BEARER = "Bearer"
+        const val HTTP_SERVER_ERROR = 500
         val json = Json { ignoreUnknownKeys = true }
     }
 }

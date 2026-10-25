@@ -40,7 +40,12 @@
     "memoryEntries": 64
   },
   "background": {
-    "keepRunning": true
+    "keepRunning": true,
+    "approvals": {
+      "fromNotification": true,
+      "inAppOnlyTiers": ["DELETE_OR_PAY"],
+      "inAppOnlyTools": ["call", "compose_message", "open_app", "open_link", "open_map", "set_alarm", "set_timer", "share"]
+    }
   },
   "projects": {
     "promptWithProject": "This chat works on the project {{project}}, in {{mount}}/{{project}}: commands start there and relative paths resolve inside it.",
@@ -106,6 +111,10 @@
     { "icon": "calculate", "title": "Tip calculator", "prompt": "Make me an Android app that splits a bill and the tip between friends." },
     { "icon": "storefront", "title": "A page for my shop", "prompt": "Build a one-page website for my small shop, with opening hours and a map link. My shop is: " }
   ],
+  "assistant": {
+    "waitMillis": 2000,
+    "screenshotFileName": "assist-screen.jpg"
+  },
   "attachments": {
     "directoryName": "uploads",
     "maxPerMessage": 5,

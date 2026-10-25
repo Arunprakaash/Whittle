@@ -23,11 +23,12 @@ sealed interface ContentBlock {
 
     /**
      * An image the user attached, kept as a file in the chat's workspace at [path]. The runner reads it into an
-     * [Image] just before each model call, so stored chats and checkpoints never hold its bytes.
+     * [Image] just before each model call, so stored chats and checkpoints never hold its bytes. Untrusted when another
+     * app controls what it shows, as with a screenshot of the screen the user called the assistant over.
      */
     @Serializable
     @SerialName("image_file")
-    data class ImageFile(val path: String) : ContentBlock
+    data class ImageFile(val path: String, val provenance: Provenance = Provenance.Trusted) : ContentBlock
 
     /** A tool call proposed by the model. Arguments stay raw so malformed JSON can be reported back to it. */
     @Serializable

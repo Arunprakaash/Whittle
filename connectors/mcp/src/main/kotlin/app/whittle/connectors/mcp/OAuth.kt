@@ -61,6 +61,10 @@ data class McpCredentials(
     val headers: Map<String, String> = emptyMap(),
     /** The client the user gave, if any; [client] is then made from it instead of registering. */
     val preRegistered: OAuthClientCredentials? = null,
+    /** The service ended the sign-in (a refused token): the user is asked to sign in again rather than quietly signed out. */
+    val signedOut: Boolean = false,
+    /** The user was told about this sign-out (see [McpConnection.takeSignOutNotice]); cleared by the next one. */
+    val signOutNoticed: Boolean = false,
 )
 
 /** One sign-in in progress: kept until the browser sends the user back. The verifier never leaves the phone. */
@@ -225,11 +229,15 @@ class McpAuthorizer(
         try {
             http.newCall(request).execute().use { response ->
                 val body = response.body?.string().orEmpty()
-                if (!response.isSuccessful) {
-                    val reason = runCatching { json.decodeFromString(OAuthError.serializer(), body) }.getOrNull()
-                    return@use authFailure(reason?.description ?: reason?.error ?: "${server.name} sign-in failed with HTTP ${response.code}")
+                if (response.isSuccessful) return@use Outcome.Success(json.decodeFromString(serializer, body))
+                // A sign-in server that is down, busy or slow hasn't refused anything; the sign-in stays and is tried again later.
+                if (response.code >= HTTP_SERVER_ERROR || response.code in BUSY) {
+                    return@use Outcome.Failure(HarnessError.Network("${server.name} sign-in isn't answering (HTTP ${response.code})"))
                 }
-                Outcome.Success(json.decodeFromString(serializer, body))
+                val reason = runCatching { json.decodeFromString(OAuthError.serializer(), body) }.getOrNull()
+                val message = reason?.description ?: reason?.error ?: "${server.name} sign-in failed with HTTP ${response.code}"
+                // Only a refusal (RFC 6749 §5.2: 400 or 401, e.g. invalid_grant) means the user must sign in again.
+                if (response.code in REFUSED) authFailure(message) else Outcome.Failure(HarnessError.Provider(response.code, message))
             }
         } catch (exception: IOException) {
             Outcome.Failure(HarnessError.Network(exception.message ?: exception.javaClass.simpleName))
@@ -295,6 +303,14 @@ class McpAuthorizer(
     }
 
     private companion object {
+        const val HTTP_SERVER_ERROR = 500
+
+        /** Request Timeout and Too Many Requests: ask again later. */
+        val BUSY = setOf(408, 429)
+
+        /** How a token endpoint refuses a grant or a client. */
+        val REFUSED = setOf(400, 401)
+
         const val CODE = "code"
         const val S256 = "S256"
         const val AUTH_NONE = "none"

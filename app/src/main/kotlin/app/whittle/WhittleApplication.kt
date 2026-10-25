@@ -3,13 +3,17 @@ package app.whittle
 import app.whittle.background.PlanProgress
 import app.whittle.agent.PlanStatus
 import android.app.Activity
+import android.app.ActivityManager
 import android.app.Application
 import android.app.NotificationManager
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.os.Process
 import app.whittle.automations.AutomationRunner
 import app.whittle.automations.SessionAutomationChat
 import app.whittle.background.AgentRunService
+import app.whittle.background.ApprovalActivity
 import app.whittle.background.ProcessesService
 import app.whittle.background.RunNotifications
 import app.whittle.background.RunProgress
@@ -18,7 +22,12 @@ import app.whittle.chat.ChatEvent
 import app.whittle.chat.ChatViewModel
 import app.whittle.storage.chats.ChatId
 import app.whittle.quickstart.QuickStart
+import app.whittle.connectors.mcp.ConnectorState
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.collectLatest
+import app.whittle.assistant.ForwardingRecognitionService
+import app.whittle.assistant.ScreenContext
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -39,6 +48,9 @@ class WhittleApplication : Application() {
     }
 
     val notifications: RunNotifications by lazy { RunNotifications(this) }
+
+    /** The screen the assistant read, until the chat takes it (see [app.whittle.assistant.AssistSession]). */
+    val assistIncoming = MutableStateFlow<ScreenContext?>(null)
     val notificationManager: NotificationManager by lazy { getSystemService(NotificationManager::class.java) }
 
     private val scope = MainScope()
@@ -49,6 +61,9 @@ class WhittleApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Dictation from any app, and holding the assistant role from boot, start the recognizer's own process, which
+        // needs none of what follows.
+        if (processName()?.endsWith(ForwardingRecognitionService.PROCESS) == true) return
         notifications.createChannels()
         QuickStart.publish(this)
         graph.appShortcuts.migratePinned()
@@ -78,11 +93,26 @@ class WhittleApplication : Application() {
             }
         }
         scope.launch {
+            // A service that signs Whittle out while the user is away (an automation's run, say) says so once per sign-out.
+            // Every process start reports a signed-out connection again, so whether it was told is kept with the sign-in;
+            // one that happened while the user was in Whittle, where its row says so, counts as told.
+            graph.connectors.all.collectLatest { connections ->
+                connections.forEach { connection ->
+                    launch {
+                        connection.state.map { it == ConnectorState.SignInExpired }.distinctUntilChanged().collect { expired ->
+                            if (expired && connection.takeSignOutNotice() && !inForeground) notifications.signInAgain(connection.server.name)
+                        }
+                    }
+                }
+            }
+        }
+        scope.launch {
             chat.events.collect { event ->
                 if (inForeground) return@collect
                 val title = titleOf(event.chat)
                 when (event) {
                     is ChatEvent.NeedsYou -> notifications.needsYou(title)
+                    is ChatEvent.ApprovalNeeded -> notifications.approval(event.chat, event.key, title, event.text, event.buttons)
                     is ChatEvent.Finished -> notifications.finished(title, event.failed)
                 }
             }
@@ -110,6 +140,12 @@ class WhittleApplication : Application() {
 
     private fun startRunService() = startService(AgentRunService::class.java)
 
+    private fun processName(): String? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        getProcessName()
+    } else {
+        getSystemService(ActivityManager::class.java).runningAppProcesses?.firstOrNull { it.pid == Process.myPid() }?.processName
+    }
+
     private fun startService(service: Class<*>) {
         try {
             startForegroundService(Intent(this, service))
@@ -120,13 +156,16 @@ class WhittleApplication : Application() {
         }
     }
 
+    /** Answering from a notification opens a screen the user never sees; that isn't them coming back. */
     private inner class VisibilityTracker : ActivityLifecycleCallbacks {
         override fun onActivityStarted(activity: Activity) {
+            if (activity is ApprovalActivity) return
             visibleActivities++
             notifications.clearUpdates()
         }
 
         override fun onActivityStopped(activity: Activity) {
+            if (activity is ApprovalActivity) return
             visibleActivities--
         }
 

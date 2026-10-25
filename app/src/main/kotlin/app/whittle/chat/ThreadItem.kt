@@ -4,6 +4,7 @@ import app.whittle.agent.PlanItem
 import app.whittle.apps.PowerfulDeclaration
 import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
+import app.whittle.storage.chats.ChatId
 import app.whittle.tools.api.CapabilityId
 import app.whittle.tools.presentation.CapabilityPresentation
 import app.whittle.tools.presentation.DecisionText
@@ -14,6 +15,22 @@ import kotlinx.serialization.Serializable
 
 /** Whether the card [key] in [items] is still a capability card waiting for an answer; answered cards are left as they are. */
 fun stillAsking(items: List<ThreadItem>, key: String): Boolean = items.any { it is ThreadItem.Capability && it.key == key }
+
+/** The approval card [key] in [items] while it still waits for an answer; null once answered, or when it isn't there. */
+fun waitingDecision(items: List<ThreadItem>, key: String): ThreadItem.Decision? =
+    items.firstOrNull { it.key == key } as? ThreadItem.Decision
+
+/**
+ * Where Approve or Decline on a notification lands: the card [key] in the chat [chat], out of [chats] (the open one and
+ * those working in the background, read with [idOf] and [itemsOf]). Only that chat is searched: the key comes from the
+ * provider's tool-call id, which some providers reuse, so another chat may wait on a card with the same key. Null when the
+ * chat is closed, the card was answered already, or it is one only the app may answer.
+ */
+fun <T> cardToAnswer(chats: Iterable<T>, chat: ChatId, key: String, idOf: (T) -> ChatId?, itemsOf: (T) -> List<ThreadItem>): Pair<T, ThreadItem.Decision>? {
+    val target = chats.firstOrNull { idOf(it) == chat } ?: return null
+    val card = waitingDecision(itemsOf(target), key)?.takeIf { it.fromNotification } ?: return null
+    return target to card
+}
 
 /**
  * One entry in the conversation, in the order the user reads it. Saved with the chat, so it holds
@@ -48,10 +65,19 @@ sealed interface ThreadItem {
     @SerialName("steps")
     data class Steps(override val key: String, val steps: List<StepModel>) : ThreadItem
 
-    /** An open card. Belongs to [runId], which may already have finished. */
+    /**
+     * An open card. Belongs to [runId], which may already have finished. [fromNotification]: its notification may answer
+     * it, decided when it appeared; the answer is checked against it again when it lands.
+     */
     @Serializable
     @SerialName("decision")
-    data class Decision(override val key: String, val runId: RunId, val toolCallId: ToolCallId, val text: DecisionText) : ThreadItem
+    data class Decision(
+        override val key: String,
+        val runId: RunId,
+        val toolCallId: ToolCallId,
+        val text: DecisionText,
+        val fromNotification: Boolean = false,
+    ) : ThreadItem
 
     /** A question card; the picked option goes back to [runId] and stays shown as [answer]. */
     @Serializable

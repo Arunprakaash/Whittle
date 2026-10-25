@@ -159,7 +159,11 @@ Settings › Automations, or asks in a chat and approves the `schedule_task` car
   time zone change, and at every launch.
 - **Running.** `AutomationRunner` starts the automation in a new chat titled after it, in `RunMode.UNATTENDED`,
   and starts the run's foreground service before the alarm lets the process go. The policy engine then allows
-  only the tools the user pre-approved for it; anything else pauses the run with a Needs you notification.
+  only the tools the user pre-approved for it; anything else pauses the run with a notification. For an approval it
+  shows the card's words and its own Approve and Decline buttons, which answer the card once the phone is unlocked.
+  Some calls are only decided in the app: deleting and paying, hand-offs that open another app (Android may not let
+  Whittle open it from the background), whatever the policy always asks about (`schedule_task`, `add_connection`,
+  `call`, `remember` after outside content), and anything from a run that has read untrusted content (`background.approvals` in app-defaults.json, and policy-rules.json).
 - **What runs without asking.** automations.json lists what can be pre-approved: web reads, the clock, the
   calendar, contacts and the workspace's files, never anything that sends data out. A new automation may only
   read; changing files is a separate choice, off by default. A test keeps both rules.
@@ -170,6 +174,18 @@ Settings › Automations, or asks in a chat and approves the `schedule_task` car
   automation tries again every few minutes. After a few hours it gives up, and the list shows the run as
   missed. Run now starts at once.
 
+### The assistant
+
+Whittle can be the phone's digital assistant (Settings › Tasks › Use as your assistant opens Android's picker). A
+long-press of power or home starts `AssistSession`, which reads the words on screen from Android's assist structure,
+leaving password fields out, and takes the screenshot if the user allows it in Android's assist settings. Whittle opens
+in a new chat with the screenshot attached and a chip naming the app; the words and the screenshot go with the next
+message as untrusted content, like a web page, so the run is tainted even when the screen has no words. Android also
+makes the assistant the speech recognizer, so `ForwardingRecognitionService` hands every request to a recognizer
+already installed. It runs in a process of its own, which skips Whittle's start-up work, so dictation in other apps
+stays light and can't take running tasks down. `WhittleAssistantService`, which Android keeps bound while Whittle is
+the assistant, waits there too; `AssistSessionService` reads the screen in Whittle's own process.
+
 ### Connectors
 
 `connectors:mcp` speaks MCP over Streamable HTTP and the older SSE transport. Sign-in uses OAuth 2.1:
@@ -179,6 +195,11 @@ Settings › Automations, or asks in a chat and approves the `schedule_task` car
   sign-in is open. Many servers reject custom-scheme redirects, but they accept this one.
 
 Tokens are kept in the vault and never pass through the chat.
+
+A connection says when it stops working. If the service refuses Whittle's sign-in (a refresh token it no longer
+takes, a key it rejects), the connection stays listed as signed out with Sign in again, even after a restart, and a
+notification says so if it happens while the user is away. A server that doesn't answer keeps its tools and shows
+Can't reach it right now until it answers again; a sign-in server that is down never signs the user out.
 
 ### Storage, telemetry, design
 

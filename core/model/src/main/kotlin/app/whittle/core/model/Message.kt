@@ -16,10 +16,11 @@ data class Message(
     val text: String
         get() = content.filterIsInstance<ContentBlock.Text>().joinToString(separator = "") { it.text }
 
-    /** Web pages, search results or other outside content came in with this message. */
+    /** Web pages, search results, another app's screen or other outside content came in with this message. */
     fun carriesUntrustedContent(): Boolean = content.any {
         (it is ContentBlock.ToolResult && it.provenance is Provenance.Untrusted) ||
             (it is ContentBlock.Text && it.provenance is Provenance.Untrusted) ||
+            (it is ContentBlock.ImageFile && it.provenance is Provenance.Untrusted) ||
             it is ContentBlock.HostedToolUse
     }
 

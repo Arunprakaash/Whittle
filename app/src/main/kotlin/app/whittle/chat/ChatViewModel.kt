@@ -5,8 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.whittle.AppGraph
 import app.whittle.agent.PastedKind
+import app.whittle.agent.PastedScreen
 import app.whittle.agent.PlanItem
 import app.whittle.agent.pastedOutput
+import app.whittle.agent.pastedScreen
 import app.whittle.apps.InstallResult
 import app.whittle.apps.PowerfulDeclaration
 import app.whittle.apps.SetupOutcome
@@ -40,6 +42,8 @@ import app.whittle.tools.workspace.ChatProjects
 import app.whittle.tools.workspace.ProcessInfo
 import app.whittle.settings.Starter
 import app.whittle.settings.AppIdea
+import app.whittle.tools.presentation.DecisionText
+import app.whittle.assistant.ScreenContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -99,10 +103,17 @@ data class ChatState(
     val openPreview: String? = null,
     /** What the composer does as soon as it's on screen: asked for by a quick start or an app idea. */
     val composerStart: ComposerStart? = null,
+    /** What was on screen when the user called Whittle as their assistant; its words go with the next message. */
+    val screen: ScreenContext? = null,
+    /** [screen]'s screenshot, once saved among [attachments]; it goes as untrusted content, like the screen's words. */
+    val screenshot: Attachment? = null,
     /** How many picked items are still being saved. */
     val attaching: Int = 0,
 ) {
     val running: Boolean get() = status != null
+
+    /** The next message without the screen the assistant read: neither its words nor its screenshot go. */
+    fun withoutScreen(): ChatState = copy(screen = null, screenshot = null, attachments = attachments - setOfNotNull(screenshot))
 
     /** An attached photo the current model would only see as a file. */
     val imagesUnseen: Boolean get() = model?.capabilities?.vision == false && attachments.any { it.isImage }
@@ -113,8 +124,11 @@ sealed interface ChatEvent {
     /** The chat it happened in; null only before a chat is saved. */
     val chat: ChatId?
 
-    /** A question, approval or access card appeared. */
+    /** A question or access card appeared. */
     data class NeedsYou(override val chat: ChatId?) : ChatEvent
+
+    /** The approval card [key] appeared, asking in [text]'s words; with [buttons], its notification may answer it. */
+    data class ApprovalNeeded(override val chat: ChatId?, val key: String, val text: DecisionText, val buttons: Boolean) : ChatEvent
 
     /** The task ended: done, or stopped by an error or a limit ([failed]). */
     data class Finished(override val chat: ChatId?, val failed: Boolean) : ChatEvent
@@ -316,6 +330,40 @@ class ChatViewModel(
         attach(shared.uris)
     }
 
+    /**
+     * The user called Whittle as their assistant: a new chat about [screen], its screenshot attached and its words waiting
+     * to go with the first message. The screenshot is copied into the workspace like any photo, and the cache's copy deleted.
+     */
+    fun startWithScreen(screen: ScreenContext) {
+        viewModelScope.launch {
+            // At launch the last chat is restored first; starting before that finishes would be undone by it.
+            _state.first { !it.restoring }
+            newChat()
+            _state.update { it.copy(screen = screen) }
+            val file = screen.screenshot ?: return@launch
+            _state.update { it.copy(attaching = it.attaching + 1) }
+            val imported = graph.attachments.import(Uri.fromFile(file), _state.value.project)
+            withContext(Dispatchers.IO) { file.delete() }
+            val added = (imported as? Imported.Added)?.attachment
+            // Left out while it was being saved (the chip's X, or another chat): its copy goes too.
+            val wanted = added?.takeIf { _state.value.screen === screen }
+            if (added != null && wanted == null) graph.appScope.launch { graph.attachments.discard(added) }
+            // Kept apart from the user's own photos, so it goes as the screen, untrusted.
+            _state.update { state -> state.copy(attachments = state.attachments + listOfNotNull(wanted), attaching = state.attaching - 1, screenshot = wanted) }
+            if (imported is Imported.Refused) _attachmentProblems.tryEmit(imported.problem)
+        }
+    }
+
+    /**
+     * The user took the screen off the next message: its words, and its screenshot with them, whose saved copy goes as it
+     * was never sent.
+     */
+    fun removeScreen() {
+        val screenshot = _state.value.screenshot
+        _state.update { it.withoutScreen() }
+        screenshot?.let { graph.appScope.launch { graph.attachments.discard(it) } }
+    }
+
     /** Attached photos, for thumbnails and the viewer. */
     val images: WorkspaceImages get() = graph.images
 
@@ -328,7 +376,7 @@ class ChatViewModel(
 
     /** Takes an attachment off the next message; it was never sent, so its saved copy goes too. */
     fun removeAttachment(attachment: Attachment) {
-        _state.update { state -> state.copy(attachments = state.attachments - attachment) }
+        _state.update { state -> state.copy(attachments = state.attachments - attachment, screenshot = state.screenshot.takeIf { it != attachment }) }
         graph.appScope.launch { graph.attachments.discard(attachment) }
     }
 
@@ -342,10 +390,18 @@ class ChatViewModel(
         val attachments = state.attachments
         val model = state.model ?: return
         if (state.attaching > 0 || (text.isEmpty() && attachments.isEmpty())) return
-        _state.update { it.copy(input = "", attachments = emptyList()) }
+        // The screen the assistant read goes with this message only, words and screenshot, as data from the app it came from.
+        val screenshot = state.screenshot?.takeIf { it in attachments }
+        val screen = state.screen?.let { screen ->
+            val name = requestName(screen.appName ?: graph.agentMessages.screenUnknownApp, graph.maxPastedNameChars)
+            pastedScreen(graph.agentMessages, name, screen.text, screenshot?.path, screenshot?.let { "${graph.linux.workspaceMount}/${it.path}" }, graph.maxPastedOutputChars)
+        }
+        _state.update { it.copy(input = "", attachments = emptyList(), screen = null, screenshot = null) }
+        @Suppress("NAME_SHADOWING")
+        val pasted = pasted + screen?.text.orEmpty()
         val forModel = listOf(text, attachmentNote(attachments, model.capabilities.vision)).filter { it.isNotEmpty() }.joinToString(PARAGRAPH)
         // A model that can't see gets the photos only as files, through the note.
-        val images = attachments.filter { it.isImage && model.capabilities.vision }.map { it.path }
+        val images = if (model.capabilities.vision) messageImages(attachments, screenshot, screen) else emptyList()
         claimPendingProject()
         current.value.send(text, model, forModel, images, attachments, pasted)
     }
@@ -384,6 +440,23 @@ class ChatViewModel(
 
     /** The user's choice on a card. Applied at the run's next step, or continues a finished run. */
     fun answer(item: ThreadItem.Decision, approve: Boolean) = current.value.answer(item, approve)
+
+    private val notificationAnswers = NotificationAnswers(
+        ready = { _state.first { !it.restoring } },
+        live = { listOf(current.value) + background.value.values },
+        load = { id -> graph.chats.load(id).getOrNull()?.let { decode(it.document) }?.let { document -> newSession().also { it.load(id, document) } } },
+        // Answering resumes its run; when the run ends, the session goes like any chat finished in the background.
+        keepWorking = { id, session -> background.update { it + (id to session) } },
+        close = ChatSession::close,
+    )
+
+    /**
+     * The user's choice from the notification of the approval card [key] in [chat], applied as a tap on the card would be:
+     * in place when the chat is open or working in the background, else in the saved chat, loaded and kept working in the
+     * background. False when the card was answered already, its chat is gone, or it may only be answered in the app;
+     * nothing changes then.
+     */
+    suspend fun answerDecision(chat: ChatId, key: String, approve: Boolean): Boolean = notificationAnswers.answer(chat, key, approve)
 
     /** The card stays in the thread with the choice marked; only the first tap counts. */
     fun answer(item: ThreadItem.Question, choice: String) = current.value.answer(item, choice)
@@ -482,7 +555,7 @@ class ChatViewModel(
             if (leaving.working && id != null) background.update { it + (id to leaving) } else leaving.close()
         }
         _state.value.attachments.forEach { attachment -> graph.appScope.launch { graph.attachments.discard(attachment) } }
-        _state.update { it.copy(input = "", attachments = emptyList()) }
+        _state.update { it.copy(input = "", attachments = emptyList(), screen = null, screenshot = null) }
         pendingProject = null
         current.value = next
         syncProject()
@@ -738,7 +811,16 @@ class ChatViewModel(
 
 /**
  * The user's message as the model gets it: their words ([forModel], with any attachment note), then output they [pasted] from a
- * card as untrusted content ([pastedOutput]), then their photos by workspace path.
+ * card or the screen as untrusted content ([pastedOutput], [pastedScreen]), then their photos by workspace path.
  */
-internal fun userMessage(forModel: String, pasted: List<ContentBlock.Text>, images: List<String>): Message =
-    Message(Role.USER, listOf(ContentBlock.Text(forModel)) + pasted + images.map(ContentBlock::ImageFile))
+internal fun userMessage(forModel: String, pasted: List<ContentBlock.Text>, images: List<ContentBlock.ImageFile>): Message =
+    Message(Role.USER, listOf(ContentBlock.Text(forModel)) + pasted + images)
+
+/**
+ * The photos a model that can see gets with a message: each image attachment by its workspace path, except the [screen]'s
+ * screenshot, which goes as [PastedScreen.screenshot] says, untrusted.
+ */
+internal fun messageImages(attachments: List<Attachment>, screenshot: Attachment?, screen: PastedScreen?): List<ContentBlock.ImageFile> =
+    attachments.filter { it.isImage }.map { attachment ->
+        screen?.screenshot?.takeIf { attachment == screenshot } ?: ContentBlock.ImageFile(attachment.path)
+    }

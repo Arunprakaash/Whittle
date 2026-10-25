@@ -424,7 +424,7 @@ class AgentRunner(
             TelemetryEvent.DECISION_REQUESTED,
             toolAttributes(checkpoint, tool) + Attributes.of { metadata(AttributeKeys.DECISION_KIND, kind.name) },
         )
-        emit(RunEvent.DecisionRequested(pending, tool.definition, arguments))
+        emit(RunEvent.DecisionRequested(pending, tool.definition, arguments, checkpoint.tainted))
         val waiting = when (kind) {
             DecisionKind.APPROVAL -> messages.awaitingUser(call.toolName)
             DecisionKind.QUESTION -> messages.questionShown(call.toolName)
@@ -449,7 +449,7 @@ class AgentRunner(
 
     private suspend fun steer(checkpoint: RunCheckpoint, input: RunInput.Steer): Outcome<RunCheckpoint> {
         telemetry.event(TelemetryEvent.RUN_STEERED, runAttributes(checkpoint))
-        val blocks = listOf(ContentBlock.Text(input.text)) + input.pasted + input.images.map(ContentBlock::ImageFile)
+        val blocks = listOf(ContentBlock.Text(input.text)) + input.pasted + input.images
         val tainted = checkpoint.tainted || Message(Role.USER, blocks).carriesUntrustedContent()
         return persist(checkpoint.copy(conversation = checkpoint.conversation.withUserContent(*blocks.toTypedArray()), tainted = tainted))
     }

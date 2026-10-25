@@ -3,6 +3,8 @@ package app.whittle.settings
 import app.whittle.design.theme.ThemeMode
 import app.whittle.core.config.ConfigName
 import app.whittle.core.config.VersionedConfig
+import app.whittle.tools.api.RiskTier
+import app.whittle.tools.api.ToolDefinition
 import kotlinx.serialization.Serializable
 
 /** App-level defaults shipped as config: appearance and on-device storage names. */
@@ -25,6 +27,7 @@ data class AppDefaults(
     val updates: UpdateDefaults,
     val starters: List<Starter>,
     val appIdeas: List<AppIdea>,
+    val assistant: AssistantDefaults,
 ) : VersionedConfig {
     companion object {
         const val SCHEMA_VERSION = 1
@@ -106,9 +109,38 @@ data class UpdateDefaults(val check: Boolean, val latestReleaseUrl: String, val 
     }
 }
 
+/**
+ * Whittle as the phone's assistant: how long a call waits for Android to hand over the screen and its screenshot
+ * ([waitMillis]), and the name the screenshot's file in the app's cache is made from, with each call's own part added,
+ * until it's attached.
+ */
+@Serializable
+data class AssistantDefaults(val waitMillis: Long, val screenshotFileName: String) {
+    init {
+        require(waitMillis > 0) { "assistant.waitMillis must be positive" }
+    }
+}
+
 /** Tasks keep running while the user is elsewhere, in a foreground service with an ongoing notification. */
 @Serializable
-data class BackgroundDefaults(val keepRunning: Boolean)
+data class BackgroundDefaults(val keepRunning: Boolean, val approvals: NotificationApprovalDefaults)
+
+/**
+ * Approval cards that appear while the user is away. With [fromNotification] on, their notification carries the card's own
+ * Approve and Decline buttons, which work only once the phone is unlocked. Some calls are only decided in the app, where the
+ * notification opens the chat: those at an [inAppOnlyTiers] risk tier; the [inAppOnlyTools], such as hand-offs that open
+ * another app, which Android may not let Whittle start from the background; every call the policy always asks about; and
+ * every call from a run that has read untrusted content, which may be what asked for it.
+ */
+@Serializable
+data class NotificationApprovalDefaults(val fromNotification: Boolean, val inAppOnlyTiers: Set<RiskTier>, val inAppOnlyTools: Set<String>) {
+    /**
+     * Whether a waiting call to [tool] may be answered from its notification. [tainted]: the run had read untrusted
+     * content when it asked; [alwaysAsks]: the policy has an ask rule for this call.
+     */
+    fun buttonsFor(tool: ToolDefinition, tainted: Boolean, alwaysAsks: Boolean): Boolean =
+        fromNotification && !tainted && !alwaysAsks && tool.riskTier !in inAppOnlyTiers && tool.id.value !in inAppOnlyTools
+}
 
 /** How a server the agent runs is shown in the live preview. */
 @Serializable

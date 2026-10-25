@@ -204,11 +204,14 @@
     <string name="notify_failed_public">A Whittle task stopped</string>
     <string name="notify_needs_you_title">Whittle needs your answer</string>
     <string name="notify_needs_you_public">Whittle is waiting for you</string>
+    <string name="notify_approval_public">Whittle is waiting for your OK</string>
     <string name="notify_install_prompt_title">Tap to finish installing %1$s</string>
     <string name="notify_install_prompt_title_unnamed">Tap to finish installing your app</string>
     <string name="notify_install_prompt_public">Tap to finish installing an app</string>
     <string name="notify_update_title">Whittle %1$s is out</string>
     <string name="notify_update_text">Tap to see what\'s new and download it</string>
+    <string name="notify_sign_in_title">Sign in to %1$s again</string>
+    <string name="notify_sign_in_text">It signed Whittle out, so its tools are off until you do</string>
     <!-- Quick starts: the launcher icon's long-press menu and the Quick Settings tile -->
     <string name="quick_new_chat">New chat</string>
     <string name="quick_speak">Speak</string>
@@ -293,6 +296,9 @@
     <string name="connector_connected">Connected</string>
     <string name="connector_connecting">Connecting…</string>
     <string name="connector_connect">Connect</string>
+    <string name="connector_sign_in_again">Sign in again</string>
+    <string name="connector_signed_out">Signed out by the service. Sign in again to use it.</string>
+    <string name="connector_unreachable">Can\'t reach it right now</string>
     <string name="connector_disconnect_title">Disconnect %1$s?</string>
     <string name="connector_disconnect_body">Whittle forgets its sign-in on this phone. Your %1$s projects and data stay as they are.</string>
     <string name="connector_disconnect">Disconnect</string>
@@ -581,6 +587,12 @@
     <string name="project_carry_on">Carry on with</string>
     <string name="starters_title">Try one of these</string>
     <string name="app_ideas_title">Or build something</string>
+    <string name="screen_chip">With the screen of %1$s</string>
+    <string name="screen_chip_unnamed">With what was on screen</string>
+    <string name="screen_chip_remove">Leave the screen out</string>
+    <string name="settings_assistant_title">Use as your assistant</string>
+    <string name="settings_assistant_body">Long-press the power or home button to ask about what\'s on screen. Choose Whittle as the digital assistant app.</string>
+    <string name="settings_assistant_on">Whittle is your assistant. Long-press the power or home button to ask about what\'s on screen.</string>
 
     <!-- Automations -->
     <string name="settings_section_automations">Automations</string>

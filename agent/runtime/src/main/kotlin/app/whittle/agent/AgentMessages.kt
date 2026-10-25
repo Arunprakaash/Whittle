@@ -112,6 +112,11 @@ data class AgentMessages(
     val diagnosticsFromAppCrash: String,
     val diagnosticsFromProcess: String,
     val diagnosticsFromPreview: String,
+    val diagnosticsFromScreen: String,
+    /** The name [diagnosticsFromScreen] uses when Android didn't say which app was on screen. */
+    val screenUnknownApp: String,
+    /** Names the screenshot at [PATH], of [SOURCE], as data; it goes beside it, so a model that sees images reads both. */
+    val screenshotUntrusted: String,
 ) : VersionedConfig {
     init {
         requirePlaceholders(attachments, FILES)
@@ -187,6 +192,8 @@ data class AgentMessages(
         requirePlaceholders(diagnosticsFromAppCrash, NAME)
         requirePlaceholders(diagnosticsFromProcess, NAME)
         requirePlaceholders(diagnosticsFromPreview, NAME)
+        requirePlaceholders(diagnosticsFromScreen, NAME)
+        requirePlaceholders(screenshotUntrusted, SOURCE, PATH)
     }
 
     fun unknownTool(tool: String): String = render(unknownTool, TOOL to tool)
@@ -296,12 +303,16 @@ data class AgentMessages(
 
     fun diagnosticsFromPreview(name: String): String = render(diagnosticsFromPreview, NAME to name)
 
+    fun diagnosticsFromScreen(name: String): String = render(diagnosticsFromScreen, NAME to name)
+
+    fun screenshotUntrusted(source: String, path: String): String = render(screenshotUntrusted, SOURCE to source, PATH to path)
+
     /** The memory section of the system prompt: one line per remembered fact, as (id, text) pairs. */
     fun memories(items: List<Pair<String, String>>): String =
         if (items.isEmpty()) noMemories else items.joinToString("\n") { (id, text) -> render(memoryLine, ID to id, TEXT to text) }
 
     companion object {
-        const val SCHEMA_VERSION = 12
+        const val SCHEMA_VERSION = 13
         private const val FILES = "files"
         private const val SIZE = "size"
         private const val TOOL = "tool"

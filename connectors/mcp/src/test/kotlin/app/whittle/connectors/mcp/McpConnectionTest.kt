@@ -7,7 +7,13 @@ import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.tools.api.RiskTier
 import app.whittle.tools.api.ToolExecutionContext
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -17,10 +23,13 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import java.nio.file.Files
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -31,10 +40,38 @@ class McpConnectionTest {
 
     /** Sign-in details only at the spec's fallback addresses: the root and OpenID discovery. */
     private var fallbackLayout = false
+
+    /** What the token endpoint answers a refresh with; 200 gives new tokens. */
+    private var refreshStatus = 200
+
+    /** The MCP server answers 503, as when it's down. */
+    private var serverDown = false
+
+    /** The MCP server answers 401 to requests with this access token, as to one it no longer takes. */
+    @Volatile private var refusedToken: String? = null
+
+    /** While set, an MCP request carrying [refusedToken] waits for it to open, after saying it arrived. */
+    @Volatile private var holdRefused: CountDownLatch? = null
+    private val refusedArrived = CountDownLatch(1)
+
+    /** While set, a refresh waits for it to open, after saying it arrived; for a request still in flight. */
+    @Volatile private var holdRefresh: CountDownLatch? = null
+    private val refreshArrived = CountDownLatch(1)
     private val store = object : McpCredentialStore {
         var saved: McpCredentials? = null
+
+        /** While set, saving a sign-out waits for it, after saying so: a slow write, for another to land meanwhile. */
+        @Volatile var holdSignOut: CompletableDeferred<Unit>? = null
+        val signOutHeld = CompletableDeferred<Unit>()
+
         override suspend fun load() = saved
-        override suspend fun save(credentials: McpCredentials) { saved = credentials }
+        override suspend fun save(credentials: McpCredentials) {
+            holdSignOut?.takeIf { credentials.signedOut }?.let { hold ->
+                signOutHeld.complete(Unit)
+                hold.await()
+            }
+            saved = credentials
+        }
         override suspend fun clear() { saved = null }
     }
 
@@ -61,8 +98,26 @@ class McpConnectionTest {
                         """{"authorization_endpoint":"$base/authorize","token_endpoint":"$base/token","registration_endpoint":"$base/register"}""",
                     )
                     "/register" -> json("""{"client_id":"client-1","client_secret":"secret-1"}""")
-                    "/token" -> json("""{"access_token":"access-1","refresh_token":"refresh-1","expires_in":3600}""")
-                    else -> mcp(body)
+                    "/token" -> if (body.contains("grant_type=refresh_token")) {
+                        holdRefresh?.let { hold -> refreshArrived.countDown(); hold.await(WAIT_SECONDS, TimeUnit.SECONDS) }
+                        if (refreshStatus != 200) {
+                            json("""{"error":"invalid_grant"}""").setResponseCode(refreshStatus)
+                        } else {
+                            json("""{"access_token":"access-refreshed","refresh_token":"refresh-refreshed","expires_in":3600}""")
+                        }
+                    } else {
+                        // Each sign-in gets tokens of its own: code-2 gives access-2.
+                        val n = Regex("code=code-(\\d+)").find(body)?.groupValues?.get(1) ?: "1"
+                        json("""{"access_token":"access-$n","refresh_token":"refresh-$n","expires_in":3600}""")
+                    }
+                    else -> when {
+                        serverDown -> MockResponse().setResponseCode(503)
+                        refusedToken != null && request.getHeader("Authorization") == "Bearer $refusedToken" -> {
+                            holdRefused?.let { hold -> refusedArrived.countDown(); hold.await(WAIT_SECONDS, TimeUnit.SECONDS) }
+                            MockResponse().setResponseCode(401)
+                        }
+                        else -> mcp(body)
+                    }
                 }
             }
         }
@@ -137,6 +192,228 @@ class McpConnectionTest {
         now += 3_600_000
         connection.refreshTools()
         assertEquals(2, requests.count { it.path == "/token" })
+    }
+
+    @Test
+    fun `a refused refresh asks the user to sign in again, even after a restart`() = runTest {
+        val connection = signedIn()
+        refreshStatus = 400
+        now += 3_600_000
+        connection.refreshTools()
+        assertEquals(ConnectorState.SignInExpired, connection.state.value)
+        assertTrue(connection.tools.isEmpty())
+        assertEquals(true, store.saved?.signedOut)
+
+        val restarted = connection()
+        restarted.restore()
+        assertEquals(ConnectorState.SignInExpired, restarted.state.value)
+
+        refreshStatus = 200
+        val state = (restarted.beginSignIn() as Outcome.Success).value.toHttpUrl().queryParameter("state")
+        assertIs<Outcome.Success<Unit>>(restarted.complete("${REDIRECT}?code=code-2&state=$state"))
+        assertEquals(ConnectorState.Connected(3), restarted.state.value)
+        assertEquals(false, store.saved?.signedOut)
+    }
+
+    @Test
+    fun `a sign-out by the service is told once, across restarts, and again after the next one`() = runTest {
+        val connection = signedIn()
+        assertFalse(connection.takeSignOutNotice(), "nothing to tell while signed in")
+        refreshStatus = 400
+        now += 3_600_000
+        connection.refreshTools()
+        assertTrue(connection.takeSignOutNotice())
+        assertFalse(connection.takeSignOutNotice())
+
+        val restarted = connection()
+        restarted.restore()
+        assertEquals(ConnectorState.SignInExpired, restarted.state.value)
+        assertFalse(restarted.takeSignOutNotice(), "a restart reports it signed out again, but it was told already")
+
+        refreshStatus = 200
+        val state = (restarted.beginSignIn() as Outcome.Success).value.toHttpUrl().queryParameter("state")
+        restarted.complete("${REDIRECT}?code=code-2&state=$state")
+        refreshStatus = 400
+        now += 3_600_000
+        restarted.refreshTools()
+        assertTrue(restarted.takeSignOutNotice(), "a new sign-out is told again")
+    }
+
+    @Test
+    fun `a sign-in server that is down doesn't sign the user out`() = runTest {
+        val connection = signedIn()
+        refreshStatus = 503
+        now += 3_600_000
+        connection.refreshTools()
+        assertIs<ConnectorState.Connected>(connection.state.value)
+        assertEquals(false, store.saved?.signedOut)
+    }
+
+    @Test
+    fun `a sign-in server that is busy or slow doesn't sign the user out`() = runTest {
+        for (status in listOf(408, 429)) {
+            val connection = signedIn()
+            refreshStatus = status
+            now += 3_600_000
+            connection.refreshTools()
+            assertIs<ConnectorState.Connected>(connection.state.value, "HTTP $status")
+            assertEquals(false, store.saved?.signedOut, "HTTP $status")
+            refreshStatus = 200
+        }
+    }
+
+    @Test
+    fun `a sign-in server's other errors don't sign the user out`() = runTest {
+        val connection = signedIn()
+        refreshStatus = 403
+        now += 3_600_000
+        connection.refreshTools()
+        assertIs<ConnectorState.Connected>(connection.state.value)
+        assertEquals(false, store.saved?.signedOut)
+    }
+
+    @Test
+    fun `a server that is down keeps its tools and says so until it answers again`() = runTest {
+        val connection = signedIn()
+        serverDown = true
+        connection.refreshTools()
+        assertEquals(ConnectorState.Connected(3, reachable = false), connection.state.value)
+        assertEquals(3, connection.tools.size)
+        serverDown = false
+        connection.refreshTools()
+        assertEquals(ConnectorState.Connected(3), connection.state.value)
+    }
+
+    @Test
+    fun `disconnecting a signed-out connection stops asking`() = runTest {
+        val connection = signedIn()
+        refreshStatus = 400
+        now += 3_600_000
+        connection.refreshTools()
+        connection.disconnect()
+        assertEquals(ConnectorState.Disconnected, connection.state.value)
+        assertEquals(false, store.saved?.signedOut)
+    }
+
+    @Test
+    fun `a 401 when a session opens refreshes the token and keeps a sign-in that still works`() = runTest {
+        signedIn()
+        // The token isn't seen as expiring (no expires_in, or a clock behind), but the server no longer takes it.
+        refusedToken = "access-1"
+        val restarted = connection()
+        restarted.restore()
+        assertEquals(ConnectorState.Connected(3), restarted.state.value)
+        assertEquals("access-refreshed", store.saved?.tokens?.accessToken)
+        assertEquals(false, store.saved?.signedOut)
+        // A session opens without a session id; the last one opened is the one in use.
+        val opened = requests.last { it.path!!.startsWith("/mcp") && it.getHeader("Mcp-Session-Id") == null }
+        assertEquals("Bearer access-refreshed", opened.getHeader("Authorization"))
+    }
+
+    @Test
+    fun `a 401 when a session opens signs out only once the refresh is refused`() = runTest {
+        signedIn()
+        refusedToken = "access-1"
+        refreshStatus = 400
+        val restarted = connection()
+        restarted.restore()
+        assertEquals(ConnectorState.SignInExpired, restarted.state.value)
+        assertEquals(true, store.saved?.signedOut)
+    }
+
+    @Test
+    fun `a 401 when a session opens, with the sign-in server down, keeps the sign-in`() = runTest {
+        signedIn()
+        refusedToken = "access-1"
+        refreshStatus = 503
+        val restarted = connection()
+        restarted.restore()
+        assertIs<ConnectorState.Connected>(restarted.state.value)
+        assertEquals(false, store.saved?.signedOut)
+        assertEquals("access-1", store.saved?.tokens?.accessToken)
+    }
+
+    @Test
+    fun `a refusal for a request sent with an old sign-in doesn't sign out the new one`() = runTest {
+        val connection = signedIn()
+        // The old sign-in stops working: its token is refused and its refresh token too, but the refresh is slow.
+        refusedToken = "access-1"
+        refreshStatus = 400
+        val hold = CountDownLatch(1).also { holdRefresh = it }
+        coroutineScope {
+            val stale = async(Dispatchers.IO) { connection.refreshTools() }
+            assertTrue(withContext(Dispatchers.IO) { refreshArrived.await(WAIT_SECONDS, TimeUnit.SECONDS) })
+            // Meanwhile the user signs in again; the new tokens are saved before the old request hears back.
+            val state = (connection.beginSignIn() as Outcome.Success).value.toHttpUrl().queryParameter("state")
+            val fresh = async(Dispatchers.IO) { connection.complete("${REDIRECT}?code=code-2&state=$state") }
+            withContext(Dispatchers.IO) { while (store.saved?.tokens?.accessToken != "access-2") Thread.sleep(POLL_MILLIS) }
+            holdRefresh = null
+            hold.countDown()
+            assertIs<Outcome.Failure>(stale.await())
+            assertIs<Outcome.Success<Unit>>(fresh.await())
+        }
+        assertEquals(ConnectorState.Connected(3), connection.state.value)
+        assertEquals("access-2", store.saved?.tokens?.accessToken)
+        assertEquals(false, store.saved?.signedOut)
+    }
+
+    @Test
+    fun `a refusal that arrives after a new sign-in neither renews nor signs out the new one`() = runTest {
+        val connection = signedIn()
+        // The old token stops working, and so would its refresh; the server is slow to say so.
+        refusedToken = "access-1"
+        refreshStatus = 400
+        val hold = CountDownLatch(1).also { holdRefused = it }
+        coroutineScope {
+            val stale = async(Dispatchers.IO) { connection.refreshTools() }
+            assertTrue(withContext(Dispatchers.IO) { refusedArrived.await(WAIT_SECONDS, TimeUnit.SECONDS) })
+            // The user signs in again before the old request hears back.
+            val state = (connection.beginSignIn() as Outcome.Success).value.toHttpUrl().queryParameter("state")
+            assertIs<Outcome.Success<Unit>>(withContext(Dispatchers.IO) { connection.complete("${REDIRECT}?code=code-2&state=$state") })
+            holdRefused = null
+            hold.countDown()
+            // The refusal was for access-1; the request is sent again with access-2, which works.
+            assertIs<Outcome.Success<Unit>>(stale.await())
+        }
+        assertTrue(requests.none { it.path == "/token" && it.body.clone().readUtf8().contains("grant_type=refresh_token") }, "nothing to renew")
+        assertEquals(ConnectorState.Connected(3), connection.state.value)
+        assertEquals("access-2", store.saved?.tokens?.accessToken)
+        assertEquals(false, store.saved?.signedOut)
+    }
+
+    @Test
+    fun `a sign-in that lands while a refusal is signing out is the one that stays`() = runTest {
+        val connection = signedIn()
+        val state = (connection.beginSignIn() as Outcome.Success).value.toHttpUrl().queryParameter("state")
+        // The old sign-in stops working, and saving its sign-out is slow.
+        refusedToken = "access-1"
+        refreshStatus = 400
+        val hold = CompletableDeferred<Unit>().also { store.holdSignOut = it }
+        coroutineScope {
+            val refused = async(Dispatchers.IO) { connection.refreshTools() }
+            withContext(Dispatchers.IO) { withTimeout(WAIT_SECONDS * 1_000) { store.signOutHeld.await() } }
+            // The user's new sign-in arrives while the sign-out is half done.
+            val fresh = async(Dispatchers.IO) { connection.complete("${REDIRECT}?code=code-2&state=$state") }
+            // Unguarded, its tokens would be saved now, and the sign-out would then write over them.
+            withContext(Dispatchers.IO) {
+                val deadline = System.currentTimeMillis() + SETTLE_MILLIS
+                while (store.saved?.tokens?.accessToken != "access-2" && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MILLIS)
+            }
+            store.holdSignOut = null
+            hold.complete(Unit)
+            refused.await()
+            assertIs<Outcome.Success<Unit>>(fresh.await())
+        }
+        assertEquals(ConnectorState.Connected(3), connection.state.value)
+        assertEquals("access-2", store.saved?.tokens?.accessToken)
+        assertEquals(false, store.saved?.signedOut)
+    }
+
+    private suspend fun signedIn(): McpConnection {
+        val connection = connection()
+        val state = (connection.beginSignIn() as Outcome.Success).value.toHttpUrl().queryParameter("state")
+        assertIs<Outcome.Success<Unit>>(connection.complete("${REDIRECT}?code=code-1&state=$state"))
+        return connection
     }
 
     @Test
@@ -243,5 +520,8 @@ class McpConnectionTest {
     private companion object {
         const val REDIRECT = "app.whittle://oauth/db"
         const val SESSION = "session-1"
+        const val WAIT_SECONDS = 10L
+        const val POLL_MILLIS = 10L
+        const val SETTLE_MILLIS = 500L
     }
 }

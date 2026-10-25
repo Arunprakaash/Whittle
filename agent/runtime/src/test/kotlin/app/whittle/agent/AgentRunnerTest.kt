@@ -82,6 +82,22 @@ class AgentRunnerTest {
     }
 
     @Test
+    fun `a screenshot of another app's screen reaches the model as an image and taints the run`() = runTest {
+        val adapter = ScriptedAdapter(listOf(textTurn("A game.")))
+        val loaded = ContentBlock.Image("image/jpeg", "AAAA")
+        val images = ImageSource { _, _ -> Outcome.Success(loaded) }
+        val shot = ContentBlock.ImageFile("uploads/assist-screen.jpg", Provenance.Untrusted("the screen of Game"))
+        val message = Message(Role.USER, listOf(ContentBlock.Text("What should I do?"), shot))
+
+        runner(adapter, images = images).start(request().copy(userMessage = message, workspace = WorkspaceId("chat-1"))).toList()
+
+        assertEquals(loaded, adapter.requests.single().messages.last().content[1])
+        val saved = savedCheckpoint()
+        assertTrue(saved.tainted)
+        assertEquals(shot, saved.conversation.messages.first { it.role == Role.USER }.content[1], "kept untrusted with the chat")
+    }
+
+    @Test
     fun `allowed tool runs and its result goes back to the model`() = runTest {
         val clock = FakeTool("time.now", RiskTier.READ)
         val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "time.now")), textTurn("It is noon.")))
@@ -176,6 +192,7 @@ class AgentRunnerTest {
 
         val requested = events.filterIsInstance<RunEvent.DecisionRequested>().single()
         assertEquals("c1", requested.decision.toolCall.id.value)
+        assertTrue(!requested.tainted)
         assertEquals(0, fetch.executions)
         assertEquals(1, clock.executions)
         assertEquals(1, adapter.requests.size)
@@ -277,7 +294,7 @@ class AgentRunnerTest {
     @Test
     fun `a photo sent mid-run reaches the model as an image with its words`() = runTest {
         val clock = FakeTool("time.now", RiskTier.READ) {
-            inbox.submit(runId, RunInput.Steer("What is this?", images = listOf("uploads/receipt.jpg")))
+            inbox.submit(runId, RunInput.Steer("What is this?", images = listOf(ContentBlock.ImageFile("uploads/receipt.jpg"))))
             "noon"
         }
         val loaded = ContentBlock.Image("image/jpeg", "AAAA")
@@ -305,7 +322,9 @@ class AgentRunnerTest {
 
         assertTrue(savedCheckpoint().tainted)
         assertEquals(0, post.executions)
-        assertEquals("c1", events.filterIsInstance<RunEvent.DecisionRequested>().single().decision.toolCall.id.value)
+        val requested = events.filterIsInstance<RunEvent.DecisionRequested>().single()
+        assertEquals("c1", requested.decision.toolCall.id.value)
+        assertTrue(requested.tainted, "the card says the run had read untrusted content")
         val sent = adapter.requests.first().messages.last().content.filterIsInstance<ContentBlock.Text>()
         assertEquals(ContentBlock.Text("Fix the crash in Counter (counter)"), sent[0])
         assertIs<Provenance.Untrusted>(sent[1].provenance)
@@ -352,6 +371,7 @@ class AgentRunnerTest {
         assertEquals("pasted from process server: <<<6789>>>", block.text)
         assertEquals("crash of Counter", (pastedOutput(testMessages, PastedKind.APP_CRASH, "Counter", "x", 10).provenance as Provenance.Untrusted).sourceLabel)
         assertEquals("preview of site", (pastedOutput(testMessages, PastedKind.PREVIEW_CONSOLE, "site", "x", 10).provenance as Provenance.Untrusted).sourceLabel)
+        assertEquals("screen of Gmail", (pastedOutput(testMessages, PastedKind.SCREEN, "Gmail", "x", 10).provenance as Provenance.Untrusted).sourceLabel)
     }
 
     @Test
