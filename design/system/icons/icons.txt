@@ -133,3 +133,6 @@ storefront
 mobile_screen_share
 assistant
 computer
+location_on
+battery_charging_full
+repeat

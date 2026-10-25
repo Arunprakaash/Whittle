@@ -144,7 +144,6 @@ class AndroidPhoneScheduler(
      */
     private fun wifiCallback(wanted: Boolean) {
         if (wanted == wifiRegistered) return
-        wifiRegistered = wanted
         val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return
         val pending = PendingIntent.getBroadcast(context, 0, Intent(context, NetworkReceiver::class.java), PendingIntent.FLAG_UPDATE_CURRENT)
         try {
@@ -152,33 +151,40 @@ class AndroidPhoneScheduler(
         } catch (_: IllegalArgumentException) {
             // None was registered.
         }
-        if (!wanted) return
+        if (!wanted) {
+            wifiRegistered = false
+            return
+        }
         val request = NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build()
         try {
             connectivity.registerNetworkCallback(request, pending)
+            wifiRegistered = true
         } catch (_: SecurityException) {
-            // Without the permission, the periodic check still sees the change.
+            // Without the permission, the periodic check still sees the change; the next arm tries again.
         }
     }
 
     private fun proximityAlerts(places: List<Trigger.Place>) {
         if (places == placesArmed) return
-        placesArmed = places
         val locations = context.getSystemService(LocationManager::class.java) ?: return
         val armed = prefs.getStringSet(ARMED_PLACES, emptySet()).orEmpty()
         (armed - places.map { it.name }.toSet()).forEach { locations.removeProximityAlert(placeIntent(it)) }
         val allowed = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val now = if (allowed) places else emptyList()
         // Adding an alert with the same address replaces the one before it, so a moved place needs no removal.
+        var set = 0
         now.forEach { place ->
             try {
                 locations.addProximityAlert(place.latitude, place.longitude, place.radiusMeters.toFloat(), NO_EXPIRY, placeIntent(place.name))
+                set++
             } catch (_: SecurityException) {
                 // Permission was taken away since the check.
             }
         }
         (armed - now.map { it.name }.toSet()).forEach { locations.removeProximityAlert(placeIntent(it)) }
         prefs.edit().putStringSet(ARMED_PLACES, now.map { it.name }.toSet()).apply()
+        // Remembered only when every alert was set, so one skipped for a missing permission is tried again.
+        if (set == places.size) placesArmed = places
     }
 
     /** The place's name is in the address, since extras don't count when Android matches one alert to another. */

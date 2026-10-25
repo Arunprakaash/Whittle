@@ -27,6 +27,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import app.whittle.design.tokens.WhittleFonts
 import app.whittle.design.tokens.WhittleRadius
@@ -36,7 +37,7 @@ import app.whittle.design.tokens.WhittleSpace
 /**
  * A filled text field with its label inside and no underline, as the model key is entered at first run. Under it,
  * an optional hint on the left and a counter on the right; an [error] replaces the hint. With [autoFocus] it takes
- * the keyboard as soon as it shows, the cursor after any words it starts with.
+ * the keyboard as soon as it shows, the cursor after any words it starts with. [keyboardType] picks the keyboard, a number pad for one.
  */
 @Composable
 fun WhittleFilledField(
@@ -51,6 +52,7 @@ fun WhittleFilledField(
     counter: String? = null,
     error: String? = null,
     autoFocus: Boolean = false,
+    keyboardType: KeyboardType = KeyboardType.Text,
 ) {
     val colors = MaterialTheme.colorScheme
     val interaction = remember { MutableInteractionSource() }
@@ -77,7 +79,7 @@ fun WhittleFilledField(
             minLines = minLines,
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
             cursorBrush = SolidColor(colors.primary),
-            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, keyboardType = keyboardType),
             interactionSource = interaction,
             modifier = Modifier.fillMaxWidth().focusRequester(focus),
             decorationBox = { input ->

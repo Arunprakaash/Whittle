@@ -66,6 +66,9 @@ data class EventsConfig(
     val minIntervalMinutes: Int,
     val placeCheckMinutes: Int,
     val placePolling: Boolean,
+    /** What a new place starts with, and the smallest radius Android's proximity alerts hold up at. */
+    val defaultPlaceRadiusMeters: Int = 200,
+    val minPlaceRadiusMeters: Int = 100,
     /** Text of one event kept past this length is cut. */
     val maxEventChars: Int,
     val codeMask: CodeMaskConfig,
