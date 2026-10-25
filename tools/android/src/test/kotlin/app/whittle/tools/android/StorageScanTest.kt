@@ -44,4 +44,18 @@ class StorageScanTest {
         assertTrue(result.any { it.partial })
         assertFalse(result.isEmpty())
     }
+
+    @Test
+    fun bytesOlderThanCountsOnlyOldFilesAndStopsAtTheDeadline() {
+        file("old/a.bin", 10)
+        file("new.bin", 20)
+        File(root, "old/a.bin").setLastModified(1_000)
+        File(root, "new.bin").setLastModified(9_000)
+
+        assertEquals(Measured(10, false), bytesOlderThan(root, 5_000, deadlineMillis = 1_000, now = { 0L }))
+
+        var clock = 0L
+        val cut = bytesOlderThan(root, 5_000, deadlineMillis = 1, now = { clock++ })
+        assertTrue(cut.partial)
+    }
 }

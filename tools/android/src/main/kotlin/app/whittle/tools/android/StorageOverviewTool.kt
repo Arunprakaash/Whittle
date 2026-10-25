@@ -46,10 +46,12 @@ class StorageOverviewTool(
         val root = storage.root() ?: return ToolJson.missing(AndroidCapabilities.STORAGE)
         if (!root.canRead()) return ToolJson.error("shared storage can't be read")
         val body = withContext(Dispatchers.IO) {
-            val folders = topFolders(root, limits.maxFolders, clock.nowMillis() + limits.scanMillis, clock::nowMillis)
-            val media = mediaBytes()
+            // One budget for everything, so folders, media and Downloads together never run past scanMillis.
+            val deadline = clock.nowMillis() + limits.scanMillis
+            val folders = topFolders(root, limits.maxFolders, deadline, clock::nowMillis)
+            val media = mediaBytes(deadline)
             val oldCutoff = clock.nowMillis() - TimeUnit.DAYS.toMillis(limits.oldDays.toLong())
-            val downloads = bytesOlderThan(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), oldCutoff)
+            val downloads = bytesOlderThan(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), oldCutoff, deadline, clock::nowMillis)
             buildJsonObject {
                 totals()?.let { (total, free) ->
                     put(TOTAL, total)
@@ -65,8 +67,11 @@ class StorageOverviewTool(
                         }
                     }
                 }
-                putJsonObject(MEDIA) { media.forEach { (kind, bytes) -> put(kind, bytes) } }
-                put(OLD_DOWNLOADS, downloads)
+                putJsonObject(MEDIA) { media.forEach { (kind, size) -> put(kind, size.bytes) } }
+                if (media.values.any { it.partial }) put(MEDIA_PARTIAL, true)
+                put(OLD_DOWNLOADS, downloads.bytes)
+                put(OLD_DAYS, limits.oldDays)
+                if (downloads.partial) put(OLD_DOWNLOADS_PARTIAL, true)
             }
         }
         return ToolJson.success(PROVENANCE, body)
@@ -77,18 +82,25 @@ class StorageOverviewTool(
         stats.getTotalBytes(StorageManager.UUID_DEFAULT) to stats.getFreeBytes(StorageManager.UUID_DEFAULT)
     }.getOrNull()
 
-    /** A kind whose query fails is left out rather than failing the whole answer. */
-    private fun mediaBytes(): Map<String, Long> = buildMap {
-        mediaSum(MediaStore.Images.Media.EXTERNAL_CONTENT_URI)?.let { put(IMAGES, it) }
-        mediaSum(MediaStore.Video.Media.EXTERNAL_CONTENT_URI)?.let { put(VIDEO, it) }
-        mediaSum(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI)?.let { put(AUDIO, it) }
+    /** A kind whose query fails is left out rather than failing the whole answer; one cut short by [deadline] is partial. */
+    private fun mediaBytes(deadline: Long): Map<String, Measured> = buildMap {
+        mediaSum(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, deadline)?.let { put(IMAGES, it) }
+        mediaSum(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, deadline)?.let { put(VIDEO, it) }
+        mediaSum(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, deadline)?.let { put(AUDIO, it) }
     }
 
-    private fun mediaSum(uri: Uri): Long? = runCatching {
+    private fun mediaSum(uri: Uri, deadline: Long): Measured? = runCatching {
         context.contentResolver.query(uri, arrayOf(MediaStore.MediaColumns.SIZE), null, null, null)?.use { cursor ->
             var sum = 0L
-            while (cursor.moveToNext()) sum += cursor.getLong(0)
-            sum
+            var partial = false
+            while (cursor.moveToNext()) {
+                if (clock.nowMillis() >= deadline) {
+                    partial = true
+                    break
+                }
+                sum += cursor.getLong(0)
+            }
+            Measured(sum, partial)
         }
     }.getOrNull()
 
@@ -104,14 +116,17 @@ class StorageOverviewTool(
         private const val IMAGES = "images"
         private const val VIDEO = "video"
         private const val AUDIO = "audio"
-        private const val OLD_DOWNLOADS = "downloadsOlderThan90Days"
+        private const val MEDIA_PARTIAL = "mediaPartial"
+        private const val OLD_DOWNLOADS = "downloadsOld"
+        private const val OLD_DAYS = "oldDays"
+        private const val OLD_DOWNLOADS_PARTIAL = "downloadsOldPartial"
         private val PROVENANCE = Provenance.Trusted
 
         val DEFINITION = ToolDefinition(
             id = ToolId("storage_overview"),
             description = "Shows what is using the phone's storage: total and free bytes, the largest folders (partial=true means " +
-                "the size is at least that much), bytes used by images, video and audio, and bytes in Downloads older than 90 days. " +
-                "Sizes only, no file contents.",
+                "the size is at least that much), bytes used by images, video and audio, and bytes in Downloads older than oldDays days (downloadsOld). " +
+                "Any figure marked partial (downloadsOldPartial, mediaPartial) is at least that much. Sizes only, no file contents.",
             inputSchema = Json.parseToJsonElement("""{"type":"object","properties":{}}""").jsonObject,
             riskTier = RiskTier.READ,
             executionSite = ExecutionSite.DEVICE,

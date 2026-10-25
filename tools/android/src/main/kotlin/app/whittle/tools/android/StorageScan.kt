@@ -45,13 +45,30 @@ private class Sum {
     }
 }
 
-/** Bytes in the files directly or deeply under [dir] last changed before [cutoffMillis]; symlinks skipped. */
-fun bytesOlderThan(dir: File, cutoffMillis: Long): Long =
-    dir.listFiles().orEmpty().sumOf { file ->
-        when {
-            Files.isSymbolicLink(file.toPath()) -> 0L
-            file.isDirectory -> bytesOlderThan(file, cutoffMillis)
-            file.lastModified() < cutoffMillis -> file.length()
-            else -> 0L
+/** A size that may be a floor: [partial] means the scan ran out of time. */
+data class Measured(val bytes: Long, val partial: Boolean)
+
+/**
+ * Bytes in the files under [dir] last changed before [cutoffMillis]; symlinks skipped. Stops at [deadlineMillis]
+ * (a clock reading from [now]) and then reports [Measured.partial].
+ */
+fun bytesOlderThan(dir: File, cutoffMillis: Long, deadlineMillis: Long, now: () -> Long): Measured {
+    var bytes = 0L
+    var partial = false
+    fun walk(folder: File) {
+        for (file in folder.listFiles().orEmpty()) {
+            if (partial) return
+            if (now() >= deadlineMillis) {
+                partial = true
+                return
+            }
+            when {
+                Files.isSymbolicLink(file.toPath()) -> Unit
+                file.isDirectory -> walk(file)
+                file.lastModified() < cutoffMillis -> bytes += file.length()
+            }
         }
     }
+    walk(dir)
+    return Measured(bytes, partial)
+}
