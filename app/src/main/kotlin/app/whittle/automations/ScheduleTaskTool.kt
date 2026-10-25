@@ -10,7 +10,6 @@ import app.whittle.tools.api.ToolExecutionContext
 import app.whittle.tools.api.ToolId
 import app.whittle.tools.api.ToolOutput
 import app.whittle.tools.api.WorkspaceId
-import app.whittle.tools.workspace.ChatProjects
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -37,6 +36,8 @@ class ScheduleTaskTool(
     /** Whether a project folder of that name is in the workspace. */
     private val projectExists: (String) -> Boolean,
 ) : Tool {
+    private val support = AutomationToolSupport(automations, messages, projectOf, projectExists)
+
     override val definition = DEFINITION
 
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
@@ -45,19 +46,14 @@ class ScheduleTaskTool(
             Parsed.Invalid.TIME -> return reply(messages.automationTimeInvalid, error = true)
             Parsed.Invalid.DAYS -> return reply(messages.automationDaysInvalid, error = true)
         }
-        val project = when (request.project) {
-            null -> context.workspace?.let(projectOf)
-            "" -> null
-            else -> request.project
-        }
-        if (project != null) {
-            if (!ChatProjects.isValidName(project)) return reply(messages.automationProjectInvalid(project), error = true)
-            if (!projectExists(project)) return reply(messages.automationProjectMissing(project), error = true)
+        val project = when (val chosen = support.project(request.project, context.workspace)) {
+            is AutomationToolSupport.Project.Chosen -> chosen.name
+            is AutomationToolSupport.Project.Refused -> return reply(chosen.text, error = true)
         }
         val draft = automations.draft(request.name, request.prompt).copy(schedule = request.schedule, project = project)
         return when (val saved = automations.save(draft)) {
             is SaveResult.Saved -> reply(describe(saved))
-            is SaveResult.Refused -> reply(refusal(saved.problem, project), error = true)
+            is SaveResult.Refused -> reply(support.refusal(saved.problem, project), error = true)
             is SaveResult.Failed -> reply(messages.automationSaveFailed(saved.error.message), error = true)
         }
     }
@@ -67,15 +63,13 @@ class ScheduleTaskTool(
         // This tool only ever makes time automations.
         val schedule = checkNotNull(automation.schedule)
         val next = saved.nextRunMillis?.let { Instant.ofEpochMilli(it).atZone(automations.zone) }
-        val tools = automations.config.tools.filter { automation.tools.containsAll(it.toolIds) }
-            .joinToString { it.labelFor(automation.project).lowercase(Locale.ROOT) }
         return messages.automationScheduled(
             name = automation.name,
             time = schedule.time.toString(),
             days = days(schedule),
             next = next?.let { "${it.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH)} ${it.toLocalDate()} ${it.toLocalTime()}" }.orEmpty(),
-            place = automation.project?.let(messages::automationInProject) ?: messages.automationInWorkspace,
-            tools = tools.ifEmpty { messages.automationNoTools },
+            place = support.place(automation.project),
+            tools = support.toolsOf(automation),
         )
     }
 
@@ -86,18 +80,7 @@ class ScheduleTaskTool(
         else -> schedule.daysOfWeek.joinToString { it.getDisplayName(TextStyle.SHORT, Locale.ENGLISH) }
     }
 
-    private fun refusal(problem: AutomationProblem, project: String?): String = when (problem) {
-        AutomationProblem.NAME_EMPTY -> messages.automationNameEmpty
-        AutomationProblem.NAME_TOO_LONG -> messages.automationNameTooLong(automations.config.maxNameChars)
-        AutomationProblem.PROMPT_EMPTY -> messages.automationPromptEmpty
-        AutomationProblem.PROMPT_TOO_LONG -> messages.automationPromptTooLong(automations.config.maxPromptChars)
-        AutomationProblem.TOO_MANY -> messages.automationTooMany(automations.config.maxAutomations)
-        AutomationProblem.TOOL_NOT_ALLOWED -> messages.automationToolNotAllowed
-        AutomationProblem.PROJECT_INVALID -> messages.automationProjectInvalid(project.orEmpty())
-        AutomationProblem.INTERVAL_TOO_SHORT -> messages.automationIntervalTooShort(automations.config.events.minIntervalMinutes)
-    }
-
-    private fun reply(text: String, error: Boolean = false) = ToolOutput(text, isError = error, provenance = Provenance.Trusted)
+    private fun reply(text: String, error: Boolean = false) = support.reply(text, error)
 
     internal sealed interface Parsed {
         /** [project] is null when not given, empty for the whole workspace. */

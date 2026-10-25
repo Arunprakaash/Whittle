@@ -48,6 +48,7 @@ import app.whittle.core.config.ConsentLevel
 import app.whittle.settings.UserSettings
 import app.whittle.settings.SettingsStore
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.text.format.DateFormat
 import android.system.ErrnoException
@@ -63,7 +64,10 @@ import app.whittle.automations.CodeMask
 import app.whittle.automations.EncryptedFileAutomations
 import app.whittle.automations.EncryptedFileEventQueue
 import app.whittle.automations.EventGate
+import app.whittle.automations.LaunchableApp
+import app.whittle.automations.LaunchableApps
 import app.whittle.automations.ScheduleTaskTool
+import app.whittle.automations.WatchForTool
 import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.core.common.EpochClock
 import app.whittle.core.common.IdGenerator
@@ -421,7 +425,7 @@ class AppGraph(context: Context) {
     val tools = appTools(context).let { (createApp, buildApp) ->
         ToolRegistry(
             ToolCatalog.create(
-                context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, agentMessages, scheduleTask(),
+                context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, agentMessages, scheduleTask(), watchFor(context),
                 PhoneTools(phoneActions, reminders, workspaces, healthConnect) { id -> currentSettings.value?.phoneOff?.contains(id) != true },
                 createApp,
                 buildApp,
@@ -490,6 +494,19 @@ class AppGraph(context: Context) {
         messages = agentMessages,
         projectOf = workspaces::projectOf,
         projectExists = { name -> workspaces.folder().getOrNull()?.let { File(it, name).isDirectory } == true },
+    )
+
+    /** watch_for: like schedule_task, plus app names resolved against the apps with a launcher icon (no Android 11 package hiding at target 28). */
+    private fun watchFor(context: Context) = WatchForTool(
+        automations = automations,
+        messages = agentMessages,
+        projectOf = workspaces::projectOf,
+        projectExists = { name -> workspaces.folder().getOrNull()?.let { File(it, name).isDirectory } == true },
+        apps = LaunchableApps {
+            val packages = context.packageManager
+            packages.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+                .map { LaunchableApp(it.activityInfo.packageName, it.loadLabel(packages).toString()) }
+        },
     )
 
     /** The terminal and file tools, working in the shared workspace inside Linux. */

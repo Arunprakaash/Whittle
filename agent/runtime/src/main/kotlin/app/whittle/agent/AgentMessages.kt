@@ -126,6 +126,18 @@ data class AgentMessages(
     val eventKinds: Map<String, String>,
     /** Starts the pasted events, so the model knows why it was started and that the lines are data. */
     val automationEventsIntro: String,
+    /** watch_for saved an automation; [EVENT] is the event in words, [PLACE] is [automationInProject] or [automationInWorkspace]. */
+    val automationWatching: String,
+    /** Added when the trigger needs Android permissions; [PERMISSIONS] lists them from [automationPermissions]. */
+    val automationNeedsPermission: String,
+    /** The plain words for each permission a trigger may need, by the permission's name. */
+    val automationPermissions: Map<String, String>,
+    val automationPlaceInSettings: String,
+    val automationAppNotFound: String,
+    val automationAppAmbiguous: String,
+    val automationAppRequired: String,
+    val automationMinutesRequired: String,
+    val automationEventUnknown: String,
 ) : VersionedConfig {
     init {
         requirePlaceholders(attachments, FILES)
@@ -207,6 +219,15 @@ data class AgentMessages(
         requirePlaceholders(diagnosticsFromEvent, NAME)
         requirePlaceholders(eventLine, KIND, SOURCE, TIME, TEXT)
         requirePlaceholders(automationEventsIntro)
+        requirePlaceholders(automationWatching, NAME, EVENT, PLACE, TOOLS)
+        requirePlaceholders(automationNeedsPermission, PERMISSIONS)
+        automationPermissions.values.forEach { requirePlaceholders(it) }
+        requirePlaceholders(automationPlaceInSettings)
+        requirePlaceholders(automationAppNotFound, NAME)
+        requirePlaceholders(automationAppAmbiguous, NAME, APPS)
+        requirePlaceholders(automationAppRequired)
+        requirePlaceholders(automationMinutesRequired)
+        requirePlaceholders(automationEventUnknown)
         eventKinds.values.forEach { requirePlaceholders(it) }
     }
 
@@ -271,6 +292,17 @@ data class AgentMessages(
 
     fun automationScheduled(name: String, time: String, days: String, next: String, place: String, tools: String): String =
         render(automationScheduled, NAME to name, TIME to time, DAYS to days, NEXT to next, PLACE to place, TOOLS to tools)
+
+    fun automationWatching(name: String, event: String, place: String, tools: String): String =
+        render(automationWatching, NAME to name, EVENT to event, PLACE to place, TOOLS to tools)
+
+    /** [permissions] are [TriggerPermission] names; one with no words in config is named as it is. */
+    fun automationNeedsPermission(permissions: List<String>): String =
+        render(automationNeedsPermission, PERMISSIONS to permissions.joinToString(" and ") { automationPermissions[it] ?: it })
+
+    fun automationAppNotFound(name: String): String = render(automationAppNotFound, NAME to name)
+
+    fun automationAppAmbiguous(name: String, apps: String): String = render(automationAppAmbiguous, NAME to name, APPS to apps)
 
     fun automationInProject(project: String): String = render(automationInProject, PROJECT to project)
 
@@ -364,5 +396,8 @@ data class AgentMessages(
         private const val PLACE = "place"
         private const val TOOLS = "tools"
         private const val PROJECT = "project"
+        private const val EVENT = "event"
+        private const val PERMISSIONS = "permissions"
+        private const val APPS = "apps"
     }
 }

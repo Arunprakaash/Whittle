@@ -5,6 +5,7 @@ import app.whittle.agent.AgentMessages
 import app.whittle.agent.ForgetTool
 import app.whittle.agent.MemoryStore
 import app.whittle.automations.ScheduleTaskTool
+import app.whittle.automations.WatchForTool
 import app.whittle.agent.RememberTool
 import app.whittle.connectors.Connectors
 import app.whittle.connectors.AddConnectionTool
@@ -65,6 +66,7 @@ object ToolCatalog {
         RememberTool.DEFINITION,
         ForgetTool.DEFINITION,
         ScheduleTaskTool.DEFINITION,
+        WatchForTool.DEFINITION,
         CreateAppTool.DEFINITION,
         BuildAppTool.DEFINITION,
     ) + WorkspaceToolSet.DEFINITIONS
@@ -79,6 +81,7 @@ object ToolCatalog {
         memory: MemoryStore,
         messages: AgentMessages,
         scheduleTask: ScheduleTaskTool,
+        watchFor: WatchForTool,
         phone: PhoneTools,
         createApp: CreateAppTool,
         buildApp: BuildAppTool,
@@ -108,6 +111,7 @@ object ToolCatalog {
             RememberTool(memory, messages),
             ForgetTool(memory, messages),
             scheduleTask,
+            watchFor,
             createApp,
             buildApp,
         ) + workspaceTools,

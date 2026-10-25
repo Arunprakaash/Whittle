@@ -62,7 +62,7 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
         val decision = presentation(toolId)?.decision ?: config.fallback.decision
             ?: error("tool-presentation.json must define fallback.decision")
         val fallback = config.fallback.decision ?: decision
-        val variables = variables(arguments, origin)
+        val variables = variables(arguments, origin, decision.argumentWords)
         return DecisionText(
             icon = decision.icon,
             title = fill(decision.title, variables, fallback.title),
@@ -104,10 +104,14 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
         arguments.entries.joinToString("\n") { (name, value) -> "$name: ${(value as? JsonPrimitive)?.contentOrNull ?: value}" }
             .ifEmpty { null }
 
-    private fun variables(arguments: JsonObject, origin: ToolOrigin?): Map<String, String> = buildMap {
+    private fun variables(
+        arguments: JsonObject,
+        origin: ToolOrigin?,
+        words: Map<String, Map<String, String>> = emptyMap(),
+    ): Map<String, String> = buildMap {
         arguments.forEach { (name, value) ->
             val text = (value as? JsonPrimitive)?.contentOrNull ?: return@forEach
-            put(name, text)
+            put(name, words[name]?.get(text) ?: text)
             hostOf(text)?.let { put("${name}$HOST_SUFFIX", it) }
             put("${name}$WHEN_SUFFIX", plainTime?.format(text) ?: text)
         }

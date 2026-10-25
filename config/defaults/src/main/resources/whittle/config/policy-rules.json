@@ -35,6 +35,13 @@
       "matcher": {
         "toolIdPattern": "schedule_task"
       }
+    },
+    {
+      "id": "event-automations-always-confirm",
+      "effect": "ASK",
+      "matcher": {
+        "toolIdPattern": "watch_for"
+      }
     }
   ],
   "riskTierDefaults": {

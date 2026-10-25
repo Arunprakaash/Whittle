@@ -81,7 +81,7 @@ class BundledAppConfigTest {
             return approvals.buttonsFor(tool, tainted, policy.alwaysAsks(tool, tainted))
         }
         // An automation that runs unattended, a new connection, a phone call, a message draft.
-        listOf("schedule_task", "add_connection", "call", "compose_message").forEach { assertFalse(buttons(it), "$it got buttons") }
+        listOf("schedule_task", "watch_for", "add_connection", "call", "compose_message").forEach { assertFalse(buttons(it), "$it got buttons") }
         // Memory written after outside content could be poisoned; before it, the notification may answer.
         assertFalse(buttons("remember", tainted = true))
         assertTrue(buttons("remember"))
