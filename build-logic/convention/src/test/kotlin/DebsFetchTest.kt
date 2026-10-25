@@ -14,7 +14,7 @@ class DebsFetchTest {
     private val locked = LockedPackage("proot", "5.1", "pool/main/p/proot/proot_5.1_aarch64.deb", Debs.sha256(good))
     private val spec = TermuxSpec(
         repository = "https://termux.example/apt/",
-        mirrors = listOf("https://mirror.example/one/", "https://mirror.example/two"),
+        mirrors = listOf("https://mirror.example/one-{lock}/", "https://mirror.example/two"),
         connectTimeoutSeconds = 1,
         readTimeoutSeconds = 1,
         termuxPrefix = "/prefix",
@@ -25,7 +25,8 @@ class DebsFetchTest {
         symlinks = emptyMap(),
     )
     private val termux = "https://termux.example/apt/pool/main/p/proot/proot_5.1_aarch64.deb"
-    private val mirrorOne = "https://mirror.example/one/proot_5.1_aarch64.deb"
+    private val lockId = "0123456789ab"
+    private val mirrorOne = "https://mirror.example/one-0123456789ab/proot_5.1_aarch64.deb"
     private val mirrorTwo = "https://mirror.example/two/proot_5.1_aarch64.deb"
 
     /** A download that answers from [sources] (a URL missing from it is an IOException) and records what it was asked for. */
@@ -43,7 +44,7 @@ class DebsFetchTest {
         File(cache, "proot_5.1_aarch64.deb").writeBytes(good)
         val net = Net(emptyMap())
 
-        assertContentEquals(good, Debs.fetch(spec, locked, cache, net::get))
+        assertContentEquals(good, Debs.fetch(spec, locked, lockId, cache, net::get))
         assertTrue(net.asked.isEmpty())
     }
 
@@ -53,7 +54,7 @@ class DebsFetchTest {
         val file = File(cache, "proot_5.1_aarch64.deb").apply { writeBytes("damaged".toByteArray()) }
         val net = Net(mapOf(termux to good))
 
-        assertContentEquals(good, Debs.fetch(spec, locked, cache, net::get))
+        assertContentEquals(good, Debs.fetch(spec, locked, lockId, cache, net::get))
         assertEquals(listOf(termux), net.asked)
         assertContentEquals(good, file.readBytes())
     }
@@ -62,16 +63,16 @@ class DebsFetchTest {
     fun `Termux first, and what it serves is kept in the cache`() {
         val net = Net(mapOf(termux to good, mirrorOne to good))
 
-        assertContentEquals(good, Debs.fetch(spec, locked, cache, net::get))
+        assertContentEquals(good, Debs.fetch(spec, locked, lockId, cache, net::get))
         assertEquals(listOf(termux), net.asked)
         assertContentEquals(good, File(cache, "proot_5.1_aarch64.deb").readBytes())
     }
 
     @Test
-    fun `Termux without the file falls back to the mirror under the file name`() {
+    fun `Termux without the file falls back to the mirror for this lock, under the file name`() {
         val net = Net(mapOf(mirrorOne to good))
 
-        assertContentEquals(good, Debs.fetch(spec, locked, cache, net::get))
+        assertContentEquals(good, Debs.fetch(spec, locked, lockId, cache, net::get))
         assertEquals(listOf(termux, mirrorOne), net.asked)
     }
 
@@ -79,7 +80,7 @@ class DebsFetchTest {
     fun `bytes that don't match the pin from one source move on to the next`() {
         val net = Net(mapOf(termux to "<html>captive portal</html>".toByteArray(), mirrorOne to good))
 
-        assertContentEquals(good, Debs.fetch(spec, locked, cache, net::get))
+        assertContentEquals(good, Debs.fetch(spec, locked, lockId, cache, net::get))
         assertEquals(listOf(termux, mirrorOne), net.asked)
         assertContentEquals(good, File(cache, "proot_5.1_aarch64.deb").readBytes())
     }
@@ -88,7 +89,7 @@ class DebsFetchTest {
     fun `a bad mirror does not stop a later one`() {
         val net = Net(mapOf(mirrorOne to "wrong".toByteArray(), mirrorTwo to good))
 
-        assertContentEquals(good, Debs.fetch(spec, locked, cache, net::get))
+        assertContentEquals(good, Debs.fetch(spec, locked, lockId, cache, net::get))
         assertEquals(listOf(termux, mirrorOne, mirrorTwo), net.asked)
     }
 
@@ -96,11 +97,20 @@ class DebsFetchTest {
     fun `every source failing is one error that names them all, and caches nothing`() {
         val net = Net(mapOf(mirrorOne to "wrong".toByteArray()))
 
-        val error = assertFailsWith<GradleException> { Debs.fetch(spec, locked, cache, net::get) }
+        val error = assertFailsWith<GradleException> { Debs.fetch(spec, locked, lockId, cache, net::get) }
 
         assertEquals(listOf(termux, mirrorOne, mirrorTwo), net.asked)
         listOf(termux, mirrorOne, mirrorTwo).forEach { assertTrue(it in error.message.orEmpty(), "the error names $it") }
         assertTrue("SHA-256" in error.message.orEmpty())
         assertTrue(!File(cache, "proot_5.1_aarch64.deb").exists())
+    }
+    @Test
+    fun `a lock file's id is the start of its SHA-256, so any change to it gives a new one`() {
+        val lock = Files.createTempFile("termux-runtimes", ".lock.json").toFile().apply { writeText("{\"arm64-v8a\": []}") }
+        val id = Lockfile.id(lock)
+
+        assertEquals(Debs.sha256(lock.readBytes()).take(12), id)
+        lock.appendText("\n")
+        assertTrue(Lockfile.id(lock) != id)
     }
 }

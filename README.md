@@ -251,8 +251,9 @@ that no longer apply.
 - Android SDK with platform 37 and NDK `28.2.13676358`, which builds the sandbox.
 - Network access on the first build, which downloads the pinned Termux packages for proot and tar (see
   `app/termux-runtimes.lock.json`). They're cached in `~/.gradle/caches/whittle-termux` after that. Termux keeps
-  only each package's current version, so the build falls back to Whittle's copies in the `termux-runtimes`
-  release, which CI uploads from main (`./gradlew :app:collectTermuxDebs` gathers them). Every download is
+  only each package's current version, so the build falls back to Whittle's copies in the lock file's
+  `termux-runtimes-<id>` prerelease (`<id>` starts the lock file's SHA-256), which CI publishes from main
+  (`./gradlew :app:collectTermuxDebs` gathers them). Every download is
   checked against its pinned SHA-256.
 - A 64-bit ARM device or emulator (`arm64-v8a`), Android 8 or later.
 

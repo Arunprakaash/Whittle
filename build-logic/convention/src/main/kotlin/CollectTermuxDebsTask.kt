@@ -32,10 +32,11 @@ abstract class CollectTermuxDebsTask : DefaultTask() {
     fun collect() {
         val spec = TermuxSpec.read(specFile.get().asFile)
         val lock = Lockfile.read(lockFile.get().asFile)
+        val lockId = Lockfile.id(lockFile.get().asFile)
         val output = outputDirectory.get().asFile.apply { deleteRecursively(); mkdirs() }
         val pinned = lock.values.flatten().distinctBy { it.filename }
         pinned.forEach { locked ->
-            output.resolve(locked.filename.substringAfterLast('/')).writeBytes(Debs.fetch(spec, locked, downloadDirectory.get().asFile))
+            output.resolve(locked.filename.substringAfterLast('/')).writeBytes(Debs.fetch(spec, locked, lockId, downloadDirectory.get().asFile))
         }
         logger.lifecycle("${pinned.size} pinned packages in $output")
     }
