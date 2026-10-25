@@ -48,12 +48,15 @@ internal class AnthropicStreamParser {
     fun finish(): List<ModelEvent> {
         if (!stopped) return listOf(ModelEvent.Failed(HarnessError.Network("The response ended before Claude finished")))
         val message = accumulator.message()
-        val raw = Json.parseToJsonElement(jsonMapper().writeValueAsString(message)).jsonObject[CONTENT] as? JsonArray ?: JsonArray(emptyList())
+        val stopReason = stopReason(message)
+        val received = Json.parseToJsonElement(jsonMapper().writeValueAsString(message)).jsonObject[CONTENT] as? JsonArray ?: JsonArray(emptyList())
+        // Cut off by the output limit: a call may have stopped half-written, so none runs or goes back without its result.
+        val raw = if (stopReason == StopReason.MAX_TOKENS) AnthropicTurnCodec.withoutUnfinishedCalls(received) else received
         // After a fallback mid-turn, only what follows the marker is this turn's to act on.
-        val current = message.content().drop(lastFallback(raw) + 1)
+        val current = message.content().drop(lastFallback(received) + 1)
         return buildList {
             current.forEach { block ->
-                block.toolUse().orElse(null)?.let { add(ModelEvent.ToolCallCompleted(ContentBlock.ToolCall(ToolCallId(it.id()), it.name(), json(it._input())))) }
+                block.toolUse().orElse(null)?.takeIf { stopReason != StopReason.MAX_TOKENS }?.let { add(ModelEvent.ToolCallCompleted(ContentBlock.ToolCall(ToolCallId(it.id()), it.name(), json(it._input())))) }
                 block.serverToolUse().orElse(null)?.takeIf { it.name() == ServerToolUseBlock.Name.WEB_SEARCH }?.let { add(searched(it)) }
                 block.text().orElse(null)?.citations()?.orElse(null).orEmpty().forEach { citation ->
                     citation.webSearchResultLocation().orElse(null)?.let { add(ModelEvent.SourceCited(it.url(), it.title().orElse(null))) }
@@ -62,7 +65,7 @@ internal class AnthropicStreamParser {
             // An empty turn (an early refusal, an empty end_turn) has nothing to send back: the API rejects empty content.
             AnthropicTurnCodec.echoable(raw).takeIf { it.isNotEmpty() }?.let { add(ModelEvent.ReasoningState(AnthropicTurnCodec.wrap(it))) }
             add(ModelEvent.Usage(usage(message)))
-            add(ModelEvent.Completed(stopReason(message)))
+            add(ModelEvent.Completed(stopReason))
         }
     }
 

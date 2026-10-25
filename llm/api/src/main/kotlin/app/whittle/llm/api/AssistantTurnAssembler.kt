@@ -45,7 +45,8 @@ class AssistantTurnAssembler {
             addAll(reasoningBlocks())
             addAll(hostedToolUses)
             if (text.isNotEmpty()) add(ContentBlock.Text(text.toString()))
-            addAll(toolCalls)
+            // A turn cut off by the output limit may have stopped mid-call: its arguments can't be trusted to run.
+            if (stopReason != StopReason.MAX_TOKENS) addAll(toolCalls)
         }
         return Message(Role.ASSISTANT, content)
     }

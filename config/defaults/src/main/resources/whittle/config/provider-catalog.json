@@ -306,6 +306,7 @@
           "prefix_mismatch_behavior": "drop_block"
         }
       },
+      "maxOutputTokens": 64000,
       "requestOverrides": [
         {
           "modelIdPattern": "claude-fable-5-1",

@@ -53,10 +53,25 @@ internal object AnthropicTurnCodec {
         return JsonArray(kept + content.drop(boundary + 1))
     }
 
+    /** [content] without its tool calls, and without server tool calls that have no result: what is left of a cut-off turn. */
+    fun withoutUnfinishedCalls(content: JsonArray): JsonArray {
+        val answered = content.mapNotNull { (it as? JsonObject)?.get(TOOL_USE_ID)?.jsonPrimitive?.contentOrNull }.toSet()
+        return JsonArray(
+            content.filter { block ->
+                when (block.type) {
+                    TOOL_USE -> false
+                    SERVER_TOOL_USE -> (block as? JsonObject)?.get(ID)?.jsonPrimitive?.contentOrNull in answered
+                    else -> true
+                }
+            },
+        )
+    }
+
     /** The block types the stream parser reads by name. */
     const val FALLBACK = "fallback"
     const val TEXT = "text"
     const val SERVER_TOOL_USE = "server_tool_use"
+    private const val TOOL_USE = "tool_use"
     private const val TOOL_RESULT = "tool_result"
     private const val TOOL_RESULT_SUFFIX = "_tool_result"
     private const val ID = "id"

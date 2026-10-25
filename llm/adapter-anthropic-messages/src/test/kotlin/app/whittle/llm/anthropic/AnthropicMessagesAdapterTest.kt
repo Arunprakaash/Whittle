@@ -190,6 +190,17 @@ class AnthropicMessagesAdapterTest {
     }
 
     @Test
+    fun `a tool call cut off by the output limit neither runs nor goes back`() = runTest {
+        server.enqueue(sse(TOOL_TURN.substringBefore("event: message_delta") + end("max_tokens")))
+        val events = adapter.stream(request(), provider(), Secret("sk-test")).toList()
+        assertTrue(events.none { it is ModelEvent.ToolCallCompleted }, "nothing to run")
+        val state = AnthropicTurnCodec.unwrap(events.filterIsInstance<ModelEvent.ReasoningState>().single().providerState)!!
+        assertEquals(listOf("thinking", "text"), state.map { it.jsonObject.string("type") }, "the thinking and text stay, the call goes")
+        val assembler = AssistantTurnAssembler().apply { events.forEach(::accept) }
+        assertTrue(assembler.toMessage().content.none { it is ContentBlock.ToolCall })
+    }
+
+    @Test
     fun `models without reasoning or caching get neither`() = runTest {
         server.enqueue(sse(TEXT_TURN))
         val plain = ModelCapabilities(toolCalling = true, parallelToolCalls = true, vision = true, promptCaching = false, reasoning = false)

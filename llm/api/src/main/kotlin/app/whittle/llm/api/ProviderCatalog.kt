@@ -67,11 +67,20 @@ data class ProviderDescriptor(
      * memories, which change between runs): those blocks are dropped instead of the request failing.
      */
     val thinkingFields: JsonObject = JsonObject(emptyMap()),
+    /**
+     * The most a step may write with this provider, in place of the harness's per-step cap. Claude's thinking counts
+     * toward it, so the harness's cap would cut its answers and tool calls short.
+     */
+    val maxOutputTokens: Int? = null,
     /** Capabilities for models whose provider doesn't report them; first matching pattern wins. */
     val capabilityOverrides: List<ModelCapabilityOverride> = emptyList(),
     /** Tools this provider runs itself, such as web search, and the models that support them. */
     val hostedTools: List<HostedToolSupport> = emptyList(),
 ) {
+    init {
+        require(maxOutputTokens == null || maxOutputTokens > 0) { "$id maxOutputTokens must be positive" }
+    }
+
     /** Whether [modelId] is offered when listing this provider's models. */
     fun lists(modelId: ModelId): Boolean =
         listedModelIdPatterns.isEmpty() || listedModelIdPatterns.any { GlobPattern(it).matches(modelId.value) }

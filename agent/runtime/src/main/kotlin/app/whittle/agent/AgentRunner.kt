@@ -302,7 +302,7 @@ class AgentRunner(
             systemPrompt = checkpoint.conversation.systemPrompt,
             messages = withImages(checkpoint.conversation.messages, checkpoint.workspace),
             tools = tools.definitions.map { ToolSpec(it.id.value, it.description, it.inputSchema) },
-            maxOutputTokens = limits.maxOutputTokensPerStep,
+            maxOutputTokens = connection.provider.maxOutputTokens ?: limits.maxOutputTokensPerStep,
             reasoningEffort = checkpoint.reasoningEffort,
             hostedTools = allowedHostedTools(checkpoint, connection.provider),
         )
