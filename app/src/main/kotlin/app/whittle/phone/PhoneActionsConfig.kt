@@ -71,7 +71,7 @@ data class PhoneActionsConfig(
     }
 
     /**
-     * The storage tools: [maxFolders] listed by the overview, scans stop after [scanMillis], lists hold [maxResults],
+     * The storage tools: [maxFolders] listed by the overview, scans stop after [scanMillis], lists (and one delete) hold [maxResults],
      * [oldDays] is "old", at most [maxHashBytes] are read looking for copies, and [types] maps each kind of file to its extensions.
      */
     @Serializable

@@ -90,11 +90,12 @@ fun findFiles(folder: File, filter: FileFilter, types: FileTypes, deadlineMillis
 private const val SDCARD = "/sdcard"
 
 /**
- * [folder] (`/sdcard/...` or relative to it; null means the top) as a real directory, or null when it doesn't exist,
- * contains `..`, or - symlinks resolved - lies outside [root].
+ * [path] (`/sdcard/...` or relative to it; null or empty means the top) under [root]'s real location, with links not yet
+ * resolved, or null when it contains `..` or starts anywhere but shared storage. Callers resolve links and check it
+ * still lies inside [root], since a link can point anywhere.
  */
-fun resolveFolder(root: File, folder: String?): File? {
-    val text = folder?.trim().orEmpty()
+fun storagePath(root: File, path: String?): File? {
+    val text = path?.trim().orEmpty()
     if (text.split('/', '\\').any { it == ".." }) return null
     val relative = when {
         text.isEmpty() -> ""
@@ -103,9 +104,19 @@ fun resolveFolder(root: File, folder: String?): File? {
         text.startsWith("/") -> return null
         else -> text
     }
-    val top = root.canonicalFile
-    val target = File(top, relative).canonicalFile
-    return target.takeIf { it.toPath().startsWith(top.toPath()) && it.isDirectory }
+    return File(root.canonicalFile, relative)
+}
+
+/** True when [file], links resolved, is [root] or lies under it. */
+fun isInside(root: File, file: File): Boolean = file.canonicalFile.toPath().startsWith(root.canonicalFile.toPath())
+
+/**
+ * [folder] (`/sdcard/...` or relative to it; null means the top) as a real directory, or null when it doesn't exist,
+ * contains `..`, or - symlinks resolved - lies outside [root].
+ */
+fun resolveFolder(root: File, folder: String?): File? {
+    val target = storagePath(root, folder)?.canonicalFile ?: return null
+    return target.takeIf { isInside(root, it) && it.isDirectory }
 }
 
 /** [file] as `/sdcard/...`, so the model never sees the phone's real storage path. */

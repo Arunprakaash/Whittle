@@ -24,7 +24,12 @@ import app.whittle.tools.api.CapabilityId
 import app.whittle.settings.AppDefaults
 import app.whittle.settings.NotificationApprovalDefaults
 import app.whittle.policy.PolicyRuleSet
+import app.whittle.tools.android.DeleteFilesTool
 import app.whittle.tools.presentation.ToolPresentationConfig
+import app.whittle.tools.presentation.ToolPresenter
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.putJsonArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -214,6 +219,35 @@ class BundledAppConfigTest {
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
         val unknownCapabilities = config.tools.flatMap { it.capabilities }.filterNot { AndroidCapabilities.isKnown(CapabilityId(it)) }
         assertTrue(unknownCapabilities.isEmpty(), "automations.json asks for capabilities nothing can grant: $unknownCapabilities")
+    }
+
+    @Test
+    fun `no automation can be set up to delete files`() {
+        val config = assertIs<Outcome.Success<AutomationsConfig>>(
+            loader.load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
+        ).value
+        // The policy engine asks for every delete anyway; this keeps the choice from being offered at all.
+        val deleting = ToolCatalog.definitions.filter { it.riskTier == RiskTier.DELETE_OR_PAY }.map { it.id.value }.toSet()
+        assertTrue(DeleteFilesTool.DEFINITION.id.value in deleting)
+        val offered = config.tools.filter { choice -> choice.toolIds.any { it in deleting } }.map { it.key }
+        assertTrue(offered.isEmpty(), "Automation tool choices that delete: $offered")
+        assertTrue((config.alwaysPreApproved intersect deleting).isEmpty())
+    }
+
+    @Test
+    fun `the delete card lists every file and counts them from the list itself`() {
+        val config = assertIs<Outcome.Success<ToolPresentationConfig>>(
+            loader.load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION),
+        ).value
+        val arguments = buildJsonObject {
+            putJsonArray("paths") { add("/sdcard/Download/a.jpg"); add("/sdcard/Download/b.pdf") }
+        }
+        val card = ToolPresenter(config).decision(DeleteFilesTool.DEFINITION.id.value, arguments)
+        assertEquals("Delete 2 files?", card.title)
+        assertEquals("/sdcard/Download/a.jpg\n/sdcard/Download/b.pdf", card.payload)
+        assertTrue("for good" in card.body)
+        assertEquals("Delete", card.approve)
+        assertEquals("Keep", card.decline)
     }
 
     @Test

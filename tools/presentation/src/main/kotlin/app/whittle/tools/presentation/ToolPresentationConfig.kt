@@ -6,8 +6,8 @@ import kotlinx.serialization.Serializable
 /**
  * How each tool appears to the user: an icon, the step-row label while it runs and after it finishes,
  * and the decision card when it needs the user's choice. Plain language only; tool ids and arguments
- * are never shown raw. Placeholders are the call's argument names, plus `<argument>_host` for URLs and, with
- * [times], `<argument>_when` for times and dates in plain words.
+ * are never shown raw. Placeholders are the call's argument names, plus `<argument>_host` for URLs,
+ * `<argument>_count` for lists and, with [times], `<argument>_when` for times and dates in plain words.
  */
 @Serializable
 data class ToolPresentationConfig(

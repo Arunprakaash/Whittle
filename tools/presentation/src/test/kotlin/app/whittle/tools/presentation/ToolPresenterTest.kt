@@ -33,6 +33,12 @@ class ToolPresenterTest {
             tools = mapOf(
                 "web_fetch" to ToolPresentation("language", "Reading {{url_host}}", "Read {{url_host}}", siteArgument = "url"),
                 "compose_message" to ToolPresentation("sms", "Writing to {{to}}", "Wrote to {{to}}", decision),
+                "delete_files" to ToolPresentation(
+                    "delete",
+                    "Deleting {{paths_count}} files",
+                    "Done",
+                    decision.copy(title = "Delete {{paths_count}} files?", payloadArgument = "paths", payloadLabelArgument = null),
+                ),
             ),
             toolPrefixes = mapOf(
                 "mcp_" to ToolPresentation(
@@ -101,6 +107,21 @@ class ToolPresenterTest {
     fun `a connected tool without its names falls back instead of showing a template`() {
         assertEquals("Working", presenter.step("mcp_notion_search", args("{}")).running)
         assertEquals("Allow this action?", presenter.decision("mcp_notion_search", args("{}")).title)
+    }
+
+    @Test
+    fun `a list argument shows every item and a count the call can't change`() {
+        val card = presenter.decision("delete_files", args("""{"paths":["/sdcard/a.jpg","/sdcard/b.pdf","/sdcard/c.mp4"],"paths_count":"1"}"""))
+        assertEquals("Delete 3 files?", card.title)
+        assertEquals("/sdcard/a.jpg\n/sdcard/b.pdf\n/sdcard/c.mp4", card.payload)
+        assertEquals("Deleting 3 files", presenter.step("delete_files", args("""{"paths_count":"1","paths":["/sdcard/a.jpg","/sdcard/b.pdf","/sdcard/c.mp4"]}""")).running)
+    }
+
+    @Test
+    fun `a list with anything but plain values fills nothing`() {
+        val card = presenter.decision("delete_files", args("""{"paths":["/sdcard/a.jpg",{"x":1}]}"""))
+        assertEquals("Allow this action?", card.title)
+        assertNull(card.payload)
     }
 
     private fun args(json: String) = Json.parseToJsonElement(json).jsonObject

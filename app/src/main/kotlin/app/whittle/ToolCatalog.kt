@@ -18,6 +18,8 @@ import app.whittle.tools.android.CalendarEventsTool
 import app.whittle.tools.android.HealthDataTool
 import app.whittle.tools.android.ComposeMessageTool
 import app.whittle.tools.android.ContactsSearchTool
+import app.whittle.tools.android.DeleteFilesTool
+import app.whittle.tools.android.DeviceMediaScan
 import app.whittle.tools.android.DeviceSharedStorage
 import app.whittle.tools.android.FindFilesTool
 import app.whittle.tools.android.StorageOverviewTool
@@ -51,6 +53,7 @@ object ToolCatalog {
         ContactsSearchTool.DEFINITION,
         StorageOverviewTool.DEFINITION,
         FindFilesTool.DEFINITION,
+        DeleteFilesTool.DEFINITION,
         CalendarEventsTool.DEFINITION,
         HealthDataTool.DEFINITION,
         ComposeMessageTool.DEFINITION,
@@ -96,6 +99,7 @@ object ToolCatalog {
             ContactsSearchTool(context),
             StorageOverviewTool(context, DeviceSharedStorage(context), phone.config.storage.limits, clock),
             FindFilesTool(DeviceSharedStorage(context), phone.config.storage.findLimits, phone.config.storage.fileTypes, clock),
+            DeleteFilesTool(DeviceSharedStorage(context), phone.config.storage.maxResults, DeviceMediaScan(context)),
             CalendarEventsTool(context, clock),
             HealthDataTool(phone.health, clock, phone.config.health.limits),
             ComposeMessageTool(context),

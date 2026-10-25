@@ -12,6 +12,7 @@ import app.whittle.tools.presentation.ToolPresentation
 import app.whittle.tools.presentation.ToolPresentationConfig
 import app.whittle.tools.presentation.ToolPresenter
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -46,8 +47,11 @@ class ToolPresentationConfigTest {
     fun `templates only use the tool's own arguments`() {
         builtInTools.forEach { tool ->
             val presentation = config.tools.getValue(tool.id.value)
-            val properties = tool.inputSchema["properties"]?.jsonObject?.keys.orEmpty()
-            val allowed = properties + properties.map { it + ToolPresenter.HOST_SUFFIX } + properties.map { it + ToolPresenter.WHEN_SUFFIX }
+            val schema = tool.inputSchema["properties"]?.jsonObject.orEmpty()
+            val properties = schema.keys
+            val lists = schema.filterValues { it.jsonObject["type"]?.jsonPrimitive?.content == "array" }.keys
+            val allowed = properties + properties.map { it + ToolPresenter.HOST_SUFFIX } + properties.map { it + ToolPresenter.WHEN_SUFFIX } +
+                lists.map { it + ToolPresenter.COUNT_SUFFIX }
             val unknown = templates(presentation).flatMap { PromptTemplate(NAME, it).placeholders }.toSet() - allowed
             assertTrue(unknown.isEmpty(), "${tool.id.value} uses unknown placeholders $unknown")
         }

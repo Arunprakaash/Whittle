@@ -92,6 +92,22 @@
       "running": "Looking through your files",
       "done": "Looked through your files"
     },
+    "delete_files": {
+      "icon": "delete",
+      "running": "Deleting {{paths_count}} files",
+      "done": "Finished deleting",
+      "decision": {
+        "icon": "delete",
+        "title": "Delete {{paths_count}} files?",
+        "body": "These are deleted for good, with no trash to get them back from. Nothing else is touched.",
+        "payloadArgument": "paths",
+        "approve": "Delete",
+        "approveIcon": "delete",
+        "decline": "Keep",
+        "approvedOutcome": "Deleted",
+        "declinedOutcome": "Kept"
+      }
+    },
     "contacts_search": {
       "icon": "person_search",
       "running": "Looking up {{query}}",
