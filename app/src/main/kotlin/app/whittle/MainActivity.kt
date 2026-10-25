@@ -67,6 +67,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import android.content.Intent
 import app.whittle.chat.AppShortcuts
+import app.whittle.chat.ComposerStart
 import app.whittle.chat.ShortcutOpening
 import app.whittle.quickstart.QuickStart
 import app.whittle.attachments.SharedItems
@@ -235,7 +236,7 @@ class MainActivity : ComponentActivity() {
                                 files = null
                                 showingSettings = false; showingAllChats = false; showingModelPicker = false; showingAutomations = false
                                 showingMemory = false; showingLinux = false; showingConnectionLibrary = false; toolsOf = null
-                                chat.newChat(listen = start == QuickStart.SPEAK)
+                                chat.newChat(if (start == QuickStart.SPEAK) ComposerStart.LISTEN else ComposerStart.TYPE)
                             }
                             val toolsConnection = toolsOf?.let { id -> connections.firstOrNull { it.server.id == id } }
                             val opening = files

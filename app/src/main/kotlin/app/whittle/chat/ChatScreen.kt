@@ -48,6 +48,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -357,7 +362,7 @@ private fun ChatLayout(
                     starters = if (state.chats.isEmpty()) viewModel.starters else emptyList(),
                     onStart = viewModel::sendText,
                     appIdeas = viewModel.appIdeas,
-                    onAppIdea = viewModel::updateInput,
+                    onAppIdea = viewModel::useIdea,
                     modifier = Modifier.padding(bottom = dockSpace),
                 )
                 // One list per chat: switching replaces the thread instead of animating one chat into another.
@@ -564,10 +569,18 @@ private fun Dock(
     modifier: Modifier = Modifier,
 ) {
     val voice = rememberVoice(voiceDefaults, state.input, viewModel::updateInput)
-    LaunchedEffect(state.listenNow) {
-        if (!state.listenNow) return@LaunchedEffect
-        viewModel.listenStarted()
-        if (voice != null && !voice.listening) voice.onToggle()
+    val composerFocus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(state.composerStart) {
+        val start = state.composerStart ?: return@LaunchedEffect
+        viewModel.composerStarted()
+        when (start) {
+            ComposerStart.TYPE -> {
+                composerFocus.requestFocus()
+                keyboard?.show()
+            }
+            ComposerStart.LISTEN -> if (voice != null && !voice.listening) voice.onToggle()
+        }
     }
     val openAttachment = LocalOpenAttachment.current
     // No background of its own: only the cards, the chip and the composer cover the thread behind them.
@@ -634,6 +647,7 @@ private fun Dock(
             voice = voice,
             attach = ComposerAttach(stringResource(R.string.composer_attach), onAttach),
             hasAttachments = state.attachments.isNotEmpty(),
+            focusRequester = composerFocus,
         )
     }
 }
@@ -715,21 +729,24 @@ private fun EmptyThread(
     onAppIdea: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier.fillMaxSize().padding(horizontal = WhittleSpace.xxl),
-        verticalArrangement = Arrangement.spacedBy(WhittleSpace.s, Alignment.CenterVertically),
-    ) {
-        WelcomeMascot(Modifier.padding(bottom = WhittleSpace.m))
-        Text(stringResource(R.string.chat_empty_headline), style = MaterialTheme.typography.headlineMedium)
-        state.model?.let {
-            Text(stringResource(R.string.chat_empty_body, it.displayName), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    // Centred while it fits; with the keyboard up or a long draft it scrolls instead of running under the dock.
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight).padding(horizontal = WhittleSpace.xxl, vertical = WhittleSpace.l),
+            verticalArrangement = Arrangement.spacedBy(WhittleSpace.s, Alignment.CenterVertically),
+        ) {
+            WelcomeMascot(Modifier.padding(bottom = WhittleSpace.m))
+            Text(stringResource(R.string.chat_empty_headline), style = MaterialTheme.typography.headlineMedium)
+            state.model?.let {
+                Text(stringResource(R.string.chat_empty_body, it.displayName), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (state.project == null) {
+                CarryOn(state.projects.take(recentProjects), onPickProject)
+                // Not in the very first chat, which keeps its welcome simple.
+                if (state.chats.isNotEmpty()) AppIdeas(appIdeas, onAppIdea)
+            }
+            Starters(starters, onStart)
         }
-        if (state.project == null) {
-            CarryOn(state.projects.take(recentProjects), onPickProject)
-            // Not in the very first chat, which keeps its welcome simple.
-            if (state.chats.isNotEmpty()) AppIdeas(appIdeas, onAppIdea)
-        }
-        Starters(starters, onStart)
     }
 }
 
