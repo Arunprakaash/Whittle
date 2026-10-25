@@ -25,6 +25,7 @@ import app.whittle.tools.android.FindFilesTool
 import app.whittle.tools.android.StorageOverviewTool
 import app.whittle.tools.android.AddCalendarEventTool
 import app.whittle.tools.android.CallTool
+import app.whittle.tools.android.OpenAppStorageTool
 import app.whittle.tools.android.OpenAppTool
 import app.whittle.tools.android.OpenLinkTool
 import app.whittle.tools.android.OpenMapTool
@@ -66,6 +67,7 @@ object ToolCatalog {
         AddCalendarEventTool.DEFINITION,
         OpenMapTool.DEFINITION,
         OpenAppTool.DEFINITION,
+        OpenAppStorageTool.DEFINITION,
         OpenLinkTool.DEFINITION,
         ShareTool.DEFINITION,
         AddConnectionTool.DEFINITION,
@@ -112,6 +114,7 @@ object ToolCatalog {
             AddCalendarEventTool(context),
             OpenMapTool(context, phone.config.maps.links),
             OpenAppTool(context),
+            OpenAppStorageTool(context),
             OpenLinkTool(context),
             ShareTool(context, phone.workspaces, phone.config.share),
             AddConnectionTool(context.applicationContext, connectors),

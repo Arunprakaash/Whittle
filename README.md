@@ -154,6 +154,16 @@ Add to home screen, in the preview, pins an app like any other (`AppShortcuts`, 
 shortcut opens Whittle at its chat with the preview, starting the app again if it stopped; once its chat is
 deleted, the shortcut stays greyed out instead of opening an empty Whittle.
 
+### Storage on the phone
+
+`storage_overview` reports what is using the phone's storage and `find_files` lists the biggest, oldest or duplicate
+files in shared storage (limits in `storage` in phone-actions.json). `delete_files` is the only way Whittle deletes,
+and it always shows a card listing each file and the total first; it deletes only what that card showed, for good.
+Access is the all files page in Android's settings from Android 11 (a prompt before), asked for on a card or by the
+Storage switch in Settings › On this phone. `open_app_storage` opens an app's own settings page, where the user clears
+its cache. The "Weekly storage check" idea reports what grew and proposes what to delete; no automation can be
+set up to delete (a test keeps that).
+
 ### Automations
 
 An automation is a task Whittle runs by itself at a time of day, on chosen days. The user sets one up in

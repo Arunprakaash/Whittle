@@ -162,6 +162,10 @@ class BundledAppConfigTest {
         assertTrue(unknownTools.isEmpty(), "phone-actions.json switches name tools that don't exist: $unknownTools")
         val unknownCapabilities = phone.switches.flatMap { it.capabilities }.filterNot { AndroidCapabilities.isKnown(CapabilityId(it)) }
         assertTrue(unknownCapabilities.isEmpty(), "Capabilities Android and Health Connect can't grant: $unknownCapabilities")
+        // Storage's switch stops deleting too.
+        val storage = assertNotNull(phone.switches.firstOrNull { it.id == "storage" })
+        assertEquals(listOf("storage"), storage.capabilities)
+        assertTrue(storage.tools.containsAll(listOf("storage_overview", "find_files", "delete_files", "open_app_storage")))
         val missingIcons = phone.switches.map { it.icon }.toSet() - WhittleIcons.names
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
     }
@@ -221,6 +225,20 @@ class BundledAppConfigTest {
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
         val unknownCapabilities = config.tools.flatMap { it.capabilities }.filterNot { AndroidCapabilities.isKnown(CapabilityId(it)) }
         assertTrue(unknownCapabilities.isEmpty(), "automations.json asks for capabilities nothing can grant: $unknownCapabilities")
+    }
+
+    @Test
+    fun `the weekly storage check reads and proposes, and can't delete`() {
+        val config = assertIs<Outcome.Success<AutomationsConfig>>(
+            loader.load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
+        ).value
+        val storage = assertNotNull(config.tools.firstOrNull { it.key == "storage" })
+        assertEquals(listOf("storage_overview", "find_files"), storage.toolIds)
+        assertFalse(storage.default)
+        val idea = assertNotNull(config.ideas.firstOrNull { it.name == "Weekly storage check" })
+        assertEquals(listOf(7), idea.days.toList())
+        assertEquals(600, idea.minuteOfDay)
+        assertTrue("storage" in idea.tools && "delete" in idea.prompt.lowercase())
     }
 
     @Test

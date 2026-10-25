@@ -280,6 +280,21 @@
         "declinedOutcome": "Not opened"
       }
     },
+    "open_app_storage": {
+      "icon": "folder",
+      "running": "Opening {{app}}'s storage",
+      "done": "Opened {{app}}'s storage",
+      "decision": {
+        "icon": "folder",
+        "title": "Open {{app}}'s storage page?",
+        "body": "Opens its settings page on your phone. Nothing is cleared until you do it there.",
+        "approve": "Open",
+        "approveIcon": "open_in_new",
+        "decline": "Not now",
+        "approvedOutcome": "Opened {{app}}'s storage",
+        "declinedOutcome": "Not opened"
+      }
+    },
     "open_link": {
       "icon": "open_in_new",
       "siteArgument": "url",

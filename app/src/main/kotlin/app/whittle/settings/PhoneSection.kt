@@ -29,8 +29,9 @@ import kotlinx.coroutines.launch
 
 /**
  * What Whittle can use on this phone, each with its own switch. Switching one on asks Android (or, for Health, Health
- * Connect) for what it needs first; switching it off stops Whittle using it, while what was granted stays until the user
- * removes it in Android's settings. A switch shows on only when it's on here and what it needs is granted.
+ * Connect; for storage where Android grants it there, the all files access page) for what it needs first; switching it
+ * off stops Whittle using it, while what was granted stays until the user removes it in Android's settings. A switch
+ * shows on only when it's on here and what it needs is granted.
  */
 @Composable
 fun PhoneSection(graph: AppGraph, settings: UserSettings?) {

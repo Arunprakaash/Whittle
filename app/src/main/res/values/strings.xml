@@ -127,7 +127,7 @@
     <string name="health_privacy_model">What it reads goes to the AI model you chose, to answer you. Whittle has no server of its own; your chats stay on this phone.</string>
     <string name="health_privacy_off">Switch it off in Whittle under Settings › On this phone › Health, or remove access in Health Connect.</string>
     <string name="health_privacy_done">Done</string>
-    <string name="phone_footer">Calls and messages always ask you first.</string>
+    <string name="phone_footer">Calls, messages and deleting files always ask you first.</string>
     <plurals name="phone_reminders_waiting">
         <item quantity="one">%d reminder waiting</item>
         <item quantity="other">%d reminders waiting</item>
