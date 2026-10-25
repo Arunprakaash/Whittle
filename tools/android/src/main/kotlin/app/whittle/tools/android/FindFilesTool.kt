@@ -175,7 +175,8 @@ class FindFilesTool(
         put(WASTED, groups.sumOf { it.second })
         // maxResults bounds the paths across all groups, not just the groups, so one group of thousands of copies can't flood the answer.
         var pathsLeft = limits.maxResults
-        var omitted = 0
+        // Groups past the cap are never listed, so all their paths count as left out.
+        var omitted = groups.drop(limits.maxResults).sumOf { it.first.size }
         putJsonArray(GROUPS) {
             groups.take(limits.maxResults).forEach { (group, wasted) ->
                 val shown = group.map { displayPath(root, it) }.sorted().take(pathsLeft)

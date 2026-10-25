@@ -66,9 +66,24 @@ class FindFilesToolTest {
         assertEquals(listOf(6, 3), groups.map { it.jsonObject["copies"]!!.jsonPrimitive.int })
         assertEquals(listOf(500L, 100L), groups.map { it.jsonObject["wastedBytes"]!!.jsonPrimitive.content.toLong() })
         assertEquals(listOf(4, 0), groups.map { it.jsonObject["paths"]!!.jsonArray.size })
+        assertEquals(4, groups.sumOf { it.jsonObject["paths"]!!.jsonArray.size })
         assertEquals(5, body["pathsOmitted"]!!.jsonPrimitive.int)
         assertEquals(600L, body["wastedBytes"]!!.jsonPrimitive.content.toLong())
         assertEquals(2, body["matched"]!!.jsonPrimitive.int)
+    }
+
+    @Test
+    fun pathsOfGroupsCutByTheCapAreCountedAsOmitted() {
+        // Three groups of 2 copies, room for 2 paths: one group fully listed, two never listed, 4 paths omitted.
+        for (g in 1..3) repeat(2) { file("g${g}_$it.bin", ByteArray(100 * g) { g.toByte() }) }
+
+        val body = call(FindFilesLimits(maxResults = 2, scanMillis = 1_000, maxHashBytes = 1_000_000), duplicatesArgs())
+
+        val groups = body["groups"]!!.jsonArray
+        assertEquals(2, groups.size)
+        assertEquals(2, groups.sumOf { it.jsonObject["paths"]!!.jsonArray.size })
+        assertEquals(4, body["pathsOmitted"]!!.jsonPrimitive.int)
+        assertEquals(3, body["matched"]!!.jsonPrimitive.int)
     }
 
     @Test
