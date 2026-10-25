@@ -20,7 +20,7 @@ class ChatDocumentTest {
             """"packageName":"app.whittle.made.notes","versionCode":2,"apkPath":"notes/build/notes-2.apk","permissions":[],""" +
             """"powerful":[],"fromTaintedRun":false,"lastCrash":"boom"}],"history":[],"activeRunId":null,"nextKey":2}"""
         val card = ChatDocument.decode(saved)?.items?.single()
-        assertEquals(ThreadItem.App("a1", "Notes", "app.whittle.made.notes", 2, "notes/build/notes-2.apk", emptyList(), emptyList(), false), card)
+        assertEquals(ThreadItem.App("a1", "Notes", "app.whittle.made.notes", 2, "notes/build/notes-2.apk", emptyList(), emptyList()), card)
     }
 
     @Test

@@ -30,8 +30,6 @@ data class NativeAppsConfig(
     val template: List<String>,
     /** Declarations that let an app watch or control the rest of the phone, each with the sentence shown to the user. */
     val powerful: List<PowerfulDeclaration>,
-    /** What each common permission means in plain words, for the card. */
-    val permissionWords: List<PermissionWords>,
     /** Added to Whittle's application id to make the authority crash reports go to. */
     val crashAuthoritySuffix: String,
     /** The most characters of a crash's stack Whittle keeps, per app. */
@@ -52,8 +50,6 @@ data class NativeAppsConfig(
         require(keptApks >= 1) { "keptApks must keep at least the newest APK, which the card installs" }
         require(maxReasonChars > 0) { "maxReasonChars must be positive" }
         require(template.isNotEmpty()) { "template must name at least one file" }
-        require(permissionWords.all { it.words.isNotBlank() }) { "permissionWords must have words for each permission" }
-        require(permissionWords.map { it.name }.distinct().size == permissionWords.size) { "permissionWords names must be unique" }
         require(powerful.map { it.name }.distinct().size == powerful.size) { "powerful names must be unique" }
         require(crashAuthoritySuffix.startsWith(".")) { "crashAuthoritySuffix must start with a dot" }
         require(maxCrashChars > 0) { "maxCrashChars must be positive" }
@@ -97,10 +93,6 @@ data class PowerfulDeclaration(
     /** Plain words for what it lets the app do, shown on the card and before install. */
     val sentence: String,
 )
-
-/** [words] completes "Uses ..." for the permission [name]. */
-@Serializable
-data class PermissionWords(val name: String, val words: String)
 
 @Serializable
 enum class PowerfulKind { PERMISSION, SERVICE_PERMISSION }

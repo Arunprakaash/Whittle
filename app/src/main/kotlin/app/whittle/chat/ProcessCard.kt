@@ -28,6 +28,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,6 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.whittle.agent.PastedKind
 import app.whittle.R
+import app.whittle.design.components.MenuAction
 import app.whittle.design.components.WhittleIcon
 import app.whittle.design.tokens.WhittleRadius
 import app.whittle.design.tokens.WhittleSize
@@ -69,7 +71,6 @@ fun ProcessCard(item: ThreadItem.Process, viewModel: ChatViewModel, onPreview: (
             value = System.currentTimeMillis()
         }
     }
-    val tail = remember(now, info) { info?.let { viewModel.processOutput(item, TAIL_LINES) }.orEmpty() }
     val askReady by viewModel.askToFixReady.collectAsStateWithLifecycle()
     val fixRequest = stringResource(R.string.process_fix_message, viewModel.fixName(item.name))
     var showingOutput by remember { mutableStateOf(false) }
@@ -84,18 +85,22 @@ fun ProcessCard(item: ThreadItem.Process, viewModel: ChatViewModel, onPreview: (
                 Modifier.size(WhittleSize.Tile.m).background(if (look.failed) colors.errorContainer else colors.secondaryContainer, RoundedCornerShape(WhittleRadius.m)),
                 contentAlignment = Alignment.Center,
             ) { WhittleIcon(if (look.failed) "error" else "terminal", size = WhittleSize.Icon.l, tint = if (look.failed) colors.onErrorContainer else colors.onSecondaryContainer) }
+            // One status line: what it's doing and for how long. The output is one tap away, under Output.
             Column(Modifier.weight(1f)) {
                 Text(item.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(look.subtitle, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+                    if (look.live || look.starting) LiveDot(colors.primary, pulsing = look.live)
+                    Text(
+                        look.status,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (look.failed) colors.error else colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
-            Pill(look)
-        }
-        Column(
-            Modifier.fillMaxWidth().background(colors.surfaceContainerHigh, RoundedCornerShape(WhittleRadius.l)).padding(horizontal = WhittleSpace.m, vertical = WhittleSpace.s),
-        ) {
-            Text("$ ${item.command}", style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            tail.lines().filter { it.isNotBlank() }.forEach { line ->
-                Text(line, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (look.failed && info != null) {
+                CardMenu(stringResource(R.string.process_more), listOf(MenuAction(stringResource(R.string.process_restart), "restart_alt", { viewModel.restartProcess(item) })))
             }
         }
         @OptIn(ExperimentalLayoutApi::class)
@@ -105,17 +110,17 @@ fun ProcessCard(item: ThreadItem.Process, viewModel: ChatViewModel, onPreview: (
                 info.live && info.listening -> {
                     Action("preview", R.string.process_preview, primary = true) { onPreview(item) }
                     Action("notes", R.string.process_output) { showingOutput = true }
-                    Action("stop", R.string.process_stop) { viewModel.stopProcess(item) }
+                    StopAction { viewModel.stopProcess(item) }
                 }
                 info.live -> {
                     Action("notes", R.string.process_output) { showingOutput = true }
-                    Action("stop", R.string.process_stop) { viewModel.stopProcess(item) }
+                    StopAction { viewModel.stopProcess(item) }
                 }
+                // Restart is in the ⋯ menu: fixing it comes first.
                 look.failed -> {
                     Action("build", R.string.process_ask_fix, primary = true, enabled = askReady) {
                         viewModel.askToFix(fixRequest, PastedKind.PROCESS_OUTPUT, item.name, viewModel.processOutput(item, FIX_LINES))
                     }
-                    Action("restart_alt", R.string.process_restart) { viewModel.restartProcess(item) }
                     Action("notes", R.string.process_output) { showingOutput = true }
                 }
                 else -> {
@@ -128,43 +133,23 @@ fun ProcessCard(item: ThreadItem.Process, viewModel: ChatViewModel, onPreview: (
     if (showingOutput) OutputSheet(item, viewModel, onDismiss = { showingOutput = false })
 }
 
-/** How the card reads for where the process is. */
-private class Look(val pill: String, val subtitle: String, val live: Boolean, val starting: Boolean, val failed: Boolean, val closed: Boolean)
+/** How the card reads for where the process is: its one status line, and whether it's live, starting or failed. */
+private class Look(val status: String, val live: Boolean = false, val starting: Boolean = false, val failed: Boolean = false)
 
 @Composable
 private fun look(info: ProcessInfo?, now: Long): Look {
-    if (info == null) return Look(stringResource(R.string.process_pill_not_running), stringResource(R.string.process_not_running_body), false, false, false, false)
+    if (info == null) return Look(stringResource(R.string.process_not_running))
     val ran = elapsed(info.startedAtMillis, info.endedAtMillis ?: now)
     return when {
-        info.live && info.listening -> Look(stringResource(R.string.process_pill_live, info.port ?: 0), stringResource(R.string.process_running_for, ran), true, false, false, false)
+        info.live && info.listening -> Look(stringResource(R.string.process_pill_live, info.port ?: 0, ran), live = true)
         info.live && info.status == ProcessStatus.Starting || info.live && info.port != null -> Look(
-            stringResource(R.string.process_pill_starting),
             info.port?.let { stringResource(R.string.process_waiting, it) } ?: stringResource(R.string.process_waiting_no_port),
-            false, true, false, false,
+            starting = true,
         )
-        info.live -> Look(stringResource(R.string.process_pill_running), stringResource(R.string.process_running_for, ran), true, false, false, false)
-        info.status == ProcessStatus.Exited && info.exitCode == KILLED -> Look(stringResource(R.string.process_pill_closed), stringResource(R.string.process_closed_body), false, false, false, true)
-        info.status == ProcessStatus.Exited && info.exitCode != 0 -> Look(stringResource(R.string.process_pill_exited, info.exitCode ?: 0), stringResource(R.string.process_ran_for, ran), false, false, true, false)
-        else -> Look(stringResource(R.string.process_pill_stopped), stringResource(R.string.process_ran_for, ran), false, false, false, false)
-    }
-}
-
-@Composable
-private fun Pill(look: Look) {
-    val colors = MaterialTheme.colorScheme
-    val (container, content) = when {
-        look.live -> colors.secondaryContainer to colors.onSecondaryContainer
-        look.failed -> colors.errorContainer to colors.onErrorContainer
-        look.closed -> colors.tertiaryContainer to colors.onTertiaryContainer
-        else -> colors.surfaceContainerHighest to colors.onSurfaceVariant
-    }
-    Row(
-        Modifier.height(WhittleSize.Icon.xl + WhittleSpace.xs).background(container, CircleShape).padding(horizontal = WhittleSpace.s),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(WhittleSpace.xs),
-    ) {
-        if (look.live || look.starting) LiveDot(colors.primary, pulsing = look.live)
-        Text(look.pill, style = MaterialTheme.typography.labelMedium, color = content)
+        info.live -> Look(stringResource(R.string.process_running_for, ran), live = true)
+        info.status == ProcessStatus.Exited && info.exitCode == KILLED -> Look(stringResource(R.string.process_pill_closed))
+        info.status == ProcessStatus.Exited && info.exitCode != 0 -> Look(stringResource(R.string.process_pill_exited, info.exitCode ?: 0, ran), failed = true)
+        else -> Look(stringResource(R.string.process_ran_for, ran))
     }
 }
 
@@ -176,6 +161,12 @@ private fun LiveDot(color: Color, pulsing: Boolean) {
         DIM
     }
     Box(Modifier.size(WhittleSpace.s).alpha(alpha).background(color, CircleShape))
+}
+
+/** Stop, as a quiet text button: it's there when needed, without pulling the eye from Preview. */
+@Composable
+private fun StopAction(onClick: () -> Unit) {
+    TextButton(onClick = onClick, modifier = Modifier.height(WhittleSize.Button.small)) { Text(stringResource(R.string.process_stop)) }
 }
 
 @Composable
@@ -236,7 +227,6 @@ private fun elapsed(from: Long, to: Long): String {
 private const val TICK_MILLIS = 1_000L
 private const val MILLIS_PER_SECOND = 1_000L
 private const val SECONDS_PER_MINUTE = 60L
-private const val TAIL_LINES = 3
 private const val FIX_LINES = 40
 private const val SHEET_LINES = 2_000
 private const val PULSE_MILLIS = 900

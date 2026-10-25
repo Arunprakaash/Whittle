@@ -234,7 +234,7 @@ class BundledAppConfigTest {
             loader.load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION),
         ).value
         val presentations = config.tools.values + config.fallback
-        val named = presentations.flatMap { listOfNotNull(it.icon, it.decision?.icon, it.decision?.approveIcon, it.question?.icon) }.toSet() +
+        val named = presentations.flatMap { listOfNotNull(it.icon, it.decision?.icon, it.question?.icon) }.toSet() +
             config.capabilities.values.map { it.icon }
         val missing = named - MaterialSymbols.names
         assertTrue(missing.isEmpty(), "Add these to design/system/icons/icons.txt: $missing")
@@ -269,9 +269,6 @@ class BundledAppConfigTest {
         val config = assertIs<Outcome.Success<NativeAppsConfig>>(
             loader.load(NativeAppsConfig.FILE, NativeAppsConfig.serializer(), NativeAppsConfig.SCHEMA_VERSION),
         ).value
-        val word = config.permissionWords.first()
-        assertFailsWith<IllegalArgumentException> { config.copy(permissionWords = config.permissionWords + word) }
-        assertFailsWith<IllegalArgumentException> { config.copy(permissionWords = listOf(word.copy(words = " "))) }
         assertFailsWith<IllegalArgumentException> { config.copy(powerful = config.powerful + config.powerful.first()) }
         assertFailsWith<IllegalArgumentException> { config.copy(maxCrashChars = 0) }
         assertFailsWith<IllegalArgumentException> { config.copy(keptApks = 0) }

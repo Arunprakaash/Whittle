@@ -166,7 +166,7 @@
     <string name="attach_unreadable">Couldn\'t read that file, so it wasn\'t added.</string>
     <string name="attach_no_workspace">The workspace isn\'t ready, so nothing was added.</string>
     <string name="attach_unseen_title">%1$s can\'t see images</string>
-    <string name="attach_unseen_body">Your photo is saved in the workspace, so the agent can still use it, but it can\'t look at what\'s in it.</string>
+    <string name="attach_unseen_body">It can still use the file.</string>
     <string name="attach_change_model">Change model</string>
     <string name="attachment_open">Open</string>
     <string name="attachment_remove">Remove %1$s</string>
@@ -186,7 +186,11 @@
     <string name="thread_latest">Latest</string>
     <string name="answer_copy">Copy</string>
     <string name="plan_progress">%1$d/%2$d</string>
-    <string name="plan_title">Plan · %1$d of %2$d done</string>
+    <string name="plan_title">%1$d of %2$d done</string>
+    <plurals name="plan_more">
+        <item quantity="one">+%d more</item>
+        <item quantity="other">+%d more</item>
+    </plurals>
     <!-- Notifications -->
     <string name="notify_channel_running">Running tasks</string>
     <string name="notify_channel_running_body">Shows a task while it works in the background, with a Stop button.</string>
@@ -394,14 +398,14 @@
         <item quantity="other">%1$d sources</item>
     </plurals>
     <string name="notice_stopped">Stopped. Nothing else will run.</string>
-    <string name="notice_interrupted">This task stopped when the app closed.</string>
+    <string name="notice_interrupted">Stopped when the app closed.</string>
     <string name="notice_continue">Continue</string>
     <string name="notice_paused_budget">Paused: this task used its token budget.</string>
     <string name="notice_paused_steps">Paused: this task reached its step limit.</string>
-    <string name="notice_failed_key">The provider didn\'t accept your key. Change model to reconnect.</string>
-    <string name="notice_failed_network">Couldn\'t reach the provider. Check your connection.</string>
+    <string name="notice_failed_key">Key not accepted. Change model to reconnect.</string>
+    <string name="notice_failed_network">Couldn\'t reach the provider.</string>
     <string name="notice_failed_provider">The provider returned an error (%1$d).</string>
-    <string name="notice_failed_generic">Something went wrong and the task stopped.</string>
+    <string name="notice_failed_generic">The task stopped on an error.</string>
     <!-- Linux workspace: onboarding, Settings and the setup notification -->
     <string name="linux_title">Linux workspace</string>
     <string name="linux_intro_title">A full Linux on your phone</string>
@@ -478,19 +482,15 @@
     <string name="notify_linux_title">Setting up Linux</string>
     <string name="notify_linux_public">Whittle is setting up Linux</string>
     <!-- Processes the agent starts, and the live preview of what they serve -->
-    <string name="process_pill_starting">Starting</string>
-    <string name="process_pill_live">Live :%1$d</string>
-    <string name="process_pill_running">Running</string>
-    <string name="process_pill_exited">Exited · %1$d</string>
-    <string name="process_pill_stopped">Stopped</string>
+    <string name="process_pill_live">Live on :%1$d · %2$s</string>
+    <string name="process_pill_exited">Exited with code %1$d · ran %2$s</string>
     <string name="process_pill_closed">Closed by Android</string>
-    <string name="process_pill_not_running">Not running</string>
-    <string name="process_waiting">Waiting for it to answer on :%1$d</string>
+    <string name="process_waiting">Starting on :%1$d</string>
     <string name="process_waiting_no_port">Starting…</string>
-    <string name="process_running_for">Running for %1$s</string>
-    <string name="process_ran_for">Ran for %1$s</string>
-    <string name="process_not_running_body">It stopped when Whittle closed</string>
-    <string name="process_closed_body">Android closed it to save power. Restart it, or keep Whittle open.</string>
+    <string name="process_running_for">Running · %1$s</string>
+    <string name="process_ran_for">Stopped · ran %1$s</string>
+    <string name="process_not_running">Stopped</string>
+    <string name="process_more">More</string>
     <string name="process_preview">Preview</string>
     <string name="process_output">Output</string>
     <string name="process_stop">Stop</string>
@@ -673,27 +673,26 @@
     <string name="app_card_installed">Installed</string>
     <string name="app_card_update_available">Update available</string>
     <string name="app_card_newer_installed">Newer build installed</string>
-    <string name="app_card_uses">Uses %1$s</string>
-    <string name="app_card_no_permissions">Uses no special permissions</string>
     <plurals name="app_card_powerful_title">
-        <item quantity="one">This app can do something powerful</item>
-        <item quantity="other">This app can do %1$d powerful things</item>
+        <item quantity="one">%d powerful permission</item>
+        <item quantity="other">%d powerful permissions</item>
     </plurals>
-    <string name="app_card_tainted">Made after reading outside content, such as a web page, a file or an app\'s output; check what it does before installing</string>
     <string name="app_card_install">Install</string>
     <string name="app_card_update">Update</string>
     <string name="app_card_open">Open</string>
+    <string name="app_card_more">More</string>
+    <string name="app_card_powerful_close">OK</string>
     <string name="app_card_remove">Remove</string>
     <string name="app_card_installing">Installing…</string>
-    <string name="app_card_allow_installs">Allow Whittle to install apps, then tap Install again.</string>
+    <string name="app_card_allow_installs">Allow installs, then tap Install.</string>
     <string name="app_card_installed_done">Installed.</string>
-    <string name="app_card_cancelled">Not installed. You cancelled it.</string>
-    <string name="app_card_key_changed">Android won\'t update this app because it was signed differently. Remove it and install again.</string>
-    <string name="app_card_blocked">Android blocked the install. Check that installing apps is allowed for Whittle.</string>
-    <string name="app_card_failed">The install failed. Ask Whittle to build it again.</string>
-    <string name="app_card_changed">This app changed since it was built. Ask Whittle to build it again.</string>
-    <string name="app_card_settings_failed">Couldn\'t open the settings to allow installs. Allow Whittle to install apps in Android\'s settings.</string>
-    <string name="app_card_remove_failed">Couldn\'t ask Android to remove this app. Remove it from your launcher.</string>
+    <string name="app_card_cancelled">Install cancelled.</string>
+    <string name="app_card_key_changed">Signed differently. Remove it, then install.</string>
+    <string name="app_card_blocked">Blocked. Allow installs for Whittle.</string>
+    <string name="app_card_failed">Install failed.</string>
+    <string name="app_card_changed">Changed since it was built.</string>
+    <string name="app_card_settings_failed">Allow installs for Whittle in Android\'s settings.</string>
+    <string name="app_card_remove_failed">Remove it from your launcher.</string>
     <string name="app_card_crash_title">Last crash</string>
     <string name="app_card_crash_more">Show more</string>
     <string name="app_card_crash_less">Show less</string>

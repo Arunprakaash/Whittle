@@ -69,7 +69,6 @@ data class DecisionPresentation(
     /** Argument shown above the payload, such as the recipient. */
     val payloadLabelArgument: String? = null,
     val approve: String,
-    val approveIcon: String,
     val decline: String,
     /** One-line result the card collapses to after each answer. */
     val approvedOutcome: String,

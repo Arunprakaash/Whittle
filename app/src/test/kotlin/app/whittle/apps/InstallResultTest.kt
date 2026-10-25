@@ -11,7 +11,7 @@ class InstallResultTest {
     private val configured = listOf(overlay)
     private val card = ThreadItem.App(
         key = "k", name = "Notes", packageName = "app.whittle.made.notes", versionCode = 3, apkPath = "notes/build/notes-3.apk",
-        permissions = listOf(camera, overlay.name), powerful = listOf(overlay), fromTaintedRun = false,
+        permissions = listOf(camera, overlay.name), powerful = listOf(overlay),
     )
     private val facts = ApkFacts(card.packageName, 3L, listOf(camera, overlay.name), emptyList(), false, 26, 34)
 

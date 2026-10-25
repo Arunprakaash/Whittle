@@ -9,7 +9,6 @@
       "title": "Allow this step?",
       "body": "",
       "approve": "Allow",
-      "approveIcon": "check",
       "decline": "Not now",
       "approvedOutcome": "Allowed",
       "declinedOutcome": "Not allowed"
@@ -50,9 +49,8 @@
       "decision": {
         "icon": "checklist",
         "title": "Show this plan?",
-        "body": "Shows the agent's plan as a checklist. Nothing changes on your phone.",
+        "body": "",
         "approve": "Show",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Plan shown",
         "declinedOutcome": "Plan not shown"
@@ -66,10 +64,9 @@
       "decision": {
         "icon": "language",
         "title": "Read {{url_host}}?",
-        "body": "Downloads this page so Whittle can read it. Only the address is sent.",
+        "body": "Only the address is sent.",
         "payloadArgument": "url",
         "approve": "Read page",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Read {{url_host}}",
         "declinedOutcome": "Not read"
@@ -102,11 +99,10 @@
       "decision": {
         "icon": "sms",
         "title": "Send this to {{recipientName}}?",
-        "body": "Opens Messages with the text ready. Nothing is sent until you tap send there.",
+        "body": "You send it from Messages.",
         "payloadArgument": "text",
         "payloadLabelArgument": "recipientName",
         "approve": "Open in Messages",
-        "approveIcon": "open_in_new",
         "decline": "Not now",
         "approvedOutcome": "Opened in Messages",
         "declinedOutcome": "Not sent"
@@ -119,11 +115,10 @@
       "decision": {
         "icon": "call",
         "title": "Call {{name}}?",
-        "body": "Opens your phone app with the number ready. Nothing happens until you tap call there.",
+        "body": "You place the call yourself.",
         "payloadArgument": "phoneNumber",
         "payloadLabelArgument": "name",
         "approve": "Open dialer",
-        "approveIcon": "open_in_new",
         "decline": "Not now",
         "approvedOutcome": "Opened the dialer",
         "declinedOutcome": "Not called"
@@ -136,10 +131,9 @@
       "decision": {
         "icon": "alarm",
         "title": "Set an alarm for {{time_when}}?",
-        "body": "Sets it in your clock app. Change or remove it there.",
+        "body": "In your clock app.",
         "payloadArgument": "label",
         "approve": "Set alarm",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Alarm set for {{time_when}}",
         "declinedOutcome": "No alarm set"
@@ -152,10 +146,9 @@
       "decision": {
         "icon": "timer",
         "title": "Start a timer?",
-        "body": "Starts it in your clock app.",
+        "body": "",
         "payloadArgument": "label",
         "approve": "Start",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Timer started",
         "declinedOutcome": "No timer"
@@ -168,10 +161,9 @@
       "decision": {
         "icon": "notifications",
         "title": "Remind you {{at_when}}?",
-        "body": "Whittle shows this as a notification then.",
+        "body": "",
         "payloadArgument": "text",
         "approve": "Remind me",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Reminder set",
         "declinedOutcome": "No reminder"
@@ -189,9 +181,8 @@
       "decision": {
         "icon": "notifications_off",
         "title": "Cancel this reminder?",
-        "body": "It won't show.",
+        "body": "",
         "approve": "Cancel it",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Reminder cancelled",
         "declinedOutcome": "Reminder kept"
@@ -204,10 +195,9 @@
       "decision": {
         "icon": "event",
         "title": "Add {{title}} to your calendar?",
-        "body": "Adds it to your calendar on this phone for {{start_when}}.",
+        "body": "{{start_when}}",
         "payloadArgument": "location",
         "approve": "Add",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Added {{title}}",
         "declinedOutcome": "Not added"
@@ -220,9 +210,8 @@
       "decision": {
         "icon": "directions",
         "title": "Open {{place}} in Maps?",
-        "body": "Opens your maps app. You start navigation there.",
+        "body": "",
         "approve": "Open Maps",
-        "approveIcon": "open_in_new",
         "decline": "Not now",
         "approvedOutcome": "Opened in Maps",
         "declinedOutcome": "Not opened"
@@ -235,9 +224,8 @@
       "decision": {
         "icon": "apps",
         "title": "Open {{app}}?",
-        "body": "Opens the app on your phone.",
+        "body": "",
         "approve": "Open",
-        "approveIcon": "open_in_new",
         "decline": "Not now",
         "approvedOutcome": "Opened {{app}}",
         "declinedOutcome": "Not opened"
@@ -251,10 +239,9 @@
       "decision": {
         "icon": "open_in_new",
         "title": "Open {{url_host}}?",
-        "body": "Opens this page in your browser.",
+        "body": "",
         "payloadArgument": "url",
         "approve": "Open page",
-        "approveIcon": "open_in_new",
         "decline": "Not now",
         "approvedOutcome": "Opened {{url_host}}",
         "declinedOutcome": "Not opened"
@@ -267,11 +254,10 @@
       "decision": {
         "icon": "share",
         "title": "Share this?",
-        "body": "Opens your share sheet. You pick the app and send it there.",
+        "body": "You pick the app.",
         "payloadArgument": "text",
         "payloadLabelArgument": "file",
         "approve": "Share",
-        "approveIcon": "share",
         "decline": "Not now",
         "approvedOutcome": "Opened the share sheet",
         "declinedOutcome": "Not shared"
@@ -279,18 +265,17 @@
     },
     "run_command": {
       "icon": "terminal",
-      "running": "Running a command",
-      "done": "Ran a command",
+      "running": "Running {{command}}",
+      "done": "Ran {{command}}",
       "decision": {
         "icon": "terminal",
         "title": "Run this command?",
-        "body": "Runs in your workspace on your phone. It can't see your other apps, photos or files.",
+        "body": "",
         "flagNotes": {
-          "network": "It can also use the internet."
+          "network": "Uses the internet."
         },
         "payloadArgument": "command",
         "approve": "Run",
-        "approveIcon": "terminal",
         "decline": "Not now",
         "approvedOutcome": "Ran the command",
         "declinedOutcome": "Didn't run"
@@ -303,10 +288,9 @@
       "decision": {
         "icon": "play_arrow",
         "title": "Start {{name}}?",
-        "body": "Keeps running in your workspace on your phone until it's stopped. It can't see your other apps, photos or files. It can use the internet.",
+        "body": "Keeps running until you stop it.",
         "payloadArgument": "command",
         "approve": "Start",
-        "approveIcon": "play_arrow",
         "decline": "Not now",
         "approvedOutcome": "Started {{name}}",
         "declinedOutcome": "Not started"
@@ -324,9 +308,8 @@
       "decision": {
         "icon": "folder",
         "title": "Work in {{name}}?",
-        "body": "This chat's commands start in that folder of your workspace, made if it isn't there.",
+        "body": "This chat works in that folder.",
         "approve": "Use it",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Working in {{name}}",
         "declinedOutcome": "Kept the workspace"
@@ -339,9 +322,8 @@
       "decision": {
         "icon": "install_mobile",
         "title": "Start {{name}}?",
-        "body": "Makes a new app project in its own folder of your workspace.",
+        "body": "",
         "approve": "Start it",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Started {{name}}",
         "declinedOutcome": "Didn't start the app"
@@ -354,9 +336,8 @@
       "decision": {
         "icon": "build",
         "title": "Build {{project}}?",
-        "body": "Builds the app in your workspace on your phone, with no internet. Nothing is installed until you tap Install.",
+        "body": "",
         "approve": "Build",
-        "approveIcon": "build",
         "decline": "Not now",
         "approvedOutcome": "Built {{project}}",
         "declinedOutcome": "Didn't build"
@@ -376,7 +357,6 @@
         "title": "Stop it?",
         "body": "",
         "approve": "Stop",
-        "approveIcon": "stop",
         "decline": "Not now",
         "approvedOutcome": "Stopped it",
         "declinedOutcome": "Kept it running"
@@ -399,11 +379,10 @@
       "decision": {
         "icon": "edit_document",
         "title": "Save {{path}}?",
-        "body": "Writes this file in your workspace on your phone.",
+        "body": "",
         "payloadArgument": "content",
         "payloadLabelArgument": "path",
         "approve": "Save",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Saved {{path}}",
         "declinedOutcome": "Not saved"
@@ -416,11 +395,10 @@
       "decision": {
         "icon": "edit",
         "title": "Change {{path}}?",
-        "body": "Edits this file in your workspace on your phone.",
+        "body": "",
         "payloadArgument": "newText",
         "payloadLabelArgument": "path",
         "approve": "Change",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Changed {{path}}",
         "declinedOutcome": "Not changed"
@@ -463,10 +441,9 @@
       "decision": {
         "icon": "database",
         "title": "Change your Supabase database?",
-        "body": "Runs this change on your Supabase project. It can add or change tables, their rules and the data in them.",
+        "body": "Can change tables, rules and data.",
         "payloadArgument": "query",
         "approve": "Run change",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Database updated",
         "declinedOutcome": "Database not changed"
@@ -479,10 +456,9 @@
       "decision": {
         "icon": "database",
         "title": "Run this on your Supabase database?",
-        "body": "Runs this SQL on your Supabase project. It can read or change your data.",
+        "body": "Can change your data.",
         "payloadArgument": "query",
         "approve": "Run",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Ran the query",
         "declinedOutcome": "Query not run"
@@ -495,10 +471,9 @@
       "decision": {
         "icon": "database",
         "title": "Create a Supabase project?",
-        "body": "Creates a new project in your Supabase account. Depending on your plan, this can cost money.",
+        "body": "May cost money.",
         "payloadArgument": "name",
         "approve": "Create project",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Project created",
         "declinedOutcome": "Project not created"
@@ -511,9 +486,8 @@
       "decision": {
         "icon": "payments",
         "title": "Accept this Supabase cost?",
-        "body": "Supabase asks you to accept the cost of a new project before it's created.",
+        "body": "",
         "approve": "Accept cost",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Cost accepted",
         "declinedOutcome": "Cost not accepted"
@@ -526,10 +500,9 @@
       "decision": {
         "icon": "cloud_upload",
         "title": "Deploy a function to Supabase?",
-        "body": "Puts this function live on your Supabase project, where anyone with its address can call it.",
+        "body": "Anyone with its address can call it.",
         "payloadArgument": "name",
         "approve": "Deploy",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Function deployed",
         "declinedOutcome": "Function not deployed"
@@ -542,10 +515,9 @@
       "decision": {
         "icon": "extension",
         "title": "Connect {{name}}?",
-        "body": "Whittle will connect to this server, and its tools become available to tasks. Only add servers you trust.",
+        "body": "Only connect servers you trust.",
         "payloadArgument": "url",
         "approve": "Connect",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Connecting {{name}}",
         "declinedOutcome": "Not connected"
@@ -558,10 +530,9 @@
       "decision": {
         "icon": "extension",
         "title": "Look for {{query}} connections?",
-        "body": "Searches Whittle's featured list and the public MCP Registry. Only what you're looking for is sent.",
+        "body": "",
         "payloadArgument": "query",
         "approve": "Search",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Searched",
         "declinedOutcome": "Not searched"
@@ -574,10 +545,9 @@
       "decision": {
         "icon": "schedule",
         "title": "Schedule {{name}}?",
-        "body": "Whittle will run this by itself at {{time}}, in a new chat each time, and let you know when it's done. It uses only the tools you allow in Settings › Automations; anything else waits for you.",
+        "body": "Runs by itself at {{time}}.",
         "payloadArgument": "prompt",
         "approve": "Schedule",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Scheduled {{name}}",
         "declinedOutcome": "Not scheduled"
@@ -590,10 +560,9 @@
       "decision": {
         "icon": "bookmark_add",
         "title": "Remember this?",
-        "body": "Whittle will keep this on your phone and use it in future chats. You can delete it any time in Settings › Memory.",
+        "body": "Used in every chat.",
         "payloadArgument": "text",
         "approve": "Remember",
-        "approveIcon": "check",
         "decline": "Don't",
         "approvedOutcome": "Remembered",
         "declinedOutcome": "Not remembered"
@@ -606,10 +575,9 @@
       "decision": {
         "icon": "bookmark_remove",
         "title": "Forget this?",
-        "body": "Whittle will delete this from what it remembers about you.",
+        "body": "",
         "payloadArgument": "id",
         "approve": "Forget",
-        "approveIcon": "check",
         "decline": "Keep it",
         "approvedOutcome": "Forgotten",
         "declinedOutcome": "Kept"
@@ -617,15 +585,14 @@
     },
     "Bash": {
       "icon": "terminal",
-      "running": "Running a command",
-      "done": "Ran a command",
+      "running": "Running {{command}}",
+      "done": "Ran {{command}}",
       "decision": {
         "icon": "terminal",
         "title": "Run this command?",
-        "body": "Claude Code runs this in your workspace on your phone.",
+        "body": "From Claude Code.",
         "payloadArgument": "command",
         "approve": "Run",
-        "approveIcon": "terminal",
         "decline": "Not now",
         "approvedOutcome": "Ran the command",
         "declinedOutcome": "Didn't run"
@@ -643,11 +610,10 @@
       "decision": {
         "icon": "edit_document",
         "title": "Save {{file_path}}?",
-        "body": "Claude Code writes this file in your workspace on your phone.",
+        "body": "From Claude Code.",
         "payloadArgument": "content",
         "payloadLabelArgument": "file_path",
         "approve": "Save",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Saved {{file_path}}",
         "declinedOutcome": "Not saved"
@@ -660,11 +626,10 @@
       "decision": {
         "icon": "edit",
         "title": "Change {{file_path}}?",
-        "body": "Claude Code edits this file in your workspace on your phone.",
+        "body": "From Claude Code.",
         "payloadArgument": "new_string",
         "payloadLabelArgument": "file_path",
         "approve": "Change",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Changed {{file_path}}",
         "declinedOutcome": "Not changed"
@@ -693,10 +658,9 @@
       "decision": {
         "icon": "language",
         "title": "Read {{url_host}}?",
-        "body": "Claude Code downloads this page to read it.",
+        "body": "From Claude Code.",
         "payloadArgument": "url",
         "approve": "Read page",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Read {{url_host}}",
         "declinedOutcome": "Not read"
@@ -722,7 +686,7 @@
     "contacts": {
       "icon": "contacts",
       "title": "Let Whittle read your contacts?",
-      "body": "So it can find who you mean. Only the contacts it looks up are shared with your AI provider.",
+      "body": "Only the ones it looks up are shared.",
       "approve": "Allow",
       "decline": "Not now",
       "grantedOutcome": "Contacts allowed",
@@ -731,7 +695,7 @@
     "calendar": {
       "icon": "calendar_month",
       "title": "Let Whittle read your calendar?",
-      "body": "So it can check your plans. Only the events it reads are shared with your AI provider.",
+      "body": "Only the events it reads are shared.",
       "approve": "Allow",
       "decline": "Not now",
       "grantedOutcome": "Calendar allowed",
@@ -740,7 +704,7 @@
     "calendar_write": {
       "icon": "event",
       "title": "Let Whittle add to your calendar?",
-      "body": "So it can put events in your calendar for you. You can turn this off in Android's settings.",
+      "body": "",
       "approve": "Allow",
       "decline": "Not now",
       "grantedOutcome": "Adding events allowed",
@@ -749,7 +713,7 @@
     "app_building": {
       "icon": "build",
       "title": "Set up app building?",
-      "body": "Whittle installs a compiler and tools in its Linux, about 400 MB, once. It needs a connection and a few minutes.",
+      "body": "About 400 MB, once.",
       "approve": "Set up",
       "decline": "Not now",
       "grantedOutcome": "App building set up",
@@ -766,7 +730,6 @@
         "title": "Allow this Supabase step?",
         "body": "",
         "approve": "Allow",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Allowed",
         "declinedOutcome": "Not allowed"
@@ -781,7 +744,6 @@
         "title": "{{toolTitle}}?",
         "body": "",
         "approve": "Allow",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "{{toolTitle}}",
         "declinedOutcome": "Not allowed"

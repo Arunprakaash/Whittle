@@ -1,6 +1,7 @@
 package app.whittle.chat
 
 import app.whittle.agent.PlanItem
+import app.whittle.agent.PlanStatus
 import app.whittle.apps.PowerfulDeclaration
 import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
@@ -150,8 +151,6 @@ sealed interface ThreadItem {
         val apkPath: String,
         val permissions: List<String>,
         val powerful: List<PowerfulDeclaration>,
-        /** The run read content from the web before this was built. */
-        val fromTaintedRun: Boolean,
     ) : ThreadItem
 
     /** The pages the answer above cites, shown as a pill that opens into a list. */
@@ -204,3 +203,14 @@ enum class NoticeKind {
 /** The task stopped because something went wrong, not because the user or a limit stopped it. */
 val NoticeKind.isFailure: Boolean
     get() = this != NoticeKind.Stopped && this != NoticeKind.PausedBudget && this != NoticeKind.PausedSteps
+
+/**
+ * Which of a plan's steps the card lists, and how many it leaves for "+N more": everything up to the next step to start,
+ * so the card shows what's done, what's under way and what's next, without the whole list of what's to come.
+ */
+fun planShown(steps: List<PlanItem>): Pair<List<PlanItem>, Int> {
+    val lastStarted = steps.indexOfLast { it.status != PlanStatus.PENDING }
+    val upTo = (lastStarted + 1).coerceAtMost(steps.lastIndex)
+    val shown = steps.take(upTo + 1)
+    return shown to steps.size - shown.size
+}

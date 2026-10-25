@@ -17,7 +17,6 @@ class ToolPresenterTest {
         payloadArgument = "text",
         payloadLabelArgument = "to",
         approve = "Open in Messages",
-        approveIcon = "open_in_new",
         decline = "Not now",
         approvedOutcome = "Opened in Messages",
         declinedOutcome = "Not sent",

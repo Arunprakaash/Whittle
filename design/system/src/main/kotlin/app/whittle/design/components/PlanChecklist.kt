@@ -26,9 +26,12 @@ enum class PlanStepState { Pending, Active, Done }
 @Immutable
 data class PlanStepUi(val text: String, val state: PlanStepState)
 
-/** The agent's plan for a task: each step ticked off as it finishes, the current one spinning. */
+/**
+ * The agent's plan for a task: each step ticked off as it finishes, the current one spinning. [more], when set, is a quiet
+ * last line for steps left out ("+3 more").
+ */
 @Composable
-fun PlanChecklist(title: String, steps: List<PlanStepUi>, modifier: Modifier = Modifier) {
+fun PlanChecklist(title: String, steps: List<PlanStepUi>, modifier: Modifier = Modifier, more: String? = null) {
     val colors = MaterialTheme.colorScheme
     Column(
         modifier = modifier
@@ -42,6 +45,14 @@ fun PlanChecklist(title: String, steps: List<PlanStepUi>, modifier: Modifier = M
             Text(title, style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
         }
         steps.forEach { PlanStepRow(it) }
+        more?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+                modifier = Modifier.padding(start = WhittleSize.Icon.xl + WhittleSpace.m),
+            )
+        }
     }
 }
 
