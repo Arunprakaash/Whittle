@@ -29,9 +29,18 @@ import app.whittle.design.tokens.WhittleHaptic
 import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
 
-/** A titled group of rows, joined like the chat list: large outer corners, small ones between rows. */
+/**
+ * A titled group of rows, joined like the chat list: large outer corners, small ones between rows. [description] goes
+ * above the rows and [footer] below them; keep either to one short line, as the rows say what they are.
+ */
 @Composable
-fun SettingsSection(title: String, modifier: Modifier = Modifier, description: String? = null, rows: @Composable ColumnScope.() -> Unit) {
+fun SettingsSection(
+    title: String,
+    modifier: Modifier = Modifier,
+    description: String? = null,
+    footer: String? = null,
+    rows: @Composable ColumnScope.() -> Unit,
+) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
         Text(
             title,
@@ -48,10 +57,18 @@ fun SettingsSection(title: String, modifier: Modifier = Modifier, description: S
             )
         }
         Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline), content = rows)
+        footer?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = WhittleSpace.m),
+            )
+        }
     }
 }
 
-/** One setting: icon, what it is, a line explaining it, and whatever it ends with (a value, a chevron). */
+/** One setting: icon, what it is, a line with its state when it has one, and whatever it ends with (a value, a chevron). */
 @Composable
 fun SettingsRow(
     icon: String,

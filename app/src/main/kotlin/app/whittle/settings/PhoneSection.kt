@@ -36,7 +36,7 @@ fun PhoneSection(graph: AppGraph, settings: UserSettings?) {
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { checks++ }
     val reminders by graph.reminders.all.collectAsStateWithLifecycle()
     val switches = graph.phoneActions.switches
-    SettingsSection(stringResource(R.string.phone_title), description = stringResource(R.string.phone_description)) {
+    SettingsSection(stringResource(R.string.phone_title), footer = stringResource(R.string.phone_footer)) {
         switches.forEachIndexed { index, switch ->
             val capabilities = switch.capabilities.map(::CapabilityId)
             val granted = remember(checks) { capabilities.all { AndroidCapabilities.isGranted(context, it) } }
@@ -44,11 +44,8 @@ fun PhoneSection(graph: AppGraph, settings: UserSettings?) {
             SettingsToggleRow(
                 icon = switch.icon,
                 title = switch.title,
-                subtitle = if (switch.id == REMINDERS && waiting > 0) {
-                    pluralStringResource(R.plurals.phone_reminders_waiting, waiting, waiting)
-                } else {
-                    switch.detail
-                },
+                // The title says what each is; a line only when there's state to show.
+                subtitle = if (switch.id == REMINDERS && waiting > 0) pluralStringResource(R.plurals.phone_reminders_waiting, waiting, waiting) else null,
                 checked = granted && switch.id !in settings?.phoneOff.orEmpty(),
                 onCheckedChange = { on ->
                     graph.appScope.launch { graph.settings.setPhoneFeature(switch.id, on) }

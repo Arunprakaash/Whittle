@@ -18,7 +18,6 @@
       "id": "contacts",
       "icon": "contacts",
       "title": "Contacts",
-      "detail": "Finds who you mean",
       "capabilities": [
         "contacts"
       ],
@@ -30,7 +29,6 @@
       "id": "calendar",
       "icon": "calendar_month",
       "title": "Calendar",
-      "detail": "Reads your events",
       "capabilities": [
         "calendar"
       ],
@@ -41,8 +39,7 @@
     {
       "id": "calendar_write",
       "icon": "event",
-      "title": "Adding to your calendar",
-      "detail": "Puts events in your calendar for you",
+      "title": "Add to calendar",
       "capabilities": [
         "calendar",
         "calendar_write"
@@ -55,7 +52,6 @@
       "id": "alarms",
       "icon": "alarm",
       "title": "Alarms and timers",
-      "detail": "Set in your clock app; change them there",
       "capabilities": [],
       "tools": [
         "set_alarm",
@@ -66,7 +62,6 @@
       "id": "reminders",
       "icon": "notifications",
       "title": "Reminders",
-      "detail": "Whittle's own notifications at a time",
       "capabilities": [],
       "tools": [
         "remind_me",

@@ -24,7 +24,7 @@ data class PhoneActionsConfig(
      * it's switched on; [tools] are refused while it's off.
      */
     @Serializable
-    data class Switch(val id: String, val icon: String, val title: String, val detail: String, val capabilities: List<String>, val tools: List<String>)
+    data class Switch(val id: String, val icon: String, val title: String, val capabilities: List<String>, val tools: List<String>)
 
     /** [searchUri] takes `{{query}}`; [directionsUri] takes `{{destination}}` and `{{mode}}`. */
     @Serializable
