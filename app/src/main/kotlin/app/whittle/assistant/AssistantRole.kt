@@ -1,5 +1,6 @@
 package app.whittle.assistant
 
+import android.app.Activity
 import android.app.role.RoleManager
 import android.content.ActivityNotFoundException
 import android.content.Context
@@ -20,7 +21,10 @@ object AssistantRole {
         val screens = listOf(Settings.ACTION_VOICE_INPUT_SETTINGS, Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS, Settings.ACTION_SETTINGS)
         for (action in screens) {
             try {
-                context.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                // From Whittle's screen it opens on Whittle's task, so Back comes straight back; a new task would land
+                // on top of whatever the Settings app last showed, and Back would walk through that instead.
+                val intent = Intent(action).apply { if (context !is Activity) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                context.startActivity(intent)
                 return
             } catch (exception: ActivityNotFoundException) {
                 // This phone doesn't have that screen; try the next.
