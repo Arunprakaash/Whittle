@@ -173,15 +173,23 @@ class FindFilesTool(
             .sortedByDescending { it.second }
         put(MATCHED, groups.size)
         put(WASTED, groups.sumOf { it.second })
+        // maxResults bounds the paths across all groups, not just the groups, so one group of thousands of copies can't flood the answer.
+        var pathsLeft = limits.maxResults
+        var omitted = 0
         putJsonArray(GROUPS) {
             groups.take(limits.maxResults).forEach { (group, wasted) ->
+                val shown = group.map { displayPath(root, it) }.sorted().take(pathsLeft)
+                pathsLeft -= shown.size
+                omitted += group.size - shown.size
                 addJsonObject {
                     put(BYTES, group.first().length())
+                    put(COPIES, group.size)
                     put(WASTED, wasted)
-                    putJsonArray(PATHS) { group.map { displayPath(root, it) }.sorted().forEach { add(JsonPrimitive(it)) } }
+                    putJsonArray(PATHS) { shown.forEach { add(JsonPrimitive(it)) } }
                 }
             }
         }
+        if (omitted > 0) put(PATHS_OMITTED, omitted)
         if (found.partial || result.partial) put(PARTIAL, true)
     }
 
@@ -195,6 +203,8 @@ class FindFilesTool(
         private const val FILES = "files"
         private const val GROUPS = "groups"
         private const val PATHS = "paths"
+        private const val PATHS_OMITTED = "pathsOmitted"
+        private const val COPIES = "copies"
         private const val PATH = "path"
         private const val BYTES = "bytes"
         private const val WASTED = "wastedBytes"
@@ -208,7 +218,7 @@ class FindFilesTool(
             description = "Finds files in shared storage, largest first, optionally only in one folder, at least minBytes, " +
                 "not changed for olderThanDays days, or of the given types. Paths start with /sdcard. With duplicates=true it lists " +
                 "groups of identical files instead, biggest waste first, with wastedBytes (the space freed by keeping one copy). " +
-                "matched is how many there were in all; partial=true means the search ran out of time or budget, so there may be more. " +
+                "matched is how many there were in all; each group says how many copies it has, and pathsOmitted counts paths left out to keep the answer short; partial=true means the search ran out of time or budget, so there may be more. " +
                 "It never deletes anything.",
             inputSchema = Json.parseToJsonElement(
                 """{"type":"object","properties":{""" +
