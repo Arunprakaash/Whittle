@@ -47,6 +47,19 @@ class OpenAiStreamParserTest {
     }
 
     @Test
+    fun `a call sent in pieces without an index is put back together`() {
+        val events = listOf(
+            """{"choices":[{"delta":{"tool_calls":[{"id":"call_1","function":{"name":"time_now","arguments":"{\"zo"}}]}}]}""",
+            """{"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"ne\":\"UTC\"}"}}]}}]}""",
+            """{"choices":[{"delta":{"tool_calls":[{"id":"call_1","function":{"arguments":""}}]},"finish_reason":"tool_calls"}]}""",
+        ).flatMap(parser::onData)
+        assertEquals(
+            listOf(ContentBlock.ToolCall(ToolCallId("call_1"), "time_now", """{"zone":"UTC"}""")),
+            events.filterIsInstance<ModelEvent.ToolCallCompleted>().map { it.toolCall },
+        )
+    }
+
+    @Test
     fun `tool call fragments are assembled by index`() {
         val events = listOf(
             """{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"time_","arguments":"{\"zo"}}]}}]}""",
