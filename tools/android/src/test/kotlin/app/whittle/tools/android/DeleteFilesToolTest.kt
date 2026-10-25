@@ -32,12 +32,16 @@ class DeleteFilesToolTest {
     private val scanned = mutableListOf<String>()
     private val ctx = ToolExecutionContext(RunId("r"), ToolCallId("c"))
 
+    private companion object {
+        const val NOT_DELETED = "won't be deleted"
+    }
+
     private fun file(dir: File, path: String, bytes: Int = 10): File =
         File(dir, path).also { it.parentFile.mkdirs() }.apply { writeBytes(ByteArray(bytes)) }
 
     private fun run(vararg paths: String, maxPaths: Int = 10): ToolOutput {
         val args = JsonObject(mapOf("paths" to JsonArray(paths.map { JsonPrimitive(it) })))
-        return runBlocking { DeleteFilesTool(storage, maxPaths) { scanned += it }.execute(args, ctx) }
+        return runBlocking { DeleteFilesTool(storage, DeleteFilesLimits(maxPaths, NOT_DELETED)) { scanned += it }.execute(args, ctx) }
     }
 
     private fun results(vararg paths: String): Map<String, JsonObject> {
@@ -154,7 +158,7 @@ class DeleteFilesToolTest {
         val notAList = JsonObject(mapOf("paths" to JsonPrimitive("a.jpg")))
 
         listOf(notStrings, notAList, JsonObject(emptyMap())).forEach { args ->
-            assertTrue(runBlocking { DeleteFilesTool(storage, 10) {}.execute(args, ctx) }.isError)
+            assertTrue(runBlocking { DeleteFilesTool(storage, DeleteFilesLimits(10, NOT_DELETED)) {}.execute(args, ctx) }.isError)
         }
         assertTrue(File(root, "a.jpg").exists())
     }
@@ -166,6 +170,7 @@ class DeleteFilesToolTest {
         val results = results("a.jpg\n/sdcard/b.jpg")
 
         assertEquals("refused", results.status("a.jpg\n/sdcard/b.jpg"))
+        assertEquals("a.jpg?/sdcard/b.jpg  ·  $NOT_DELETED: has a line break or control character in it", preview("a.jpg\n/sdcard/b.jpg").getValue(DeleteFilesTool.LISTING))
     }
 
     @Test
@@ -173,8 +178,58 @@ class DeleteFilesToolTest {
         val none = object : SharedStorage {
             override fun root(): File? = null
         }
-        val out = runBlocking { DeleteFilesTool(none, 10) {}.execute(JsonObject(mapOf("paths" to JsonArray(listOf(JsonPrimitive("a.jpg"))))), ctx) }
+        val out = runBlocking { DeleteFilesTool(none, DeleteFilesLimits(10, NOT_DELETED)) {}.execute(JsonObject(mapOf("paths" to JsonArray(listOf(JsonPrimitive("a.jpg"))))), ctx) }
         assertEquals(AndroidCapabilities.STORAGE, out.missingCapability)
+    }
+
+    private fun preview(vararg paths: String, maxPaths: Int = 10): Map<String, String> {
+        val args = JsonObject(mapOf("paths" to JsonArray(paths.map { JsonPrimitive(it) })))
+        return runBlocking { DeleteFilesTool(storage, DeleteFilesLimits(maxPaths, NOT_DELETED)) { scanned += it }.preview(args) }
+    }
+
+    @Test
+    fun previewListsRealPathsWithSizesAndTheTotal() {
+        file(root, "Download/a.jpg", bytes = 1_500)
+        file(root, "Download/b.pdf", bytes = 2_500)
+
+        val card = preview("/sdcard/Download/a.jpg", "Download/b.pdf")
+
+        assertEquals("/sdcard/Download/a.jpg  ·  1.5 KB\n/sdcard/Download/b.pdf  ·  2.5 KB", card.getValue(DeleteFilesTool.LISTING))
+        assertEquals("2", card.getValue(DeleteFilesTool.COUNT))
+        assertEquals("4.0 KB", card.getValue(DeleteFilesTool.TOTAL))
+        assertTrue(File(root, "Download/a.jpg").exists() && File(root, "Download/b.pdf").exists())
+        assertTrue(scanned.isEmpty())
+    }
+
+    @Test
+    fun previewShowsARefusedPathAsNotDeleted() {
+        file(root, "a.jpg", bytes = 10)
+        File(root, "Music").mkdirs()
+
+        val card = preview("a.jpg", "/sdcard/Music", "/sdcard/gone.mp4")
+
+        val lines = card.getValue(DeleteFilesTool.LISTING).lines()
+        assertEquals("/sdcard/a.jpg  ·  10 B", lines[0])
+        assertEquals("/sdcard/Music  ·  $NOT_DELETED: is a folder; only files are deleted", lines[1])
+        assertEquals("/sdcard/gone.mp4  ·  $NOT_DELETED: doesn't exist", lines[2])
+        assertEquals("1", card.getValue(DeleteFilesTool.COUNT))
+        assertEquals("10 B", card.getValue(DeleteFilesTool.TOTAL))
+    }
+
+    @Test
+    fun previewOfACallThatWillBeRefusedSaysNothingGoes() {
+        val card = preview("a", "b", "c", maxPaths = 2)
+
+        assertTrue(card.getValue(DeleteFilesTool.LISTING).startsWith("$NOT_DELETED: at most 2 files per call"))
+        assertEquals("0", card.getValue(DeleteFilesTool.COUNT))
+    }
+
+    @Test
+    fun sizesReadLikeAFileManager() {
+        assertEquals("999 B", readableSize(999))
+        assertEquals("1.0 KB", readableSize(1_000))
+        assertEquals("12 MB", readableSize(12_300_000))
+        assertEquals("3.2 GB", readableSize(3_200_000_000))
     }
 
     @Test

@@ -99,7 +99,7 @@ object ToolCatalog {
             ContactsSearchTool(context),
             StorageOverviewTool(context, DeviceSharedStorage(context), phone.config.storage.limits, clock),
             FindFilesTool(DeviceSharedStorage(context), phone.config.storage.findLimits, phone.config.storage.fileTypes, clock),
-            DeleteFilesTool(DeviceSharedStorage(context), phone.config.storage.maxResults, DeviceMediaScan(context)),
+            DeleteFilesTool(DeviceSharedStorage(context), phone.config.storage.deleteLimits, DeviceMediaScan(context)),
             CalendarEventsTool(context, clock),
             HealthDataTool(phone.health, clock, phone.config.health.limits),
             ComposeMessageTool(context),

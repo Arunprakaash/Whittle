@@ -40,7 +40,8 @@ data class QuestionText(val icon: String, val question: String, val options: Lis
  * argument is missing), the tool's fallback text is used instead of showing a placeholder. A tool from
  * elsewhere ([ToolOrigin]) also fills {{toolTitle}} and {{toolSource}} with its provider's own names.
  * Every argument also fills `<argument>_when`: in plain words when it's a time ([PlainTime]), as written otherwise.
- * A list of plain values fills its name with one item per line, and `<argument>_count` with how many there are.
+ * An argument can't set those derived names itself. A tool that checks what a call would do ([app.whittle.tools.api.ApprovalPreview]) passes
+ * its findings as `preview`, filled after every argument so none can stand in for them.
  */
 class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock = UserClock()) {
     private val plainTime = config.times?.let { PlainTime(it, clock) }
@@ -59,16 +60,17 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
         )
     }
 
-    fun decision(toolId: String, arguments: JsonObject, origin: ToolOrigin? = null): DecisionText {
+    fun decision(toolId: String, arguments: JsonObject, origin: ToolOrigin? = null, preview: Map<String, String> = emptyMap()): DecisionText {
         val decision = presentation(toolId)?.decision ?: config.fallback.decision
             ?: error("tool-presentation.json must define fallback.decision")
         val fallback = config.fallback.decision ?: decision
-        val variables = variables(arguments, origin)
+        val variables = variables(arguments, origin, preview)
         return DecisionText(
             icon = decision.icon,
             title = fill(decision.title, variables, fallback.title),
             body = (listOf(fill(decision.body, variables, fallback.body)) + flagNotes(decision, arguments)).filter { it.isNotBlank() }.joinToString(SENTENCE_GAP),
-            payload = decision.payloadArgument?.let { variables[it] } ?: if (decision === fallback) describe(arguments) else null,
+            // A card whose payload can't be filled shows the exact call instead, so it never asks about nothing.
+            payload = decision.payloadArgument?.let { variables[it] ?: describe(arguments) } ?: if (decision === fallback) describe(arguments) else null,
             payloadLabel = decision.payloadLabelArgument?.let { variables[it] },
             approve = fill(decision.approve, variables, fallback.approve),
             decline = fill(decision.decline, variables, fallback.decline),
@@ -105,19 +107,16 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
         arguments.entries.joinToString("\n") { (name, value) -> "$name: ${(value as? JsonPrimitive)?.contentOrNull ?: value}" }
             .ifEmpty { null }
 
-    private fun variables(arguments: JsonObject, origin: ToolOrigin?): Map<String, String> = buildMap {
-        arguments.forEach { (name, value) ->
-            val text = (value as? JsonPrimitive)?.contentOrNull ?: return@forEach
+    private fun variables(arguments: JsonObject, origin: ToolOrigin?, preview: Map<String, String> = emptyMap()): Map<String, String> = buildMap {
+        // Derived names are the presenter's alone: an argument called url_host must not pose as the page's real site.
+        val plain = arguments.mapNotNull { (name, value) -> (value as? JsonPrimitive)?.contentOrNull?.let { name to it } }
+            .filterNot { (name, _) -> name.endsWith(HOST_SUFFIX) || name.endsWith(WHEN_SUFFIX) || name == TOOL_TITLE || name == TOOL_SOURCE }
+        plain.forEach { (name, text) ->
             put(name, text)
             hostOf(text)?.let { put("${name}$HOST_SUFFIX", it) }
             put("${name}$WHEN_SUFFIX", plainTime?.format(text) ?: text)
         }
-        // A list shows one item per line, and its count is set after the plain arguments so the call can't claim another.
-        arguments.forEach { (name, value) ->
-            val items = (value as? JsonArray)?.map { (it as? JsonPrimitive)?.contentOrNull ?: return@forEach } ?: return@forEach
-            put(name, items.joinToString(LIST_SEPARATOR))
-            put("${name}$COUNT_SUFFIX", items.size.toString())
-        }
+        putAll(preview)
         // Set last, so an argument of the same name can't pass itself off as the tool's own name.
         origin?.let {
             put(TOOL_TITLE, it.title)
@@ -134,11 +133,9 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
     companion object {
         const val HOST_SUFFIX = "_host"
         const val WHEN_SUFFIX = "_when"
-        const val COUNT_SUFFIX = "_count"
         const val TOOL_TITLE = "toolTitle"
         const val TOOL_SOURCE = "toolSource"
         private const val SENTENCE_GAP = " "
-        private const val LIST_SEPARATOR = "\n"
         private const val WWW_PREFIX = "www."
         private val TEMPLATE_NAME = ConfigName("tool-presentation.json")
     }

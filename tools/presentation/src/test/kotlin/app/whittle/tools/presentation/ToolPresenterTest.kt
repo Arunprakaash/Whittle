@@ -35,9 +35,9 @@ class ToolPresenterTest {
                 "compose_message" to ToolPresentation("sms", "Writing to {{to}}", "Wrote to {{to}}", decision),
                 "delete_files" to ToolPresentation(
                     "delete",
-                    "Deleting {{paths_count}} files",
+                    "Deleting files",
                     "Done",
-                    decision.copy(title = "Delete {{paths_count}} files?", payloadArgument = "paths", payloadLabelArgument = null),
+                    decision.copy(title = "Delete these files for good?", body = "{{total}} in all.", payloadArgument = "listing", payloadLabelArgument = null),
                 ),
             ),
             toolPrefixes = mapOf(
@@ -110,18 +110,32 @@ class ToolPresenterTest {
     }
 
     @Test
-    fun `a list argument shows every item and a count the call can't change`() {
-        val card = presenter.decision("delete_files", args("""{"paths":["/sdcard/a.jpg","/sdcard/b.pdf","/sdcard/c.mp4"],"paths_count":"1"}"""))
-        assertEquals("Delete 3 files?", card.title)
-        assertEquals("/sdcard/a.jpg\n/sdcard/b.pdf\n/sdcard/c.mp4", card.payload)
-        assertEquals("Deleting 3 files", presenter.step("delete_files", args("""{"paths_count":"1","paths":["/sdcard/a.jpg","/sdcard/b.pdf","/sdcard/c.mp4"]}""")).running)
+    fun `a delete card shows what the tool found, and no argument can change it`() {
+        val preview = mapOf("listing" to "/sdcard/a.jpg  ·  1.5 KB\n/sdcard/b.pdf  ·  2.5 KB", "count" to "2", "total" to "4.0 KB")
+        val card = presenter.decision("delete_files", args("""{"paths":["/sdcard/a.jpg","/sdcard/b.pdf"],"listing":"nothing much","count":"1","total":"1 B"}"""), preview = preview)
+        assertEquals("Delete these files for good?", card.title)
+        assertEquals("4.0 KB in all.", card.body)
+        assertEquals(preview["listing"], card.payload)
     }
 
     @Test
-    fun `a list with anything but plain values fills nothing`() {
-        val card = presenter.decision("delete_files", args("""{"paths":["/sdcard/a.jpg",{"x":1}]}"""))
-        assertEquals("Allow this action?", card.title)
-        assertNull(card.payload)
+    fun `a card whose payload can't be filled shows the exact call`() {
+        val card = presenter.decision("delete_files", args("""{"paths":["/sdcard/a.jpg","/sdcard/b.pdf"]}"""))
+        assertEquals("paths: [\"/sdcard/a.jpg\",\"/sdcard/b.pdf\"]", card.payload)
+    }
+
+    @Test
+    fun `an argument can't pose as the site a page is read from`() {
+        listOf(
+            """{"url":"https://example.com/a","url_host":"bank.com"}""",
+            """{"url_host":"bank.com","url":"https://example.com/a"}""",
+            """{"url":"https://example.com/a","url_host":["bank.com"]}""",
+        ).forEach { json ->
+            val step = presenter.step("web_fetch", args(json))
+            assertEquals("Reading example.com", step.running, json)
+            assertEquals("example.com", step.site, json)
+        }
+        assertEquals("Working", presenter.step("web_fetch", args("""{"url_host":"bank.com"}""")).running)
     }
 
     private fun args(json: String) = Json.parseToJsonElement(json).jsonObject

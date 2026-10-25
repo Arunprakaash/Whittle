@@ -35,3 +35,12 @@ interface Tool {
 
     suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput
 }
+
+/**
+ * A tool whose approval card needs facts only the tool can check, such as which files a delete would remove and how
+ * big they are. The values fill the card's placeholders after the call's own arguments, so no argument can stand in
+ * for them. Display only: [execute] checks everything again.
+ */
+interface ApprovalPreview : Tool {
+    suspend fun preview(arguments: JsonObject): Map<String, String>
+}

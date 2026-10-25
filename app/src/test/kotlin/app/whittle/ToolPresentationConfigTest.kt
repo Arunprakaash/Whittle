@@ -7,12 +7,12 @@ import app.whittle.core.config.ConfigLoader
 import app.whittle.core.config.ConfigName
 import app.whittle.core.config.PromptTemplate
 import app.whittle.tools.api.RiskTier
+import app.whittle.tools.android.DeleteFilesTool
 import app.whittle.tools.api.ToolDefinition
 import app.whittle.tools.presentation.ToolPresentation
 import app.whittle.tools.presentation.ToolPresentationConfig
 import app.whittle.tools.presentation.ToolPresenter
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -24,6 +24,9 @@ class ToolPresentationConfigTest {
         .load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION)
         .let { assertIs<Outcome.Success<ToolPresentationConfig>>(it).value }
     private val builtInTools: List<ToolDefinition> = ToolCatalog.definitions
+
+    /** What tools that preview their calls (ApprovalPreview) fill on their cards, besides their arguments. */
+    private val previewed = mapOf(DeleteFilesTool.DEFINITION.id.value to DeleteFilesTool.PREVIEW)
 
     @Test
     fun `fallback has a decision card`() {
@@ -47,11 +50,9 @@ class ToolPresentationConfigTest {
     fun `templates only use the tool's own arguments`() {
         builtInTools.forEach { tool ->
             val presentation = config.tools.getValue(tool.id.value)
-            val schema = tool.inputSchema["properties"]?.jsonObject.orEmpty()
-            val properties = schema.keys
-            val lists = schema.filterValues { it.jsonObject["type"]?.jsonPrimitive?.content == "array" }.keys
+            val properties = tool.inputSchema["properties"]?.jsonObject?.keys.orEmpty()
             val allowed = properties + properties.map { it + ToolPresenter.HOST_SUFFIX } + properties.map { it + ToolPresenter.WHEN_SUFFIX } +
-                lists.map { it + ToolPresenter.COUNT_SUFFIX }
+                previewed[tool.id.value].orEmpty()
             val unknown = templates(presentation).flatMap { PromptTemplate(NAME, it).placeholders }.toSet() - allowed
             assertTrue(unknown.isEmpty(), "${tool.id.value} uses unknown placeholders $unknown")
         }
@@ -75,7 +76,7 @@ class ToolPresentationConfigTest {
 
     private fun templates(presentation: ToolPresentation): List<String> =
         listOf(presentation.running, presentation.done) + listOfNotNull(presentation.decision).flatMap {
-            listOf(it.title, it.body, it.approve, it.decline, it.approvedOutcome, it.declinedOutcome)
+            listOf(it.title, it.body, it.approve, it.decline, it.approvedOutcome, it.declinedOutcome) + listOfNotNull(it.payloadArgument?.let { name -> "{{$name}}" })
         }
 
     private companion object {

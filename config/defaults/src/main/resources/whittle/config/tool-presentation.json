@@ -94,13 +94,13 @@
     },
     "delete_files": {
       "icon": "delete",
-      "running": "Deleting {{paths_count}} files",
+      "running": "Deleting files",
       "done": "Finished deleting",
       "decision": {
         "icon": "delete",
-        "title": "Delete {{paths_count}} files?",
-        "body": "These are deleted for good, with no trash to get them back from. Nothing else is touched.",
-        "payloadArgument": "paths",
+        "title": "Delete these files for good?",
+        "body": "{{total}} in all, deleted for good with no trash to get them back from. Nothing else is touched.",
+        "payloadArgument": "listing",
         "approve": "Delete",
         "approveIcon": "delete",
         "decline": "Keep",

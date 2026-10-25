@@ -27,6 +27,8 @@
     "maxResults": 200,
     "oldDays": 90,
     "maxHashBytes": 2147483648,
+    "maxDeletePerCall": 50,
+    "notDeleted": "won't be deleted",
     "types": {
       "image": ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "bmp", "raw", "dng"],
       "video": ["mp4", "mkv", "mov", "avi", "webm", "3gp", "m4v"],

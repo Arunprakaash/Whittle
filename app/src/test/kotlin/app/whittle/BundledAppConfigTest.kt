@@ -154,6 +154,7 @@ class BundledAppConfigTest {
         val phone = assertIs<Outcome.Success<PhoneActionsConfig>>(loader.load(PhoneActionsConfig.FILE, PhoneActionsConfig.serializer(), PhoneActionsConfig.SCHEMA_VERSION)).value
         assertTrue(phone.maps.directionsUri.startsWith("https://"))
         assertTrue(phone.reminders.maxReminders > 0)
+        assertTrue(phone.storage.maxDeletePerCall in 1..50, "A delete card must stay short enough to read through")
         // Every switch stops tools that exist, asks for capabilities Android knows, and has a bundled icon.
         val toolIds = ToolCatalog.definitions.map { it.id.value }.toSet()
         val unknownTools = phone.switches.flatMap { it.tools } - toolIds
@@ -235,17 +236,20 @@ class BundledAppConfigTest {
     }
 
     @Test
-    fun `the delete card lists every file and counts them from the list itself`() {
+    fun `the delete card lists what the tool found, with the total`() {
         val config = assertIs<Outcome.Success<ToolPresentationConfig>>(
             loader.load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION),
         ).value
         val arguments = buildJsonObject {
-            putJsonArray("paths") { add("/sdcard/Download/a.jpg"); add("/sdcard/Download/b.pdf") }
+            putJsonArray("paths") { add("/sdcard/Download/a.jpg") }
         }
-        val card = ToolPresenter(config).decision(DeleteFilesTool.DEFINITION.id.value, arguments)
-        assertEquals("Delete 2 files?", card.title)
-        assertEquals("/sdcard/Download/a.jpg\n/sdcard/Download/b.pdf", card.payload)
-        assertTrue("for good" in card.body)
+        val listing = "/sdcard/Download/a.jpg  ·  1.5 KB"
+        val preview = mapOf(DeleteFilesTool.LISTING to listing, DeleteFilesTool.COUNT to "1", DeleteFilesTool.TOTAL to "1.5 KB")
+        val card = ToolPresenter(config).decision(DeleteFilesTool.DEFINITION.id.value, arguments, preview = preview)
+        // No count in the words, so one file reads as right as many.
+        assertEquals("Delete these files for good?", card.title)
+        assertEquals(listing, card.payload)
+        assertTrue(card.body.startsWith("1.5 KB in all") && "for good" in card.body)
         assertEquals("Delete", card.approve)
         assertEquals("Keep", card.decline)
     }
