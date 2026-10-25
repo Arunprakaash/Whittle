@@ -112,6 +112,24 @@ class ToolPresenterTest {
     }
 
     @Test
+    fun `argumentNotesWhen shows a note only for the listed values of another argument`() {
+        val watch = decision.copy(
+            body = "It runs {{event}}.",
+            argumentNotes = mapOf("from" to "Only for {{from}}."),
+            argumentNotesWhen = mapOf("from" to mapOf("event" to listOf("text"))),
+        )
+        val presenter = ToolPresenter(
+            ToolPresentationConfig(
+                schemaVersion = ToolPresentationConfig.SCHEMA_VERSION,
+                fallback = ToolPresentation("build", "Working", "Done", decision),
+                tools = mapOf("watch_for" to ToolPresentation("visibility", "Setting up", "Set up", watch)),
+            ),
+        )
+        assertEquals("It runs text. Only for Home.", presenter.decision("watch_for", args("""{"event":"text","from":"Home"}""")).body)
+        assertEquals("It runs charging.", presenter.decision("watch_for", args("""{"event":"charging","from":"Home"}""")).body)
+    }
+
+    @Test
     fun `decision cards show the exact payload`() {
         val card = presenter.decision("compose_message", args("""{"to":"Priya Sharma","text":"Running 15 minutes late"}"""))
         assertEquals("Send this to Priya Sharma?", card.title)

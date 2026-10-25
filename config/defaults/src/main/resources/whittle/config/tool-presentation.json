@@ -572,6 +572,11 @@
           "from": "Only for {{from}}.",
           "words": "Only when it mentions {{words}}."
         },
+        "argumentNotesWhen": {
+          "minutes": { "event": ["every"] },
+          "from": { "event": ["text", "notification", "wifi_join", "wifi_leave"] },
+          "words": { "event": ["text", "notification"] }
+        },
         "argumentWords": {
           "event": {
             "every": "on a repeating timer",

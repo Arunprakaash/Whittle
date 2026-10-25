@@ -66,7 +66,7 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
         return DecisionText(
             icon = decision.icon,
             title = fill(decision.title, variables, fallback.title),
-            body = (listOf(fill(decision.body, variables, fallback.body)) + flagNotes(decision, arguments) + argumentNotes(decision, variables)).filter { it.isNotBlank() }.joinToString(SENTENCE_GAP),
+            body = (listOf(fill(decision.body, variables, fallback.body)) + flagNotes(decision, arguments) + argumentNotes(decision, arguments, variables)).filter { it.isNotBlank() }.joinToString(SENTENCE_GAP),
             payload = decision.payloadArgument?.let { variables[it] } ?: if (decision === fallback) describe(arguments) else null,
             payloadLabel = decision.payloadLabelArgument?.let { variables[it] },
             approve = fill(decision.approve, variables, fallback.approve),
@@ -90,8 +90,13 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
     private fun flagNotes(decision: DecisionPresentation, arguments: JsonObject): List<String> =
         decision.flagNotes.filterKeys { (arguments[it] as? JsonPrimitive)?.booleanOrNull == true }.values.toList()
 
-    private fun argumentNotes(decision: DecisionPresentation, variables: Map<String, String>): List<String> =
-        decision.argumentNotes.filterKeys { variables[it]?.isNotBlank() == true }.values.map { fill(it, variables, "") }
+    private fun argumentNotes(decision: DecisionPresentation, arguments: JsonObject, variables: Map<String, String>): List<String> =
+        decision.argumentNotes
+            .filterKeys { name ->
+                variables[name]?.isNotBlank() == true &&
+                    decision.argumentNotesWhen[name].orEmpty().all { (other, values) -> (arguments[other] as? JsonPrimitive)?.contentOrNull in values }
+            }
+            .values.map { fill(it, variables, "") }
 
     /** The card asking for [capabilityId], or null when config has none (the tool then just reports it). */
     private fun presentation(toolId: String): ToolPresentation? =

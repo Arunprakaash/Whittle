@@ -110,6 +110,23 @@ class BundledAppConfigTest {
     }
 
     @Test
+    fun `the watch_for card leaves out notes for arguments its kind ignores`() {
+        val config = assertIs<Outcome.Success<ToolPresentationConfig>>(
+            loader.load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION),
+        ).value
+        val presenter = ToolPresenter(config)
+        fun body(json: String) = presenter.decision("watch_for", Json.parseToJsonElement(json).jsonObject).body
+        assertFalse("Only for" in body("""{"event":"charging_start","from":"Home","prompt":"p"}"""))
+        assertTrue("Only for Home." in body("""{"event":"text","from":"Home","prompt":"p"}"""))
+        val wifi = body("""{"event":"wifi_join","from":"Home","words":"debited","prompt":"p"}""")
+        assertTrue("Only for Home." in wifi, wifi)
+        assertFalse("mentions" in wifi, wifi)
+        assertFalse("Every" in body("""{"event":"text","minutes":30,"prompt":"p"}"""))
+        assertTrue("Every 30 minutes." in body("""{"event":"every","minutes":30,"from":"x","words":"y","prompt":"p"}"""))
+        assertFalse("Only" in body("""{"event":"every","minutes":30,"from":"x","words":"y","prompt":"p"}"""))
+    }
+
+    @Test
     fun `tools kept in the app are built-in tools`() {
         val unknown = approvalsAndPolicy().first.inAppOnlyTools - ToolCatalog.definitions.map { it.id.value }.toSet()
         assertTrue(unknown.isEmpty(), "background.approvals.inAppOnlyTools names no tool: $unknown")
