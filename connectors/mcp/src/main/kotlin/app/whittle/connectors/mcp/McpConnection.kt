@@ -218,7 +218,7 @@ class McpConnection(
      */
     suspend fun access(): McpAccess? {
         if (!signedIn) return null
-        val token = when (val fresh = accessToken(refresh = false)) {
+        val token = when (val fresh = accessToken(refused = null)) {
             is Outcome.Failure -> return null
             is Outcome.Success -> fresh.value
         }
@@ -277,11 +277,18 @@ class McpConnection(
         publish(emptyList())
     }
 
-    private suspend fun accessToken(refresh: Boolean): Outcome<String?> = tokenLock.withLock {
+    /**
+     * The token to send. After a refusal ([refused]), only the refused token is renewed: the refusal says nothing about a
+     * newer one (the user signed in again, or another request already refreshed), which is sent as it is, so a request
+     * that went out with an old token can't renew, or sign out, the sign-in the user has since made.
+     */
+    private suspend fun accessToken(refused: Refused?): Outcome<String?> = tokenLock.withLock {
+        val refresh = refused != null
         val sentWith = generation.get()
         val stored = credentials.load() ?: return@withLock signedOut()
         if (stored.open) return@withLock Outcome.Success(null)
         val tokens = stored.tokens ?: return@withLock signedOut()
+        if (refused != null && refused.token != tokens.accessToken) return@withLock Outcome.Success(tokens.accessToken)
         // A pasted token can't be renewed; a refused one means the user must paste a new one.
         val client = stored.client ?: return@withLock if (refresh) signedOut() else Outcome.Success(tokens.accessToken)
         val expiring = tokens.expiresAtMillis?.let { it - config.refreshBeforeExpiryMillis <= clock.nowMillis() } == true

@@ -50,6 +50,10 @@ class McpConnectionTest {
     /** The MCP server answers 401 to requests with this access token, as to one it no longer takes. */
     @Volatile private var refusedToken: String? = null
 
+    /** While set, an MCP request carrying [refusedToken] waits for it to open, after saying it arrived. */
+    @Volatile private var holdRefused: CountDownLatch? = null
+    private val refusedArrived = CountDownLatch(1)
+
     /** While set, a refresh waits for it to open, after saying it arrived; for a request still in flight. */
     @Volatile private var holdRefresh: CountDownLatch? = null
     private val refreshArrived = CountDownLatch(1)
@@ -108,7 +112,10 @@ class McpConnectionTest {
                     }
                     else -> when {
                         serverDown -> MockResponse().setResponseCode(503)
-                        refusedToken != null && request.getHeader("Authorization") == "Bearer $refusedToken" -> MockResponse().setResponseCode(401)
+                        refusedToken != null && request.getHeader("Authorization") == "Bearer $refusedToken" -> {
+                            holdRefused?.let { hold -> refusedArrived.countDown(); hold.await(WAIT_SECONDS, TimeUnit.SECONDS) }
+                            MockResponse().setResponseCode(401)
+                        }
                         else -> mcp(body)
                     }
                 }
@@ -322,6 +329,30 @@ class McpConnectionTest {
             assertIs<Outcome.Failure>(stale.await())
             assertIs<Outcome.Success<Unit>>(fresh.await())
         }
+        assertEquals(ConnectorState.Connected(3), connection.state.value)
+        assertEquals("access-2", store.saved?.tokens?.accessToken)
+        assertEquals(false, store.saved?.signedOut)
+    }
+
+    @Test
+    fun `a refusal that arrives after a new sign-in neither renews nor signs out the new one`() = runTest {
+        val connection = signedIn()
+        // The old token stops working, and so would its refresh; the server is slow to say so.
+        refusedToken = "access-1"
+        refreshStatus = 400
+        val hold = CountDownLatch(1).also { holdRefused = it }
+        coroutineScope {
+            val stale = async(Dispatchers.IO) { connection.refreshTools() }
+            assertTrue(withContext(Dispatchers.IO) { refusedArrived.await(WAIT_SECONDS, TimeUnit.SECONDS) })
+            // The user signs in again before the old request hears back.
+            val state = (connection.beginSignIn() as Outcome.Success).value.toHttpUrl().queryParameter("state")
+            assertIs<Outcome.Success<Unit>>(withContext(Dispatchers.IO) { connection.complete("${REDIRECT}?code=code-2&state=$state") })
+            holdRefused = null
+            hold.countDown()
+            // The refusal was for access-1; the request is sent again with access-2, which works.
+            assertIs<Outcome.Success<Unit>>(stale.await())
+        }
+        assertTrue(requests.none { it.path == "/token" && it.body.clone().readUtf8().contains("grant_type=refresh_token") }, "nothing to renew")
         assertEquals(ConnectorState.Connected(3), connection.state.value)
         assertEquals("access-2", store.saved?.tokens?.accessToken)
         assertEquals(false, store.saved?.signedOut)
