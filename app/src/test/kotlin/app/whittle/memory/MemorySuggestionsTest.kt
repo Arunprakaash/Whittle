@@ -31,9 +31,12 @@ class MemorySuggestionsTest {
     }
 
     private class StateBox(var saved: SuggestionsState = SuggestionsState(emptyList(), emptyList(), emptyMap())) : SuggestionsBackend {
+        var failing = false
+
         override suspend fun load() = saved
 
         override suspend fun save(state: SuggestionsState): Outcome<Unit> {
+            if (failing) return Outcome.Failure(HarnessError.Storage("disk full"))
             saved = state
             return Outcome.Success(Unit)
         }
@@ -108,6 +111,19 @@ class MemorySuggestionsTest {
         s.add("chat", listOf("  likes TEA " to null))
         assertTrue(s.pending.value.isEmpty())
         assertEquals(listOf("likes tea"), box.saved.dismissed)
+    }
+
+    @Test
+    fun `a dismiss that can't be saved stays pending and says so`() = runTest {
+        val s = suggestions(this)
+        s.add("chat", listOf("Likes tea" to null))
+        val id = s.pending.value.single().id
+        box.failing = true
+        assertIs<Outcome.Failure>(s.dismiss(id))
+        assertEquals(listOf(id), s.pending.value.map { it.id })
+        assertTrue(box.saved.dismissed.isEmpty())
+        assertIs<Outcome.Failure>(s.keep(id, "Likes tea"))
+        assertEquals(1, s.pending.value.size)
     }
 
     @Test

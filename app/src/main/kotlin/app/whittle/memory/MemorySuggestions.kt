@@ -6,6 +6,7 @@ import app.whittle.core.common.EpochClock
 import app.whittle.core.common.HarnessError
 import app.whittle.core.common.IdGenerator
 import app.whittle.core.common.Outcome
+import app.whittle.core.common.map
 import app.whittle.settings.MemoryReviewDefaults
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
@@ -65,7 +66,7 @@ class MemorySuggestions(
      * Adds each (text, id of the memory it would replace) the user hasn't seen. Texts longer than a memory may be are
      * skipped: keeping them would fail anyway.
      */
-    suspend fun add(chatId: String, facts: List<Pair<String, String?>>) = changes.withLock {
+    suspend fun add(chatId: String, facts: List<Pair<String, String?>>): Outcome<Unit> = changes.withLock {
         val current = load()
         val known = (memory.current().map { it.text } + current.pending.map { it.text }).map(::normal).toMutableSet()
         known += current.dismissed
@@ -75,13 +76,14 @@ class MemorySuggestions(
             if (text.isEmpty() || text.length > memory.policy.maxItemChars || !known.add(normal(text))) continue
             added += MemorySuggestion(ids.newId(), text, replaces, chatId, clock.nowMillis())
         }
-        if (added.isNotEmpty()) save(current.copy(pending = current.pending + added))
+        if (added.isEmpty()) Outcome.Success(Unit) else save(current.copy(pending = current.pending + added))
     }
 
     /**
      * Saves [text] (the user may have edited it) as a memory, rewriting the one this suggestion replaces, or saving
      * a new one when that's gone, and drops the suggestion. When memory refuses (full, too long) the suggestion stays
-     * and the failure says why.
+     * and the failure says why. When the memory is saved but the suggestion's removal can't be, that failure is
+     * returned and the suggestion stays; keeping it again is harmless, since remember collapses duplicates.
      */
     suspend fun keep(id: String, text: String): Outcome<Memory> = changes.withLock {
         val current = load()
@@ -94,14 +96,14 @@ class MemorySuggestions(
             changed != null -> Outcome.Success(changed)
             else -> memory.remember(text)
         }
-        if (saved is Outcome.Success) save(current.copy(pending = current.pending.filterNot { it.id == id }))
-        saved
+        if (saved !is Outcome.Success) return@withLock saved
+        save(current.copy(pending = current.pending.filterNot { it.id == id })).map { saved.value }
     }
 
     /** Drops the suggestion and remembers its words so it's never proposed again. */
-    suspend fun dismiss(id: String) = changes.withLock {
+    suspend fun dismiss(id: String): Outcome<Unit> = changes.withLock {
         val current = load()
-        val suggestion = current.pending.firstOrNull { it.id == id } ?: return@withLock
+        val suggestion = current.pending.firstOrNull { it.id == id } ?: return@withLock Outcome.Success(Unit)
         val dismissed = (current.dismissed - normal(suggestion.text) + normal(suggestion.text)).takeLast(limits.maxDismissed)
         save(current.copy(pending = current.pending.filterNot { it.id == id }, dismissed = dismissed))
     }
@@ -109,7 +111,7 @@ class MemorySuggestions(
     /** How many of the user's words [chatId] had when it was last reviewed; 0 if never. */
     suspend fun reviewedCount(chatId: String): Int = load().reviewedUserWords[chatId] ?: 0
 
-    suspend fun markReviewed(chatId: String, userWords: Int) = changes.withLock {
+    suspend fun markReviewed(chatId: String, userWords: Int): Outcome<Unit> = changes.withLock {
         val current = load()
         val reviewed = (current.reviewedUserWords - chatId + (chatId to userWords)).entries.toList()
             .takeLast(limits.maxReviewedChats).associate { it.key to it.value }
@@ -121,11 +123,10 @@ class MemorySuggestions(
         return state.value
     }
 
-    /** A failed save keeps what's in hand for this launch; the next change tries again. */
-    private suspend fun save(next: SuggestionsState) {
+    /** Publishes [next] only once it's saved, as MemoryStore does, so what the UI shows is what a restart will find. */
+    private suspend fun save(next: SuggestionsState): Outcome<Unit> = backend.save(next).map {
         state.value = next
         _pending.value = next.pending
-        backend.save(next)
     }
 
     private fun normal(text: String) = text.trim().lowercase()
