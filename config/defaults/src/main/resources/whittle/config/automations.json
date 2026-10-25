@@ -31,6 +31,14 @@
       "default": false
     },
     {
+      "key": "health",
+      "icon": "health_connect",
+      "label": "Read your health data",
+      "toolIds": ["health_data"],
+      "capabilities": ["health", "health_background"],
+      "default": false
+    },
+    {
       "key": "contacts",
       "icon": "contacts",
       "label": "Look up your contacts",
@@ -55,6 +63,14 @@
     }
   ],
   "ideas": [
+    {
+      "icon": "health_connect",
+      "name": "Weekly health check-in",
+      "prompt": "Compare this week's sleep, steps and workouts with last week's, and tell me one thing to change.",
+      "minuteOfDay": 480,
+      "days": [7],
+      "tools": ["clock", "health"]
+    },
     {
       "icon": "wb_sunny",
       "name": "Morning brief",

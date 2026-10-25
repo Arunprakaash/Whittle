@@ -14,7 +14,7 @@ import app.whittle.core.config.ConfigFiles
 import app.whittle.core.config.ConfigName
 import app.whittle.core.config.HarnessConfig
 import app.whittle.core.config.ConfigLoader
-import app.whittle.design.icons.MaterialSymbols
+import app.whittle.design.icons.WhittleIcons
 import app.whittle.linux.LinuxBaseSetup
 import app.whittle.linux.LinuxConfig
 import app.whittle.phone.PhoneActionsConfig
@@ -47,7 +47,7 @@ class BundledAppConfigTest {
         val defaults = assertIs<Outcome.Success<AppDefaults>>(loader.load(AppDefaults.FILE, AppDefaults.serializer(), AppDefaults.SCHEMA_VERSION)).value
         val phone = assertIs<Outcome.Success<PhoneActionsConfig>>(loader.load(PhoneActionsConfig.FILE, PhoneActionsConfig.serializer(), PhoneActionsConfig.SCHEMA_VERSION)).value
         assertEquals(3, defaults.starters.size)
-        val missingIcons = defaults.starters.map { it.icon }.toSet() - MaterialSymbols.names
+        val missingIcons = defaults.starters.map { it.icon }.toSet() - WhittleIcons.names
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
         assertTrue(defaults.starters.all { it.title.isNotBlank() && it.prompt.isNotBlank() })
         val features = phone.switches.map { it.id }.toSet()
@@ -58,7 +58,7 @@ class BundledAppConfigTest {
     fun `app ideas have bundled icons and something to ask`() {
         val defaults = assertIs<Outcome.Success<AppDefaults>>(loader.load(AppDefaults.FILE, AppDefaults.serializer(), AppDefaults.SCHEMA_VERSION)).value
         assertTrue(defaults.appIdeas.isNotEmpty())
-        val missingIcons = defaults.appIdeas.map { it.icon }.toSet() - MaterialSymbols.names
+        val missingIcons = defaults.appIdeas.map { it.icon }.toSet() - WhittleIcons.names
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
         assertTrue(defaults.appIdeas.all { it.title.isNotBlank() && it.prompt.isNotBlank() })
     }
@@ -108,7 +108,7 @@ class BundledAppConfigTest {
         val defaults = assertIs<Outcome.Success<AppDefaults>>(loader.load(AppDefaults.FILE, AppDefaults.serializer(), AppDefaults.SCHEMA_VERSION)).value
         val ideas = defaults.memory.ideas
         assertTrue(ideas.isNotEmpty())
-        val missingIcons = ideas.map { it.icon }.toSet() - MaterialSymbols.names
+        val missingIcons = ideas.map { it.icon }.toSet() - WhittleIcons.names
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
         assertTrue(ideas.all { it.title.isNotBlank() && it.start.isNotBlank() })
     }
@@ -118,7 +118,7 @@ class BundledAppConfigTest {
         val defaults = assertIs<Outcome.Success<AppDefaults>>(loader.load(AppDefaults.FILE, AppDefaults.serializer(), AppDefaults.SCHEMA_VERSION)).value
         assertEquals("uploads", defaults.attachments.directoryName)
         assertTrue(defaults.files.isPdf("receipts.PDF"))
-        val missingIcons = defaults.files.fileIcons.values.toSet() + defaults.files.defaultFileIcon + defaults.files.folderIcon - MaterialSymbols.names
+        val missingIcons = defaults.files.fileIcons.values.toSet() + defaults.files.defaultFileIcon + defaults.files.folderIcon - WhittleIcons.names
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
     }
 
@@ -130,7 +130,7 @@ class BundledAppConfigTest {
         assertTrue("--permission-prompt-tool" in config.runCommand && "stream-json" in config.runCommand)
         // Every sign-in Claude Code offers is offered here too, and their icons are bundled.
         assertEquals(setOf("--claudeai", "--console"), config.signInMethods.map { it.arguments }.toSet())
-        val missingIcons = (config.signInMethods.map { it.icon } + config.apiKey.icon).toSet() - MaterialSymbols.names
+        val missingIcons = (config.signInMethods.map { it.icon } + config.apiKey.icon).toSet() - WhittleIcons.names
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
         assertTrue(config.apiKey.checkUrl.startsWith("https://"))
         // Updates come from Claude Code's own list only, so nothing else in Linux changes under the user.
@@ -152,9 +152,9 @@ class BundledAppConfigTest {
         val toolIds = ToolCatalog.definitions.map { it.id.value }.toSet()
         val unknownTools = phone.switches.flatMap { it.tools } - toolIds
         assertTrue(unknownTools.isEmpty(), "phone-actions.json switches name tools that don't exist: $unknownTools")
-        val unknownCapabilities = phone.switches.flatMap { it.capabilities }.filter { AndroidCapabilities.permissionFor(CapabilityId(it)) == null }
-        assertTrue(unknownCapabilities.isEmpty(), "Capabilities without an Android permission: $unknownCapabilities")
-        val missingIcons = phone.switches.map { it.icon }.toSet() - MaterialSymbols.names
+        val unknownCapabilities = phone.switches.flatMap { it.capabilities }.filterNot { AndroidCapabilities.isKnown(CapabilityId(it)) }
+        assertTrue(unknownCapabilities.isEmpty(), "Capabilities Android and Health Connect can't grant: $unknownCapabilities")
+        val missingIcons = phone.switches.map { it.icon }.toSet() - WhittleIcons.names
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
     }
 
@@ -209,8 +209,10 @@ class BundledAppConfigTest {
         // A choice that changes files says where: the whole workspace without a project, only the project with one.
         val unlabelled = config.tools.filter { choice -> choice.toolIds.any { tiers.getValue(it) !in readOnly } && choice.labelInProject == null }
         assertTrue(unlabelled.isEmpty(), "Give these a labelInProject: ${unlabelled.map { it.key }}")
-        val missingIcons = config.tools.map { it.icon }.toSet() - MaterialSymbols.names
+        val missingIcons = config.tools.map { it.icon }.toSet() - WhittleIcons.names
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
+        val unknownCapabilities = config.tools.flatMap { it.capabilities }.filterNot { AndroidCapabilities.isKnown(CapabilityId(it)) }
+        assertTrue(unknownCapabilities.isEmpty(), "automations.json asks for capabilities nothing can grant: $unknownCapabilities")
     }
 
     @Test
@@ -224,7 +226,7 @@ class BundledAppConfigTest {
         // An idea is one tap from saved, so like a new automation it never starts able to change anything.
         val changing = config.ideas.associate { it.name to config.toolIdsFor(it).filter { id -> tiers.getValue(id) !in readOnly } }.filterValues { it.isNotEmpty() }
         assertTrue(changing.isEmpty(), "These ideas would change things without asking: $changing")
-        val missingIcons = config.ideas.map { it.icon }.toSet() - MaterialSymbols.names
+        val missingIcons = config.ideas.map { it.icon }.toSet() - WhittleIcons.names
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
     }
 
@@ -236,7 +238,7 @@ class BundledAppConfigTest {
         val presentations = config.tools.values + config.fallback
         val named = presentations.flatMap { listOfNotNull(it.icon, it.decision?.icon, it.question?.icon) }.toSet() +
             config.capabilities.values.map { it.icon }
-        val missing = named - MaterialSymbols.names
+        val missing = named - WhittleIcons.names
         assertTrue(missing.isEmpty(), "Add these to design/system/icons/icons.txt: $missing")
     }
 

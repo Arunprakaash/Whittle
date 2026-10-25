@@ -482,7 +482,7 @@ class MainActivity : ComponentActivity() {
  * that view makes every session-replay screenshot fail PostHog's mask check, which left recordings black, and
  * each theme change would stack another one. So there the window is set up directly instead.
  */
-private fun ComponentActivity.drawBehindSystemBars(dark: Boolean) {
+internal fun ComponentActivity.drawBehindSystemBars(dark: Boolean) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
         val style = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark }
         enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)

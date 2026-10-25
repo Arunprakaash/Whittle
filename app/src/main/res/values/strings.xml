@@ -234,6 +234,15 @@
     <string name="settings_section_workspace">Workspace</string>
     <string name="settings_section_tasks">Tasks</string>
     <string name="phone_title">On this phone</string>
+    <string name="phone_health_needs_app">Needs Health Connect</string>
+    <string name="phone_health_unsupported">Not on this version of Android</string>
+    <string name="phone_health_get">Get it</string>
+    <string name="health_privacy_title">Your health data</string>
+    <string name="health_privacy_intro">Whittle reads it only when you ask, or when an automation you set up runs.</string>
+    <string name="health_privacy_reads">It reads only the kinds you allow in Health Connect: steps, distance, active calories, workouts, sleep, heart rate, resting heart rate and weight. It never adds or changes anything.</string>
+    <string name="health_privacy_model">What it reads goes to the AI model you chose, to answer you. Whittle has no server of its own; your chats stay on this phone.</string>
+    <string name="health_privacy_off">Switch it off in Whittle under Settings › On this phone › Health, or remove access in Health Connect.</string>
+    <string name="health_privacy_done">Done</string>
     <string name="phone_footer">Calls and messages always ask you first.</string>
     <plurals name="phone_reminders_waiting">
         <item quantity="one">%d reminder waiting</item>

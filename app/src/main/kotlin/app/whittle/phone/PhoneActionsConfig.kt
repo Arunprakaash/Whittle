@@ -3,17 +3,20 @@ package app.whittle.phone
 import app.whittle.core.config.ConfigName
 import app.whittle.core.config.VersionedConfig
 import app.whittle.reminders.Reminders
+import app.whittle.tools.android.HealthConnect
+import app.whittle.tools.android.HealthLimits
 import app.whittle.tools.android.MapLinks
 import app.whittle.tools.workspace.Workspaces
 import kotlinx.serialization.Serializable
 
-/** The phone tools' settings: where maps open, Whittle's own reminders, and what can be shared. */
+/** The phone tools' settings: where maps open, Whittle's own reminders, what can be shared, and reading health data. */
 @Serializable
 data class PhoneActionsConfig(
     override val schemaVersion: Int,
     val maps: Maps,
     val reminders: Reminders,
     val share: Share,
+    val health: Health,
     /** What the user can switch off in Settings › On this phone, each with the tools it stops. */
     val switches: List<Switch>,
     /** What a switched-off tool tells the model; `{{feature}}` is the switch's title. */
@@ -40,6 +43,29 @@ data class PhoneActionsConfig(
     @Serializable
     data class Share(val directoryName: String, val maxFileBytes: Long)
 
+    /**
+     * Health Connect: before Android 14 it's [providerPackage] from Play, opened with [installUri] (`{{package}}`). Reads
+     * cover [defaultDays] unless the model says, at most [maxDays] (or [maxHourlyDays] by hour), and [maxRecords] rows.
+     */
+    @Serializable
+    data class Health(
+        val providerPackage: String,
+        val installUri: String,
+        val defaultDays: Int,
+        val maxDays: Int,
+        val maxHourlyDays: Int,
+        val maxRecords: Int,
+    ) {
+        val limits: HealthLimits get() = HealthLimits(defaultDays, maxDays, maxHourlyDays)
+
+        init {
+            require(providerPackage.isNotBlank() && installUri.contains("{{package}}")) { "health.installUri must take {{package}}" }
+            require(maxRecords > 0) { "health.maxRecords must be positive" }
+            // Builds the limits once, so bad day counts fail when the config loads.
+            limits
+        }
+    }
+
     init {
         require(maps.searchUri.contains("{{query}}")) { "maps.searchUri must take {{query}}" }
         require(maps.directionsUri.contains("{{destination}}") && maps.directionsUri.contains("{{mode}}")) { "maps.directionsUri must take {{destination}} and {{mode}}" }
@@ -56,6 +82,6 @@ data class PhoneActionsConfig(
 
 /**
  * What the phone tools need from the app: their config, Whittle's reminders, the workspace files can be shared from,
- * and whether the user left each switch on.
+ * Health Connect, and whether the user left each switch on.
  */
-class PhoneTools(val config: PhoneActionsConfig, val reminders: Reminders, val workspaces: Workspaces, val isOn: (String) -> Boolean)
+class PhoneTools(val config: PhoneActionsConfig, val reminders: Reminders, val workspaces: Workspaces, val health: HealthConnect, val isOn: (String) -> Boolean)

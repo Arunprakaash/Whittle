@@ -92,6 +92,11 @@
       "running": "Checking your calendar",
       "done": "Checked your calendar"
     },
+    "health_data": {
+      "icon": "health_connect",
+      "running": "Checking your {{kind}}",
+      "done": "Checked your {{kind}}"
+    },
     "compose_message": {
       "icon": "sms",
       "running": "Opening Messages",
@@ -700,6 +705,15 @@
       "decline": "Not now",
       "grantedOutcome": "Calendar allowed",
       "deniedOutcome": "Calendar not allowed"
+    },
+    "health": {
+      "icon": "health_connect",
+      "title": "Let Whittle read your health data?",
+      "body": "Health Connect asks which kinds.",
+      "approve": "Allow",
+      "decline": "Not now",
+      "grantedOutcome": "Health data allowed",
+      "deniedOutcome": "Health data not allowed"
     },
     "calendar_write": {
       "icon": "event",

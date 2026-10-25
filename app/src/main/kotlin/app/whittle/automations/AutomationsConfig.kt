@@ -85,6 +85,8 @@ data class AutomationToolChoice(
     /** For one with a project, where file tools reach only that folder; [label] when it makes no difference. */
     val labelInProject: String? = null,
     val toolIds: List<String>,
+    /** What Android must grant first, asked when the user switches the row on (reading health data while closed, say). */
+    val capabilities: List<String> = emptyList(),
     /** On for a new automation. */
     val default: Boolean,
 ) {

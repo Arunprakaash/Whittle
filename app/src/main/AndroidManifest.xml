@@ -21,11 +21,26 @@
     <!-- Remove on an app's card asks Android to uninstall it; without this, Android 9 refuses the request. -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
+    <!-- Health: read-only, each kind granted on Health Connect's own screen (Settings › On this phone › Health). -->
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_DISTANCE" />
+    <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_WEIGHT" />
+    <!-- Data from before Health was allowed, and reads by automations while Whittle is closed. -->
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
+
     <!-- Android 11+ only shows the speech recognizer to apps that declare they use it. -->
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <!-- Health Connect's app, on Android 9 to 13 where it isn't part of the system. -->
+        <package android:name="com.google.android.apps.healthdata" />
     </queries>
 
     <application
@@ -61,6 +76,25 @@
             android:name=".QuickStartEntry"
             android:exported="false"
             android:targetActivity=".MainActivity" />
+        <!-- How Whittle uses health data. Health Connect opens it from its permission screen (the action, Android 13 and
+             lower) and from its settings (the alias, Android 14+); without it, Health Connect won't ask for Whittle. -->
+        <activity
+            android:name=".phone.HealthPrivacyActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+        <activity-alias
+            android:name=".phone.HealthPermissionUsage"
+            android:exported="true"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE"
+            android:targetActivity=".phone.HealthPrivacyActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
         <!-- Keeps a task the user started running while they are in another app; ends with the task. -->
         <service
             android:name=".background.AgentRunService"
