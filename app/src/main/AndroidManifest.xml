@@ -54,6 +54,13 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
+        <!-- How the launcher icon's New chat and Speak and the Quick Settings tile reach MainActivity. MainActivity is
+             exported, so another app could send it these actions; this alias isn't, so only Whittle's own shortcuts
+             and tile (which start activities as Whittle) can use it. -->
+        <activity-alias
+            android:name=".QuickStartEntry"
+            android:exported="false"
+            android:targetActivity=".MainActivity" />
         <!-- Keeps a task the user started running while they are in another app; ends with the task. -->
         <service
             android:name=".background.AgentRunService"
@@ -106,6 +113,17 @@
         <receiver
             android:name=".reminders.ReminderReceiver"
             android:exported="false" />
+        <!-- Whittle in Quick Settings: a tap opens a new chat. Only the system binds it. -->
+        <service
+            android:name=".quickstart.WhittleTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_notification"
+            android:label="@string/quick_tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
         <!-- Where the installer reports how an install went; only the system's PendingIntent reaches it. -->
         <receiver
             android:name=".apps.InstallResultReceiver"

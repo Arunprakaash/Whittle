@@ -1,6 +1,7 @@
 # Material Symbols Rounded used by the app. One name per line; add ":fill" for the filled variant too.
 # After editing, run: python3 design/system/icons/import_material_symbols.py
 add
+add_to_home_screen
 arrow_back
 arrow_downward
 arrow_forward
@@ -122,3 +123,7 @@ event
 directions
 apps
 call
+newspaper
+bedtime
+calculate
+storefront

@@ -85,6 +85,7 @@ fun LivePreviewSheet(item: ThreadItem.Process, viewModel: ChatViewModel, heightF
     val errors = console.count { it.error }
     val colors = MaterialTheme.colorScheme
     val noBrowser = stringResource(R.string.preview_no_browser)
+    val notPinned = stringResource(R.string.preview_add_home_failed)
     val askReady by viewModel.askToFixReady.collectAsStateWithLifecycle()
     val fixRequest = stringResource(R.string.preview_fix_message, viewModel.fixName(item.name))
     ModalBottomSheet(
@@ -112,6 +113,9 @@ fun LivePreviewSheet(item: ThreadItem.Process, viewModel: ChatViewModel, heightF
                                 }
                             }
                         },
+                        PreviewAction("add_to_home_screen", R.string.preview_add_home) {
+                            if (!viewModel.pinApp(item)) Toast.makeText(context, notPinned, Toast.LENGTH_SHORT).show()
+                        }.takeIf { viewModel.canPinApps },
                         PreviewAction("stop", R.string.preview_stop) { viewModel.stopProcess(item) },
                     )
                     TopBarActionGroup(Modifier.padding(end = WhittleSpace.s)) {
@@ -124,7 +128,7 @@ fun LivePreviewSheet(item: ThreadItem.Process, viewModel: ChatViewModel, heightF
             }
             Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = WhittleSpace.s)) {
                 if (url != null) {
-                    PreviewPage(url, reloads, live, onConsole = { line -> console.add(line); if (console.size > MAX_LINES) console.removeAt(0) }, modifier = Modifier.fillMaxSize())
+                    PreviewPage(url, reloads, ready = live && info?.listening == true, onConsole = { line -> console.add(line); if (console.size > MAX_LINES) console.removeAt(0) }, modifier = Modifier.fillMaxSize())
                 }
                 if (!live) NotRunning(item, viewModel, Modifier.align(Alignment.Center).padding(WhittleSpace.xxl))
                 if (live && !consoleOpen) {
@@ -151,7 +155,7 @@ fun LivePreviewSheet(item: ThreadItem.Process, viewModel: ChatViewModel, heightF
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun PreviewPage(url: String, reloads: Int, live: Boolean, onConsole: (ConsoleLine) -> Unit, modifier: Modifier) {
+private fun PreviewPage(url: String, reloads: Int, ready: Boolean, onConsole: (ConsoleLine) -> Unit, modifier: Modifier) {
     val context = LocalContext.current
     AndroidView(
         modifier = modifier,
@@ -181,17 +185,19 @@ private fun PreviewPage(url: String, reloads: Int, live: Boolean, onConsole: (Co
                         return true
                     }
                 }
-                tag = PageState(url, reloads)
-                if (live) loadUrl(url)
+                tag = PageState(url, reloads, loaded = ready)
+                if (ready) loadUrl(url)
             }
         },
         update = { view ->
             val shown = view.tag as PageState
+            // A preview opened before its server answers (a home-screen shortcut restarting it) loads once it does.
             when {
-                shown.url != url -> view.loadUrl(url)
+                !ready -> Unit
+                !shown.loaded || shown.url != url -> view.loadUrl(url)
                 shown.reloads != reloads -> view.reload()
             }
-            view.tag = PageState(url, reloads)
+            view.tag = PageState(url, reloads, loaded = (shown.loaded && shown.url == url) || ready)
         },
         onRelease = { it.destroy() },
     )
@@ -201,7 +207,7 @@ private fun PreviewPage(url: String, reloads: Int, live: Boolean, onConsole: (Co
 /** One action in the preview's top bar group. */
 private class PreviewAction(val icon: String, val label: Int, val onClick: () -> Unit)
 
-private data class PageState(val url: String, val reloads: Int)
+private data class PageState(val url: String, val reloads: Int, val loaded: Boolean)
 
 @Composable
 private fun NotRunning(item: ThreadItem.Process, viewModel: ChatViewModel, modifier: Modifier) {

@@ -207,6 +207,12 @@
     <string name="notify_install_prompt_title">Tap to finish installing %1$s</string>
     <string name="notify_install_prompt_title_unnamed">Tap to finish installing your app</string>
     <string name="notify_install_prompt_public">Tap to finish installing an app</string>
+    <string name="notify_update_title">Whittle %1$s is out</string>
+    <string name="notify_update_text">Tap to see what\'s new and download it</string>
+    <!-- Quick starts: the launcher icon's long-press menu and the Quick Settings tile -->
+    <string name="quick_new_chat">New chat</string>
+    <string name="quick_speak">Speak</string>
+    <string name="quick_tile_label">Ask Whittle</string>
     <!-- Settings -->
     <string name="settings_title">Settings</string>
     <string name="settings_back">Back</string>
@@ -234,6 +240,9 @@
     <string name="settings_cancel">Cancel</string>
     <string name="settings_section_about">About</string>
     <string name="settings_version_title">Version</string>
+    <string name="settings_version_update">%1$s · Version %2$s is out, tap to get it</string>
+    <string name="settings_updates_title">Check for updates</string>
+    <string name="settings_updates_subtitle">Asks GitHub once a day whether a newer Whittle is out</string>
     <string name="settings_section_connections">Connections</string>
     <string name="settings_section_memory">Memory</string>
     <string name="memory_title">What Whittle remembers</string>
@@ -482,6 +491,9 @@
     <string name="process_fix_message">Fix the error in %1$s and start it again</string>
     <string name="preview_reload">Reload</string>
     <string name="preview_open_browser">Open in browser</string>
+    <string name="preview_add_home">Add to home screen</string>
+    <string name="preview_add_home_failed">Your home screen doesn\'t take shortcuts.</string>
+    <string name="shortcut_chat_deleted">This app\'s chat was deleted</string>
     <string name="preview_stop">Stop</string>
     <string name="preview_close">Close</string>
     <string name="preview_console">Console</string>
@@ -567,6 +579,8 @@
     <string name="project_create">Create</string>
     <string name="project_cancel">Cancel</string>
     <string name="project_carry_on">Carry on with</string>
+    <string name="starters_title">Try one of these</string>
+    <string name="app_ideas_title">Or build something</string>
 
     <!-- Automations -->
     <string name="settings_section_automations">Automations</string>
@@ -578,6 +592,7 @@
     <string name="automation_empty_title">Nothing scheduled yet</string>
     <string name="automation_empty_body">Pick a time and the days. Whittle does the task then, and a notification tells you when it\'s done.</string>
     <string name="automation_ideas">Start from one of these</string>
+    <string name="automation_more_ideas">More to start from</string>
     <string name="automation_new">New automation</string>
     <string name="automation_limit">You can have up to %1$d</string>
     <string name="automation_every_day">Every day</string>

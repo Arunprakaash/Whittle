@@ -8,6 +8,7 @@ import app.whittle.design.R
 object MaterialSymbols {
     private val outlined: Map<String, Int> = mapOf(
         "add" to R.drawable.ms_add,
+        "add_to_home_screen" to R.drawable.ms_add_to_home_screen,
         "arrow_back" to R.drawable.ms_arrow_back,
         "arrow_downward" to R.drawable.ms_arrow_downward,
         "arrow_forward" to R.drawable.ms_arrow_forward,
@@ -129,6 +130,10 @@ object MaterialSymbols {
         "directions" to R.drawable.ms_directions,
         "apps" to R.drawable.ms_apps,
         "call" to R.drawable.ms_call,
+        "newspaper" to R.drawable.ms_newspaper,
+        "bedtime" to R.drawable.ms_bedtime,
+        "calculate" to R.drawable.ms_calculate,
+        "storefront" to R.drawable.ms_storefront,
     )
 
     private val filled: Map<String, Int> = mapOf(

@@ -38,6 +38,8 @@ import app.whittle.tools.api.ToolId
 import app.whittle.tools.api.WorkspaceId
 import app.whittle.tools.workspace.ChatProjects
 import app.whittle.tools.workspace.ProcessInfo
+import app.whittle.settings.Starter
+import app.whittle.settings.AppIdea
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -53,6 +55,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -83,6 +86,10 @@ data class ChatState(
     val projects: List<ProjectFolder> = emptyList(),
     /** Photos and files added to the next message, already saved in the workspace. */
     val attachments: List<Attachment> = emptyList(),
+    /** The app card whose preview opens now, asked for from outside the chat (its home-screen shortcut). */
+    val openPreview: String? = null,
+    /** The mic should start listening now, asked for from outside the app (Speak on the launcher icon). */
+    val listenNow: Boolean = false,
     /** How many picked items are still being saved. */
     val attaching: Int = 0,
 ) {
@@ -428,8 +435,14 @@ class ChatViewModel(
 
     fun toggleSummary(key: String) = current.value.toggleSummary(key)
 
-    /** Starts a fresh chat; a task working in the one on screen keeps going. */
-    fun newChat() = switchTo(newSession())
+    /** Starts a fresh chat; a task working in the one on screen keeps going. With [listen], the mic starts at once. */
+    fun newChat(listen: Boolean = false) {
+        switchTo(newSession())
+        if (listen) _state.update { it.copy(listenNow = true) }
+    }
+
+    /** The screen started the listening [newChat] asked for. */
+    fun listenStarted() = _state.update { it.copy(listenNow = false) }
 
     /** Opens a saved chat, live if its task is still working; a task working in the one on screen keeps going. */
     fun openChat(id: ChatId) {
@@ -463,6 +476,38 @@ class ChatViewModel(
         syncProject()
         refreshProjects()
     }
+
+    /**
+     * A home-screen shortcut to an app: opens its chat and the app's preview, starting the app again when it isn't running.
+     * Nothing changes when the chat or the card is gone.
+     */
+    fun openApp(opening: ShortcutOpening) {
+        viewModelScope.launch {
+            // At launch the last chat is restored first; opening before that finishes would be undone by it.
+            _state.first { !it.restoring }
+            val session = when (opening.chat) {
+                current.value.chatId -> current.value
+                in background.value -> background.value.getValue(opening.chat).also { background.update { it - opening.chat } }
+                else -> {
+                    val document = graph.chats.load(opening.chat).getOrNull()?.let { decode(it.document) } ?: return@launch
+                    newSession().also { it.load(opening.chat, document) }
+                }
+            }
+            if (session !== current.value) switchTo(session)
+            val card = session.state.value.items.firstOrNull { it.key == opening.cardKey } as? ThreadItem.Process ?: return@launch
+            if (graph.processes.processes.value.none { it.id == card.processId && it.live }) session.restartProcess(card)
+            _state.update { it.copy(openPreview = card.key) }
+        }
+    }
+
+    /** The screen opened the preview [openApp] asked for. */
+    fun previewOpened() = _state.update { it.copy(openPreview = null) }
+
+    /** Adds the app on [item] to the home screen; false when the launcher doesn't take shortcuts or the chat isn't saved. */
+    fun pinApp(item: ThreadItem.Process): Boolean = current.value.chatId?.let { graph.appShortcuts.pin(it, item) } == true
+
+    /** Whether apps can be added to the home screen at all. */
+    val canPinApps: Boolean get() = graph.appShortcuts.canPin
 
     /** Removes a chat for good: its messages, its saved runs and its workspace files. */
     fun deleteChat(id: ChatId) {
@@ -499,6 +544,7 @@ class ChatViewModel(
     }
 
     private suspend fun purge(id: ChatId) {
+        graph.appShortcuts.forget(id)
         val document = graph.chats.load(id).getOrNull()?.let { decode(it.document) }
         graph.chats.delete(id)
         document?.let { graph.checkpoints.delete(it.runIds + listOfNotNull(it.activeRunId)) }
@@ -623,6 +669,12 @@ class ChatViewModel(
 
     /** Runs the card's command again, in the same folder; the card follows the new process. */
     fun restartProcess(item: ThreadItem.Process) = current.value.restartProcess(item)
+
+    /** What the very first chat offers to try, without the ones whose phone feature the user switched off. */
+    val starters: List<Starter> get() = startersFor(graph.starters, graph.currentSettings.value?.phoneOff.orEmpty())
+
+    /** Things to build that a new chat offers. */
+    val appIdeas: List<AppIdea> get() = graph.appIdeas
 
     /** Sends [text] as the user's message, as if typed. */
     fun sendText(text: String) {

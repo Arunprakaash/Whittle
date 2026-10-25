@@ -145,6 +145,10 @@ with `read_process_output`, and `list_processes` / `stop_process` manage what ru
 when their chat is deleted, or with the app; the card restarts one with the same command. With Keep working in
 the background on, a notification lists them and keeps them running, with Stop all.
 
+Add to home screen, in the preview, pins an app like any other (`AppShortcuts`, with Android asking first). The
+shortcut opens Whittle at its chat with the preview, starting the app again if it stopped; once its chat is
+deleted, the shortcut stays greyed out instead of opening an empty Whittle.
+
 ### Automations
 
 An automation is a task Whittle runs by itself at a time of day, on chosen days. The user sets one up in
@@ -183,6 +187,9 @@ Tokens are kept in the vault and never pass through the chat.
   `DocumentsProvider`.
 - **Telemetry.** `observability:api` is vendor-neutral with consent filtering, and `observability:posthog`
   adapts it. Events carry metadata only. Session replays mask messages, answers, chat titles and apps.
+- **Updates.** Whittle is installed from GitHub, so once a day it asks GitHub's Releases for the latest version
+  (`updates` in app-defaults.json). A newer one shows under Settings › About and in one notification per version,
+  opening its release page. Only that request leaves the phone, and Settings › Check for updates turns it off.
 - **Design system.** W3C DTCG tokens in `docs/design/tokens` generate the Compose colors, type, spacing and
   Material 3 Expressive motion springs. A sprite file generates the beaver's animation and the launcher icon;
   the themed and notification icons are a W, since Android tints them one colour.

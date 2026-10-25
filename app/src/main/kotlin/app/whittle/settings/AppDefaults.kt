@@ -22,6 +22,9 @@ data class AppDefaults(
     val toolRuntime: ToolRuntimeDefaults,
     val memory: MemoryDefaults,
     val attachments: AttachmentDefaults,
+    val updates: UpdateDefaults,
+    val starters: List<Starter>,
+    val appIdeas: List<AppIdea>,
 ) : VersionedConfig {
     companion object {
         const val SCHEMA_VERSION = 1
@@ -90,6 +93,19 @@ data class SiteIconDefaults(
     }
 }
 
+/**
+ * Checking GitHub's Releases for a newer Whittle. [check] is the default of the user's switch in Settings; [latestReleaseUrl]
+ * is GitHub's latest-release endpoint, asked at most every [everyHours].
+ * What the last check found is kept in [fileName], under the app's cache folder.
+ */
+@Serializable
+data class UpdateDefaults(val check: Boolean, val latestReleaseUrl: String, val everyHours: Int, val fileName: String) {
+    init {
+        require(latestReleaseUrl.startsWith("https://")) { "updates.latestReleaseUrl must be https" }
+        require(everyHours > 0) { "updates.everyHours must be positive" }
+    }
+}
+
 /** Tasks keep running while the user is elsewhere, in a foreground service with an ongoing notification. */
 @Serializable
 data class BackgroundDefaults(val keepRunning: Boolean)
@@ -152,6 +168,20 @@ data class MemoryDefaults(
 /** A kind of thing worth remembering: what it's about, an example, and the words the editor starts with. */
 @Serializable
 data class MemoryIdea(val icon: String, val title: String, val example: String, val start: String)
+
+/**
+ * A task the first chat offers, one that works right away: no Linux, no connection. Tapping sends [prompt] as the user's
+ * message. One that needs the phone feature [feature] (an id in phone-actions.json) isn't offered while it's switched off.
+ */
+@Serializable
+data class Starter(val icon: String, val title: String, val prompt: String, val feature: String? = null)
+
+/**
+ * Something to build, offered in a new chat: tapping puts [prompt] in the composer, to send as it is or to finish first
+ * (one ending in ": " asks for a detail, like the shop's name).
+ */
+@Serializable
+data class AppIdea(val icon: String, val title: String, val prompt: String)
 
 /**
  * Photos and files the user adds to a message: where in the workspace they're saved (inside the chat's project when

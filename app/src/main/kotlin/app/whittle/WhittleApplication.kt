@@ -17,8 +17,10 @@ import app.whittle.apps.AppToolchainService
 import app.whittle.chat.ChatEvent
 import app.whittle.chat.ChatViewModel
 import app.whittle.storage.chats.ChatId
+import app.whittle.quickstart.QuickStart
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -48,6 +50,8 @@ class WhittleApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         notifications.createChannels()
+        QuickStart.publish(this)
+        graph.appShortcuts.migratePinned()
         registerActivityLifecycleCallbacks(VisibilityTracker())
         scope.launch {
             // Started with the task, while Whittle is on screen (Android refuses it once in the background).
@@ -58,6 +62,10 @@ class WhittleApplication : Application() {
         // Alarms don't survive a force stop or a restore from backup; setting them at each launch costs nothing.
         graph.appScope.launch { graph.automations.rescheduleAll() }
         graph.appScope.launch { graph.reminders.rescheduleAll() }
+        // Whittle is installed from GitHub, so it looks there for a newer version: once a day at most, while the user allows it.
+        graph.appScope.launch {
+            if (graph.settings.settings.first().checkForUpdates) graph.updates.checkIfDue()?.let(notifications::updateAvailable)
+        }
         // Base packages added in an update reach a Linux set up before it; then Claude Code, if installed, stays current.
         graph.appScope.launch {
             graph.linux.topUpPackages()

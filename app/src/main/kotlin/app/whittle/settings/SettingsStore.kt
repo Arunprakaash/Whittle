@@ -25,6 +25,8 @@ data class UserSettings(
     /** A task keeps running when the user leaves Whittle, with an ongoing notification to follow or stop it. */
     val keepRunningInBackground: Boolean,
     val themeMode: ThemeMode,
+    /** Whittle asks GitHub once a day whether a newer version is out (see [app.whittle.updates.UpdateCheck]). */
+    val checkForUpdates: Boolean,
     /** Draws the user's avatar ([app.whittle.design.components.BeaverAvatar]); made once per phone. */
     val avatarSeed: Long? = null,
     /** Onboarding offered Linux's setup once; it isn't offered there again, set up or not. */
@@ -45,6 +47,7 @@ class SettingsStore(context: Context, name: String, private val defaults: UserSe
             screenRecordings = stored[SCREEN_RECORDINGS] ?: defaults.screenRecordings,
             keepRunningInBackground = stored[KEEP_RUNNING] ?: defaults.keepRunningInBackground,
             themeMode = stored[THEME_MODE]?.let { saved -> ThemeMode.entries.firstOrNull { it.name == saved } } ?: defaults.themeMode,
+            checkForUpdates = stored[CHECK_FOR_UPDATES] ?: defaults.checkForUpdates,
             avatarSeed = stored[AVATAR_SEED],
             linuxOffered = stored[LINUX_OFFERED] ?: false,
             phoneOff = stored[PHONE_OFF].orEmpty(),
@@ -62,6 +65,8 @@ class SettingsStore(context: Context, name: String, private val defaults: UserSe
     suspend fun setKeepRunningInBackground(on: Boolean) = set(KEEP_RUNNING, on)
 
     suspend fun setLinuxOffered() = set(LINUX_OFFERED, true)
+
+    suspend fun setCheckForUpdates(on: Boolean) = set(CHECK_FOR_UPDATES, on)
 
     /** Lets Whittle use the phone feature [id] again, or stops it. */
     suspend fun setPhoneFeature(id: String, on: Boolean) {
@@ -91,5 +96,6 @@ class SettingsStore(context: Context, name: String, private val defaults: UserSe
         val AVATAR_SEED = longPreferencesKey("avatar_seed")
         val LINUX_OFFERED = booleanPreferencesKey("linux_offered")
         val PHONE_OFF = stringSetPreferencesKey("phone_off")
+        val CHECK_FOR_UPDATES = booleanPreferencesKey("check_for_updates")
     }
 }
