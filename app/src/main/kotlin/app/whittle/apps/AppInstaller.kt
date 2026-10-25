@@ -62,6 +62,16 @@ fun checkInstallable(card: ThreadItem.App, facts: ApkFacts, signerMatches: Boole
     return if (same) InstallCheck.OK else InstallCheck.CHANGED
 }
 
+/**
+ * Whether a downloaded update may replace Whittle: [ownPackage], never older than [installedVersion] (a reinstall of the
+ * same build is harmless), no shared user id, and signed with Whittle's own key. Android refuses a different key anyway;
+ * checking first says why instead of a failed install.
+ */
+fun checkSelfUpdate(facts: ApkFacts, signerMatches: Boolean, ownPackage: String, installedVersion: Long): InstallCheck {
+    val same = signerMatches && !facts.sharedUserId && facts.packageName == ownPackage && facts.versionCode >= installedVersion
+    return if (same) InstallCheck.OK else InstallCheck.CHANGED
+}
+
 /** Whether [result] says the APK is validly signed, with the v2 or v3 scheme, by exactly [expected] and nobody else. */
 fun signerMatches(result: ApkVerifier.Result, expected: X509Certificate): Boolean =
     result.isVerified && (result.isVerifiedUsingV2Scheme || result.isVerifiedUsingV3Scheme) &&
@@ -189,7 +199,7 @@ class AppInstaller(
         try {
             val prepared = withContext(Dispatchers.IO) { verifyForInstall(card, apk, copy, signer, inspector, configured, config.minSdk, config.targetSdk) }
             if (prepared != InstallCheck.OK) return InstallResult.CHANGED
-            return withContext(Dispatchers.IO) { commit(card, copy, onSession) }
+            return withContext(Dispatchers.IO) { commit(card.packageName, card.name, copy, onSession) }
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -199,9 +209,31 @@ class AppInstaller(
         }
     }
 
-    private suspend fun commit(card: ThreadItem.App, copy: File, onSession: (Int) -> Unit): InstallResult {
+    /**
+     * Installs a new version of Whittle itself from [apk], a download already checked against GitHub's digest, once it
+     * passes [checkSelfUpdate]. The user confirms on Android's prompt; once they do, Android replaces Whittle and this
+     * process ends. [appName] names the install in the prompt's notification.
+     */
+    suspend fun installUpdate(apk: File, appName: String): InstallResult = try {
+        val own = context.packageName
+        val ok = withContext(Dispatchers.IO) {
+            val expected = signerOf(context.packageManager, own)
+            val verified = expected != null &&
+                signerMatches(ApkVerifier.Builder(apk).setMinCheckedPlatformVersion(context.applicationInfo.minSdkVersion).build().verify(), expected)
+            val facts = (inspector.inspect(apk) as? Outcome.Success)?.value
+            val installed = installedVersion(own)?.toLong() ?: 0L
+            facts != null && checkSelfUpdate(facts, verified, own, installed) == InstallCheck.OK
+        }
+        if (!ok) InstallResult.CHANGED else withContext(Dispatchers.IO) { commit(own, appName, apk) {} }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        InstallResult.FAILED
+    }
+
+    private suspend fun commit(packageName: String, appName: String, copy: File, onSession: (Int) -> Unit): InstallResult {
         val installer = context.packageManager.packageInstaller
-        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply { setAppPackageName(card.packageName) }
+        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply { setAppPackageName(packageName) }
         val id = installer.createSession(params)
         sessions.started(id)
         onSession(id)
@@ -218,7 +250,7 @@ class AppInstaller(
                 awaitInstallResult(
                     config.installPromptTimeoutMinutes.minutes,
                     start = { deliver ->
-                        waiting[id] = Waiting(card.name, deliver)
+                        waiting[id] = Waiting(appName, deliver)
                         // The system fills in the status and the confirmation prompt, so the intent must stay mutable on 31+.
                         val flags = PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
                         val receiver = Intent(context, InstallResultReceiver::class.java).setPackage(context.packageName)

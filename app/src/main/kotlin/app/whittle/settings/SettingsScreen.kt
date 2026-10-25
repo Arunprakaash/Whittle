@@ -59,7 +59,13 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
+import android.provider.Settings
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
+import app.whittle.updates.UpdateFailure
+import app.whittle.updates.UpdateState
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import app.whittle.assistant.AssistantRole
@@ -272,14 +278,31 @@ fun SettingsScreen(
                         }
                     }
                 }
+                val updating by graph.selfUpdate.state.collectAsStateWithLifecycle()
+                // Android's install setting, the first time: the update waits there and carries on when the user is back.
+                LaunchedEffect(updating) {
+                    if (updating is UpdateState.NeedsPermission) openInstallSetting(context)
+                }
+                LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+                    if (graph.selfUpdate.state.value is UpdateState.NeedsPermission) graph.selfUpdate.start()
+                }
                 SettingsSection(stringResource(R.string.settings_section_about)) {
                     SettingsRow(
                         icon = "info",
                         title = stringResource(R.string.settings_version_title),
-                        subtitle = update?.let { stringResource(R.string.settings_version_update, version, it.version) } ?: version,
+                        subtitle = versionLine(version, update?.version, updating),
                         shape = segmentedShape(0, 2),
                         onClick = openRelease,
-                        trailing = openRelease?.let { open -> { TextButton(onClick = open) { Text(stringResource(R.string.settings_update_button)) } } },
+                        trailing = update?.let {
+                            when (updating) {
+                                is UpdateState.Downloading, is UpdateState.Installing -> {
+                                    { CircularProgressIndicator(Modifier.size(WhittleSize.Icon.m), strokeWidth = WhittleSpace.hairline) }
+                                }
+                                else -> {
+                                    { TextButton(onClick = graph.selfUpdate::start) { Text(stringResource(R.string.settings_update_button)) } }
+                                }
+                            }
+                        },
                     )
                     SettingsToggleRow(
                         icon = "download",
@@ -313,6 +336,33 @@ fun SettingsScreen(
     }
 }
 
+
+/** The Version row's line: the version, then a newer one that's out, or how updating to it is going. */
+@Composable
+private fun versionLine(version: String, latest: String?, updating: UpdateState): String = when (updating) {
+    is UpdateState.Downloading -> stringResource(R.string.settings_update_downloading, updating.version, updating.percent)
+    is UpdateState.Installing -> stringResource(R.string.settings_update_installing, updating.version)
+    is UpdateState.NeedsPermission -> stringResource(R.string.settings_update_allow)
+    is UpdateState.Failed -> stringResource(
+        when (updating.reason) {
+            UpdateFailure.NETWORK -> R.string.settings_update_failed_network
+            UpdateFailure.MISMATCH -> R.string.settings_update_failed_mismatch
+            UpdateFailure.NOT_WHITTLE -> R.string.settings_update_failed_not_whittle
+            UpdateFailure.INSTALL -> R.string.settings_update_failed_install
+            UpdateFailure.NO_APK -> R.string.settings_update_failed_no_apk
+        },
+    )
+    UpdateState.Idle -> latest?.let { stringResource(R.string.settings_version_update, version, it) } ?: version
+}
+
+/** Android's "Install unknown apps" page for Whittle. */
+private fun openInstallSetting(context: Context) {
+    try {
+        context.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, "package:${context.packageName}".toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (_: ActivityNotFoundException) {
+        // No such page on this phone; the row still says to allow installs.
+    }
+}
 
 /**
  * When the update check last heard from GitHub, in plain words: "Checked 3 hours ago", "Checked yesterday". A check that

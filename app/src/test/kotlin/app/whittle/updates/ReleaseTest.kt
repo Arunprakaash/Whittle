@@ -29,6 +29,31 @@ class ReleaseTest {
         assertNull(parseLatestRelease("<html>"))
     }
 
+    private val asset = ApkAsset("Whittle-{version}.apk", "https://github.com/Arunprakaash/Whittle/releases/download/")
+    private val digest = "a".repeat(64)
+
+    private fun withApk(name: String = "Whittle-0.24.0.apk", url: String = "https://github.com/Arunprakaash/Whittle/releases/download/v0.24.0/Whittle-0.24.0.apk", digest: String? = "sha256:${this.digest}") =
+        """{"tag_name":"v0.24.0","html_url":"https://github.com/Arunprakaash/Whittle/releases/tag/v0.24.0","assets":[""" +
+            """{"name":"$name","browser_download_url":"$url","size":6768348${digest?.let { ",\"digest\":\"$it\"" } ?: ""}}]}"""
+
+    @Test
+    fun `the release's own APK is found, with GitHub's digest`() {
+        assertEquals(
+            ReleaseApk("https://github.com/Arunprakaash/Whittle/releases/download/v0.24.0/Whittle-0.24.0.apk", digest, 6768348),
+            parseLatestRelease(withApk(), asset)?.apk,
+        )
+    }
+
+    @Test
+    fun `an APK without a digest, under another address or under another name is not offered`() {
+        assertEquals(null, parseLatestRelease(withApk(digest = null), asset)?.apk)
+        assertEquals(null, parseLatestRelease(withApk(digest = "md5:abc"), asset)?.apk)
+        assertEquals(null, parseLatestRelease(withApk(url = "https://evil.example/Whittle-0.24.0.apk"), asset)?.apk)
+        assertEquals(null, parseLatestRelease(withApk(name = "Whittle-0.23.0.apk"), asset)?.apk)
+        // The release itself is still offered; it updates from its page.
+        assertEquals("0.24.0", parseLatestRelease(withApk(digest = null), asset)?.version)
+    }
+
     @Test
     fun `versions compare by number, not by text`() {
         assertTrue(isNewer("0.21.0", "0.20.0"))

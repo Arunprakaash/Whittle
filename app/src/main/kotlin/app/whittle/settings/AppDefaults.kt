@@ -5,6 +5,7 @@ import app.whittle.core.config.ConfigName
 import app.whittle.core.config.VersionedConfig
 import app.whittle.tools.api.RiskTier
 import app.whittle.tools.api.ToolDefinition
+import app.whittle.updates.ApkAsset
 import kotlinx.serialization.Serializable
 
 /** App-level defaults shipped as config: appearance and on-device storage names. */
@@ -102,11 +103,26 @@ data class SiteIconDefaults(
  * What the last check found is kept in [fileName], under the app's cache folder.
  */
 @Serializable
-data class UpdateDefaults(val check: Boolean, val latestReleaseUrl: String, val everyHours: Int, val fileName: String) {
+data class UpdateDefaults(
+    val check: Boolean,
+    val latestReleaseUrl: String,
+    val everyHours: Int,
+    val fileName: String,
+    /** The release asset that is Whittle's APK, with `{version}` for the release's version. */
+    val apkFileName: String,
+    /** Where that APK may be downloaded from: this repository's releases, so no other address is ever installed. */
+    val apkUrlPrefix: String,
+    /** The folder in the app's cache an update downloads to. */
+    val downloadDirectory: String,
+) {
     init {
         require(latestReleaseUrl.startsWith("https://")) { "updates.latestReleaseUrl must be https" }
         require(everyHours > 0) { "updates.everyHours must be positive" }
+        require("{version}" in apkFileName) { "updates.apkFileName must contain {version}" }
+        require(apkUrlPrefix.startsWith("https://") && apkUrlPrefix.endsWith("/")) { "updates.apkUrlPrefix must be an https folder" }
     }
+
+    val apkAsset: ApkAsset get() = ApkAsset(apkFileName, apkUrlPrefix)
 }
 
 /**

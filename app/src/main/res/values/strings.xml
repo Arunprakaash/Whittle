@@ -213,7 +213,10 @@
     <string name="notify_install_prompt_title_unnamed">Tap to finish installing your app</string>
     <string name="notify_install_prompt_public">Tap to finish installing an app</string>
     <string name="notify_update_title">Whittle %1$s is out</string>
-    <string name="notify_update_text">Tap to see what\'s new and download it</string>
+    <string name="notify_update_text">Tap to see what\'s new</string>
+    <string name="notify_update_now">Update</string>
+    <string name="notify_update_downloading">Downloading Whittle %1$s</string>
+    <string name="notify_update_installing">Installing Whittle %1$s</string>
     <string name="notify_sign_in_title">Sign in to %1$s again</string>
     <string name="notify_sign_in_text">It signed Whittle out, so its tools are off until you do</string>
     <!-- Quick starts: the launcher icon's long-press menu and the Quick Settings tile -->
@@ -250,6 +253,14 @@
     <string name="settings_version_title">Version</string>
     <string name="settings_update_button">Update</string>
     <string name="settings_version_update">%1$s · %2$s is out</string>
+    <string name="settings_update_downloading">Downloading %1$s · %2$d%%</string>
+    <string name="settings_update_installing">Installing %1$s</string>
+    <string name="settings_update_allow">Allow installs, then come back</string>
+    <string name="settings_update_failed_network">Download stopped. Tap Update to try again.</string>
+    <string name="settings_update_failed_mismatch">The download didn\'t match GitHub\'s. Tap Update to try again.</string>
+    <string name="settings_update_failed_not_whittle">That APK isn\'t this Whittle, so it wasn\'t installed</string>
+    <string name="settings_update_failed_install">Android didn\'t install it. Tap Update to try again.</string>
+    <string name="settings_update_failed_no_apk">No APK in this release. Tap here to get it from GitHub.</string>
     <string name="settings_updates_title">Check for updates</string>
     <string name="settings_updates_checked">Checked %1$s</string>
     <string name="settings_updates_checked_now">Checked just now</string>

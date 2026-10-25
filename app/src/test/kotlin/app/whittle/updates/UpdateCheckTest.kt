@@ -27,7 +27,7 @@ class UpdateCheckTest {
 
     private fun updates() = UpdateCheck(
         http,
-        UpdateDefaults(check = true, latestReleaseUrl = "https://api.github.com/repos/x/releases/latest", everyHours = 24, fileName = file.name),
+        UpdateDefaults(check = true, latestReleaseUrl = "https://api.github.com/repos/x/releases/latest", everyHours = 24, fileName = file.name, apkFileName = "Whittle-{version}.apk", apkUrlPrefix = "https://github.com/x/releases/download/", downloadDirectory = "updates"),
         currentVersion = "0.20.0",
         file = file,
     ) { now }
