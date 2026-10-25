@@ -54,6 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.whittle.AppGraph
 import app.whittle.R
 import app.whittle.design.components.SettingsRow
+import app.whittle.design.components.SkeletonBlock
 import app.whittle.design.components.StepGroup
 import app.whittle.design.components.StepStatus
 import app.whittle.design.components.StepUi
@@ -174,7 +175,8 @@ fun LinuxWorkspaceScreen(graph: AppGraph, onBack: () -> Unit) {
     val state by graph.linux.state.collectAsStateWithLifecycle()
     var confirming by remember { mutableStateOf<Confirm?>(null) }
     var cleared by remember { mutableIntStateOf(0) }
-    val used by produceState(0L, state, cleared) { value = graph.linux.usedBytes() }
+    // Null until measured, which reads the disk: the screen shows where the numbers go meanwhile.
+    val used by produceState<Long?>(null, state, cleared) { value = graph.linux.usedBytes() }
     val usage by produceState<LinuxUsage?>(null, state, cleared) { value = graph.linux.usage() }
     val processes by graph.processes.processes.collectAsStateWithLifecycle()
     val live = processes.filter { it.live }
@@ -202,10 +204,8 @@ fun LinuxWorkspaceScreen(graph: AppGraph, onBack: () -> Unit) {
                 is LinuxState.Failed -> item { SetUpButton(graph, R.string.linux_try_again) }
                 is LinuxState.SettingUp -> Unit
                 is LinuxState.Ready -> {
-                    usage?.let { breakdown ->
-                        item {
-                            StorageCard(breakdown) { graph.appScope.launch { graph.linux.clearCaches(); cleared++ } }
-                        }
+                    item {
+                        StorageCard(usage) { graph.appScope.launch { graph.linux.clearCaches(); cleared++ } }
                     }
                     if (live.isNotEmpty()) item {
                         RunningRow(live.map { it.name }) { graph.appScope.launch { graph.processes.stopAll() } }
@@ -251,11 +251,18 @@ private fun AppBuildingRow(graph: AppGraph) {
             else -> stringResource(R.string.app_toolchain_row_missing)
         },
         shape = RoundedCornerShape(WhittleRadius.l),
+        // Until it's read, nothing is known: not set up or set up.
+        loading = installed == null && state !is ToolchainState.Installing,
         // Remove is the row's one action, so it's a button, not a red row.
-        trailing = if (removable) {
-            { TextButton(onClick = { confirming = true }) { Text(stringResource(R.string.app_toolchain_remove)) } }
-        } else {
-            null
+        trailing = when {
+            removable -> {
+                { TextButton(onClick = { confirming = true }) { Text(stringResource(R.string.app_toolchain_remove)) } }
+            }
+            // Where Remove usually lands, so the row keeps its height when it does.
+            installed == null && state !is ToolchainState.Installing -> {
+                { Box(Modifier.height(WhittleSize.touchTarget), contentAlignment = Alignment.Center) { SkeletonBlock(Modifier.width(WhittleSize.Tile.xl).height(WhittleSpace.l)) } }
+            }
+            else -> null
         },
     )
     if (confirming) {
@@ -282,7 +289,7 @@ private data class Installed(val ready: Boolean, val size: Long?)
 
 /** Repair, reset and remove, from least to most drastic. */
 @Composable
-private fun ManageRows(graph: AppGraph, used: Long, onConfirm: (Confirm) -> Unit) {
+private fun ManageRows(graph: AppGraph, used: Long?, onConfirm: (Confirm) -> Unit) {
     val context = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
         SettingsRow(
@@ -302,7 +309,8 @@ private fun ManageRows(graph: AppGraph, used: Long, onConfirm: (Confirm) -> Unit
         SettingsRow(
             icon = "delete",
             title = stringResource(R.string.linux_remove),
-            subtitle = stringResource(R.string.linux_remove_body, Formatter.formatShortFileSize(context, used)),
+            subtitle = used?.let { stringResource(R.string.linux_remove_body, Formatter.formatShortFileSize(context, it)) },
+            loading = used == null,
             shape = segmentedShape(2, MANAGE_ROWS),
             destructive = true,
             onClick = { onConfirm(Confirm.Remove) },
@@ -332,34 +340,47 @@ private fun ConfirmDialog(confirm: Confirm, graph: AppGraph, onDone: () -> Unit)
     )
 }
 
-/** Where the space went, as one bar, with the caches clearable. */
+/**
+ * Where the space went, as one bar, with the caches clearable. Until [usage] is measured (null), the same layout shows
+ * with skeleton blocks where the bar, the sizes and the button go, so nothing jumps when they arrive.
+ */
 @Composable
-private fun StorageCard(usage: LinuxUsage, onClearCaches: () -> Unit) {
+private fun StorageCard(usage: LinuxUsage?, onClearCaches: () -> Unit) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     // One color at three strengths: the parts stay apart by lightness, whatever colors the wallpaper gives.
     val parts = listOf(
-        Triple(R.string.linux_storage_base, usage.base, colors.primary),
-        Triple(R.string.linux_storage_added, usage.added, colors.primary.copy(alpha = ADDED_ALPHA)),
-        Triple(R.string.linux_storage_caches, usage.caches, colors.primary.copy(alpha = CACHES_ALPHA)),
+        Triple(R.string.linux_storage_base, usage?.base, colors.primary),
+        Triple(R.string.linux_storage_added, usage?.added, colors.primary.copy(alpha = ADDED_ALPHA)),
+        Triple(R.string.linux_storage_caches, usage?.caches, colors.primary.copy(alpha = CACHES_ALPHA)),
     )
     Column(
         Modifier.fillMaxWidth().background(colors.surfaceContainerLow, RoundedCornerShape(WhittleRadius.xl)).padding(WhittleSpace.l),
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
     ) {
-        Row(Modifier.fillMaxWidth().height(WhittleSpace.m).clip(CircleShape), horizontalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
-            parts.filter { it.second > 0 }.forEach { (_, bytes, color) ->
-                Box(Modifier.weight(bytes.toFloat().coerceAtLeast(MIN_WEIGHT)).fillMaxHeight().background(color))
+        if (usage == null) {
+            SkeletonBlock(Modifier.fillMaxWidth().height(WhittleSpace.m))
+        } else {
+            Row(Modifier.fillMaxWidth().height(WhittleSpace.m).clip(CircleShape), horizontalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
+                parts.mapNotNull { (_, bytes, color) -> bytes?.takeIf { it > 0 }?.let { it to color } }.forEach { (bytes, color) ->
+                    Box(Modifier.weight(bytes.toFloat().coerceAtLeast(MIN_WEIGHT)).fillMaxHeight().background(color))
+                }
             }
         }
         parts.forEach { (label, bytes, color) ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
                 Box(Modifier.size(WhittleSpace.m).background(color, RoundedCornerShape(WhittleRadius.xs)))
                 Text(stringResource(label), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                Text(Formatter.formatShortFileSize(context, bytes), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+                if (bytes != null) {
+                    Text(Formatter.formatShortFileSize(context, bytes), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+                } else {
+                    SkeletonBlock(Modifier.width(WhittleSize.Tile.xl).height(WhittleSpace.l))
+                }
             }
         }
-        if (usage.caches > 0) {
+        if (usage == null) {
+            SkeletonBlock(Modifier.fillMaxWidth().height(WhittleSize.Button.default))
+        } else if (usage.caches > 0) {
             FilledTonalButton(onClick = onClearCaches, modifier = Modifier.fillMaxWidth()) {
                 WhittleIcon("block", size = WhittleSize.Icon.m)
                 Text(stringResource(R.string.linux_clear_caches, Formatter.formatShortFileSize(context, usage.caches)), modifier = Modifier.padding(start = WhittleSpace.s))
@@ -392,7 +413,7 @@ private enum class Confirm(val title: Int, val body: Int, val action: Int) {
 }
 
 /** What both screens share: what Linux is and, by state, its sizes, its setup steps or that it's ready ([readyBody]). */
-private fun androidx.compose.foundation.lazy.LazyListScope.linuxContent(graph: AppGraph, state: LinuxState, usedBytes: Long) {
+private fun androidx.compose.foundation.lazy.LazyListScope.linuxContent(graph: AppGraph, state: LinuxState, usedBytes: Long?) {
     val image = graph.linux.image
     item { IntroCard(image?.name.orEmpty(), state, usedBytes) }
     when (state) {
@@ -403,13 +424,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.linuxContent(graph: A
 }
 
 @Composable
-private fun IntroCard(imageName: String, state: LinuxState, usedBytes: Long) {
+private fun IntroCard(imageName: String, state: LinuxState, usedBytes: Long?) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val status = when (state) {
         LinuxState.NotSetUp -> stringResource(R.string.linux_status_not_set_up, imageName)
         is LinuxState.SettingUp -> stringResource(R.string.linux_status_setting_up, imageName)
-        is LinuxState.Ready -> stringResource(R.string.linux_status_ready, Formatter.formatShortFileSize(context, usedBytes))
+        is LinuxState.Ready -> usedBytes?.let { stringResource(R.string.linux_status_ready, Formatter.formatShortFileSize(context, it)) }
         is LinuxState.Failed -> stringResource(R.string.linux_status_failed, imageName)
     }
     Column(
@@ -424,7 +445,11 @@ private fun IntroCard(imageName: String, state: LinuxState, usedBytes: Long) {
             ) { WhittleIcon("terminal", tint = colors.onSecondaryContainer) }
             Column {
                 Text(if (state is LinuxState.Ready) imageName else stringResource(R.string.linux_intro_title), style = MaterialTheme.typography.titleMedium)
-                Text(status, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                if (status != null) {
+                    Text(status, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                } else {
+                    SkeletonBlock(Modifier.padding(vertical = WhittleSpace.hairline).width(WhittleSize.Tile.xl * 2).height(WhittleSpace.m))
+                }
             }
         }
         // Once it's ready, the title and status say it all.
