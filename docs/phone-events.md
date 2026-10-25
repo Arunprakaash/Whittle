@@ -225,6 +225,13 @@ New rules in `policy-rules.json`:
   Android's own Storage page roughly, and a delete of test files only.
 - Never uninstall Whittle or clear its data on the user's phone.
 
+**What the phone pass found about background limits** (vivo V2558, Android 16, 2026-10-25): with its default
+battery setting, vivo freezes Whittle soon after it leaves the screen, and AlarmManager then removes Whittle's alarms
+with `Reason=frozen`. That stops scheduled automations as well as event ones. Adding Whittle to the device-idle
+whitelist didn't help. Automations run once the phone's own setting ("Allow high background power consumption" on
+vivo) is on for Whittle. Whittle doesn't detect this. The Automations screen carries a short note pointing to the
+phone's battery settings. Separately, the charging job's "charging" constraint stayed false on slow USB charging.
+
 ## Packaging
 
 Three PRs, in order: **triggers** (with interval, code masking, limits, recipes), **storage tools**, **memory
