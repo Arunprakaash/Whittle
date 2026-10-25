@@ -168,7 +168,13 @@ class DeleteFilesTool(
             !attributes.isRegularFile -> return Check.Refused("isn't a regular file")
         }
         // A linked folder on the way would delete a file the card never showed.
-        val file = literal.canonicalFile
+        val file = try {
+            literal.canonicalFile
+        } catch (unreadable: IOException) {
+            return Check.Refused("can't be read")
+        } catch (denied: SecurityException) {
+            return Check.Refused("can't be read")
+        }
         if (!isInside(root, file) || file.toPath() != literal.toPath().normalize()) return Check.Refused("goes through a link")
         if (!seen.add(file)) return Check.Refused("is listed twice")
         return Check.Ready(file, attributes.size())

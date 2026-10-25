@@ -139,7 +139,7 @@ class FindFilesTool(
 
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
         val root = storage.root() ?: return ToolJson.missing(AndroidCapabilities.STORAGE)
-        if (!root.canRead()) return ToolJson.error("shared storage can't be read")
+        if (!withContext(Dispatchers.IO) { storage.canRead() }) return ToolJson.error("shared storage can't be read")
         val folder = resolveFolder(root, arguments[FOLDER]?.jsonPrimitive?.contentOrNull)
             ?: return ToolJson.error("folder must be an existing folder inside shared storage, like /sdcard/Download")
         val minBytes = arguments[MIN_BYTES]?.jsonPrimitive?.longOrNull ?: 0L

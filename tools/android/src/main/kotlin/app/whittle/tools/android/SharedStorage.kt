@@ -12,8 +12,8 @@ interface SharedStorage {
     /** The top of shared storage (what Android calls /sdcard), or null when [AndroidCapabilities.STORAGE] isn't granted. */
     fun root(): File?
 
-    /** True when [root] can be listed and read. */
-    fun canRead(): Boolean = root()?.canRead() == true
+    /** True when [root] can be listed. Asking for the listing, not the permission bit, so a listing the phone refuses reads as an error rather than as empty results. */
+    fun canRead(): Boolean = root()?.list() != null
 }
 
 /** Shared storage as the File API sees it, once [AndroidCapabilities.STORAGE] is granted. */

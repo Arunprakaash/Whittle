@@ -42,6 +42,16 @@ class FindFilesToolTest {
     }
 
     @Test
+    fun aListingThePhoneRefusesIsAnErrorNotEmptyResults() {
+        // A root that can't be listed (here, a plain file) must not read as "no matches".
+        val refused = object : SharedStorage {
+            override fun root() = File(root, "refused.bin").also { it.writeBytes(ByteArray(1)) }
+        }
+        val out = runBlocking { FindFilesTool(refused, FindFilesLimits(3, 1_000, 1_000_000), types) { 0L }.execute(JsonObject(emptyMap()), ctx) }
+        assertTrue(out.isError && "can't be read" in out.content, out.content)
+    }
+
+    @Test
     fun fileListIsCappedAndCountsTheRest() {
         repeat(5) { file("f$it.bin", ByteArray(10 + it)) }
 
