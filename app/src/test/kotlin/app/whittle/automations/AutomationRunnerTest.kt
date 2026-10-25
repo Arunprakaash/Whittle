@@ -82,6 +82,42 @@ class AutomationRunnerTest {
         assertTrue(alarms.set.any { !it.retry && it.atMillis > due }, "the next day's alarm must be set")
     }
 
+    private suspend fun Automations.savedEvery(minutes: Int): Automation {
+        val result = assertIs<SaveResult.Saved>(save(draft("Poll", "Check").copy(schedule = null, trigger = Trigger.Every(minutes))))
+        alarms.set.clear()
+        return result.automation
+    }
+
+    @Test
+    fun `an interval that can't start keeps its next run a slot later, retries, then notes the miss`() = runTest {
+        val (automations, runner) = setUp()
+        val every = automations.savedEvery(30)
+        chat.hasModel = false
+        val slot = 30 * 60_000L
+        runner.due(every.id, due)
+        assertEquals(due + slot, alarms.set.single { !it.retry }.atMillis)
+        assertEquals(Alarm(every.id, now + testAutomationsConfig.retryAfterMillis, due, retry = true), alarms.set.single { it.retry })
+        alarms.set.clear()
+        now = due + testAutomationsConfig.retryAfterMillis
+        runner.due(every.id, due)
+        assertEquals(due + slot, alarms.set.single { !it.retry }.atMillis)
+        alarms.set.clear()
+        now = due + testAutomationsConfig.giveUpAfterMillis
+        runner.due(every.id, due)
+        assertTrue(alarms.set.none { it.retry })
+        assertEquals(due, automations.all.value.single().missedAtMillis)
+    }
+
+    @Test
+    fun `an interval that starts sets one next alarm an interval after the run`() = runTest {
+        val (automations, runner) = setUp()
+        val every = automations.savedEvery(30)
+        runner.due(every.id, due)
+        assertEquals(1, chat.started.size)
+        assertEquals(due + 30 * 60_000L, alarms.set.single().atMillis)
+        assertTrue(alarms.set.none { it.retry })
+    }
+
     @Test
     fun `waits while the user is in the app, a task runs, the chats are loading or no model is connected`() = runTest {
         val (automations, runner) = setUp()

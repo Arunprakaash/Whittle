@@ -151,21 +151,29 @@ class Automations(
     /** Wakes [id] at [atMillis] to run the events waiting for it. Kept apart from its next run, like a retry. */
     fun setDrain(id: String, atMillis: Long) = alarms.set(id, atMillis, atMillis, retry = true)
 
-    /** Sets [id]'s next alarm from now. A run calls it before starting, so one failed run never ends the schedule. */
-    suspend fun scheduleNext(id: String) = changes.withLock { current().firstOrNull { it.id == id }?.let(::schedule) }
+    /**
+     * Sets [id]'s next alarm. A run calls it before starting, so one failed run never ends the schedule. [handledMillis]
+     * is the slot being run: an interval counts from it, so a run that can't start doesn't pull the next one to now.
+     */
+    suspend fun scheduleNext(id: String, handledMillis: Long = 0) = changes.withLock {
+        current().firstOrNull { it.id == id }?.let { schedule(it, handledMillis) }
+    }
 
     /** Tries [id] again shortly, keeping the time it was due so it can be given up on. */
     fun retryLater(id: String, scheduledForMillis: Long) {
         alarms.set(id, clock.nowMillis() + config.retryAfterMillis, scheduledForMillis, retry = true)
     }
 
-    /** When [automation] runs next, or null while it's off. */
-    fun nextRunMillis(automation: Automation): Long? {
+    /** When [automation] runs next, or null while it's off. An interval counts from its last run or [handledMillis], if later. */
+    fun nextRunMillis(automation: Automation, handledMillis: Long = 0): Long? {
         if (!automation.enabled) return null
         val now = clock.nowMillis()
         val trigger = automation.trigger
         return when {
-            trigger is Trigger.Every -> maxOf(now, (automation.lastRunAtMillis ?: now) + trigger.minutes * MILLIS_PER_MINUTE)
+            trigger is Trigger.Every -> {
+                val from = maxOf(automation.lastRunAtMillis ?: 0, handledMillis).takeIf { it > 0 } ?: now
+                maxOf(now, from + trigger.minutes * MILLIS_PER_MINUTE)
+            }
             automation.schedule != null -> automation.schedule.nextAfter(Instant.ofEpochMilli(now), zone).toEpochMilli()
             else -> null
         }
@@ -183,8 +191,8 @@ class Automations(
     private suspend fun store(automations: List<Automation>): Outcome<Unit> =
         backend.save(automations).also { if (it is Outcome.Success) _all.value = automations }
 
-    private fun schedule(automation: Automation): Long? {
-        val next = nextRunMillis(automation)
+    private fun schedule(automation: Automation, handledMillis: Long = 0): Long? {
+        val next = nextRunMillis(automation, handledMillis)
         if (next == null) {
             // An event automation has no next run, but may have a drain alarm waiting that a save mustn't wipe.
             if (automation.isEvent) alarms.cancelNext(automation.id) else alarms.cancel(automation.id)

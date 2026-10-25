@@ -40,7 +40,7 @@ class AutomationRunner(
     suspend fun due(id: String, scheduledForMillis: Long) {
         val automation = automations.get(id)?.takeIf { it.enabled } ?: return
         // The next run is set first, so a run that can't start never ends the schedule.
-        automations.scheduleNext(id)
+        automations.scheduleNext(id, scheduledForMillis)
         // Both alarms of one due time can go off; the first one that ran wins. An event run has no such time: the
         // events it took are gone from the queue, so a second alarm finds nothing.
         if (!automation.isEvent && (automation.lastRunAtMillis ?: 0) >= scheduledForMillis) return
