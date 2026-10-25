@@ -41,6 +41,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.FilledIconButton
@@ -181,6 +186,8 @@ fun Composer(
     attach: ComposerAttach? = null,
     /** Photos or files are attached, so the message can go without words. */
     hasAttachments: Boolean = false,
+    /** Moves the cursor into the composer from outside, e.g. so a new chat opens ready to type. */
+    focusRequester: FocusRequester? = null,
 ) {
     val colors = MaterialTheme.colorScheme
     val haptics = WhittleTheme.haptics
@@ -199,6 +206,10 @@ fun Composer(
     ) {
         attach?.let { AttachButton(it, enabled) }
         val listening = voice?.listening == true
+        // The field keeps the user's cursor. Text that changes from outside (an idea, words heard, a sent message
+        // clearing it) puts the cursor at its end, where the user carries on, not wherever it last was.
+        var field by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+        val shown = if (field.text == value) field else TextFieldValue(value, TextRange(value.length))
         // At least a button's height, so one line of text sits level with the buttons.
         Box(Modifier.weight(1f).heightIn(min = COMPOSER_BUTTON).padding(vertical = WhittleSpace.s), contentAlignment = Alignment.CenterStart) {
             when {
@@ -212,10 +223,12 @@ fun Composer(
                 else -> Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant)
             }
             BasicTextField(
-                value = value,
+                value = shown,
                 onValueChange = { typed ->
+                    field = typed
+                    if (typed.text == value) return@BasicTextField
                     if (listening) voice?.onTyped?.invoke()
-                    onValueChange(typed)
+                    onValueChange(typed.text)
                 },
                 enabled = enabled,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
@@ -226,6 +239,7 @@ fun Composer(
                 maxLines = COMPOSER_MAX_LINES,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
                     .semantics { contentDescription = placeholder }
                     // Hardware keyboards: Enter sends, Shift+Enter starts a new line.
                     .onPreviewKeyEvent { event ->

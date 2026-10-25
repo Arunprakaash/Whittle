@@ -66,6 +66,15 @@ import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration.Companion.seconds
 
+/** What the composer does as soon as it's on screen, asked for from outside it. */
+enum class ComposerStart {
+    /** The cursor in the composer and the keyboard up. */
+    TYPE,
+
+    /** The mic listening, as if it was tapped. */
+    LISTEN,
+}
+
 data class ChatState(
     val model: ModelDescriptor? = null,
     val items: List<ThreadItem> = emptyList(),
@@ -88,8 +97,8 @@ data class ChatState(
     val attachments: List<Attachment> = emptyList(),
     /** The app card whose preview opens now, asked for from outside the chat (its home-screen shortcut). */
     val openPreview: String? = null,
-    /** The mic should start listening now, asked for from outside the app (Speak on the launcher icon). */
-    val listenNow: Boolean = false,
+    /** What the composer does as soon as it's on screen: asked for by a quick start or an app idea. */
+    val composerStart: ComposerStart? = null,
     /** How many picked items are still being saved. */
     val attaching: Int = 0,
 ) {
@@ -435,14 +444,17 @@ class ChatViewModel(
 
     fun toggleSummary(key: String) = current.value.toggleSummary(key)
 
-    /** Starts a fresh chat; a task working in the one on screen keeps going. With [listen], the mic starts at once. */
-    fun newChat(listen: Boolean = false) {
+    /** Starts a fresh chat; a task working in the one on screen keeps going. With [start], the composer is ready to type or listening. */
+    fun newChat(start: ComposerStart? = null) {
         switchTo(newSession())
-        if (listen) _state.update { it.copy(listenNow = true) }
+        if (start != null) _state.update { it.copy(composerStart = start) }
     }
 
-    /** The screen started the listening [newChat] asked for. */
-    fun listenStarted() = _state.update { it.copy(listenNow = false) }
+    /** The screen did what [ChatState.composerStart] asked for. */
+    fun composerStarted() = _state.update { it.copy(composerStart = null) }
+
+    /** Puts an app idea's [prompt] in the composer, ready for the user to finish at its end. */
+    fun useIdea(prompt: String) = _state.update { it.copy(input = prompt, composerStart = ComposerStart.TYPE) }
 
     /** Opens a saved chat, live if its task is still working; a task working in the one on screen keeps going. */
     fun openChat(id: ChatId) {
