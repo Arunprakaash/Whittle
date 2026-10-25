@@ -65,7 +65,9 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
         val presentation = presentation(toolId)
         val arguments = own(presentation, calledWith)
         // A preview may pick another of the tool's cards, such as one saying nothing will happen.
-        val decision = preview?.variant?.let { config.tools["$toolId$VARIANT_SEPARATOR$it"]?.decision } ?: presentation?.decision
+        // A tool that fills its card from a preview but got none says so, rather than asking about something unchecked.
+        val variant = preview?.variant ?: UNCHECKED.takeIf { preview == null && presentation?.previewed.orEmpty().isNotEmpty() }
+        val decision = variant?.let { config.tools["$toolId$VARIANT_SEPARATOR$it"]?.decision } ?: presentation?.decision
             ?: config.fallback.decision ?: error("tool-presentation.json must define fallback.decision")
         val fallback = config.fallback.decision ?: decision
         val variables = variables(arguments, origin, preview?.card.orEmpty())
@@ -74,7 +76,8 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
             title = fill(decision.title, variables, fallback.title),
             body = (listOf(fill(decision.body, variables, fallback.body)) + flagNotes(decision, arguments)).filter { it.isNotBlank() }.joinToString(SENTENCE_GAP),
             // A card whose payload can't be filled shows the exact call instead, so it never asks about nothing.
-            payload = decision.payloadArgument?.let { variables[it] ?: describe(arguments) } ?: if (decision === fallback) describe(arguments) else null,
+            // Only a tool's own preview names fall back to the call; any other card never shows arguments raw.
+            payload = decision.payloadArgument?.let { name -> variables[name] ?: describe(arguments).takeIf { name in presentation?.previewed.orEmpty() } } ?: if (decision === fallback) describe(arguments) else null,
             payloadLabel = decision.payloadLabelArgument?.let { variables[it] },
             approve = fill(decision.approve, variables, fallback.approve),
             decline = fill(decision.decline, variables, fallback.decline),
@@ -147,6 +150,7 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
         const val TOOL_SOURCE = "toolSource"
         private const val SENTENCE_GAP = " "
         private const val VARIANT_SEPARATOR = "."
+        private const val UNCHECKED = "unchecked"
         private const val WWW_PREFIX = "www."
         private val TEMPLATE_NAME = ConfigName("tool-presentation.json")
     }

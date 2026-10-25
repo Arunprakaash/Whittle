@@ -42,6 +42,14 @@ class ToolPresenterTest {
                     decision.copy(title = "Delete these files for good?", body = "{{total}} in all.", payloadArgument = "listing", payloadLabelArgument = null),
                     previewed = listOf("listing", "count", "total"),
                 ),
+                "delete_files.unchecked" to ToolPresentation(
+                    "delete",
+                    "Deleting files",
+                    "Done",
+                    decision.copy(title = "Whittle couldn't check these files", body = "Nothing will be deleted.", payloadArgument = "listing", payloadLabelArgument = null),
+                    previewed = listOf("listing", "count", "total"),
+                ),
+                "set_alarm" to ToolPresentation("alarm", "Setting an alarm", "Set an alarm", decision.copy(title = "Set an alarm?", payloadArgument = "label", payloadLabelArgument = null)),
                 "delete_files.nothing" to ToolPresentation(
                     "delete",
                     "Deleting files",
@@ -134,6 +142,21 @@ class ToolPresenterTest {
         val card = presenter.decision("delete_files", args("""{"paths":["/sdcard/a.jpg"],"listing":"/sdcard/x.jpg  ·  1 B","total":"1 B"}"""))
         assertEquals("paths: [\"/sdcard/a.jpg\"]", card.payload)
         assertTrue("1 B" !in card.title + card.body + card.payload)
+    }
+
+    @Test
+    fun `a tool that fills its card from a preview but got none says nothing will be deleted`() {
+        val card = presenter.decision("delete_files", args("""{"paths":["/sdcard/a.jpg"]}"""))
+        assertEquals("Whittle couldn't check these files", card.title)
+        assertEquals("paths: [\"/sdcard/a.jpg\"]", card.payload)
+        // With a preview, the tool's own card stays.
+        val preview = CallPreview(mapOf("listing" to "x", "count" to "1", "total" to "1 B"), approved = listOf("/a"))
+        assertEquals("Delete these files for good?", presenter.decision("delete_files", args("{}"), preview = preview).title)
+    }
+
+    @Test
+    fun `a card whose payload is missing doesn't show the raw arguments unless the tool fills it itself`() {
+        assertNull(presenter.decision("set_alarm", args("""{"time":"07:30"}""")).payload)
     }
 
     @Test
