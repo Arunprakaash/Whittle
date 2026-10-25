@@ -105,13 +105,14 @@ internal class AnthropicRequestMapper {
     }
 
     /**
-     * A Claude turn goes back exactly as it came (see [AnthropicTurnCodec]). A turn from another model, or one cut short
-     * before Claude finished it, is rebuilt from its text and tool calls.
+     * A Claude turn goes back exactly as it came (see [AnthropicTurnCodec]). A turn from another model, one cut short
+     * before Claude finished it, or one kept with nothing in it, is rebuilt from its text and tool calls; an assistant turn
+     * with no content at all is left out, as the API rejects one.
      */
     private fun assistantMessage(message: Message): MessageParam? {
-        message.content.firstNotNullOfOrNull { (it as? ContentBlock.Reasoning)?.providerState?.let(AnthropicTurnCodec::unwrap) }?.let { content ->
-            return AnthropicTurnCodec.toParam(content)
-        }
+        message.content.firstNotNullOfOrNull { (it as? ContentBlock.Reasoning)?.providerState?.let(AnthropicTurnCodec::unwrap) }
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { content -> return AnthropicTurnCodec.toParam(content) }
         val blocks = message.content.mapNotNull { block ->
             when (block) {
                 is ContentBlock.Text -> block.text.takeIf { it.isNotEmpty() }?.let { ContentBlockParam.ofText(TextBlockParam.builder().text(it).build()) }

@@ -59,7 +59,8 @@ internal class AnthropicStreamParser {
                     citation.webSearchResultLocation().orElse(null)?.let { add(ModelEvent.SourceCited(it.url(), it.title().orElse(null))) }
                 }
             }
-            add(ModelEvent.ReasoningState(AnthropicTurnCodec.wrap(AnthropicTurnCodec.echoable(raw))))
+            // An empty turn (an early refusal, an empty end_turn) has nothing to send back: the API rejects empty content.
+            AnthropicTurnCodec.echoable(raw).takeIf { it.isNotEmpty() }?.let { add(ModelEvent.ReasoningState(AnthropicTurnCodec.wrap(it))) }
             add(ModelEvent.Usage(usage(message)))
             add(ModelEvent.Completed(stopReason(message)))
         }

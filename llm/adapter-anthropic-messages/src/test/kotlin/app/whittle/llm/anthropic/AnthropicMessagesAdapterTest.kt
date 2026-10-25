@@ -109,6 +109,23 @@ class AnthropicMessagesAdapterTest {
     }
 
     @Test
+    fun `an empty turn keeps nothing to send back, and is never sent back empty`() = runTest {
+        server.enqueue(sse(START + end("refusal")))
+        val events = adapter.stream(request(), provider(), Secret("sk-test")).toList()
+        assertTrue(events.none { it is ModelEvent.ReasoningState }, "nothing to replay")
+        assertEquals(StopReason.REFUSAL, events.filterIsInstance<ModelEvent.Completed>().single().stopReason)
+        server.takeRequest()
+
+        // A turn saved before this fix, with an empty replay state.
+        server.enqueue(sse(TEXT_TURN))
+        val empty = Message(Role.ASSISTANT, listOf(ContentBlock.Reasoning(text = null, providerState = AnthropicTurnCodec.wrap(JsonArray(emptyList())))))
+        val history = listOf(Message(Role.USER, listOf(ContentBlock.Text("Hi"))), empty, Message(Role.USER, listOf(ContentBlock.Text("Still there?"))))
+        adapter.stream(request(messages = history), provider(), Secret("sk-test")).toList()
+        val messages = Json.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject["messages"]!!.jsonArray
+        assertTrue(messages.none { it.jsonObject.string("role") == "assistant" && it.jsonObject["content"]!!.jsonArray.isEmpty() })
+    }
+
+    @Test
     fun `a turn from another model is rebuilt from its text and tool calls`() = runTest {
         server.enqueue(sse(TEXT_TURN))
         val other = Message(
