@@ -16,6 +16,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SwitchedToolTest {
@@ -55,6 +56,15 @@ class SwitchedToolTest {
     @Test
     fun `a switched tool keeps its own preview`() = runTest {
         val tool = switched(setOf(alarm), config) { true }.single()
+        assertEquals(alarm.preview(JsonObject(emptyMap())), tool.preview(JsonObject(emptyMap())))
+    }
+
+    @Test
+    fun `a switched-off tool has no preview`() = runTest {
+        var on = false
+        val tool = switched(setOf(alarm), config) { on }.single()
+        assertNull(tool.preview(JsonObject(emptyMap())))
+        on = true
         assertEquals(alarm.preview(JsonObject(emptyMap())), tool.preview(JsonObject(emptyMap())))
     }
 }

@@ -280,6 +280,11 @@ class BundledAppConfigTest {
         )
         assertFalse("Delete" in nothing.title || nothing.approve == "Delete")
         assertEquals(listing, nothing.payload)
+
+        // When the tool couldn't check the files at all, the card says nothing will go, with no Delete button.
+        val unchecked = ToolPresenter(config).decision(DeleteFilesTool.DEFINITION.id.value, arguments)
+        assertFalse("Delete" in unchecked.title || unchecked.approve == "Delete")
+        assertEquals("Nothing deleted", unchecked.approvedOutcome)
     }
 
     @Test

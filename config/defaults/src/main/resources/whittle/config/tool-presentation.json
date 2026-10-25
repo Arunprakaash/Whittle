@@ -109,6 +109,23 @@
         "declinedOutcome": "Kept"
       }
     },
+    "delete_files.unchecked": {
+      "icon": "delete",
+      "running": "Deleting files",
+      "done": "Finished deleting",
+      "previewed": ["listing", "count", "total"],
+      "decision": {
+        "icon": "delete",
+        "title": "Whittle couldn't check these files",
+        "body": "Nothing will be deleted. Ask again to see each file and its size.",
+        "payloadArgument": "listing",
+        "approve": "OK",
+        "approveIcon": "check",
+        "decline": "Dismiss",
+        "approvedOutcome": "Nothing deleted",
+        "declinedOutcome": "Nothing deleted"
+      }
+    },
     "delete_files.nothing": {
       "icon": "delete",
       "running": "Deleting files",
@@ -786,7 +803,7 @@
     "storage": {
       "icon": "folder",
       "title": "Let Whittle see your files?",
-      "body": "So it can find and read files in Downloads, photos and documents. Only the files it opens are shared with your AI provider.",
+      "body": "So it can see what's using space and find big, old or duplicate files. Names, folders and sizes go to your AI provider; what's inside your files doesn't.",
       "approve": "Allow",
       "decline": "Not now",
       "grantedOutcome": "Files allowed",

@@ -1,6 +1,7 @@
 package app.whittle.phone
 
 import app.whittle.tools.android.ToolJson
+import app.whittle.tools.api.CallPreview
 import app.whittle.tools.api.Tool
 import app.whittle.tools.api.ToolExecutionContext
 import app.whittle.tools.api.ToolOutput
@@ -18,6 +19,9 @@ class SwitchedTool(
 ) : Tool by tool {
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput =
         if (isOn(switch.id)) tool.execute(arguments, context) else ToolJson.error(offMessage.replace(FEATURE, switch.title))
+
+    // A switched-off tool must not read anything, not even to draw a card for a call that will do nothing.
+    override suspend fun preview(arguments: JsonObject): CallPreview? = if (isOn(switch.id)) tool.preview(arguments) else null
 
     private companion object {
         const val FEATURE = "{{feature}}"
