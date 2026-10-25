@@ -239,6 +239,8 @@ class BundledAppConfigTest {
         assertEquals(listOf(7), idea.days.toList())
         assertEquals(600, idea.minuteOfDay)
         assertTrue("storage" in idea.tools && "delete" in idea.prompt.lowercase())
+        // Nothing writes a report for a later run to compare with, so the prompt must not promise one.
+        assertFalse("storage-report" in idea.prompt)
     }
 
     @Test

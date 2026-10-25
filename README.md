@@ -161,7 +161,7 @@ files in shared storage (limits in `storage` in phone-actions.json). `delete_fil
 and it always shows a card listing each file and the total first; it deletes only what that card showed, for good.
 Access is the all files page in Android's settings from Android 11 (a prompt before), asked for on a card or by the
 Storage switch in Settings › On this phone. `open_app_storage` opens an app's own settings page, where the user clears
-its cache. The "Weekly storage check" idea reports what grew and proposes what to delete; no automation can be
+its cache. The "Weekly storage check" idea reports where storage stands and proposes what to delete; no automation can be
 set up to delete (a test keeps that).
 
 ### Automations

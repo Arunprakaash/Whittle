@@ -101,10 +101,13 @@ data class PhoneActionsConfig(
         require(offMessage.contains("{{feature}}")) { "offMessage must take {{feature}}" }
         require(reminders.maxReminders > 0 && reminders.maxTextChars > 0 && share.maxFileBytes > 0) { "phone-actions.json limits must be positive" }
         require(storage.maxFolders > 0 && storage.scanMillis > 0 && storage.maxResults > 0 && storage.oldDays > 0 && storage.maxHashBytes > 0 && storage.maxDeletePerCall > 0) { "phone-actions.json storage limits must be positive" }
+        require(storage.maxDeletePerCall <= MAX_DELETE_PER_CALL && storage.notDeleted.isNotBlank()) { "phone-actions.json storage.maxDeletePerCall must be at most $MAX_DELETE_PER_CALL and notDeleted must say something" }
         require(storage.types.keys == STORAGE_TYPES) { "phone-actions.json storage.types must list exactly $STORAGE_TYPES" }
     }
 
     companion object {
+        /** A delete card lists every file, so more than this wouldn't fit on one to read. */
+        private const val MAX_DELETE_PER_CALL = 50
         private val STORAGE_TYPES = setOf("image", "video", "audio", "document", "apk", "archive")
         const val SCHEMA_VERSION = 1
         val FILE = ConfigName("phone-actions.json")
