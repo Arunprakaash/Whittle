@@ -44,3 +44,9 @@ suspend fun reviewChat(
     automationName: String?,
     review: suspend (String, List<ThreadItem>, ModelDescriptor?, Boolean) -> Unit,
 ) = review(chatId, items, model, automationName != null)
+
+/**
+ * Whether a chat whose task just ended starts going quiet: not while it's working, and not while the user is looking
+ * at it (the chat on screen in a visible app); one they can't see, in another chat or with the app left, is.
+ */
+fun goesQuietWhenIdle(working: Boolean, onScreen: Boolean, appVisible: Boolean): Boolean = !working && (!onScreen || !appVisible)

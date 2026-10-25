@@ -208,7 +208,12 @@ class ChatViewModel(
         override fun idle(session: ChatSession) {
             // A chat finished in the background is saved; opening it again loads it like any other.
             val id = session.chatId ?: return
-            if (session === current.value || background.value[id] !== session) return
+            if (session === current.value) {
+                // Finished while the user is away from the app: that's when it starts going quiet.
+                if (goesQuietWhenIdle(session.working, onScreen = true, appVisible = appVisible)) quiet.left(id.value)
+                return
+            }
+            if (background.value[id] !== session) return
             background.update { it - id }
             session.close()
             quiet.left(id.value)
@@ -573,8 +578,11 @@ class ChatViewModel(
         refreshProjects()
     }
 
+    private var appVisible = true
+
     /** The user left Whittle: the chat on screen, if its task has ended, starts going quiet. */
     fun appLeft() {
+        appVisible = false
         val session = current.value
         val id = session.chatId ?: return
         if (!session.working) quiet.left(id.value)
@@ -582,6 +590,7 @@ class ChatViewModel(
 
     /** The user is back in Whittle, and so in the chat on screen. */
     fun appReturned() {
+        appVisible = true
         current.value.chatId?.let { quiet.returned(it.value) }
     }
 

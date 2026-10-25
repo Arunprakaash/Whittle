@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -73,5 +74,13 @@ class QuietReviewTest {
         reviewChat("a", emptyList(), model = null, automationName = "Morning news", review = review)
         reviewChat("b", emptyList(), model = null, automationName = null, review = review)
         assertEquals(listOf(true, false), calls)
+    }
+
+    @Test
+    fun `a task that ends after the user left the app starts the wait, one they are watching does not`() {
+        assertTrue(goesQuietWhenIdle(working = false, onScreen = true, appVisible = false))
+        assertFalse(goesQuietWhenIdle(working = false, onScreen = true, appVisible = true))
+        assertTrue(goesQuietWhenIdle(working = false, onScreen = false, appVisible = true))
+        assertFalse(goesQuietWhenIdle(working = true, onScreen = false, appVisible = false))
     }
 }
