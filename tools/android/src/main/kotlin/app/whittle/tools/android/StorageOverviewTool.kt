@@ -25,6 +25,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 /** What the overview may spend: the biggest [maxFolders] are listed, scanning stops after [scanMillis], "old" means [oldDays]. */
@@ -44,21 +45,22 @@ class StorageOverviewTool(
 
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
         val root = storage.root() ?: return ToolJson.missing(AndroidCapabilities.STORAGE)
-        if (!root.canRead()) return ToolJson.error("shared storage can't be read")
+        if (!withContext(Dispatchers.IO) { storage.canRead() }) return ToolJson.error("shared storage can't be read")
         val body = withContext(Dispatchers.IO) {
             // One budget for everything, so folders, media and Downloads together never run past scanMillis.
             val deadline = clock.nowMillis() + limits.scanMillis
-            val folders = topFolders(root, limits.maxFolders, deadline, clock::nowMillis)
+            // Cheapest first: the folder walk can use the whole budget, and the figures people ask for must not read 0 then.
             val media = mediaBytes(deadline)
             val oldCutoff = clock.nowMillis() - TimeUnit.DAYS.toMillis(limits.oldDays.toLong())
-            val downloads = bytesOlderThan(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), oldCutoff, deadline, clock::nowMillis)
+            val downloads = bytesOlderThan(File(root, Environment.DIRECTORY_DOWNLOADS), oldCutoff, deadline, clock::nowMillis)
+            val folders = topFolders(root, limits.maxFolders, deadline, clock::nowMillis)
             buildJsonObject {
                 totals()?.let { (total, free) ->
                     put(TOTAL, total)
                     put(FREE, free)
                 }
                 putJsonArray(FOLDERS) {
-                    folders.forEach { folder ->
+                    folders.folders.forEach { folder ->
                         addJsonObject {
                             put(NAME, folder.name)
                             put(BYTES, folder.bytes)
@@ -67,6 +69,7 @@ class StorageOverviewTool(
                         }
                     }
                 }
+                if (folders.partial) put(FOLDERS_PARTIAL, true)
                 putJsonObject(MEDIA) { media.forEach { (kind, size) -> put(kind, size.bytes) } }
                 if (media.values.any { it.partial }) put(MEDIA_PARTIAL, true)
                 put(OLD_DOWNLOADS, downloads.bytes)
@@ -112,6 +115,7 @@ class StorageOverviewTool(
         private const val BYTES = "bytes"
         private const val IS_FOLDER = "isFolder"
         private const val PARTIAL = "partial"
+        private const val FOLDERS_PARTIAL = "foldersPartial"
         private const val MEDIA = "media"
         private const val IMAGES = "images"
         private const val VIDEO = "video"
@@ -120,12 +124,12 @@ class StorageOverviewTool(
         private const val OLD_DOWNLOADS = "downloadsOld"
         private const val OLD_DAYS = "oldDays"
         private const val OLD_DOWNLOADS_PARTIAL = "downloadsOldPartial"
-        private val PROVENANCE = Provenance.Trusted
+        private val PROVENANCE = Provenance.Untrusted("your files")
 
         val DEFINITION = ToolDefinition(
             id = ToolId("storage_overview"),
             description = "Shows what is using the phone's storage: total and free bytes, the largest folders (partial=true means " +
-                "the size is at least that much), bytes used by images, video and audio, and bytes in Downloads older than oldDays days (downloadsOld). " +
+                "the size is at least that much; foldersPartial=true means the scan ran out of time, so some folders were not measured and the biggest may be missing from the list), bytes used by images, video and audio, and bytes in Downloads older than oldDays days (downloadsOld). " +
                 "Any figure marked partial (downloadsOldPartial, mediaPartial) is at least that much. Sizes only, no file contents.",
             inputSchema = Json.parseToJsonElement("""{"type":"object","properties":{}}""").jsonObject,
             riskTier = RiskTier.READ,

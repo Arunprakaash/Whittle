@@ -25,24 +25,29 @@ class StorageScanTest {
         file("loose.bin", 50)
 
         val result = topFolders(root, limit = 3, deadlineMillis = 1_000, now = { 0L })
+        assertFalse(result.partial)
+        val folders = result.folders
 
-        assertEquals(listOf("big", "medium", "loose.bin"), result.map { it.name })
-        assertEquals(listOf(600L, 200L, 50L), result.map { it.bytes })
-        assertTrue(result.none { it.partial })
+        assertEquals(listOf("big", "medium", "loose.bin"), folders.map { it.name })
+        assertEquals(listOf(600L, 200L, 50L), folders.map { it.bytes })
+        assertTrue(folders.none { it.partial })
     }
 
     @Test
-    fun deadlineMarksPartial() {
+    fun foldersCutOffByTheDeadlineAreReportedEvenWhenTheLimitDropsThem() {
         file("a/one.bin", 10)
-        file("a/two.bin", 10)
         file("b/one.bin", 10)
+        file("c/one.bin", 10)
+        file("d/one.bin", 10)
         var clock = 0L
 
-        // Every look at the clock costs a second, so the deadline passes part way through.
-        val result = topFolders(root, limit = 10, deadlineMillis = 2_000, now = { clock += 1_000; clock })
+        // Every look at the clock costs a second: the first folders are measured, the later ones are never reached.
+        val result = topFolders(root, limit = 1, deadlineMillis = 2_500, now = { clock += 1_000; clock })
 
-        assertTrue(result.any { it.partial })
-        assertFalse(result.isEmpty())
+        assertEquals(1, result.folders.size)
+        // The one listed was measured, but others were cut short and dropped by the limit, so the list can't be trusted.
+        assertFalse(result.folders.single().partial)
+        assertTrue(result.partial)
     }
 
     @Test
