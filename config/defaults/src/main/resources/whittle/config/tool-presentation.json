@@ -82,6 +82,11 @@
         "optionsArgument": "options"
       }
     },
+    "storage_overview": {
+      "icon": "folder",
+      "running": "Checking what's using your storage",
+      "done": "Checked your storage"
+    },
     "contacts_search": {
       "icon": "person_search",
       "running": "Looking up {{query}}",

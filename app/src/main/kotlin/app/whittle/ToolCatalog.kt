@@ -18,6 +18,8 @@ import app.whittle.tools.android.CalendarEventsTool
 import app.whittle.tools.android.HealthDataTool
 import app.whittle.tools.android.ComposeMessageTool
 import app.whittle.tools.android.ContactsSearchTool
+import app.whittle.tools.android.DeviceSharedStorage
+import app.whittle.tools.android.StorageOverviewTool
 import app.whittle.tools.android.AddCalendarEventTool
 import app.whittle.tools.android.CallTool
 import app.whittle.tools.android.OpenAppTool
@@ -46,6 +48,7 @@ object ToolCatalog {
         DeviceClockTool.DEFINITION,
         WebFetchTool.DEFINITION,
         ContactsSearchTool.DEFINITION,
+        StorageOverviewTool.DEFINITION,
         CalendarEventsTool.DEFINITION,
         HealthDataTool.DEFINITION,
         ComposeMessageTool.DEFINITION,
@@ -89,6 +92,7 @@ object ToolCatalog {
             DeviceClockTool(clock),
             WebFetchTool(httpClient),
             ContactsSearchTool(context),
+            StorageOverviewTool(context, DeviceSharedStorage(context), phone.config.storage.limits, clock),
             CalendarEventsTool(context, clock),
             HealthDataTool(phone.health, clock, phone.config.health.limits),
             ComposeMessageTool(context),

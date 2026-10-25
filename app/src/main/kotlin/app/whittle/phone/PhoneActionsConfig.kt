@@ -6,10 +6,11 @@ import app.whittle.reminders.Reminders
 import app.whittle.tools.android.HealthConnect
 import app.whittle.tools.android.HealthLimits
 import app.whittle.tools.android.MapLinks
+import app.whittle.tools.android.StorageLimits
 import app.whittle.tools.workspace.Workspaces
 import kotlinx.serialization.Serializable
 
-/** The phone tools' settings: where maps open, Whittle's own reminders, what can be shared, and reading health data. */
+/** The phone tools' settings: where maps open, Whittle's own reminders, what can be shared, reading health data, and storage. */
 @Serializable
 data class PhoneActionsConfig(
     override val schemaVersion: Int,
@@ -17,6 +18,7 @@ data class PhoneActionsConfig(
     val reminders: Reminders,
     val share: Share,
     val health: Health,
+    val storage: Storage,
     /** What the user can switch off in Settings › On this phone, each with the tools it stops. */
     val switches: List<Switch>,
     /** What a switched-off tool tells the model; `{{feature}}` is the switch's title. */
@@ -66,12 +68,19 @@ data class PhoneActionsConfig(
         }
     }
 
+    /** The storage tools: [maxFolders] listed by the overview, scans stop after [scanMillis], lists hold [maxResults], [oldDays] is "old". */
+    @Serializable
+    data class Storage(val maxFolders: Int, val scanMillis: Long, val maxResults: Int, val oldDays: Int) {
+        val limits: StorageLimits get() = StorageLimits(maxFolders, scanMillis, oldDays)
+    }
+
     init {
         require(maps.searchUri.contains("{{query}}")) { "maps.searchUri must take {{query}}" }
         require(maps.directionsUri.contains("{{destination}}") && maps.directionsUri.contains("{{mode}}")) { "maps.directionsUri must take {{destination}} and {{mode}}" }
         require(switches.map { it.id }.toSet().size == switches.size) { "phone-actions.json switch ids must be unique" }
         require(offMessage.contains("{{feature}}")) { "offMessage must take {{feature}}" }
         require(reminders.maxReminders > 0 && reminders.maxTextChars > 0 && share.maxFileBytes > 0) { "phone-actions.json limits must be positive" }
+        require(storage.maxFolders > 0 && storage.scanMillis > 0 && storage.maxResults > 0 && storage.oldDays > 0) { "phone-actions.json storage limits must be positive" }
     }
 
     companion object {

@@ -21,6 +21,12 @@
     "maxHourlyDays": 2,
     "maxRecords": 200
   },
+  "storage": {
+    "maxFolders": 10,
+    "scanMillis": 8000,
+    "maxResults": 200,
+    "oldDays": 90
+  },
   "switches": [
     {
       "id": "contacts",
