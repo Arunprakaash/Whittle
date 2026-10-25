@@ -141,6 +141,7 @@ object MaterialSymbols {
         "mobile_screen_share" to Res.drawable.ms_mobile_screen_share,
         "assistant" to Res.drawable.ms_assistant,
         "computer" to Res.drawable.ms_computer,
+        "lightbulb" to Res.drawable.ms_lightbulb,
     )
 
     private val filled: Map<String, DrawableResource> = mapOf(

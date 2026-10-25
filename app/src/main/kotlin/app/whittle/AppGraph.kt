@@ -493,7 +493,7 @@ class AppGraph(context: Context) {
         memory,
         PromptTemplate.load(configSource, ConfigFiles.memoryReviewPrompt).orThrow(ConfigFiles.memoryReviewPrompt),
         appDefaults.memory.review,
-        settings = { true },
+        settings = { currentSettings.value?.suggestMemories ?: true },
     )
 
     /** schedule_task: an automation takes the chat's project unless the model names another that exists. */

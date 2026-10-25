@@ -195,7 +195,7 @@ class CompanionServer(
         is Question.PdfPage -> Answer.Picture(files.pdfPage(question.path, question.index, question.widthPx)?.let { encode(it, PNG) })
         is Question.DeleteFile -> Answer.Done.also { files.delete(question.path) }
         is Question.AddComputer -> Answer.KeyAdded(linux.addComputer(question.key))
-        is Question.SaveMemory -> Answer.MemorySaved(memory.save(question.id, question.text))
+        is Question.SaveMemory -> Answer.MemorySaved(memory.save(question.id, question.text, question.suggestion))
         is Question.SaveAutomation -> Answer.AutomationSaved(automations.save(question.automation))
         is Question.RunAutomation -> Answer.Ran(automations.runNow(question.id))
         is Question.AddLibraryConnection -> Answer.ConnectionAdded(connections.addFromLibrary(question.url))

@@ -33,6 +33,8 @@ data class UserSettings(
     val linuxOffered: Boolean = false,
     /** The phone features (ids from phone-actions.json) the user switched off; Whittle doesn't use them. */
     val phoneOff: Set<String> = emptySet(),
+    /** After a chat goes quiet Whittle reviews it for facts worth remembering; each review is one small model call on the user's key. */
+    val suggestMemories: Boolean = true,
 )
 
 /** Settings saved on the phone. Only choices the user made are stored, so changed defaults still reach them. */
@@ -51,6 +53,7 @@ class SettingsStore(context: Context, name: String, private val defaults: UserSe
             avatarSeed = stored[AVATAR_SEED],
             linuxOffered = stored[LINUX_OFFERED] ?: false,
             phoneOff = stored[PHONE_OFF].orEmpty(),
+            suggestMemories = stored[SUGGEST_MEMORIES] ?: defaults.suggestMemories,
         )
     }
 
@@ -67,6 +70,8 @@ class SettingsStore(context: Context, name: String, private val defaults: UserSe
     suspend fun setLinuxOffered() = set(LINUX_OFFERED, true)
 
     suspend fun setCheckForUpdates(on: Boolean) = set(CHECK_FOR_UPDATES, on)
+
+    suspend fun setSuggestMemories(on: Boolean) = set(SUGGEST_MEMORIES, on)
 
     /** Lets Whittle use the phone feature [id] again, or stops it. */
     suspend fun setPhoneFeature(id: String, on: Boolean) {
@@ -97,5 +102,6 @@ class SettingsStore(context: Context, name: String, private val defaults: UserSe
         val LINUX_OFFERED = booleanPreferencesKey("linux_offered")
         val PHONE_OFF = stringSetPreferencesKey("phone_off")
         val CHECK_FOR_UPDATES = booleanPreferencesKey("check_for_updates")
+        val SUGGEST_MEMORIES = booleanPreferencesKey("suggest_memories")
     }
 }

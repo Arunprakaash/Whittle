@@ -24,6 +24,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -48,6 +49,7 @@ import app.whittle.design.components.MenuAction
 import app.whittle.design.components.ScreenHeading
 import app.whittle.design.components.SettingsRow
 import app.whittle.design.components.SettingsSection
+import app.whittle.design.components.SettingsToggleRow
 import app.whittle.design.components.SupportingNote
 import app.whittle.design.components.TopBarButton
 import app.whittle.design.components.WelcomeMascot
@@ -67,6 +69,7 @@ import app.whittle.files.ui.nowMillis
 import app.whittle.settings.ui.resources.Res
 import app.whittle.settings.ui.resources.*
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -85,8 +88,8 @@ fun MemoryScreen(host: MemoryHost, onBack: () -> Unit) {
     }
 }
 
-/** What the editor opens on: a saved memory, or the words a new one starts with. */
-private data class MemoryDraft(val memory: MemoryEntry?, val text: String)
+/** What the editor opens on: a saved memory, the words a new one starts with, or a suggestion to edit and keep. */
+private data class MemoryDraft(val memory: MemoryEntry?, val text: String, val suggestion: SuggestedEntry? = null)
 
 /** A top bar inside a computer's window: clear of its own buttons, and moving the window when dragged. */
 @Composable
@@ -106,6 +109,9 @@ private fun MemoryList(host: MemoryHost, onBack: () -> Unit, onOpen: (MemoryDraf
     BackHandler(enabled = true, onBack = onBack)
     val state by host.state.collectAsState()
     val memories = state.memories
+    val suggested = state.suggested
+    val scope = rememberCoroutineScope()
+    var keepIssue by remember { mutableStateOf<MemoryIssue?>(null) }
     var showingMenu by remember { mutableStateOf(false) }
     var confirmingClear by remember { mutableStateOf(false) }
     val full = state.maxItems > 0 && memories.size >= state.maxItems
@@ -158,7 +164,48 @@ private fun MemoryList(host: MemoryHost, onBack: () -> Unit, onOpen: (MemoryDraf
                         }
                     }
                 }
-                if (memories.isEmpty()) {
+                item(key = "suggest-switch") {
+                    SettingsToggleRow(
+                        icon = "lightbulb",
+                        title = stringResource(Res.string.memory_suggest_title),
+                        subtitle = stringResource(Res.string.memory_suggest_note),
+                        checked = state.suggesting == true,
+                        onCheckedChange = { on -> host.act(MemoryAction.Suggest(on)) },
+                        shape = segmentedShape(0, 1),
+                        enabled = state.suggesting != null,
+                        modifier = Modifier.padding(bottom = WhittleSpace.s),
+                    )
+                }
+                if (suggested.isNotEmpty()) {
+                    item(key = "suggested-title") {
+                        Column(
+                            Modifier.padding(start = WhittleSpace.m, top = WhittleSpace.l, bottom = WhittleSpace.s),
+                            verticalArrangement = Arrangement.spacedBy(WhittleSpace.xs),
+                        ) {
+                            Text(stringResource(Res.string.memory_suggested), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(Res.string.memory_suggested_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    keepIssue?.let { issue ->
+                        item(key = "suggested-error") { SupportingNote("info", stringResource(keepIssueText(issue)), Modifier.padding(bottom = WhittleSpace.s)) }
+                    }
+                    itemsIndexed(suggested, key = { _, suggestion -> "suggested-${suggestion.id}" }) { index, suggestion ->
+                        SuggestionRow(
+                            suggestion = suggestion,
+                            shape = segmentedShape(index, suggested.size),
+                            onKeep = {
+                                keepIssue = null
+                                scope.launch { keepIssue = host.save(null, suggestion.text, suggestion.id) }
+                            },
+                            onEdit = { onOpen(MemoryDraft(null, suggestion.text, suggestion)) },
+                            onDismiss = {
+                                keepIssue = null
+                                host.act(MemoryAction.Dismiss(suggestion.id))
+                            },
+                        )
+                    }
+                }
+                if (memories.isEmpty() && suggested.isEmpty()) {
                     item { EmptyMemory(state.ideas) { idea -> onOpen(MemoryDraft(null, idea.start)) } }
                 }
                 listOf(Res.string.memory_today to today, Res.string.memory_earlier to earlier).filter { it.second.isNotEmpty() }.forEach { (title, group) ->
@@ -229,6 +276,38 @@ private fun EmptyMemory(ideas: List<MemoryIdeaEntry>, onIdea: (MemoryIdeaEntry) 
     }
 }
 
+/** One suggested fact with Dismiss, Edit (opens the editor, where saving keeps it) and Keep. */
+@Composable
+private fun SuggestionRow(suggestion: SuggestedEntry, shape: Shape, onKeep: () -> Unit, onEdit: () -> Unit, onDismiss: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(colors.surfaceContainerLow)
+            .padding(start = WhittleSpace.xl, end = WhittleSpace.m, top = WhittleSpace.m, bottom = WhittleSpace.s),
+        verticalArrangement = Arrangement.spacedBy(WhittleSpace.xs),
+    ) {
+        Text(suggestion.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.userContent())
+        if (suggestion.replaces) {
+            Text(stringResource(Res.string.memory_suggested_replaces), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(WhittleSpace.xs, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.memory_suggested_dismiss)) }
+            TextButton(onClick = onEdit) { Text(stringResource(Res.string.memory_suggested_edit)) }
+            FilledTonalButton(onClick = onKeep) { Text(stringResource(Res.string.memory_suggested_keep)) }
+        }
+    }
+}
+
+/** What to tell the user when keeping a suggestion failed. */
+private fun keepIssueText(issue: MemoryIssue): StringResource = when (issue) {
+    MemoryIssue.Gone -> Res.string.memory_keep_gone
+    MemoryIssue.Full -> Res.string.memory_full
+    MemoryIssue.TooLong -> Res.string.memory_keep_too_long
+    MemoryIssue.Failed -> Res.string.memory_keep_failed
+}
+
 /** One memory: the fact, and when it was saved. */
 @Composable
 private fun MemoryRow(text: String, meta: String, shape: Shape, onClick: () -> Unit) {
@@ -277,7 +356,7 @@ private fun MemoryEditor(host: MemoryHost, draft: MemoryDraft, onClose: () -> Un
         saving = true
         issue = null
         scope.launch {
-            issue = host.save(saved?.id, text)
+            issue = host.save(saved?.id, text, draft.suggestion?.id)
             saving = false
             if (issue == null) onClose()
         }
@@ -336,7 +415,9 @@ private fun MemoryEditor(host: MemoryHost, draft: MemoryDraft, onClose: () -> Un
                     enabled = !saving,
                     hint = stringResource(Res.string.memory_field_hint),
                     counter = stringResource(Res.string.memory_counter, text.length, state.maxItemChars),
-                    error = issue?.let { stringResource(if (it == MemoryIssue.Full) Res.string.memory_full else Res.string.memory_save_failed) },
+                    error = issue?.let {
+                        stringResource(if (draft.suggestion != null) keepIssueText(it) else if (it == MemoryIssue.Full) Res.string.memory_full else Res.string.memory_save_failed)
+                    },
                     autoFocus = saved == null,
                     modifier = Modifier.userContent(),
                 )

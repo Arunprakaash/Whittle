@@ -22,6 +22,8 @@ data class SettingsState(
     val model: String? = null,
     val linux: LinuxStatus = LinuxStatus(),
     val memories: Int = 0,
+    /** Suggested memories waiting to be kept or dismissed. */
+    val suggestedMemories: Int = 0,
     val automationsOn: Int = 0,
     val themeMode: ThemeMode = ThemeMode.System,
     val wallpaperColors: Boolean = false,

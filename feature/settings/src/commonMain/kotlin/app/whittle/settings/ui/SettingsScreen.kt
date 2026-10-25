@@ -1,6 +1,8 @@
 package app.whittle.settings.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import app.whittle.design.components.ReadingWidth
@@ -128,7 +132,20 @@ fun SettingsScreen(host: SettingsHost, platform: SettingsPlatform, navigation: S
                             },
                             shape = segmentedShape(1, 3),
                             onClick = navigation.memory,
-                            trailing = chevron.takeIf { navigation.memory != null },
+                            trailing = {
+                                // A quiet dot, not a notification: something is waiting to be kept or dismissed.
+                                if (state.suggestedMemories > 0) {
+                                    val waitingNote = pluralStringResource(Res.plurals.memory_suggested_waiting, state.suggestedMemories, state.suggestedMemories)
+                                    Box(
+                                        Modifier
+                                            .padding(end = WhittleSpace.s)
+                                            .size(WhittleSpace.s)
+                                            .background(MaterialTheme.colorScheme.primary, CircleShape)
+                                            .semantics { contentDescription = waitingNote },
+                                    )
+                                }
+                                if (navigation.memory != null) chevron()
+                            },
                         )
                         SettingsRow(
                             icon = "schedule",
