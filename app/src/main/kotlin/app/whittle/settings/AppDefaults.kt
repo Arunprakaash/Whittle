@@ -111,7 +111,8 @@ data class UpdateDefaults(val check: Boolean, val latestReleaseUrl: String, val 
 
 /**
  * Whittle as the phone's assistant: how long a call waits for Android to hand over the screen and its screenshot
- * ([waitMillis]), and the file in the app's cache the screenshot is kept in until it's attached.
+ * ([waitMillis]), and the name the screenshot's file in the app's cache is made from, with each call's own part added,
+ * until it's attached.
  */
 @Serializable
 data class AssistantDefaults(val waitMillis: Long, val screenshotFileName: String) {

@@ -6,12 +6,14 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.service.voice.VoiceInteractionSession
 import android.text.InputType
 import android.view.View
+import androidx.annotation.RequiresApi
 import app.whittle.MainActivity
 import app.whittle.settings.AssistantDefaults
 import java.io.File
@@ -46,18 +48,47 @@ class AssistSession(
         if (waiting == 0) open() else handler.postDelayed(::open, defaults.waitMillis)
     }
 
-    @Deprecated("Android 10+ calls this from onHandleAssist(AssistState) for the app in front.")
-    override fun onHandleAssist(data: Bundle?, structure: AssistStructure?, content: AssistContent?) {
-        if (structure != null) {
-            appName = structure.activityComponent?.packageName?.let(::label)
-            text = screenText((0 until structure.windowNodeCount).map { structure.getWindowNodeAt(it).rootViewNode.toScreenNode() }, maxChars)
-        }
+    /**
+     * Android 10+: one call per app on screen, the focused one first (index 0). Only that one is read, so in split screen
+     * the other app's words can't replace it or open the chat before the screenshot. It counts as arrived with or without
+     * data.
+     */
+    @RequiresApi(Build.VERSION_CODES.Q)
+    override fun onHandleAssist(state: AssistState) {
+        if (state.index != 0) return
+        read(state.assistStructure)
         arrived()
     }
 
+    /** Before Android 10: the focused app. */
+    @Deprecated("Android 10+ calls onHandleAssist(AssistState) instead.")
+    override fun onHandleAssist(data: Bundle?, structure: AssistStructure?, content: AssistContent?) {
+        read(structure)
+        arrived()
+    }
+
+    /** Before Android 10: the other apps on screen, which aren't read. */
+    @Deprecated("Android 10+ calls onHandleAssist(AssistState) instead.")
+    override fun onHandleAssistSecondary(data: Bundle?, structure: AssistStructure?, content: AssistContent?, index: Int, count: Int) = Unit
+
     override fun onHandleScreenshot(screenshot: Bitmap?) {
+        // Too late for the chat, which has opened without it: nothing of the screen is kept.
+        if (opened) return
         if (screenshot != null) this.screenshot = save(screenshot)
         arrived()
+    }
+
+    override fun onDestroy() {
+        // Closed before the chat opened: the screenshot was never handed over, so it goes now.
+        handler.removeCallbacksAndMessages(null)
+        if (!opened) screenshot?.delete()
+        super.onDestroy()
+    }
+
+    private fun read(structure: AssistStructure?) {
+        structure ?: return
+        appName = structure.activityComponent?.packageName?.let(::label)
+        text = screenText((0 until structure.windowNodeCount).map { structure.getWindowNodeAt(it).rootViewNode.toScreenNode() }, maxChars)
     }
 
     private fun arrived() {
@@ -74,12 +105,19 @@ class AssistSession(
         hide()
     }
 
-    private fun save(bitmap: Bitmap): File? = try {
-        File(context.cacheDir, defaults.screenshotFileName).also { file ->
-            file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, it) }
+    /** A file of this call's own, so a second call while the first is still being attached can't replace or delete it. */
+    private fun save(bitmap: Bitmap): File? {
+        val name = defaults.screenshotFileName
+        var file: File? = null
+        return try {
+            File.createTempFile("${name.substringBeforeLast('.')}-", ".${name.substringAfterLast('.')}", context.cacheDir).also {
+                file = it
+                it.outputStream().use { out -> bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out) }
+            }
+        } catch (exception: IOException) {
+            file?.delete()
+            null
         }
-    } catch (exception: IOException) {
-        null
     }
 
     private fun label(packageName: String): String? = try {
