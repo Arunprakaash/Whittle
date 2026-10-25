@@ -3,7 +3,6 @@ package app.whittle.agent
 import app.whittle.core.common.EpochClock
 import app.whittle.core.common.HarnessError
 import app.whittle.core.common.Outcome
-import app.whittle.core.common.Secret
 import app.whittle.core.common.flatMap
 import app.whittle.core.common.getOrElse
 import app.whittle.core.common.getOrNull
@@ -21,7 +20,6 @@ import app.whittle.core.model.TokenUsage
 import app.whittle.llm.api.AssistantTurnAssembler
 import app.whittle.llm.api.CredentialsProvider
 import app.whittle.llm.api.HostedTool
-import app.whittle.llm.api.ModelAdapter
 import app.whittle.llm.api.ModelAdapterRegistry
 import app.whittle.llm.api.ModelDescriptor
 import app.whittle.llm.api.ModelEvent
@@ -171,7 +169,7 @@ class AgentRunner(
     }
 
     private suspend fun FlowCollector<RunEvent>.runLoop(initial: RunCheckpoint, runSpan: SpanContext): RunCheckpoint {
-        val connection = connect(initial.model).getOrElse { return fail(initial, it) }
+        val connection = connectModel(adapters, providers, credentials, initial.model).getOrElse { return fail(initial, it) }
         var checkpoint = finishInterruptedStep(initial, runSpan)
             .flatMap { finishInterruptedDecision(it) }
             .getOrElse { return fail(initial, it) }
@@ -214,14 +212,6 @@ class AgentRunner(
                 return fail(checkpoint, it)
             }
             stepSpan.end(SpanStatus.OK)
-        }
-    }
-
-    private suspend fun connect(model: ModelDescriptor): Outcome<ModelConnection> {
-        val provider = providers.find(model.providerId)
-            ?: return Outcome.Failure(HarnessError.Configuration("Unknown provider ${model.providerId.value}"))
-        return adapters.adapterFor(provider.apiFormat).flatMap { adapter ->
-            credentials.apiKeyFor(provider.id).map { apiKey -> ModelConnection(adapter, provider, apiKey) }
         }
     }
 
@@ -782,10 +772,4 @@ class AgentRunner(
 
     /** One model call's result, and whether any of it already reached the user (then it can't be retried). */
     private class ModelTurn(val assembler: AssistantTurnAssembler, val shownToUser: Boolean)
-
-    private class ModelConnection(
-        val adapter: ModelAdapter,
-        val provider: ProviderDescriptor,
-        val apiKey: Secret,
-    )
 }

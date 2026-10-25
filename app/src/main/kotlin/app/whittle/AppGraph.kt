@@ -55,6 +55,7 @@ import android.system.Os
 import android.system.OsConstants
 import app.whittle.agent.AgentMessages
 import app.whittle.agent.AgentRunner
+import app.whittle.agent.OneShot
 import app.whittle.agent.RunInbox
 import app.whittle.automations.AndroidAutomationAlarms
 import app.whittle.automations.Automations
@@ -447,10 +448,13 @@ class AppGraph(context: Context) {
         )
     }
 
+    private val modelAdapters = ModelAdapterRegistry(setOf(OpenAiCompatibleAdapter(httpClient, idGenerator), OpenAiResponsesAdapter(httpClient), AnthropicMessagesAdapter()))
+    private val modelCredentials = SecretStoreCredentialsProvider(secrets)
+
     val runner = AgentRunner(
-        adapters = ModelAdapterRegistry(setOf(OpenAiCompatibleAdapter(httpClient, idGenerator), OpenAiResponsesAdapter(httpClient), AnthropicMessagesAdapter())),
+        adapters = modelAdapters,
         providers = providers,
-        credentials = SecretStoreCredentialsProvider(secrets),
+        credentials = modelCredentials,
         tools = tools,
         policy = RuleBasedPolicyEngine(policyRules),
         inbox = inbox,
@@ -464,6 +468,9 @@ class AppGraph(context: Context) {
         memory = memory,
         images = images,
     )
+
+    /** One model call outside a run, for the memory review. */
+    val oneShot = OneShot(modelAdapters, providers, modelCredentials)
 
     /** schedule_task: an automation takes the chat's project unless the model names another that exists. */
     private fun scheduleTask() = ScheduleTaskTool(
