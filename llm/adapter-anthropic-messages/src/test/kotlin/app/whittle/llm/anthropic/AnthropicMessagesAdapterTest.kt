@@ -69,7 +69,7 @@ class AnthropicMessagesAdapterTest {
         val sent = server.takeRequest()
         assertEquals("/v1/messages", sent.path)
         assertEquals("sk-test", sent.getHeader("x-api-key"))
-        assertEquals("server-side-fallback-2026-07-01", sent.getHeader("anthropic-beta"))
+        assertEquals("server-side-fallback-2026-07-01,thinking-binding-controls-2026-08-01", sent.getHeader("anthropic-beta"))
         val body = Json.parseToJsonElement(sent.body.readUtf8()).jsonObject
         assertEquals("claude-opus-5-5", body.string("model"))
         assertEquals(true, body["stream"]?.jsonPrimitive?.content?.toBoolean())
@@ -77,6 +77,8 @@ class AnthropicMessagesAdapterTest {
         assertEquals("ephemeral", body["cache_control"]!!.jsonObject.string("type"))
         assertEquals("adaptive", body["thinking"]!!.jsonObject.string("type"))
         assertEquals("summarized", body["thinking"]!!.jsonObject.string("display"))
+        // Earlier thinking that no longer matches the conversation (a new date or memory in the system prompt) is dropped, not refused.
+        assertEquals("drop_block", body["thinking"]!!.jsonObject["block_binding"]!!.jsonObject.string("prefix_mismatch_behavior"))
         assertEquals("high", body["output_config"]!!.jsonObject.string("effort"))
         assertEquals("default", body.string("fallbacks"))
         val tools = body["tools"]!!.jsonArray.map { it.jsonObject }
@@ -210,7 +212,8 @@ class AnthropicMessagesAdapterTest {
         generationPath = "v1/messages",
         auth = ProviderAuth("x-api-key", ""),
         maxOutputTokensParameter = "max_tokens",
-        defaultHeaders = mapOf("anthropic-version" to "2023-06-01", "anthropic-beta" to "server-side-fallback-2026-07-01"),
+        defaultHeaders = mapOf("anthropic-version" to "2023-06-01", "anthropic-beta" to "server-side-fallback-2026-07-01,thinking-binding-controls-2026-08-01"),
+        thinkingFields = buildJsonObject { put("block_binding", buildJsonObject { put("prefix_mismatch_behavior", "drop_block") }) },
         requestOverrides = listOf(RequestOverride("claude-opus-5-5", buildJsonObject { put("fallbacks", "default") })),
         hostedTools = listOf(HostedToolSupport(HostedTool.WEB_SEARCH, listOf("claude-opus-5*"))),
     )

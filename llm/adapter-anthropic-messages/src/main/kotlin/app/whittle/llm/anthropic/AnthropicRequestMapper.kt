@@ -23,6 +23,7 @@ import com.anthropic.models.messages.ToolResultBlockParam
 import com.anthropic.models.messages.ToolUseBlockParam
 import com.anthropic.models.messages.WebSearchTool20260209
 import com.fasterxml.jackson.core.JsonProcessingException
+import kotlinx.serialization.json.JsonElement
 
 /**
  * Turns the canonical conversation into a Messages request. Caching marks the system prompt and lets the API cache the
@@ -58,16 +59,21 @@ internal class AnthropicRequestMapper {
             }
         }
         if (model.capabilities.reasoning) {
-            builder.thinking(ThinkingConfigAdaptive.builder().display(ThinkingConfigAdaptive.Display.SUMMARIZED).build())
+            builder.thinking(
+                ThinkingConfigAdaptive.builder()
+                    .display(ThinkingConfigAdaptive.Display.SUMMARIZED)
+                    .putAllAdditionalProperties(provider.thinkingFields.mapValues { (_, value) -> jsonValue(value) })
+                    .build(),
+            )
             builder.outputConfig(OutputConfig.builder().effort(effort(request.reasoningEffort)).build())
         }
         // The SDK sends its own API version; anything else the provider config adds (a beta) goes as is.
         provider.defaultHeaders.filterKeys { !it.equals(VERSION_HEADER, ignoreCase = true) }.forEach { (name, value) -> builder.putAdditionalHeader(name, value) }
-        provider.requestFieldsFor(model.id).forEach { (name, value) ->
-            builder.putAdditionalBodyProperty(name, JsonValue.fromJsonNode(jsonMapper().readTree(value.toString())))
-        }
+        provider.requestFieldsFor(model.id).forEach { (name, value) -> builder.putAdditionalBodyProperty(name, jsonValue(value)) }
         return builder.build()
     }
+
+    private fun jsonValue(value: JsonElement): JsonValue = JsonValue.fromJsonNode(jsonMapper().readTree(value.toString()))
 
     /** Adaptive thinking can't be turned off on current models, so the least effort stands in for none. */
     private fun effort(effort: ReasoningEffort): OutputConfig.Effort = when (effort) {

@@ -61,6 +61,12 @@ data class ProviderDescriptor(
     val requestOverrides: List<RequestOverride> = emptyList(),
     /** How this provider takes a reasoning effort. Null means it takes none. */
     val reasoning: ReasoningWireConfig? = null,
+    /**
+     * Extra fields inside the request's thinking settings, sent whenever a model thinks. For Anthropic, `block_binding`
+     * keeps a chat going when earlier thinking no longer matches its conversation (the system prompt carries the date and
+     * memories, which change between runs): those blocks are dropped instead of the request failing.
+     */
+    val thinkingFields: JsonObject = JsonObject(emptyMap()),
     /** Capabilities for models whose provider doesn't report them; first matching pattern wins. */
     val capabilityOverrides: List<ModelCapabilityOverride> = emptyList(),
     /** Tools this provider runs itself, such as web search, and the models that support them. */

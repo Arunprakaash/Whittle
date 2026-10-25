@@ -299,7 +299,12 @@
       "maxOutputTokensParameter": "max_tokens",
       "defaultHeaders": {
         "anthropic-version": "2023-06-01",
-        "anthropic-beta": "server-side-fallback-2026-07-01"
+        "anthropic-beta": "server-side-fallback-2026-07-01,thinking-binding-controls-2026-08-01"
+      },
+      "thinkingFields": {
+        "block_binding": {
+          "prefix_mismatch_behavior": "drop_block"
+        }
       },
       "requestOverrides": [
         {
