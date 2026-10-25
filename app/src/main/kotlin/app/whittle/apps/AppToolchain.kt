@@ -120,10 +120,10 @@ class AppToolchain(private val shell: LinuxShell, config: NativeAppsConfig) : Bu
         }
     }
 
-    /** The toolchain's size on disk as `du -sh` prints it, or null when it isn't there. */
-    suspend fun size(): String? {
-        val result = (shell.run("du -sh $DIRECTORY", network = false, timeoutSeconds = CHECK_TIMEOUT_SECONDS) as? Outcome.Success)?.value
-        return result?.takeIf { it.exitCode == 0 }?.stdout?.trim()?.substringBefore('\t')?.substringBefore(' ')?.ifBlank { null }
+    /** The toolchain's size on disk in bytes, or null when it isn't there. */
+    suspend fun size(): Long? {
+        val result = (shell.run("du -sk $DIRECTORY", network = false, timeoutSeconds = CHECK_TIMEOUT_SECONDS) as? Outcome.Success)?.value
+        return result?.takeIf { it.exitCode == 0 }?.stdout?.let(::duBytes)
     }
 
     override suspend fun <T> whileReady(build: suspend () -> T): T? {
@@ -199,8 +199,13 @@ class AppToolchain(private val shell: LinuxShell, config: NativeAppsConfig) : Bu
  * Whether Settings offers Remove: for a toolchain that is set up, or for files a setup left without finishing ([size]
  * is what's on disk), but not while setup runs or an app is building.
  */
-fun canRemoveToolchain(ready: Boolean, size: String?, installing: Boolean, building: Boolean): Boolean =
+fun canRemoveToolchain(ready: Boolean, size: Long?, installing: Boolean, building: Boolean): Boolean =
     (ready || size != null) && !installing && !building
+
+/** Bytes from `du -sk` output ("153600\t/opt/whittle-apps"); null when it names none. */
+fun duBytes(output: String): Long? = output.trim().substringBefore('\t').substringBefore(' ').toLongOrNull()?.times(KIBIBYTE)
+
+private const val KIBIBYTE = 1024L
 
 /** How the user's Allow on the app-building card ended. */
 sealed interface SetupOutcome {

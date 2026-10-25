@@ -196,7 +196,7 @@ fun LinuxWorkspaceScreen(graph: AppGraph, onBack: () -> Unit) {
             contentPadding = PaddingValues(horizontal = WhittleSpace.l, vertical = WhittleSpace.l),
             verticalArrangement = Arrangement.spacedBy(WhittleSpace.l),
         ) {
-            linuxContent(graph, state, usedBytes = used, readyBody = R.string.linux_ready_settings_body)
+            linuxContent(graph, state, usedBytes = used)
             when (state) {
                 LinuxState.NotSetUp -> item { SetUpButton(graph) }
                 is LinuxState.Failed -> item { SetUpButton(graph, R.string.linux_try_again) }
@@ -211,6 +211,7 @@ fun LinuxWorkspaceScreen(graph: AppGraph, onBack: () -> Unit) {
                         RunningRow(live.map { it.name }) { graph.appScope.launch { graph.processes.stopAll() } }
                     }
                     item { AppBuildingRow(graph) }
+                    item { ComputerAccessSection(graph) }
                     item { ManageRows(graph, used) { confirming = it } }
                 }
             }
@@ -236,8 +237,8 @@ private fun AppBuildingRow(graph: AppGraph) {
         value = if (state is ToolchainState.Installing) null else Installed(toolchain.isReady(), toolchain.size())
     }
     val ready = installed?.ready == true
-    val size = installed?.size
-    val removable = canRemoveToolchain(ready, size, installing = state is ToolchainState.Installing, building = building)
+    val size = installed?.size?.let { Formatter.formatShortFileSize(LocalContext.current, it) }
+    val removable = canRemoveToolchain(ready, installed?.size, installing = state is ToolchainState.Installing, building = building)
     SettingsRow(
         icon = "build",
         title = stringResource(R.string.app_toolchain_row_title),
@@ -250,8 +251,12 @@ private fun AppBuildingRow(graph: AppGraph) {
             else -> stringResource(R.string.app_toolchain_row_missing)
         },
         shape = RoundedCornerShape(WhittleRadius.l),
-        destructive = removable,
-        onClick = { if (removable) confirming = true },
+        // Remove is the row's one action, so it's a button, not a red row.
+        trailing = if (removable) {
+            { TextButton(onClick = { confirming = true }) { Text(stringResource(R.string.app_toolchain_remove)) } }
+        } else {
+            null
+        },
     )
     if (confirming) {
         AlertDialog(
@@ -272,8 +277,8 @@ private fun AppBuildingRow(graph: AppGraph) {
     }
 }
 
-/** What the app-building row shows: whether setup finished, and the size on disk when it can be read. */
-private data class Installed(val ready: Boolean, val size: String?)
+/** What the app-building row shows: whether setup finished, and the bytes on disk when they can be read. */
+private data class Installed(val ready: Boolean, val size: Long?)
 
 /** Repair, reset and remove, from least to most drastic. */
 @Composable
@@ -283,14 +288,14 @@ private fun ManageRows(graph: AppGraph, used: Long, onConfirm: (Confirm) -> Unit
         SettingsRow(
             icon = "build",
             title = stringResource(R.string.linux_repair),
-            subtitle = stringResource(R.string.linux_repair_body),
+            subtitle = null,
             shape = segmentedShape(0, MANAGE_ROWS),
             onClick = { LinuxSetupService.repair(context) },
         )
         SettingsRow(
             icon = "restart_alt",
             title = stringResource(R.string.linux_reset),
-            subtitle = stringResource(R.string.linux_reset_body),
+            subtitle = null,
             shape = segmentedShape(1, MANAGE_ROWS),
             onClick = { onConfirm(Confirm.Reset) },
         )
@@ -315,6 +320,8 @@ private fun ConfirmDialog(confirm: Confirm, graph: AppGraph, onDone: () -> Unit)
         confirmButton = {
             TextButton(onClick = {
                 onDone()
+                // Nothing may sign in to a Linux that's being replaced or removed.
+                graph.computerAccess.turnOff()
                 when (confirm) {
                     Confirm.Reset -> LinuxSetupService.reset(context)
                     Confirm.Remove -> graph.appScope.launch { graph.linux.remove() }
@@ -385,9 +392,9 @@ private enum class Confirm(val title: Int, val body: Int, val action: Int) {
 }
 
 /** What both screens share: what Linux is and, by state, its sizes, its setup steps or that it's ready ([readyBody]). */
-private fun androidx.compose.foundation.lazy.LazyListScope.linuxContent(graph: AppGraph, state: LinuxState, usedBytes: Long, readyBody: Int) {
+private fun androidx.compose.foundation.lazy.LazyListScope.linuxContent(graph: AppGraph, state: LinuxState, usedBytes: Long) {
     val image = graph.linux.image
-    item { IntroCard(image?.name.orEmpty(), state, usedBytes, readyBody) }
+    item { IntroCard(image?.name.orEmpty(), state, usedBytes) }
     when (state) {
         LinuxState.NotSetUp -> item { Facts(image) }
         is LinuxState.SettingUp, is LinuxState.Failed -> item { Progress(state, image?.name.orEmpty()) }
@@ -396,13 +403,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.linuxContent(graph: A
 }
 
 @Composable
-private fun IntroCard(imageName: String, state: LinuxState, usedBytes: Long, readyBody: Int) {
+private fun IntroCard(imageName: String, state: LinuxState, usedBytes: Long) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val status = when (state) {
         LinuxState.NotSetUp -> stringResource(R.string.linux_status_not_set_up, imageName)
         is LinuxState.SettingUp -> stringResource(R.string.linux_status_setting_up, imageName)
-        is LinuxState.Ready -> stringResource(R.string.linux_status_ready, imageName, Formatter.formatShortFileSize(context, usedBytes))
+        is LinuxState.Ready -> stringResource(R.string.linux_status_ready, Formatter.formatShortFileSize(context, usedBytes))
         is LinuxState.Failed -> stringResource(R.string.linux_status_failed, imageName)
     }
     Column(
@@ -416,16 +423,15 @@ private fun IntroCard(imageName: String, state: LinuxState, usedBytes: Long, rea
                 verticalAlignment = Alignment.CenterVertically,
             ) { WhittleIcon("terminal", tint = colors.onSecondaryContainer) }
             Column {
-                Text(stringResource(if (state is LinuxState.Ready) R.string.linux_ready_title else R.string.linux_intro_title), style = MaterialTheme.typography.titleMedium)
+                Text(if (state is LinuxState.Ready) imageName else stringResource(R.string.linux_intro_title), style = MaterialTheme.typography.titleMedium)
                 Text(status, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
             }
         }
-        Text(
-            stringResource(if (state is LinuxState.Ready) readyBody else R.string.linux_intro_body),
-            style = MaterialTheme.typography.bodyMedium,
-            color = colors.onSurfaceVariant,
-        )
-        if (state !is LinuxState.Ready) WhatYouGet()
+        // Once it's ready, the title and status say it all.
+        if (state !is LinuxState.Ready) {
+            Text(stringResource(R.string.linux_intro_body), style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+            WhatYouGet()
+        }
     }
 }
 

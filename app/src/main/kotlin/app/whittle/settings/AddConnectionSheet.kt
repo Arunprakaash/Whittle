@@ -397,22 +397,13 @@ private fun AdvancedRow(summary: String, open: Boolean, onToggle: () -> Unit) {
 
 /** Where this connection's sign-in returns, to register with the service, with a copy button. */
 @Composable
-private fun ReturnAddress(address: String, onCopy: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    Column(
-        Modifier.fillMaxWidth().background(colors.surfaceContainerLowest, RoundedCornerShape(WhittleRadius.l)).padding(start = WhittleSpace.m, top = WhittleSpace.s, bottom = WhittleSpace.s),
-        verticalArrangement = Arrangement.spacedBy(WhittleSpace.xs),
-    ) {
-        Text(stringResource(R.string.connector_return_address), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(address, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            IconButton(onClick = onCopy) {
-                WhittleIcon("content_copy", size = WhittleSize.Icon.l, contentDescription = stringResource(R.string.connector_return_copy))
-            }
-        }
-        Text(stringResource(R.string.connector_return_hint), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.padding(end = WhittleSpace.m))
-    }
-}
+private fun ReturnAddress(address: String, onCopy: () -> Unit) = CopyableText(
+    text = address,
+    copyDescription = stringResource(R.string.connector_return_copy),
+    onCopy = onCopy,
+    label = stringResource(R.string.connector_return_address),
+    hint = stringResource(R.string.connector_return_hint),
+)
 
 /** One of the connected connection-type buttons. */
 @Composable

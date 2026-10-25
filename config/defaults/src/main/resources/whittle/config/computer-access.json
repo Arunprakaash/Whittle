@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "port": 8022,
+  "user": "root",
+  "checkCommand": "test -x /usr/sbin/sshd",
+  "installCommand": "DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends openssh-server && apt-get clean",
+  "installTimeoutSeconds": 900,
+  "keysFile": "/etc/whittle/computers",
+  "serveCommand": "mkdir -p /run/sshd && exec /usr/sbin/sshd -D -e -p {{port}} -o ListenAddress=127.0.0.1 -o ListenAddress={{address}} -o AuthorizedKeysFile={{keysFile}} -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no -o PermitRootLogin=prohibit-password -o StrictModes=no",
+  "startWaitSeconds": 20,
+  "keptOutputChars": 4000,
+  "keyTypes": [
+    "ssh-ed25519",
+    "ecdsa-sha2-nistp256",
+    "ecdsa-sha2-nistp384",
+    "ecdsa-sha2-nistp521",
+    "sk-ssh-ed25519@openssh.com",
+    "sk-ecdsa-sha2-nistp256@openssh.com",
+    "ssh-rsa"
+  ],
+  "maxComputers": 10,
+  "printKeyCommand": "cat ~/.ssh/id_ed25519.pub",
+  "makeKeyCommand": "ssh-keygen -t ed25519"
+}

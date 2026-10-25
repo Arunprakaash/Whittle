@@ -3,6 +3,7 @@ package app.whittle
 import app.whittle.apps.NativeAppsConfig
 import app.whittle.apps.PowerfulKind
 import app.whittle.automations.AutomationsConfig
+import app.whittle.linux.ComputerAccessConfig
 import app.whittle.claudecode.ClaudeCodeConfig
 import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.llm.api.HostedTool
@@ -406,5 +407,14 @@ class BundledAppConfigTest {
         config.template.forEach { path ->
             assertIs<Outcome.Success<String>>(source.read(ConfigName("native-app-template/$path")), path)
         }
+    }
+
+    @Test
+    fun `computer access loads, with key-only sign-in and a lean install`() {
+        val config = assertIs<Outcome.Success<ComputerAccessConfig>>(loader.load(ComputerAccessConfig.FILE, ComputerAccessConfig.serializer(), ComputerAccessConfig.SCHEMA_VERSION)).value
+        val serve = config.serve("192.168.1.23")
+        assertTrue("PasswordAuthentication=no" in serve && "KbdInteractiveAuthentication=no" in serve, "computers sign in with keys only")
+        assertTrue("--no-install-recommends" in config.installCommand, "the server installs without recommended extras")
+        assertTrue("ssh-ed25519" in config.keyTypes)
     }
 }
