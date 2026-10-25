@@ -75,8 +75,8 @@
     ["result", "4180"]
   ],
   "models": [
-    {"name": "OpenAI", "detail": "your API key"},
-    {"name": "OpenRouter", "detail": "hundreds of models"},
-    {"name": "Claude Code", "detail": "your Claude plan"}
+    {"name": "OpenAI", "detail": "your API key", "logo": "logos/openai.svg"},
+    {"name": "OpenRouter", "detail": "hundreds of models", "logo": "logos/openrouter.svg"},
+    {"name": "Claude Code", "detail": "your Claude plan", "logo": "logos/claude-code.svg"}
   ]
 }

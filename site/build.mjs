@@ -125,7 +125,9 @@ const choresHtml = config.chores.items.map((chore) => `
 
 const sourceHtml = ([icon, name]) => `<span class="src"><span class="ms">${escapeHtml(icon)}</span>${escapeHtml(name)}</span>`;
 const terminalHtml = config.terminal.map(([kind, text]) => `<div class="${escapeHtml(kind)}">${escapeHtml(text)}</div>`).join('');
-const modelsHtml = config.models.map((model, index) => `<button type="button" class="model" role="radio" aria-checked="${index === 0}" data-model><span class="radio" aria-hidden="true"></span>${escapeHtml(model.name)}<small>${escapeHtml(model.detail)}</small></button>`).join('');
+// Each provider's mark is inlined, so a single-colour one can take the page's ink through currentColor.
+const modelLogos = await Promise.all(config.models.map((model) => readFile(new URL(model.logo, siteDir), 'utf8')));
+const modelsHtml = config.models.map((model, index) => `<button type="button" class="model" role="radio" aria-checked="${index === 0}" data-model><span class="radio" aria-hidden="true"></span><span class="model-logo" aria-hidden="true">${modelLogos[index].trim()}</span>${escapeHtml(model.name)}<small>${escapeHtml(model.detail)}</small></button>`).join('');
 
 /** Material Symbols trimmed to the icons the page uses, in the page itself or set by site.js. */
 const fontLinks = (html) => {
