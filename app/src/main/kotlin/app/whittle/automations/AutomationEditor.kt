@@ -57,6 +57,8 @@ import app.whittle.design.components.MenuAction
 import app.whittle.design.components.SettingsRow
 import app.whittle.design.components.SettingsSection
 import app.whittle.design.components.SettingsToggleRow
+import app.whittle.phone.rememberCapabilityRequest
+import app.whittle.tools.api.CapabilityId
 import app.whittle.design.components.SupportingNote
 import app.whittle.design.components.TopBarButton
 import app.whittle.design.components.WhittleFilledField
@@ -93,6 +95,10 @@ fun AutomationEditor(
 ) {
     BackHandler(onBack = onClose)
     val config = graph.automations.config
+    // The answer goes to whichever row asked last.
+    var answer by remember { mutableStateOf<(Boolean) -> Unit>({}) }
+    val capabilityRequest = rememberCapabilityRequest(graph.healthConnect) { granted -> answer(granted) }
+    val request: (List<CapabilityId>, (Boolean) -> Unit) -> Unit = { capabilities, onDone -> answer = onDone; capabilityRequest(capabilities) }
     val stored by graph.automations.all.collectAsStateWithLifecycle()
     // Runs and the switch change the stored automation while the editor is open; what the user typed stays.
     val live = stored.firstOrNull { it.id == initial.id } ?: initial
@@ -129,8 +135,8 @@ fun AutomationEditor(
         AutomationProblem.TOOL_NOT_ALLOWED to stringResource(R.string.automation_error_tool),
     )
 
-    /** Saves [edited]; [then] runs with the saved automation once it's stored. */
-    fun save(then: (Automation) -> Unit) {
+    /** Stores [edited]; [then] runs with the saved automation once it's stored. */
+    fun store(then: (Automation) -> Unit) {
         saving = true
         error = null
         scope.launch {
@@ -140,6 +146,18 @@ fun AutomationEditor(
                 is SaveResult.Failed -> error = result.error.message
             }
             saving = false
+        }
+    }
+
+    /**
+     * Saves [edited], first asking for what its switched-on rows need (reading health data while closed, say), as one
+     * that started from an idea was never switched on by hand. A row whose permission is refused goes back off, unsaved.
+     */
+    fun save(then: (Automation) -> Unit) {
+        val needing = config.tools.filter { it.capabilities.isNotEmpty() && tools.containsAll(it.toolIds) }
+        if (needing.isEmpty()) return store(then)
+        request(needing.flatMap { it.capabilities }.distinct().map(::CapabilityId)) { granted ->
+            if (granted) store(then) else tools = tools - needing.flatMap { it.toolIds }.toSet()
         }
     }
 
@@ -281,7 +299,14 @@ fun AutomationEditor(
                         title = choice.labelFor(project),
                         subtitle = null,
                         checked = tools.containsAll(choice.toolIds),
-                        onCheckedChange = { on -> tools = if (on) tools + choice.toolIds else tools - choice.toolIds.toSet() },
+                        onCheckedChange = { on ->
+                            tools = if (on) tools + choice.toolIds else tools - choice.toolIds.toSet()
+                            // A row that needs a permission (reading health data while closed) asks for it now, and goes
+                            // back off if it isn't granted.
+                            if (on && choice.capabilities.isNotEmpty()) {
+                                request(choice.capabilities.map(::CapabilityId)) { granted -> if (!granted) tools = tools - choice.toolIds.toSet() }
+                            }
+                        },
                         shape = segmentedShape(index, config.tools.size),
                         enabled = !saving,
                     )

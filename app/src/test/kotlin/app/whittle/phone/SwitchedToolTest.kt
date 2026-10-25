@@ -31,6 +31,7 @@ class SwitchedToolTest {
         maps = PhoneActionsConfig.Maps("geo:0,0?q={{query}}", "https://maps.example/?d={{destination}}&m={{mode}}"),
         reminders = PhoneActionsConfig.Reminders("r.bin", 1, 1),
         share = PhoneActionsConfig.Share("share", 1),
+        health = PhoneActionsConfig.Health("health.app", "market://details?id={{package}}", defaultDays = 7, maxDays = 30, maxHourlyDays = 2, maxRecords = 10),
         switches = listOf(PhoneActionsConfig.Switch("alarms", "alarm", "Alarms and timers", emptyList(), listOf("set_alarm"))),
         offMessage = "{{feature}} is off",
     )

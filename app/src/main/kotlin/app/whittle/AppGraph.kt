@@ -89,6 +89,7 @@ import app.whittle.observability.posthog.PostHogTelemetry
 import app.whittle.policy.PolicyRuleSet
 import app.whittle.policy.RuleBasedPolicyEngine
 import app.whittle.settings.AppDefaults
+import app.whittle.tools.android.HealthConnect
 import app.whittle.updates.SelfUpdate
 import app.whittle.updates.SelfUpdateHost
 import app.whittle.updates.UpdateCheck
@@ -377,6 +378,9 @@ class AppGraph(context: Context) {
     /** The phone tools' settings: where maps open, reminders and sharing. */
     val phoneActions = load(PhoneActionsConfig.FILE, PhoneActionsConfig.serializer(), PhoneActionsConfig.SCHEMA_VERSION)
 
+    /** Android's Health Connect, read only; the Health switch, the health_data tool and automations ask through it. */
+    val healthConnect = phoneActions.health.let { HealthConnect(context, it.providerPackage, it.installUri, it.maxRecords) }
+
     /** Whittle's own reminders, each a notification at its time. */
     val reminders = Reminders(
         store = EncryptedListFile(File(context.filesDir, phoneActions.reminders.fileName), cipher, Reminder.serializer(), REMINDERS_DATA, REMINDERS_LABEL),
@@ -393,7 +397,7 @@ class AppGraph(context: Context) {
         ToolRegistry(
             ToolCatalog.create(
                 context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, agentMessages, scheduleTask(),
-                PhoneTools(phoneActions, reminders, workspaces) { id -> currentSettings.value?.phoneOff?.contains(id) != true },
+                PhoneTools(phoneActions, reminders, workspaces, healthConnect) { id -> currentSettings.value?.phoneOff?.contains(id) != true },
                 createApp,
                 buildApp,
             ),

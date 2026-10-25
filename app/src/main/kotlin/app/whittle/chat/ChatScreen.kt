@@ -133,6 +133,7 @@ import app.whittle.design.components.WhittleIcon
 import app.whittle.design.theme.WhittleTheme
 import app.whittle.design.tokens.WhittleHaptic
 import app.whittle.design.tokens.WhittleSpace
+import app.whittle.phone.rememberCapabilityRequest
 import app.whittle.tools.android.AndroidCapabilities
 import app.whittle.tools.presentation.CapabilityPresentation
 import app.whittle.tools.presentation.DecisionText
@@ -823,8 +824,9 @@ private fun ChatMenu(pinned: Boolean?, onPin: (Boolean) -> Unit, onDelete: () ->
 }
 
 /**
- * Allow on a capability card shows Android's own permission prompt, then reports the result. If access
- * was already granted (say, in system settings), it reports straight away. App building has no prompt: Allow sets it up.
+ * Allow on a capability card shows Android's own permission prompt (Health Connect's screen for health data), then
+ * reports the result. If access was already granted (say, in system settings), it reports straight away. App building
+ * has no prompt: Allow sets it up.
  */
 @Composable
 private fun rememberCapabilityRequest(items: List<ThreadItem>, viewModel: ChatViewModel): (ThreadItem.Capability) -> Unit {
@@ -832,6 +834,11 @@ private fun rememberCapabilityRequest(items: List<ThreadItem>, viewModel: ChatVi
     val resources = LocalResources.current
     var requestingKey by rememberSaveable { mutableStateOf<String?>(null) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        items.firstOrNull { it.key == requestingKey }?.let { viewModel.answer(it as ThreadItem.Capability, granted) }
+        requestingKey = null
+    }
+    // Health data is granted on Health Connect's own screen (or needs Health Connect from Play first).
+    val healthRequest = rememberCapabilityRequest(viewModel.healthConnect) { granted ->
         items.firstOrNull { it.key == requestingKey }?.let { viewModel.answer(it as ThreadItem.Capability, granted) }
         requestingKey = null
     }
@@ -846,6 +853,10 @@ private fun rememberCapabilityRequest(items: List<ThreadItem>, viewModel: ChatVi
                     resources.getString(R.string.app_building_setup_failed, why)
                 },
             )
+            item.capability in AndroidCapabilities.HEALTH_CAPABILITIES -> {
+                requestingKey = item.key
+                healthRequest(listOf(item.capability))
+            }
             permission == null || AndroidCapabilities.isGranted(context, item.capability) -> viewModel.answer(item, granted = true)
             else -> {
                 requestingKey = item.key

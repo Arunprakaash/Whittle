@@ -13,6 +13,14 @@
     "directoryName": "share",
     "maxFileBytes": 52428800
   },
+  "health": {
+    "providerPackage": "com.google.android.apps.healthdata",
+    "installUri": "market://details?id={{package}}&url=healthconnect%3A%2F%2Fonboarding",
+    "defaultDays": 7,
+    "maxDays": 366,
+    "maxHourlyDays": 2,
+    "maxRecords": 200
+  },
   "switches": [
     {
       "id": "contacts",
@@ -46,6 +54,17 @@
       ],
       "tools": [
         "add_calendar_event"
+      ]
+    },
+    {
+      "id": "health",
+      "icon": "health_connect",
+      "title": "Health",
+      "capabilities": [
+        "health"
+      ],
+      "tools": [
+        "health_data"
       ]
     },
     {

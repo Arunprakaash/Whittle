@@ -754,6 +754,9 @@ class ChatViewModel(
     fun restartProcess(item: ThreadItem.Process) = current.value.restartProcess(item)
 
     /** What the very first chat offers to try, without the ones whose phone feature the user switched off. */
+    /** Where a health permission card asks; see [rememberCapabilityRequest][app.whittle.phone.rememberCapabilityRequest]. */
+    val healthConnect get() = graph.healthConnect
+
     val starters: List<Starter> get() = startersFor(graph.starters, graph.currentSettings.value?.phoneOff.orEmpty())
 
     /** Things to build that a new chat offers. */

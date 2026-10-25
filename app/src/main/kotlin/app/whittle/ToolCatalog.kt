@@ -15,6 +15,7 @@ import android.content.Context
 import app.whittle.agent.AskUserTool
 import app.whittle.core.common.EpochClock
 import app.whittle.tools.android.CalendarEventsTool
+import app.whittle.tools.android.HealthDataTool
 import app.whittle.tools.android.ComposeMessageTool
 import app.whittle.tools.android.ContactsSearchTool
 import app.whittle.tools.android.AddCalendarEventTool
@@ -46,6 +47,7 @@ object ToolCatalog {
         WebFetchTool.DEFINITION,
         ContactsSearchTool.DEFINITION,
         CalendarEventsTool.DEFINITION,
+        HealthDataTool.DEFINITION,
         ComposeMessageTool.DEFINITION,
         CallTool.DEFINITION,
         SetAlarmTool.DEFINITION,
@@ -88,6 +90,7 @@ object ToolCatalog {
             WebFetchTool(httpClient),
             ContactsSearchTool(context),
             CalendarEventsTool(context, clock),
+            HealthDataTool(phone.health, clock, phone.config.health.limits),
             ComposeMessageTool(context),
             CallTool(context),
             SetAlarmTool(context),
