@@ -9,9 +9,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
@@ -82,12 +84,15 @@ fun SettingsRow(
     trailing: (@Composable () -> Unit)? = null,
     /** A website whose logo stands in for [icon] once it loads (a connected service, say). */
     logoHost: String? = null,
+    /** The row's state is still being read: a skeleton line stands where [subtitle] will go. */
+    loading: Boolean = false,
 ) {
     val haptics = WhittleTheme.haptics
     val action = onClick?.takeIf { enabled }
     SettingsRowLayout(
         icon = icon,
         logoHost = logoHost,
+        loading = loading,
         title = title,
         subtitle = subtitle,
         destructive = destructive,
@@ -164,6 +169,7 @@ fun SettingsChoiceRow(
 private fun SettingsRowLayout(
     icon: String,
     logoHost: String? = null,
+    loading: Boolean = false,
     title: String,
     subtitle: String?,
     destructive: Boolean,
@@ -198,7 +204,11 @@ private fun SettingsRowLayout(
         if (logoHost != null) SiteIcon(logoHost, WhittleSize.Tile.s, WhittleSize.Icon.m, fallback = symbol) else symbol()
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(WhittleSpace.xs)) {
             Text(title, style = MaterialTheme.typography.titleSmall, color = if (destructive) colors.error else colors.onSurface)
-            subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant) }
+            if (loading) {
+                SkeletonBlock(Modifier.padding(vertical = WhittleSpace.hairline).width(WhittleSize.Tile.xl * 2).height(WhittleSpace.m))
+            } else {
+                subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant) }
+            }
         }
         trailing?.invoke()
     }
