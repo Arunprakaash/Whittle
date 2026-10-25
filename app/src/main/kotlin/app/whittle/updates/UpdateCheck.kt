@@ -82,7 +82,7 @@ class UpdateCheck(
         val request = Request.Builder().url(defaults.latestReleaseUrl).header("Accept", "application/vnd.github+json").build()
         http.newCall(request).execute().use { response ->
             val body = response.body?.takeIf { response.isSuccessful } ?: return null
-            parseLatestRelease(body.string())
+            parseLatestRelease(body.string(), defaults.apkAsset)
         }
     } catch (exception: IOException) {
         null

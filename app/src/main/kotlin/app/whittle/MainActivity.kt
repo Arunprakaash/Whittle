@@ -101,11 +101,18 @@ class MainActivity : ComponentActivity() {
     /** The assistant opened Whittle: through [QuickStart.ENTRY], which only Whittle can start, like the quick starts. */
     private fun isAssist(intent: Intent): Boolean = intent.action == ACTION_ASSIST && intent.component?.className == QuickStart.ENTRY
 
+    /** The update notification's Update button: through [QuickStart.ENTRY] too, so no other app can start a download. */
+    private fun isUpdate(intent: Intent): Boolean = intent.action == ACTION_UPDATE && intent.component?.className == QuickStart.ENTRY
+
+    /** Set when the update notification asked to update, until Settings shows it under way. */
+    private val updating = MutableStateFlow(false)
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         QuickStart.from(intent.action, intent.component?.className)?.let { quickStart.value = it }
         if (intent.action == ACTION_SHOW_CONNECTIONS) openingConnections.value = true
         if (isAssist(intent)) assisting.value = true
+        if (isUpdate(intent)) updating.value = true
         SharedItems.from(intent)?.let { shared.value = it }
         AppShortcuts.opening(intent)?.let { openingApp.value = it }
     }
@@ -118,6 +125,7 @@ class MainActivity : ComponentActivity() {
             quickStart.value = QuickStart.from(intent?.action, intent?.component?.className)
             openingConnections.value = intent?.action == ACTION_SHOW_CONNECTIONS
             assisting.value = intent?.let(::isAssist) == true
+            updating.value = intent?.let(::isUpdate) == true
         }
         drawBehindSystemBars(dark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES)
         super.onCreate(savedInstanceState)
@@ -259,6 +267,17 @@ class MainActivity : ComponentActivity() {
                                 showingAllChats = false; showingModelPicker = false; showingAutomations = false
                                 showingMemory = false; showingLinux = false; showingConnectionLibrary = false; toolsOf = null
                                 showingSettings = true
+                            }
+                            val update by updating.collectAsStateWithLifecycle()
+                            LaunchedEffect(update) {
+                                if (!update) return@LaunchedEffect
+                                updating.value = false
+                                // Settings, where the Version row shows the download and the install.
+                                files = null
+                                showingAllChats = false; showingModelPicker = false; showingAutomations = false
+                                showingMemory = false; showingLinux = false; showingConnectionLibrary = false; toolsOf = null
+                                showingSettings = true
+                                graph.selfUpdate.start()
                             }
                             val assisted by assisting.collectAsStateWithLifecycle()
                             LaunchedEffect(assisted) {
@@ -450,6 +469,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         /** Opens Settings, where the connections are; sent by the notification for a connection that signed Whittle out. */
         const val ACTION_SHOW_CONNECTIONS = "app.whittle.action.SHOW_CONNECTIONS"
+        const val ACTION_UPDATE = "app.whittle.action.UPDATE"
 
         /** Opens a new chat about the screen the assistant just read ([WhittleApplication.assistIncoming]). */
         const val ACTION_ASSIST = "app.whittle.action.ASSIST_SCREEN"

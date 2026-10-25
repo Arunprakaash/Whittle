@@ -89,7 +89,10 @@ import app.whittle.observability.posthog.PostHogTelemetry
 import app.whittle.policy.PolicyRuleSet
 import app.whittle.policy.RuleBasedPolicyEngine
 import app.whittle.settings.AppDefaults
+import app.whittle.updates.SelfUpdate
+import app.whittle.updates.SelfUpdateHost
 import app.whittle.updates.UpdateCheck
+import app.whittle.updates.downloadApk
 import app.whittle.chat.AppShortcuts
 import app.whittle.settings.ConnectionStore
 import app.whittle.storage.chats.ChatStore
@@ -267,6 +270,20 @@ class AppGraph(context: Context) {
     /** Installs, updates and reads the state of the apps the agent built; only the user's tap calls it. */
     val appInstaller = AppInstaller(context, appSigner, apkInspector, nativeApps, clock) { session -> RunNotifications(context).clearInstallPrompt(session) }
 
+    /** Updates Whittle from inside the app, through [appInstaller]; see [SelfUpdate]. */
+    val selfUpdate = SelfUpdate(
+        updates,
+        download = { apk, file, progress -> downloadApk(httpClient, apk, file, progress) },
+        directory = File(context.cacheDir, appDefaults.updates.downloadDirectory),
+        host = object : SelfUpdateHost {
+            override fun canInstall() = appInstaller.canInstall()
+            override suspend fun install(apk: File) = appInstaller.installUpdate(apk, context.getString(R.string.app_name))
+            override fun progress(version: String, percent: Int?) = RunNotifications(context).updateProgress(version, percent)
+            override fun done() = RunNotifications(context).updateDone()
+        },
+        scope = appScope,
+    )
+
     /** The agent's `create_app` and `build_app`; the package is Whittle's own, so a debug build gives app.whittle.debug. */
     private fun appTools(context: Context): Pair<CreateAppTool, BuildAppTool> = CreateAppTool(
         workspaces, chatProjects, nativeApps, context.packageName, agentMessages,
@@ -301,6 +318,7 @@ class AppGraph(context: Context) {
     init {
         appScope.launch { settings.ensureAvatarSeed() }
         appScope.launch(Dispatchers.IO) { appInstaller.cleanUp() }
+        appScope.launch(Dispatchers.IO) { selfUpdate.cleanUp() }
     }
 
     val modelLister = OpenAiCompatibleModelLister(httpClient, modelTrust, modelDefaults.fallbackCapabilities)

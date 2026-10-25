@@ -129,6 +129,9 @@
     "check": true,
     "latestReleaseUrl": "https://api.github.com/repos/Arunprakaash/Whittle/releases/latest",
     "everyHours": 24,
-    "fileName": "update-check.json"
+    "fileName": "update-check.json",
+    "apkFileName": "Whittle-{version}.apk",
+    "apkUrlPrefix": "https://github.com/Arunprakaash/Whittle/releases/download/",
+    "downloadDirectory": "updates"
   }
 }

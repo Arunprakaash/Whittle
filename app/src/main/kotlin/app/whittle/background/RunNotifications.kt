@@ -1,7 +1,9 @@
 package app.whittle.background
 
+import android.content.ComponentName
 import app.whittle.linux.LinuxState
 import app.whittle.linux.LinuxSteps
+import app.whittle.quickstart.QuickStart
 import app.whittle.tools.workspace.ProcessInfo
 import android.app.Notification
 import android.app.NotificationChannel
@@ -144,7 +146,10 @@ class RunNotifications(private val context: Context) {
         manager.activeNotifications.filter { it.tag?.startsWith("$TAG_APPROVAL/") == true }.forEach { manager.cancel(it.tag, it.id) }
     }
 
-    /** A newer Whittle is out; tapping opens its release page, with what's new and the APK. */
+    /**
+     * A newer Whittle is out. Tapping opens its release page, with what's new; Update, when the release has an APK
+     * Whittle can install, opens Whittle and starts updating, through the alias only Whittle can start.
+     */
     fun updateAvailable(release: Release) {
         if (!manager.areNotificationsEnabled()) return
         val open = PendingIntent.getActivity(
@@ -153,14 +158,44 @@ class RunNotifications(private val context: Context) {
             Intent(Intent.ACTION_VIEW, release.pageUrl.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val notification = Notification.Builder(context, CHANNEL_UPDATES)
+        val builder = Notification.Builder(context, CHANNEL_UPDATES)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(context.getString(R.string.notify_update_title, release.version))
             .setContentText(context.getString(R.string.notify_update_text))
             .setContentIntent(open)
             .setAutoCancel(true)
+        if (release.apk != null) {
+            val update = PendingIntent.getActivity(
+                context,
+                REQUEST_UPDATE_NOW,
+                Intent().setComponent(ComponentName(context, QuickStart.ENTRY)).setAction(MainActivity.ACTION_UPDATE)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+            builder.addAction(Notification.Action.Builder(null, context.getString(R.string.notify_update_now), update).build())
+        }
+        manager.notify(ID_UPDATE, builder.build())
+    }
+
+    /** An update downloading ([percent]) or installing (null), with its progress; ongoing until [updateDone]. */
+    fun updateProgress(version: String, percent: Int?) {
+        if (!manager.areNotificationsEnabled()) return
+        manager.cancel(ID_UPDATE)
+        val notification = Notification.Builder(context, CHANNEL_UPDATES)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(if (percent != null) R.string.notify_update_downloading else R.string.notify_update_installing, version))
+            .setContentIntent(openApp())
+            .setProgress(PERCENT, percent ?: 0, percent == null)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setCategory(Notification.CATEGORY_PROGRESS)
             .build()
-        manager.notify(ID_UPDATE, notification)
+        manager.notify(ID_UPDATE_PROGRESS, notification)
+    }
+
+    /** The update finished, failed or was cancelled: its progress notification goes. */
+    fun updateDone() {
+        manager.cancel(ID_UPDATE_PROGRESS)
     }
 
     /**
@@ -344,6 +379,7 @@ class RunNotifications(private val context: Context) {
         const val ID_PROCESSES = 5
         const val ID_APP_TOOLCHAIN = 6
         private const val ID_UPDATE = 7
+        private const val ID_UPDATE_PROGRESS = 8
         private const val PERCENT = 100
         private const val ID_FINISHED = 2
         private const val ID_NEEDS_YOU = 3
@@ -361,6 +397,7 @@ class RunNotifications(private val context: Context) {
         private const val REQUEST_STOP = 2
         private const val REQUEST_STOP_ALL = 3
         private const val REQUEST_UPDATE = 4
+        private const val REQUEST_UPDATE_NOW = 6
         private const val REQUEST_CONNECTIONS = 5
     }
 }
