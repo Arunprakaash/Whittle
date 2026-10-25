@@ -58,6 +58,7 @@ abstract class TermuxRuntimeTask : DefaultTask() {
     fun build() {
         val spec = TermuxSpec.read(specFile.get().asFile)
         val lock = Lockfile.read(lockFile.get().asFile)
+        val lockId = Lockfile.id(lockFile.get().asFile)
         val prefix = spec.prefixFor(applicationId.get())
         val jniRoot = jniLibsDirectory.get().asFile.apply { deleteRecursively(); mkdirs() }
         val assetsRoot = assetsDirectory.get().asFile.apply { deleteRecursively(); mkdirs() }
@@ -66,15 +67,15 @@ abstract class TermuxRuntimeTask : DefaultTask() {
             val layout = Layout(spec, prefix, File(jniRoot, abi).apply { mkdirs() })
             val assets = File(assetsRoot, "${assetDirectory.get()}/$abi").apply { mkdirs() }
             ZipOutputStream(File(assets, ARCHIVE).outputStream().buffered()).use { zip ->
-                packages.forEach { locked -> layout.add(entries(spec, locked), zip) }
+                packages.forEach { locked -> layout.add(entries(spec, locked, lockId), zip) }
             }
             File(assets, MANIFEST).writeText(JsonOutput.prettyPrint(JsonOutput.toJson(layout.manifest())))
             logger.lifecycle("Tools for $abi: ${layout.summary()}")
         }
     }
 
-    private fun entries(spec: TermuxSpec, locked: LockedPackage): List<TarEntry> {
-        val bytes = Debs.fetch(spec, locked, downloadDirectory.get().asFile)
+    private fun entries(spec: TermuxSpec, locked: LockedPackage, lockId: String): List<TarEntry> {
+        val bytes = Debs.fetch(spec, locked, lockId, downloadDirectory.get().asFile)
         return Debs.dataEntries(bytes, "${locked.name} ${locked.version}")
     }
 

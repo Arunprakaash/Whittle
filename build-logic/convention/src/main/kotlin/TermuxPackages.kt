@@ -16,7 +16,8 @@ internal class TermuxSpec(
     val repository: String,
     /**
      * Where else a pinned .deb is found, by its file name, when Termux has dropped it (it keeps only current versions):
-     * Whittle's own copies, uploaded by CI from the lock file. Each download is checked against the pinned SHA-256.
+     * Whittle's own copies, uploaded by CI from the lock file. [LOCK] in a mirror stands for the lock file's
+     * [Lockfile.id], so each lock has its own copies. Each download is checked against the pinned SHA-256.
      */
     val mirrors: List<String>,
     /** How long a download waits to connect, and then between bytes, before it counts as failed, so a stalled server can't hang the build. */
@@ -43,8 +44,14 @@ internal class TermuxSpec(
         return base.padEnd(termuxPrefix.length, PAD)
     }
 
+    /** [mirrors] for the lock file whose [Lockfile.id] is [lockId]. */
+    fun mirrorsFor(lockId: String): List<String> = mirrors.map { it.replace(LOCK, lockId) }
+
     companion object {
         private const val PAD = '_'
+
+        /** Placeholder in [mirrors] for the lock file's [Lockfile.id]. */
+        const val LOCK = "{lock}"
 
         @Suppress("UNCHECKED_CAST")
         fun read(file: File): TermuxSpec {
@@ -126,16 +133,22 @@ internal object Debs {
 
     /**
      * The pinned [locked] .deb: from [cache] when it's there and intact, else from Termux, else from the first of the
-     * spec's mirrors that has it. Whatever is downloaded must match the pinned SHA-256, and is kept in [cache]; a source
+     * spec's mirrors for the lock file [lockId] that has it. Whatever is downloaded must match the pinned SHA-256, and is kept in [cache]; a source
      * that fails or serves other bytes (a captive portal's page, a changed file) is skipped for the next one.
      * [download] is how a URL is read.
      */
-    fun fetch(spec: TermuxSpec, locked: LockedPackage, cache: File, download: (String) -> ByteArray = { download(it, spec) }): ByteArray {
+    fun fetch(
+        spec: TermuxSpec,
+        locked: LockedPackage,
+        lockId: String,
+        cache: File,
+        download: (String) -> ByteArray = { download(it, spec) },
+    ): ByteArray {
         val name = locked.filename.substringAfterLast('/')
         val file = File(cache.apply { mkdirs() }, name)
         val what = "${locked.name} ${locked.version}"
         file.takeIf { it.isFile }?.readBytes()?.takeIf { sha256(it).equals(locked.sha256, ignoreCase = true) }?.let { return it }
-        val sources = listOf(spec.repository.trimEnd('/') + "/" + locked.filename) + spec.mirrors.map { it.trimEnd('/') + "/" + name }
+        val sources = listOf(spec.repository.trimEnd('/') + "/" + locked.filename) + spec.mirrorsFor(lockId).map { it.trimEnd('/') + "/" + name }
         val failures = mutableListOf<String>()
         for (url in sources) {
             val bytes = try {
@@ -270,6 +283,15 @@ internal object Debs {
 }
 
 internal object Lockfile {
+    /** Hex digits of the file's SHA-256 that make its [id]. */
+    private const val ID_LENGTH = 12
+
+    /**
+     * Names this version of the lock file: the start of its SHA-256. The mirror release is named after it (CI's mirror
+     * job computes the same with `sha256sum`), so a changed lock gets a new release instead of adding to an old one.
+     */
+    fun id(file: File): String = Debs.sha256(file.readBytes()).take(ID_LENGTH)
+
     @Suppress("UNCHECKED_CAST")
     fun read(file: File): Map<String, List<LockedPackage>> {
         if (!file.isFile) throw GradleException("${file.name} is missing; run ./gradlew :app:updateTermuxLock")

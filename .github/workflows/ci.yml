@@ -19,6 +19,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    outputs:
+      mirror-release: ${{ steps.mirror-release.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -61,6 +63,24 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      # Each lock file gets a release of its own, named by termux-runtimes.json's mirror with {lock} as the lock
+      # file's id (Lockfile.id: the first 12 hex digits of its SHA-256), so the name comes from where builds look.
+      - name: Name the mirror release
+        id: mirror-release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          id=$(sha256sum app/termux-runtimes.lock.json | cut -c1-12)
+          releases="https://github.com/$GITHUB_REPOSITORY/releases/download/"
+          tag=$(jq -r --arg id "$id" --arg releases "$releases" \
+            '.mirrors[] | select(startswith($releases)) | split("{lock}") | join($id) | ltrimstr($releases) | rtrimstr("/")' \
+            app/termux-runtimes.json)
+          if [ "$(wc -l <<< "$tag")" -ne 1 ] || [ -z "$tag" ] || [[ "$tag" == */* ]] || [[ "$tag" != *"$id"* ]]; then
+            echo "::error::termux-runtimes.json needs one mirror of the form $releases<name with {lock}>/"
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
       - name: Keep the reports
         if: failure()
         uses: actions/upload-artifact@v4
@@ -71,7 +91,7 @@ jobs:
             **/build/test-results/
           retention-days: 7
 
-  # Puts the pinned .debs on the termux-runtimes release, the mirror the build falls back to (termux-runtimes.json).
+  # Puts the pinned .debs on the lock file's mirror release, which the build falls back to (termux-runtimes.json).
   # The only job with a write token. It runs no Gradle and no repository code: it uploads what the build job
   # handed over, and every .deb is checked against its pinned SHA-256 again when a build downloads it.
   mirror:
@@ -84,35 +104,52 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
+      RELEASE: ${{ needs.build.outputs.mirror-release }}
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: termux-debs
           path: debs
 
-      # Names include the version and the bytes are pinned, so a file the release already has is never uploaded
-      # again (no --clobber, which deletes the old asset first). The release is a prerelease so the landing page,
-      # which lists only full releases, doesn't show it.
-      - name: Upload the packages the mirror lacks
+      # The repository's releases are immutable: once published, a release takes no new assets. So the release is
+      # made as a draft, filled, checked and only then published; a run stopped halfway leaves a draft the next one
+      # finishes. Names include the version and the bytes are pinned, so a file the draft already has is never
+      # uploaded again (no --clobber, which deletes the old asset first). It's a prerelease so the landing page, which
+      # lists only full releases, doesn't show it.
+      - name: Publish the mirror release
         run: |
           set -euo pipefail
           errors=$(mktemp)
-          if ! existing=$(gh release view termux-runtimes --json assets --jq '.assets[].name' 2> "$errors"); then
+          if ! release=$(gh release view "$RELEASE" --json isDraft,assets 2> "$errors"); then
             # Only a missing release is created; an auth or network error stops here with its own message.
             grep -qi 'release not found' "$errors" || { cat "$errors" >&2; exit 1; }
-            gh release create termux-runtimes --prerelease --title "Termux runtimes (build mirror)" --notes "The Termux packages app/termux-runtimes.lock.json pins, kept for builds after Termux drops them. Not a Whittle release."
-            existing=""
+            gh release create "$RELEASE" --draft --prerelease --target "$GITHUB_SHA" --title "Termux runtimes $RELEASE (build mirror)" --notes "The Termux packages app/termux-runtimes.lock.json pins (this release is named after that file's SHA-256), kept for builds after Termux drops them. Not a Whittle release."
+            release=$(gh release view "$RELEASE" --json isDraft,assets)
           fi
-          missing=()
-          for deb in debs/*.deb; do
-            grep -qxF "$(basename "$deb")" <<< "$existing" || missing+=("$deb")
-          done
-          if [ "${#missing[@]}" -gt 0 ]; then
-            gh release upload termux-runtimes "${missing[@]}"
+          draft=$(jq -r .isDraft <<< "$release")
+          if [ "$draft" = true ]; then
+            existing=$(jq -r '.assets[].name' <<< "$release")
+            missing=()
+            for deb in debs/*.deb; do
+              grep -qxF "$(basename "$deb")" <<< "$existing" || missing+=("$deb")
+            done
+            if [ "${#missing[@]}" -gt 0 ]; then
+              gh release upload "$RELEASE" "${missing[@]}"
+            fi
           fi
           # GitHub renames assets whose names have some special characters (a version with ~ or +), and builds look
           # a package up on the mirror by its Termux file name, so check every name is there as it was uploaded.
-          uploaded=$(gh release view termux-runtimes --json assets --jq '.assets[].name')
+          uploaded=$(gh release view "$RELEASE" --json assets --jq '.assets[].name')
           for deb in debs/*.deb; do
-            grep -qxF "$(basename "$deb")" <<< "$uploaded" || { echo "::error::The mirror has no asset named $(basename "$deb"); GitHub may have renamed it"; exit 1; }
+            if ! grep -qxF "$(basename "$deb")" <<< "$uploaded"; then
+              if [ "$draft" = true ]; then
+                echo "::error::The draft $RELEASE has no asset named $(basename "$deb"); GitHub may have renamed it"
+              else
+                echo "::error::The published $RELEASE lacks $(basename "$deb") and can't take new assets; delete the release and rerun this job"
+              fi
+              exit 1
+            fi
           done
+          if [ "$draft" = true ]; then
+            gh release edit "$RELEASE" --draft=false
+          fi
