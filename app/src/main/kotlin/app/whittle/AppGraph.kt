@@ -156,6 +156,7 @@ class AppGraph(context: Context) {
     private val policyRules = load(ConfigFiles.policyRules, PolicyRuleSet.serializer(), PolicyRuleSet.SCHEMA_VERSION)
     val sidebarMaxChats: Int get() = appDefaults.chatList.sidebarMaxChats
     val memoryIdeas: List<MemoryIdea> get() = appDefaults.memory.ideas
+    val memoryQuietMillis: Long get() = appDefaults.memory.review.quietMillis
     val starters: List<Starter> get() = appDefaults.starters
     val appIdeas: List<AppIdea> get() = appDefaults.appIdeas
     val assistantDefaults: AssistantDefaults get() = appDefaults.assistant

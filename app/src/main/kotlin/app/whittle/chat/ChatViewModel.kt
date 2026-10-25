@@ -211,6 +211,7 @@ class ChatViewModel(
             if (session === current.value || background.value[id] !== session) return
             background.update { it - id }
             session.close()
+            quiet.left(id.value)
         }
     }
 
@@ -237,6 +238,9 @@ class ChatViewModel(
 
     /** A task is working in some chat, open or not. */
     val working: Boolean get() = current.value.working || background.value.isNotEmpty()
+
+    /** Reviews a chat for memories once the user has left it alone for a while. */
+    private val quiet = QuietReviews(viewModelScope, graph.memoryQuietMillis) { id -> reviewQuiet(ChatId(id)) }
 
     /** A project picked in a new chat, before it has an id to keep it under. */
     private var pendingProject: String? = null
@@ -403,6 +407,7 @@ class ChatViewModel(
         // A model that can't see gets the photos only as files, through the note.
         val images = if (model.capabilities.vision) messageImages(attachments, screenshot, screen) else emptyList()
         claimPendingProject()
+        current.value.chatId?.let { quiet.returned(it.value) }
         current.value.send(text, model, forModel, images, attachments, pasted)
     }
 
@@ -552,14 +557,47 @@ class ChatViewModel(
         val leaving = current.value
         if (leaving !== next) {
             val id = leaving.chatId
-            if (leaving.working && id != null) background.update { it + (id to leaving) } else leaving.close()
+            if (leaving.working && id != null) {
+                background.update { it + (id to leaving) }
+            } else {
+                leaving.close()
+                id?.let { quiet.left(it.value) }
+            }
         }
+        next.chatId?.let { quiet.returned(it.value) }
         _state.value.attachments.forEach { attachment -> graph.appScope.launch { graph.attachments.discard(attachment) } }
         _state.update { it.copy(input = "", attachments = emptyList(), screen = null, screenshot = null) }
         pendingProject = null
         current.value = next
         syncProject()
         refreshProjects()
+    }
+
+    /** The user left Whittle: the chat on screen, if its task has ended, starts going quiet. */
+    fun appLeft() {
+        val session = current.value
+        val id = session.chatId ?: return
+        if (!session.working) quiet.left(id.value)
+    }
+
+    /** The user is back in Whittle, and so in the chat on screen. */
+    fun appReturned() {
+        current.value.chatId?.let { quiet.returned(it.value) }
+    }
+
+    /**
+     * The memory review of a chat that went quiet: from the session if it's still open, else from what was saved; a chat
+     * that's gone is not brought back. The model is the one chosen now.
+     */
+    private suspend fun reviewQuiet(id: ChatId) {
+        val live = if (current.value.chatId == id) current.value else background.value[id]
+        val (items, automationName) = if (live != null) {
+            live.state.value.items to live.automationName
+        } else {
+            val document = graph.chats.load(id).getOrNull()?.let { decode(it.document) } ?: return
+            document.items to document.automationName
+        }
+        reviewChat(id.value, items, _state.value.model, automationName, graph.memoryReview::review)
     }
 
     /**
