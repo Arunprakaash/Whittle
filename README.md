@@ -173,15 +173,12 @@ event or an interval).
 - **What runs without asking.** automations.json lists what can be pre-approved: web reads, the clock, the
   calendar, contacts and the workspace's files, never anything that sends data out. A new automation may only
   read; changing files is a separate choice, off by default. A test keeps both rules.
-- **Events.** An automation can start on a text arriving (from anyone or chosen senders, with chosen words), an
-  app's notification, arriving at or leaving a place, plugging in or unplugging, joining or leaving a Wi-Fi
-  network, or every N minutes (15 at least). One-time codes are hidden (`[code hidden]`) before any model sees a
-  message. Each automation has a cooldown and a daily limit (`events` in automations.json); texts that arrive during
-  the cooldown wait and go together in one run. Permissions are asked when an automation that needs them is saved. On
-  newer Android, sideloaded apps need Allow restricted settings for SMS and notification access, and the editor
-  says how. Some edges can fire up to 15 minutes late: unplugging, leaving Wi-Fi, and places when location
-  polling is on. Asking "when my bank texts me, add it to expenses.csv" makes a `watch_for` card, which always asks
-  first and is only approved inside the app. Recipes: Log bank texts, What's arriving, Plugged in at night.
+- **Events.** An automation can start on a text, an app's notification, arriving at or leaving a place, plugging in or
+  out, joining or leaving Wi-Fi, or every N minutes (15 at least). One-time codes are hidden (`[code hidden]`) before any
+  model sees a message, and a cooldown and daily limit apply (`events` in automations.json). After saving, the editor
+  lists missing permissions with Grant buttons; an automation made from chat shows Needs permission, with Fix, in
+  Settings › Automations. Some edges can fire up to 15 minutes late. A `watch_for` card always asks first and is only
+  approved inside the app. Details in `docs/phone-events.md`.
 - **Projects.** An automation can have a project. Its chat is then confined to that folder: the file tools
   refuse paths outside it, and the agent can't move the chat to another project, until the user picks one
   (`ChatProjects.isConfined`). Without a project it works on the whole shared workspace.
