@@ -724,6 +724,15 @@
       "grantedOutcome": "Adding events allowed",
       "deniedOutcome": "Adding events not allowed"
     },
+    "storage": {
+      "icon": "folder",
+      "title": "Let Whittle see your files?",
+      "body": "So it can find and read files in Downloads, photos and documents. Only the files it opens are shared with your AI provider.",
+      "approve": "Allow",
+      "decline": "Not now",
+      "grantedOutcome": "Files allowed",
+      "deniedOutcome": "Files not allowed"
+    },
     "app_building": {
       "icon": "build",
       "title": "Set up app building?",
