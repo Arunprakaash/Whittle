@@ -1,6 +1,9 @@
 # Phone events, storage and memory review
 
-Status: design, not built. Covers roadmap items A2 (event triggers) and the follow-ups the user asked for on
+Status: triggers are built on feat/phone-events (Tasks 1-9); the phone pass and the place-alert check are still to do.
+Storage tools and the memory review are on their own branches, not built yet.
+
+Covers roadmap items A2 (event triggers) and the follow-ups the user asked for on
 2026-10-24: storage cleanup and a memory of the user. A mail checker was discussed and set aside (see Later).
 
 ## Why
