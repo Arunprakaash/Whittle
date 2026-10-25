@@ -250,6 +250,29 @@ class McpConnectionTest {
     }
 
     @Test
+    fun `a sign-in server that is busy or slow doesn't sign the user out`() = runTest {
+        for (status in listOf(408, 429)) {
+            val connection = signedIn()
+            refreshStatus = status
+            now += 3_600_000
+            connection.refreshTools()
+            assertIs<ConnectorState.Connected>(connection.state.value, "HTTP $status")
+            assertEquals(false, store.saved?.signedOut, "HTTP $status")
+            refreshStatus = 200
+        }
+    }
+
+    @Test
+    fun `a sign-in server's other errors don't sign the user out`() = runTest {
+        val connection = signedIn()
+        refreshStatus = 403
+        now += 3_600_000
+        connection.refreshTools()
+        assertIs<ConnectorState.Connected>(connection.state.value)
+        assertEquals(false, store.saved?.signedOut)
+    }
+
+    @Test
     fun `a server that is down keeps its tools and says so until it answers again`() = runTest {
         val connection = signedIn()
         serverDown = true
