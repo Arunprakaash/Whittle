@@ -79,6 +79,7 @@ import app.whittle.llm.api.ProviderCatalog
 import app.whittle.llm.openai.ApiKeyVerifier
 import app.whittle.llm.openai.OpenAiCompatibleAdapter
 import app.whittle.llm.openai.OpenAiCompatibleModelLister
+import app.whittle.llm.anthropic.AnthropicMessagesAdapter
 import app.whittle.llm.responses.OpenAiResponsesAdapter
 import app.whittle.observability.ConsentFilteringTelemetry
 import app.whittle.observability.LocalTelemetry
@@ -403,7 +404,7 @@ class AppGraph(context: Context) {
     }
 
     val runner = AgentRunner(
-        adapters = ModelAdapterRegistry(setOf(OpenAiCompatibleAdapter(httpClient, idGenerator), OpenAiResponsesAdapter(httpClient))),
+        adapters = ModelAdapterRegistry(setOf(OpenAiCompatibleAdapter(httpClient, idGenerator), OpenAiResponsesAdapter(httpClient), AnthropicMessagesAdapter())),
         providers = providers,
         credentials = SecretStoreCredentialsProvider(secrets),
         tools = tools,

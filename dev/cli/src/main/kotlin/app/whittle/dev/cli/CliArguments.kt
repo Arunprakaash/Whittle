@@ -19,6 +19,10 @@ data class CliArguments(
     val reasoningEffort: ReasoningEffort?,
     /** Where remembered facts are kept between sessions. */
     val memoryFile: Path,
+    /** A suite of tasks to run instead of one prompt (see dev/cli/evals). */
+    val evalSuite: Path? = null,
+    /** Where an eval's results are written. */
+    val reportFile: Path = Paths.get(DEFAULT_REPORT_FILE),
 ) {
     companion object {
         val USAGE = """
@@ -31,11 +35,14 @@ data class CliArguments(
             |  --reasoning <effort> none | low | medium | high  (default: model-defaults.json)
             |  --key-file <path>    properties file with "<provider-id>=<key>" (default: ~/$DEFAULT_KEY_FILE)
             |  --memory-file <path> what the agent remembers between sessions (default: ~/$DEFAULT_MEMORY_FILE)
+            |  --eval <path>        run a suite of tasks instead of --prompt, e.g. dev/cli/evals/core.json
+            |  --report <path>      where --eval writes its results (default: $DEFAULT_REPORT_FILE)
         """.trimMargin()
 
         private const val DEFAULT_PROVIDER = "openai"
         private const val DEFAULT_KEY_FILE = ".whittle/dev-keys.properties"
         private const val DEFAULT_MEMORY_FILE = ".whittle/cli-memory.json"
+        private const val DEFAULT_REPORT_FILE = "build/eval-report.json"
 
         fun parse(args: Array<String>): Result<CliArguments> = runCatching {
             val options = mutableMapOf<String, String>()
@@ -62,6 +69,8 @@ data class CliArguments(
                 reasoningEffort = options["reasoning"]?.let { ReasoningEffort.valueOf(it.uppercase()) },
                 memoryFile = options["memory-file"]?.let(Paths::get)
                     ?: Paths.get(System.getProperty("user.home"), DEFAULT_MEMORY_FILE),
+                evalSuite = options["eval"]?.let(Paths::get),
+                reportFile = options["report"]?.let(Paths::get) ?: Paths.get(DEFAULT_REPORT_FILE),
             )
         }
     }

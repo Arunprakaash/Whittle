@@ -60,11 +60,22 @@ internal class OpenAiStreamParser(
     }
 
     private fun accumulate(delta: ToolCallDelta) {
-        val pending = pendingToolCalls.getOrPut(delta.index) { PendingToolCall() }
         // Some OpenAI-compatible servers send "" for the id, or repeat it as "" in later fragments; that names no call.
-        delta.id?.takeIf { it.isNotEmpty() }?.let { pending.id = it }
+        val id = delta.id?.takeIf { it.isNotEmpty() }
+        val pending = pendingToolCalls.getOrPut(delta.index ?: unindexedSlot(id, delta.function?.name)) { PendingToolCall() }
+        id?.let { pending.id = it }
         delta.function?.name?.let { pending.name.append(it) }
         delta.function?.arguments?.let { pending.arguments.append(it) }
+    }
+
+    /**
+     * Where a fragment without an index goes (Gemini sends each call whole, with none): the call with its [id], else a new
+     * call when it names one ([id] or [name]), else the last call, which it continues.
+     */
+    private fun unindexedSlot(id: String?, name: String?): Int {
+        id?.let { wanted -> pendingToolCalls.entries.firstOrNull { it.value.id == wanted }?.let { return it.key } }
+        val last = pendingToolCalls.keys.maxOrNull()
+        return if (last == null || id != null || name != null) (last ?: -1) + 1 else last
     }
 
     private fun drainToolCalls(): List<ModelEvent> = pendingToolCalls.values.map {

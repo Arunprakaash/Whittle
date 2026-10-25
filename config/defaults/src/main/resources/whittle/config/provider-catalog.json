@@ -267,6 +267,191 @@
           }
         }
       ]
+    },
+    {
+      "id": "anthropic",
+      "displayName": "Anthropic",
+      "tagline": "Your API key, for Claude",
+      "keysUrl": "https://console.anthropic.com/settings/keys",
+      "apiFormat": "ANTHROPIC_MESSAGES",
+      "baseUrl": "https://api.anthropic.com/",
+      "generationPath": "v1/messages",
+      "modelsPath": "v1/models?limit=100",
+      "listedModelIdPatterns": [
+        "claude-fable-5-1",
+        "claude-fable-5",
+        "claude-opus-5-5",
+        "claude-opus-5",
+        "claude-opus-4-8",
+        "claude-opus-4-7",
+        "claude-opus-4-6",
+        "claude-sonnet-5-5",
+        "claude-sonnet-5",
+        "claude-sonnet-4-6",
+        "claude-haiku-5-5",
+        "claude-haiku-4-5"
+      ],
+      "keyCheckPath": "v1/models?limit=1",
+      "auth": {
+        "headerName": "x-api-key",
+        "valuePrefix": ""
+      },
+      "maxOutputTokensParameter": "max_tokens",
+      "defaultHeaders": {
+        "anthropic-version": "2023-06-01",
+        "anthropic-beta": "server-side-fallback-2026-07-01,thinking-binding-controls-2026-08-01"
+      },
+      "thinkingFields": {
+        "block_binding": {
+          "prefix_mismatch_behavior": "drop_block"
+        }
+      },
+      "maxOutputTokens": 64000,
+      "requestOverrides": [
+        {
+          "modelIdPattern": "claude-fable-5-1",
+          "fields": {
+            "fallbacks": "default"
+          }
+        },
+        {
+          "modelIdPattern": "claude-opus-5-5",
+          "fields": {
+            "fallbacks": "default"
+          }
+        },
+        {
+          "modelIdPattern": "claude-opus-5",
+          "fields": {
+            "fallbacks": "default"
+          }
+        },
+        {
+          "modelIdPattern": "claude-sonnet-5-5",
+          "fields": {
+            "fallbacks": "default"
+          }
+        }
+      ],
+      "capabilityOverrides": [
+        {
+          "modelIdPattern": "claude-haiku-4-5",
+          "capabilities": {
+            "toolCalling": true,
+            "parallelToolCalls": true,
+            "vision": true,
+            "promptCaching": true,
+            "reasoning": false
+          }
+        },
+        {
+          "modelIdPattern": "claude-*",
+          "capabilities": {
+            "toolCalling": true,
+            "parallelToolCalls": true,
+            "vision": true,
+            "promptCaching": true,
+            "reasoning": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "gemini",
+      "displayName": "Google Gemini",
+      "tagline": "Your API key from Google AI Studio",
+      "keysUrl": "https://aistudio.google.com/app/apikey",
+      "apiFormat": "OPENAI_CHAT_COMPLETIONS",
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai/",
+      "generationPath": "chat/completions",
+      "modelsPath": "models",
+      "listedModelIdPatterns": [
+        "*gemini-2*-pro",
+        "*gemini-2*-flash",
+        "*gemini-2*-flash-lite",
+        "*gemini-2*-pro-preview",
+        "*gemini-2*-flash-preview",
+        "*gemini-2*-flash-lite-preview",
+        "*gemini-2*-argon",
+        "*gemini-3*-pro",
+        "*gemini-3*-flash",
+        "*gemini-3*-flash-lite",
+        "*gemini-3*-pro-preview",
+        "*gemini-3*-flash-preview",
+        "*gemini-3*-flash-lite-preview",
+        "*gemini-3*-argon",
+        "*gemini-4*-pro",
+        "*gemini-4*-flash",
+        "*gemini-4*-flash-lite",
+        "*gemini-4*-pro-preview",
+        "*gemini-4*-flash-preview",
+        "*gemini-4*-flash-lite-preview",
+        "*gemini-4*-argon",
+        "*gemini-5*-pro",
+        "*gemini-5*-flash",
+        "*gemini-5*-flash-lite",
+        "*gemini-5*-pro-preview",
+        "*gemini-5*-flash-preview",
+        "*gemini-5*-flash-lite-preview",
+        "*gemini-5*-argon",
+        "*gemini-6*-pro",
+        "*gemini-6*-flash",
+        "*gemini-6*-flash-lite",
+        "*gemini-6*-pro-preview",
+        "*gemini-6*-flash-preview",
+        "*gemini-6*-flash-lite-preview",
+        "*gemini-6*-argon",
+        "*gemini-7*-pro",
+        "*gemini-7*-flash",
+        "*gemini-7*-flash-lite",
+        "*gemini-7*-pro-preview",
+        "*gemini-7*-flash-preview",
+        "*gemini-7*-flash-lite-preview",
+        "*gemini-7*-argon",
+        "*gemini-8*-pro",
+        "*gemini-8*-flash",
+        "*gemini-8*-flash-lite",
+        "*gemini-8*-pro-preview",
+        "*gemini-8*-flash-preview",
+        "*gemini-8*-flash-lite-preview",
+        "*gemini-8*-argon",
+        "*gemini-9*-pro",
+        "*gemini-9*-flash",
+        "*gemini-9*-flash-lite",
+        "*gemini-9*-pro-preview",
+        "*gemini-9*-flash-preview",
+        "*gemini-9*-flash-lite-preview",
+        "*gemini-9*-argon"
+      ],
+      "keyCheckPath": "models",
+      "auth": {
+        "headerName": "Authorization",
+        "valuePrefix": "Bearer "
+      },
+      "maxOutputTokensParameter": "max_tokens",
+      "reasoning": {
+        "effortFieldPath": [
+          "reasoning_effort"
+        ],
+        "effortValues": {
+          "NONE": "minimal",
+          "LOW": "low",
+          "MEDIUM": "medium",
+          "HIGH": "high"
+        }
+      },
+      "capabilityOverrides": [
+        {
+          "modelIdPattern": "*gemini-*",
+          "capabilities": {
+            "toolCalling": true,
+            "parallelToolCalls": true,
+            "vision": true,
+            "promptCaching": false,
+            "reasoning": true
+          }
+        }
+      ]
     }
   ]
 }

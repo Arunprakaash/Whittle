@@ -15,6 +15,8 @@ import app.whittle.core.model.Role
 import app.whittle.core.model.RunId
 import app.whittle.core.model.TokenUsage
 import app.whittle.core.model.ToolCallId
+import app.whittle.llm.api.StopReason
+import app.whittle.llm.api.ProviderCatalog
 import app.whittle.llm.api.HostedTool
 import app.whittle.llm.api.ModelAdapterRegistry
 import app.whittle.llm.api.ModelEvent
@@ -108,6 +110,27 @@ class AgentRunnerTest {
         assertIs<RunEvent.Completed>(events.last())
         val toolResult = adapter.requests[1].messages.last().content.single() as ContentBlock.ToolResult
         assertEquals("ok from time.now", toolResult.content)
+    }
+
+    @Test
+    fun `a tool call cut off by the output limit isn't run`() = runTest {
+        val clock = FakeTool("time.now", RiskTier.READ)
+        val cut = listOf(ModelEvent.TextDelta("Let me"), ModelEvent.ToolCallCompleted(call("c1", "time.now", "{\"zo")), ModelEvent.Completed(StopReason.MAX_TOKENS))
+        val adapter = ScriptedAdapter(listOf(cut))
+
+        val events = runner(adapter, setOf(clock)).start(request()).toList()
+
+        assertEquals(0, clock.executions)
+        assertIs<RunEvent.Completed>(events.last())
+    }
+
+    @Test
+    fun `a provider's own output cap replaces the harness's`() = runTest {
+        val adapter = ScriptedAdapter(listOf(textTurn("Hi."), textTurn("Hi.")))
+        runner(adapter).start(request()).toList()
+        val roomy = ProviderCatalog(ProviderCatalog.SCHEMA_VERSION, listOf(testProvider.copy(maxOutputTokens = 64_000)))
+        runner(adapter, providers = roomy).start(request()).toList()
+        assertEquals(listOf(testLimits().maxOutputTokensPerStep, 64_000), adapter.requests.map { it.maxOutputTokens })
     }
 
     @Test
@@ -676,13 +699,14 @@ class AgentRunnerTest {
         tools: Set<Tool> = emptySet(),
         adapterRegistry: ModelAdapterRegistry = ModelAdapterRegistry(setOfNotNull(adapter)),
         limits: AgentLimits = testLimits(),
+        providers: ProviderCatalog = testCatalog,
         outputs: ToolOutputStore? = null,
         memory: MemoryStore? = null,
         images: ImageSource? = null,
         prompt: PromptTemplate = PromptTemplate(ConfigName("system.md"), "System for {{user}}"),
     ) = AgentRunner(
         adapters = adapterRegistry,
-        providers = testCatalog,
+        providers = providers,
         credentials = fixedKey,
         tools = ToolRegistry(tools),
         policy = RuleBasedPolicyEngine(testRules),
