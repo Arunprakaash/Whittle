@@ -55,7 +55,7 @@ class AskToFixTest {
 
     @Test
     fun `the app request names the project folder only when it is the one build_app checked`() {
-        val card = ThreadItem.App("k", "Counter", "app.whittle.made.counter", 2, "counter/build/counter-2.apk", emptyList(), emptyList(), false)
+        val card = ThreadItem.App("k", "Counter", "app.whittle.made.counter", 2, "counter/build/counter-2.apk", emptyList(), emptyList())
         assertEquals("counter", fixProject(card, PREFIX))
         assertEquals(null, fixProject(card.copy(apkPath = "other/build/counter-2.apk"), PREFIX), "the folder must match the package")
         assertEquals(null, fixProject(card.copy(packageName = "com.evil.counter"), PREFIX), "the package must be one of Whittle's")

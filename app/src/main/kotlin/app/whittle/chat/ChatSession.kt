@@ -524,13 +524,8 @@ class ChatSession(
 
     /** build_app succeeded: its app gets a card to install from, the one card per package in this chat, moved to the end on a rebuild. */
     private fun showApp(result: String) {
-        val runId = activeRunId
-        scope.launch {
-            // If the run can't be checked, the card says it may have read the web.
-            val tainted = runId?.let { graph.checkpoints.load(it).getOrNull()?.tainted } ?: true
-            val card = appCardFromBuild(key(), result, tainted) ?: return@launch
-            _state.update { it.copy(items = placeAppCard(it.items, card)) }
-        }
+        val card = appCardFromBuild(key(), result) ?: return
+        _state.update { it.copy(items = placeAppCard(it.items, card)) }
     }
 
     /** The current run's plan replaces the previous one in place; the status line follows the active step. */

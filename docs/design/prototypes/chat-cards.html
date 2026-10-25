@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat cards, cleaned up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..24,400,0..1,0&display=swap">
+<style>
+  :root {
+    --page: #EEF0EE; --ink: #171D1A; --ink-2: #404944; --ink-3: #707973; --line: #D6DBD7; --card: #FFFFFF;
+    --accent: #2B6A55; --accent-soft: #CDE9DC; --cut: #BA1A1A; --cut-soft: #FFDAD6;
+    /* The phones use the neutral wallpaper colors seen on the emulator. */
+    --p-bg: #F9F9F9; --p-card: #F1F1F1; --p-ink: #1F1F1F; --p-ink-2: #5E5E5E; --p-ink-3: #8E8E8E; --p-tile: #E1E1E1; --p-btn: #3D3D3D; --p-tonal: #E3E3E3;
+    --p-ok: #3D3D3D; --p-err: #B3261E; --p-err-bg: #F9DEDC; --p-err-ink: #410E0B; --p-user: #E9E9E9; --p-white: #FFFFFF;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --page: #0F1512; --ink: #DEE4DF; --ink-2: #C0C9C3; --ink-3: #8A938D; --line: #303633; --card: #171D1A; --accent: #97D4BA; --accent-soft: #1F3A30; --cut: #FFB4AB; --cut-soft: #4A1D19; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --page: #0F1512; --ink: #DEE4DF; --ink-2: #C0C9C3; --ink-3: #8A938D; --line: #303633; --card: #171D1A; --accent: #97D4BA; --accent-soft: #1F3A30; --cut: #FFB4AB; --cut-soft: #4A1D19; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 400 15px/1.5 Figtree, system-ui, sans-serif; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding-block: 40px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  h1 { font-weight: 600; font-size: 30px; line-height: 1.2; margin: 0 0 8px; text-wrap: balance; }
+  .lede { color: var(--ink-2); max-width: 68ch; margin: 0 0 24px; }
+  .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 0 0 28px; padding: 0; list-style: none; }
+  .rules li { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+  .rules b { display: block; font-weight: 600; margin-bottom: 2px; }
+  .rules span { color: var(--ink-2); font-size: 14px; }
+  .compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 24px; justify-items: center; }
+  .col { width: 100%; max-width: 390px; min-width: 0; }
+  .col h2 { font: 600 16px Figtree, sans-serif; margin: 0 0 4px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .count { font: 500 13px "Geist Mono", monospace; color: var(--ink-3); }
+  .count b { color: var(--ink); font-weight: 500; }
+  .phone { background: var(--p-bg); color: var(--p-ink); border-radius: 36px; border: 8px solid #1d1d1f; height: 820px; max-width: 100%; overflow-y: auto; overscroll-behavior: contain; padding: 18px 14px 28px; box-shadow: 0 20px 40px -24px rgba(0,0,0,.4); display: flex; flex-direction: column; gap: 14px; }
+  .phone::-webkit-scrollbar { width: 0; }
+  .ms { font-family: "Material Symbols Rounded"; font-size: 20px; line-height: 1; font-variation-settings: "opsz" 20; }
+  .ms.fill { font-variation-settings: "opsz" 20, "FILL" 1; }
+  .tag { position: relative; }
+  .tag::before { content: attr(data-n); position: absolute; left: -11px; top: -8px; width: 20px; height: 20px; border-radius: 50%; background: #2B6A55; color: #fff; font: 600 11px/20px Figtree, sans-serif; text-align: center; z-index: 1; }
+  .user { align-self: flex-end; max-width: 82%; background: var(--p-user); border-radius: 20px; padding: 10px 14px; font-size: 15px; }
+  .narr { font-size: 15px; line-height: 1.45; }
+  .card { background: var(--p-card); border-radius: 24px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+  .card.tight { padding: 12px 14px; gap: 10px; }
+  .head { display: flex; gap: 12px; align-items: center; }
+  .tile { width: 40px; height: 40px; border-radius: 12px; background: var(--p-tile); display: grid; place-items: center; flex: none; color: var(--p-ink-2); }
+  .app-tile { border-radius: 30%; background: #D9E8E1; color: #2B6A55; }
+  .inline-ic { color: var(--p-ink-2); font-size: 20px; flex: none; }
+  .hd { min-width: 0; flex: 1; }
+  .title { font: 600 16px/1.3 Figtree, sans-serif; }
+  .body { font-size: 13.5px; line-height: 1.4; color: var(--p-ink-2); margin-top: 2px; }
+  .payload { background: var(--p-white); border-radius: 14px; padding: 10px 12px; font-size: 14.5px; }
+  .payload .lbl { font: 500 12px Figtree, sans-serif; color: var(--p-ink-2); display: block; margin-bottom: 2px; }
+  .mono { font: 400 13px/1.45 "Geist Mono", monospace; }
+  .btns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .btn { font: 500 14px Figtree, sans-serif; border-radius: 999px; padding: 9px 16px; display: inline-flex; align-items: center; gap: 6px; }
+  .btn.fill { background: var(--p-btn); color: #fff; } .btn.tonal { background: var(--p-tonal); } .btn.text { color: var(--p-ink); padding-inline: 10px; }
+  .btn.out { background: var(--p-white); border: 1px solid #CFCFCF; }
+  .btn .ms { font-size: 18px; color: inherit; }
+  .more { margin-left: auto; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--p-ink-2); }
+  .warn { font-size: 13.5px; line-height: 1.4; color: var(--p-err); display: flex; gap: 6px; align-items: flex-start; }
+  .warn .ms { font-size: 17px; margin-top: 1px; }
+  .powerful { background: var(--p-err-bg); color: var(--p-err-ink); border-radius: 14px; padding: 10px 12px; font-size: 13.5px; display: flex; flex-direction: column; gap: 3px; }
+  .powerful b { font: 500 14px Figtree, sans-serif; display: flex; gap: 6px; align-items: center; }
+  .powerline { display: flex; gap: 8px; align-items: center; background: var(--p-err-bg); color: var(--p-err-ink); border-radius: 999px; padding: 6px 12px; font: 500 13.5px Figtree, sans-serif; align-self: flex-start; }
+  .powerline .ms { font-size: 17px; }
+  .msg { font-size: 13.5px; color: var(--p-ink-2); } .msg.bad { color: var(--p-err); }
+  .pill { font: 500 12.5px Figtree, sans-serif; background: var(--p-tonal); border-radius: 999px; padding: 4px 10px; flex: none; display: inline-flex; gap: 5px; align-items: center; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #2E7D32; }
+  .console { background: var(--p-white); border-radius: 14px; padding: 10px 12px; color: var(--p-ink-2); }
+  .steps { display: flex; flex-direction: column; gap: 3px; }
+  .step { background: var(--p-card); display: flex; align-items: center; gap: 12px; padding: 8px 14px 8px 8px; border-radius: 6px; min-height: 52px; }
+  .steps .step:first-child { border-top-left-radius: 20px; border-top-right-radius: 20px; }
+  .steps .step:last-child { border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; }
+  .sic { width: 36px; height: 36px; border-radius: 50%; background: #DDE5E1; display: grid; place-items: center; color: #2B4A3E; flex: none; }
+  .sic.bad { background: var(--p-err-bg); color: var(--p-err-ink); }
+  .stxt { flex: 1; min-width: 0; }
+  .slbl { font: 600 14.5px/1.3 Figtree, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .slbl.mono { font: 500 13.5px "Geist Mono", monospace; }
+  .sdet { font-size: 13px; color: var(--p-ink-2); }
+  .send { color: #2B6A55; font-size: 20px; } .send.bad { color: var(--p-err); }
+  .plan { background: var(--p-card); border-radius: 24px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .plan .ph { display: flex; gap: 8px; align-items: center; color: var(--p-ink-2); font: 500 14px Figtree, sans-serif; }
+  .prow { display: flex; gap: 12px; align-items: center; font-size: 14.5px; }
+  .prow .ms { font-size: 22px; } .prow.done { color: var(--p-ink-2); } .prow.done .ms { color: #2B6A55; } .prow.todo { color: var(--p-ink-2); } .prow.todo .ms { color: var(--p-ink-3); }
+  .spin { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #CFCFCF; border-top-color: #3D3D3D; margin: 0 2px; }
+  .chip { align-self: flex-start; display: inline-flex; gap: 6px; align-items: center; background: var(--p-card); border-radius: 999px; padding: 6px 12px 6px 8px; font: 500 14px Figtree, sans-serif; color: var(--p-ink-2); }
+  .chip .ms { color: #2B6A55; } .chip.off .ms { color: var(--p-ink-2); }
+  .footer { display: flex; gap: 2px; }
+  .footer span { background: var(--p-card); padding: 8px 14px; display: inline-flex; gap: 6px; align-items: center; font: 500 14px Figtree, sans-serif; color: var(--p-ink-2); }
+  .footer span:first-child { border-radius: 999px 6px 6px 999px; } .footer span:last-child { border-radius: 6px 999px 999px 6px; }
+  .opts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .notice { font-size: 14px; color: var(--p-ink-2); display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+  .note { display: flex; gap: 12px; background: var(--p-card); border-radius: 20px; padding: 12px 14px; align-items: flex-start; }
+  .note .tile { width: 32px; height: 32px; border-radius: 10px; }
+  h2.sec { font: 600 18px Figtree, sans-serif; margin: 40px 0 6px; }
+  .sub { color: var(--ink-2); margin: 0 0 12px; font-size: 14px; }
+  .changes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+  .chg { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+  .chg h3 { margin: 0 0 6px; font: 600 15px Figtree, sans-serif; display: flex; gap: 8px; align-items: center; }
+  .chg h3 i { font-style: normal; width: 20px; height: 20px; border-radius: 50%; background: #2B6A55; color: #fff; font: 600 11px/20px Figtree, sans-serif; text-align: center; flex: none; }
+  .chg ul { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 14px; }
+  .chg li + li { margin-top: 3px; }
+  .chg .same { color: var(--ink-3); font-size: 13.5px; }
+  .table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 9px 14px; border-bottom: 1px solid var(--line); }
+  th { font: 500 12px "Geist Mono", monospace; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  td.t { font-weight: 500; min-width: 170px; }
+  td.before { color: var(--ink-2); min-width: 240px; }
+  td.before s { text-decoration-color: var(--cut); }
+  td.after { min-width: 200px; }
+  td.w { font: 500 12px "Geist Mono", monospace; color: var(--ink-3); white-space: nowrap; }
+  .none { color: var(--ink-3); font-style: italic; }
+  .foot { color: var(--ink-3); font-size: 13px; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Chat cards, cleaned up</h1>
+  <p class="lede">Every kind of item a chat can show, in one thread: today on the left, proposed on the right. Numbers match the notes below. Nothing new is invented: the changes reuse rows, chips and the ⋯ menu Whittle already has.</p>
+  <ul class="rules">
+    <li><b>The title asks, the body adds one fact</b><span>Only what could change your answer: cost, what leaves the phone, what keeps running.</span></li>
+    <li><b>Say what actually happened</b><span>"Ran npm install", not "Ran a command".</span></li>
+    <li><b>One status line per card</b><span>State and time together; logs and rare actions one tap away.</span></li>
+    <li><b>Warnings point to the fix</b><span>A few words, next to the button that solves it.</span></li>
+  </ul>
+
+  <div class="compare">
+    <div class="col">
+      <h2>Now <span class="count"><b id="wBefore">0</b> words of small print</span></h2>
+      <div class="phone" id="before"></div>
+    </div>
+    <div class="col">
+      <h2>Proposed <span class="count"><b id="wAfter">0</b> words of small print</span></h2>
+      <div class="phone" id="after"></div>
+    </div>
+  </div>
+
+  <h2 class="sec">What changes, card by card</h2>
+  <p class="sub">Every item type the chat has. Where nothing changes, it says so.</p>
+  <div class="changes" id="changes"></div>
+
+  <h2 class="sec">Every approval card's text</h2>
+  <p class="sub" id="decisionTotals"></p>
+  <div class="table-wrap"><table><thead><tr><th>Card</th><th>Now</th><th>Proposed</th><th>Words</th></tr></thead><tbody id="decisions"></tbody></table></div>
+
+  <h2 class="sec">Every other card line</h2>
+  <p class="sub" id="otherTotals"></p>
+  <div class="table-wrap"><table><thead><tr><th>Where</th><th>Now</th><th>Proposed</th><th>Words</th></tr></thead><tbody id="others"></tbody></table></div>
+  <p class="foot">Approval and step wording lives in tool-presentation.json, so most of the text is a config change; layout changes are in DecisionCard, Steps, AppCard and ProcessCard.</p>
+</div>
+
+<script>
+// Approval cards: [title, body now, body proposed]; "" is no body.
+const decisions = [
+  ["Allow this step?", "", ""],
+  ["Show this plan?", "Shows the agent's plan as a checklist. Nothing changes on your phone.", ""],
+  ["Read {host}?", "Downloads this page so Whittle can read it. Only the address is sent.", "Only the address is sent."],
+  ["Send this to {name}?", "Opens Messages with the text ready. Nothing is sent until you tap send there.", "You send it from Messages."],
+  ["Call {name}?", "Opens your phone app with the number ready. Nothing happens until you tap call there.", "You place the call yourself."],
+  ["Set an alarm for {time}?", "Sets it in your clock app. Change or remove it there.", "In your clock app."],
+  ["Start a timer?", "Starts it in your clock app.", ""],
+  ["Remind you {when}?", "Whittle shows this as a notification then.", ""],
+  ["Cancel this reminder?", "It won't show.", ""],
+  ["Add {title} to your calendar?", "Adds it to your calendar on this phone for {start}.", "{start}"],
+  ["Open {place} in Maps?", "Opens your maps app. You start navigation there.", ""],
+  ["Open {app}?", "Opens the app on your phone.", ""],
+  ["Open {host}?", "Opens this page in your browser.", ""],
+  ["Share this?", "Opens your share sheet. You pick the app and send it there.", "You pick the app."],
+  ["Run this command?", "Runs in your workspace on your phone. It can't see your other apps, photos or files.", ""],
+  ["Run this command? (uses the network)", "…plus: It can also use the internet.", "Uses the internet."],
+  ["Start {name}? (a server)", "Keeps running in your workspace on your phone until it's stopped. It can't see your other apps, photos or files. It can use the internet.", "Keeps running until you stop it."],
+  ["Work in {name}?", "This chat's commands start in that folder of your workspace, made if it isn't there.", "This chat works in that folder."],
+  ["Start {name}? (an app)", "Makes a new app project in its own folder of your workspace.", ""],
+  ["Build {project}?", "Builds the app in your workspace on your phone, with no internet. Nothing is installed until you tap Install.", ""],
+  ["Stop it?", "", ""],
+  ["Save {path}?", "Writes this file in your workspace on your phone.", ""],
+  ["Change {path}?", "Edits this file in your workspace on your phone.", ""],
+  ["Change your Supabase database?", "Runs this change on your Supabase project. It can add or change tables, their rules and the data in them.", "Can change tables, rules and data."],
+  ["Run this on your Supabase database?", "Runs this SQL on your Supabase project. It can read or change your data.", "Can change your data."],
+  ["Create a Supabase project?", "Creates a new project in your Supabase account. Depending on your plan, this can cost money.", "May cost money."],
+  ["Accept this Supabase cost?", "Supabase asks you to accept the cost of a new project before it's created.", ""],
+  ["Deploy a function to Supabase?", "Puts this function live on your Supabase project, where anyone with its address can call it.", "Anyone with its address can call it."],
+  ["Allow this Supabase step?", "", ""],
+  ["Connect {name}?", "Whittle will connect to this server, and its tools become available to tasks. Only add servers you trust.", "Only connect servers you trust."],
+  ["Look for {query} connections?", "Searches Whittle's featured list and the public MCP Registry. Only what you're looking for is sent.", ""],
+  ["Schedule {name}?", "Whittle will run this by itself at {time}, in a new chat each time, and let you know when it's done. It uses only the tools you allow in Settings › Automations; anything else waits for you.", "Runs by itself at {time}."],
+  ["Remember this?", "Whittle will keep this on your phone and use it in future chats. You can delete it any time in Settings › Memory.", "Used in every chat."],
+  ["Forget this?", "Whittle will delete this from what it remembers about you.", ""],
+  ["Run this command? (Claude Code)", "Claude Code runs this in your workspace on your phone.", "From Claude Code."],
+  ["Save {path}? (Claude Code)", "Claude Code writes this file in your workspace on your phone.", "From Claude Code."],
+  ["Change {path}? (Claude Code)", "Claude Code edits this file in your workspace on your phone.", "From Claude Code."],
+  ["Read {host}? (Claude Code)", "Claude Code downloads this page to read it.", "From Claude Code."],
+  ["{tool}? (a connection)", "", ""],
+  ["Let Whittle read your contacts?", "So it can find who you mean. Only the contacts it looks up are shared with your AI provider.", "Only the ones it looks up are shared."],
+  ["Let Whittle read your calendar?", "So it can check your plans. Only the events it reads are shared with your AI provider.", "Only the events it reads are shared."],
+  ["Let Whittle add to your calendar?", "So it can put events in your calendar for you. You can turn this off in Android's settings.", ""],
+  ["Set up app building?", "Whittle installs a compiler and tools in its Linux, about 400 MB, once. It needs a connection and a few minutes.", "About 400 MB, once."],
+];
+
+// Other card lines: [where, now, proposed].
+const others = [
+  ["Step row · a command", "Ran a command", "Ran npm create vite@latest (the command itself)"],
+  ["App card · status", "Version 2 · Not installed", "Version 2 · Not installed"],
+  ["App card · no special permissions", "Uses no special permissions", ""],
+  ["App card · powerful permissions", "This app can do something powerful (box with each permission)", "1 powerful permission (tap to see)"],
+  ["App card · after outside content", "Made after reading outside content, such as a web page, a file or an app's output; check what it does before installing", "Made from outside content. Check it first."],
+  ["App card · signed differently", "Android won't update this app because it was signed differently. Remove it and install again.", "Signed differently. Remove it, then install."],
+  ["App card · install blocked", "Android blocked the install. Check that installing apps is allowed for Whittle.", "Blocked. Allow installs for Whittle."],
+  ["App card · install failed", "The install failed. Ask Whittle to build it again.", "Install failed."],
+  ["App card · changed since built", "This app changed since it was built. Ask Whittle to build it again.", "Changed since it was built."],
+  ["App card · can't open settings", "Couldn't open the settings to allow installs. Allow Whittle to install apps in Android's settings.", "Allow installs for Whittle in Android's settings."],
+  ["App card · allow installs", "Allow Whittle to install apps, then tap Install again.", "Allow installs, then tap Install."],
+  ["App card · cancelled", "Not installed. You cancelled it.", "Install cancelled."],
+  ["App card · can't remove", "Couldn't ask Android to remove this app. Remove it from your launcher.", "Remove it from your launcher."],
+  ["Process card · running", "Running for 1:55 (plus a Live :5173 pill)", "Live on :5173 · 1:55"],
+  ["Process card · closed by Android", "Android closed it to save power. Restart it, or keep Whittle open.", "Closed by Android"],
+  ["Process card · not running", "It stopped when Whittle closed", "Stopped"],
+  ["Interrupted run", "This task stopped when the app closed.", "Stopped when the app closed."],
+  ["Notice · key not accepted", "The provider didn't accept your key. Change model to reconnect.", "Key not accepted. Change model to reconnect."],
+  ["Notice · network", "Couldn't reach the provider. Check your connection.", "Couldn't reach the provider."],
+  ["Notice · generic failure", "Something went wrong and the task stopped.", "The task stopped on an error."],
+  ["Photo note · model can't see images", "Your photo is saved in the workspace, so the agent can still use it, but it can't look at what's in it.", "It can still use the file."],
+];
+
+const words = s => s.replace(/\(.*?\)/g, "").replace(/\{[^}]+\}/g, "x").split(/\s+/).filter(Boolean).length;
+const D = Object.fromEntries(decisions.map(r => [r[0], r]));
+
+function thread(v) {
+  const p = v === "after";
+  const b = (now, next) => p ? next : now;
+  const body = t => { const s = b(D[t][1], D[t][2]); return s ? `<div class="body" data-small>${s}</div>` : ""; };
+  const head = (icon, title, bodyHtml) => p
+    ? `<div class="head" style="align-items:flex-start"><span class="ms inline-ic" style="margin-top:2px">${icon}</span><div class="hd"><div class="title">${title}</div>${bodyHtml}</div></div>`
+    : `<div class="head"><div class="tile"><span class="ms">${icon}</span></div><div class="hd"><div class="title">${title}</div>${bodyHtml}</div></div>`;
+  const approve = (label) => p ? `<span class="btn fill">${label}</span>` : `<span class="btn fill"><span class="ms">check</span>${label}</span>`;
+  const n = i => `class="tag" data-n="${i}"`;
+  const step = (icon, label, detail, end = "check", mono = false, bad = false) => `<div class="step"><div class="sic${bad ? " bad" : ""}"><span class="ms">${bad ? "error" : icon}</span></div><div class="stxt"><div class="slbl${mono ? " mono" : ""}">${label}</div>${detail ? `<div class="sdet" data-small>${detail}</div>` : ""}</div><span class="ms send${bad ? " bad" : ""}">${end}</span></div>`;
+
+  return [
+    `<div class="user">Build me a pomodoro app and run its web version</div>`,
+    `<div class="narr">I'll set up the project, build it, then run the web version so you can try it.</div>`,
+    // 1 Plan
+    `<div ${n(1)}><div class="plan"><div class="ph"><span class="ms">checklist</span>${b("Plan · 1 of 4", "1 of 4 done")}</div>
+      <div class="prow done"><span class="ms fill">check_circle</span>Set up the project</div>
+      <div class="prow"><span class="spin"></span>Build the app</div>
+      <div class="prow todo"><span class="ms">radio_button_unchecked</span>Run the web version</div>
+      ${b(`<div class="prow todo"><span class="ms">radio_button_unchecked</span>Offer to install it</div>`, "")}
+      ${p ? `<div class="prow todo" style="padding-left:34px;font-size:13.5px">+1 more</div>` : ""}</div></div>`,
+    // 2 Steps
+    `<div ${n(2)}><div class="steps">
+      ${step("terminal", b("Ran a command", "npm create vite@latest pomodoro"), b("npm create vite@latest pomodoro", ""), "check", p)}
+      ${step("description", "Read src/App.tsx", b("23 lines", ""))}
+      ${step("edit_document", "Wrote src/App.tsx", "", "chevron_right")}
+      ${step("terminal", b("Ran a command", "npm test"), b("Exited with code 1", "Exited with code 1"), "refresh", p, true)}
+    </div></div>`,
+    // 3 Decision
+    `<div ${n(3)}><div class="card${p ? " tight" : ""}">${head("terminal", "Run this command?", `<div class="body" data-small>${b(D["Run this command?"][1] + " It can also use the internet.", D["Run this command? (uses the network)"][2])}</div>`)}
+      <div class="payload mono">npm install</div>
+      <div class="btns">${approve("Run")}<span class="btn text">Not now</span></div></div></div>`,
+    // 4 Resolved chip
+    `<div ${n(4)} style="align-self:flex-start"><div class="chip"><span class="ms fill">check_circle</span>Ran the command</div></div>`,
+    // 5 Process card
+    p
+      ? `<div ${n(5)}><div class="card tight"><div class="head"><div class="tile"><span class="ms">terminal</span></div><div class="hd"><div class="title">pomodoro-web</div><div class="body" data-small><span class="dot" style="display:inline-block;margin-right:6px"></span>Live on :5173 · 1:55</div></div><span class="more"><span class="ms">more_vert</span></span></div>
+        <div class="btns"><span class="btn fill"><span class="ms">visibility</span>Preview</span><span class="btn tonal">Output</span><span class="btn text">Stop</span></div></div></div>`
+      : `<div ${n(5)}><div class="card"><div class="head"><div class="tile"><span class="ms">terminal</span></div><div class="hd"><div class="title">pomodoro-web</div><div class="body" data-small>Running for 1:55</div></div><span class="pill"><span class="dot"></span>Live :5173</span></div>
+        <div class="console mono">$ npm run dev -- --host 127.0.0.1 --port …<br>&nbsp; VITE v8.3.5 ready in 202 ms<br>&nbsp; ➜ Local: http://127.0.0.1:5173/</div>
+        <div class="btns"><span class="btn fill"><span class="ms">visibility</span>Preview</span><span class="btn tonal">Output</span><span class="btn tonal">Stop</span></div></div></div>`,
+    // 6 App card
+    p
+      ? `<div ${n(6)}><div class="card tight"><div class="head"><div class="tile app-tile"><span class="ms">timer</span></div><div class="hd"><div class="title">Pomodoro</div><div class="body">Version 2 · Not installed</div></div><span class="more"><span class="ms">more_vert</span></span></div>
+        <div class="powerline"><span class="ms">shield</span>1 powerful permission</div>
+        <div class="warn" data-small><span class="ms">warning</span>Made from outside content. Check it first.</div>
+        <div class="btns"><span class="btn fill"><span class="ms">download</span>Install</span></div></div></div>`
+      : `<div ${n(6)}><div class="card"><div class="head"><div class="tile app-tile"><span class="ms">timer</span></div><div class="hd"><div class="title">Pomodoro</div><div class="body">Version 2 · Not installed</div></div></div>
+        <div class="body" data-small>Uses notifications</div>
+        <div class="powerful"><b><span class="ms">shield</span>This app can do something powerful</b><span>Start when your phone turns on</span></div>
+        <div class="warn" data-small>Made after reading outside content, such as a web page, a file or an app's output; check what it does before installing</div>
+        <div class="btns"><span class="btn fill"><span class="ms">download</span>Install</span><span class="btn tonal">Remove</span><span class="btn text">Ask to fix</span></div></div></div>`,
+    // 7 Question
+    `<div ${n(7)}><div class="card${p ? " tight" : ""}">${head("help", "How long should each focus session be?", "")}
+      <div class="opts"><span class="btn out">25 minutes</span><span class="btn out">50 minutes</span><span class="btn out">Let me type it</span></div></div></div>`,
+    // 8 Answer + footer
+    `<div ${n(8)}><div class="narr">Pomodoro is ready. The web version runs on your phone; open it with Preview, or install the app from its card.</div></div>`,
+    `<div class="footer"><span><span class="ms">content_copy</span></span><span>3 sources <span class="ms">expand_more</span></span></div>`,
+    // 9 Summary chip
+    `<div ${n(9)} style="align-self:flex-start"><div class="chip"><span class="ms fill">check_circle</span>6 steps · 48s<span class="ms" style="color:var(--p-ink-2)">chevron_right</span></div></div>`,
+    `<div class="user">Every weekday at 7, brief me on my calendar</div>`,
+    // 10 Capability
+    `<div ${n(10)}><div class="card${p ? " tight" : ""}">${head("calendar_month", "Let Whittle read your calendar?", body("Let Whittle read your calendar?"))}
+      <div class="btns">${approve("Allow")}<span class="btn text">Not now</span></div></div></div>`,
+    // 11 Decision with payload (schedule)
+    `<div ${n(11)}><div class="card${p ? " tight" : ""}">${head("schedule", "Schedule Morning brief?", (() => { const s = b(D["Schedule {name}?"][1], D["Schedule {name}?"][2]).replace("{time}", "7:00 on weekdays"); return `<div class="body" data-small>${s}</div>`; })())}
+      <div class="payload"><span class="lbl">Task</span>Brief me on today's calendar: meetings, gaps, anything to prepare.</div>
+      <div class="btns">${approve("Schedule")}<span class="btn text">Not now</span></div></div></div>`,
+    // 12 Notice
+    `<div ${n(12)}><div class="notice" data-small>${b("The provider didn't accept your key. Change model to reconnect.", "Key not accepted. Change model to reconnect.")}</div></div>`,
+    // 13 Interrupted
+    `<div ${n(13)}><div class="notice"><span data-small>${b("This task stopped when the app closed.", "Stopped when the app closed.")}</span><span class="btn text">Continue</span></div></div>`,
+    `<div class="user">📷 What's this plant?</div>`,
+    // 14 Unseen photo note
+    `<div ${n(14)}><div class="note"><div class="tile"><span class="ms">visibility_off</span></div><div class="hd"><div class="title" style="font-size:14.5px">gpt-5-nano can't see images</div><div class="body" data-small>${b("Your photo is saved in the workspace, so the agent can still use it, but it can't look at what's in it.", "It can still use the file.")}</div></div><span class="btn text" style="padding:2px 6px">Change model</span></div></div>`,
+  ].join("");
+}
+
+const changes = [
+  ["Plan checklist", ["Header says progress plainly: \"1 of 4 done\".", "Shows the done step, the current one and the next; later steps fold into \"+1 more\"."]],
+  ["Step rows", ["A command step shows the command itself, in mono, instead of \"Ran a command\" plus the command underneath.", "No second line on a step that worked; a failed step keeps its reason."]],
+  ["Approval cards", ["The icon tile becomes a small inline icon, so the title leads.", "The body is the one fact that changes the answer, or nothing: 534 words across the 42 cards become 104.", "The approve button drops its check icon; the verb is enough.", "Slightly tighter padding."]],
+  ["Answered chip", [], "No change: one line with the outcome is already right."],
+  ["Process card", ["Status and time in one line: \"Live on :5173 · 1:55\" replaces the subtitle plus the Live pill.", "The three lines of console move behind Output, where they already are in full.", "Stop becomes a quiet text button; Restart and Ask to fix move to ⋯ when they apply."]],
+  ["App card", ["\"Uses no special permissions\" is gone; nothing to say, nothing shown.", "Powerful permissions become one line, \"1 powerful permission\", that opens the list (the install dialog still lists them).", "The outside-content warning drops from 22 words to 6, with a warning icon.", "Remove and Ask to fix move to the ⋯ menu; Install or Open stays the one button."]],
+  ["Question card", ["Same inline icon as approval cards."], "Options stay as they are."],
+  ["Answer and footer", [], "No change: copy and the sources pill are already one quiet row."],
+  ["Run summary chip", [], "No change."],
+  ["Permission cards", ["Same treatment as approval cards: \"Only the events it reads are shared.\""]],
+  ["Approval with a payload", ["Body is the one fact (\"Runs by itself at 7:00 on weekdays.\"); the task itself stays in its box."]],
+  ["Notices", ["Short, with the action named: \"Key not accepted. Change model to reconnect.\""]],
+  ["Interrupted run", ["\"Stopped when the app closed.\" beside Continue."]],
+  ["Photo note", ["The title already says the model can't see images; the body only adds \"It can still use the file.\""]],
+];
+
+function smallWords(el) { return [...el.querySelectorAll("[data-small]")].map(n => n.textContent).join(" ").split(/\s+/).filter(Boolean).length; }
+
+function render() {
+  const before = document.getElementById("before"), after = document.getElementById("after");
+  before.innerHTML = thread("before"); after.innerHTML = thread("after");
+  document.getElementById("wBefore").textContent = smallWords(before);
+  document.getElementById("wAfter").textContent = smallWords(after);
+
+  document.getElementById("changes").innerHTML = changes.map(([name, items, same], i) =>
+    `<div class="chg"><h3><i>${i + 1}</i>${name}</h3>${items.length ? `<ul>${items.map(t => `<li>${t}</li>`).join("")}</ul>` : ""}${same ? `<div class="same">${same}</div>` : ""}</div>`).join("");
+
+  const row = (t, n, a) => `<tr><td class="t">${t}</td><td class="before">${n ? `<s>${n}</s>` : '<span class="none">none</span>'}</td><td class="after">${a || '<span class="none">none</span>'}</td><td class="w">${words(n)} → ${words(a)}</td></tr>`;
+  document.getElementById("decisions").innerHTML = decisions.map(([t, n, a]) => row(t, n, a)).join("");
+  document.getElementById("others").innerHTML = others.map(([t, n, a]) => row(t, n, a)).join("");
+  const sum = (list, i) => list.reduce((s, r) => s + words(r[i]), 0);
+  document.getElementById("decisionTotals").textContent = `42 cards, plus the command card's internet note: ${sum(decisions, 1)} words of body now, ${sum(decisions, 2)} proposed. ${decisions.filter(r => r[1] && !r[2]).length} lose their body entirely; the title says it.`;
+  document.getElementById("otherTotals").textContent = `${others.length} lines: ${sum(others, 1)} words now, ${sum(others, 2)} proposed.`;
+}
+render();
+</script>
+</body>
+</html>

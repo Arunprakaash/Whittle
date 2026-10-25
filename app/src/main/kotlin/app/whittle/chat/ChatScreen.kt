@@ -533,11 +533,15 @@ private fun ThreadRow(
         }
         is ThreadItem.Process -> ProcessCard(item, viewModel, onPreview = LocalOpenPreview.current, modifier = content)
         is ThreadItem.App -> AppCard(item, viewModel, modifier = content)
-        is ThreadItem.Plan -> PlanChecklist(
-            title = stringResource(R.string.plan_title, item.steps.count { it.status == PlanStatus.COMPLETED }, item.steps.size),
-            steps = item.steps.map { it.toUi() },
-            modifier = content,
-        )
+        is ThreadItem.Plan -> {
+            val (shown, hidden) = planShown(item.steps)
+            PlanChecklist(
+                title = stringResource(R.string.plan_title, item.steps.count { it.status == PlanStatus.COMPLETED }, item.steps.size),
+                steps = shown.map { it.toUi() },
+                modifier = content,
+                more = hidden.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.plan_more, it, it) },
+            )
+        }
         is ThreadItem.Sources -> {
             val uriHandler = LocalUriHandler.current
             AnswerSources(
@@ -883,7 +887,6 @@ private fun DecisionText.toUi(id: String) = DecisionUi(
     payloadLabel = payloadLabel,
     payload = payload,
     approveLabel = approve,
-    approveIcon = approveIcon,
     declineLabel = decline,
     site = site,
 )
@@ -896,7 +899,6 @@ private fun CapabilityPresentation.toUi(id: String) = DecisionUi(
     payloadLabel = null,
     payload = null,
     approveLabel = approve,
-    approveIcon = CAPABILITY_APPROVE_ICON,
     declineLabel = decline,
 )
 
@@ -958,7 +960,6 @@ private fun reopensAt(context: Context, millis: Long): String {
 }
 
 /** Permission cards always confirm with a check; their words come from config. */
-private const val CAPABILITY_APPROVE_ICON = "check"
 private const val TICK_MILLIS = 250L
 private const val MILLIS_PER_SECOND = 1000L
 private const val SECONDS_PER_MINUTE = 60L

@@ -33,8 +33,6 @@ import app.whittle.design.tokens.WhittleHaptic
 import app.whittle.design.tokens.WhittleRadius
 import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
-import app.whittle.design.tokens.decisionContainer
-import app.whittle.design.tokens.onDecisionContainer
 
 /** Everything a decision card shows. The payload is the exact thing that will happen. */
 @Immutable
@@ -46,7 +44,6 @@ data class DecisionUi(
     val payloadLabel: String?,
     val payload: String?,
     val approveLabel: String,
-    val approveIcon: String,
     val declineLabel: String,
     /** The service the action belongs to; its icon stands in for [icon] once loaded. */
     val site: String? = null,
@@ -69,16 +66,12 @@ fun DecisionCard(decision: DecisionUi, onApprove: () -> Unit, onDecline: () -> U
             .padding(WhittleSpace.m),
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
-            val iconTile: @Composable () -> Unit = {
-                Box(
-                    Modifier.size(WhittleSize.Tile.s).background(colors.decisionContainer, RoundedCornerShape(WhittleRadius.m)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    WhittleIcon(decision.icon, size = WhittleSize.Icon.m, tint = colors.onDecisionContainer)
-                }
+        // A small icon beside the title, so the question leads; a service's own icon when it has one.
+        Row(horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
+            val icon: @Composable () -> Unit = { WhittleIcon(decision.icon, size = WhittleSize.Icon.m, tint = colors.onSurfaceVariant) }
+            Box(Modifier.padding(top = WhittleSpace.hairline)) {
+                if (decision.site != null) SiteIcon(decision.site, containerSize = WhittleSize.Icon.m, iconSize = WhittleSize.Icon.m, fallback = icon) else icon()
             }
-            if (decision.site != null) SiteIcon(decision.site, containerSize = WhittleSize.Tile.s, iconSize = WhittleSize.Icon.l, fallback = iconTile) else iconTile()
             Column(Modifier.weight(1f)) {
                 Text(decision.title, style = MaterialTheme.typography.titleMedium)
                 // Some cards need no explanation beyond their title.
@@ -102,9 +95,9 @@ fun DecisionCard(decision: DecisionUi, onApprove: () -> Unit, onDecline: () -> U
             }
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s), verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+            // The verb says what happens; no icon to read past.
             Button(onClick = { haptics.perform(WhittleHaptic.Approve); onApprove() }, shapes = ButtonDefaults.shapes()) {
-                WhittleIcon(decision.approveIcon, size = WhittleSize.Icon.m)
-                Text(decision.approveLabel, Modifier.padding(start = WhittleSpace.s))
+                Text(decision.approveLabel)
             }
             TextButton(onClick = { haptics.perform(WhittleHaptic.Reject); onDecline() }, enabled = declineEnabled, shapes = ButtonDefaults.shapes()) {
                 Text(decision.declineLabel)
@@ -134,13 +127,8 @@ fun QuestionCard(question: QuestionUi, onPick: (String) -> Unit, modifier: Modif
             .padding(WhittleSpace.m),
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
-            Box(
-                Modifier.size(WhittleSize.Tile.s).background(colors.decisionContainer, RoundedCornerShape(WhittleRadius.m)),
-                contentAlignment = Alignment.Center,
-            ) {
-                WhittleIcon(question.icon, size = WhittleSize.Icon.m, tint = colors.onDecisionContainer)
-            }
+        Row(horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
+            WhittleIcon(question.icon, size = WhittleSize.Icon.m, tint = colors.onSurfaceVariant, modifier = Modifier.padding(top = WhittleSpace.hairline))
             Text(question.question, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s), verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {

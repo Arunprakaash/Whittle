@@ -47,25 +47,6 @@
     "res/values-v29/themes.xml",
     "res/drawable/ic_launcher.xml"
   ],
-  "permissionWords": [
-    {"name": "android.permission.INTERNET", "words": "the internet"},
-    {"name": "android.permission.CAMERA", "words": "the camera"},
-    {"name": "android.permission.RECORD_AUDIO", "words": "the microphone"},
-    {"name": "android.permission.ACCESS_FINE_LOCATION", "words": "your precise location"},
-    {"name": "android.permission.ACCESS_COARSE_LOCATION", "words": "your approximate location"},
-    {"name": "android.permission.READ_CONTACTS", "words": "your contacts"},
-    {"name": "android.permission.WRITE_CONTACTS", "words": "your contacts, to change them"},
-    {"name": "android.permission.READ_CALENDAR", "words": "your calendar"},
-    {"name": "android.permission.WRITE_CALENDAR", "words": "your calendar, to change it"},
-    {"name": "android.permission.POST_NOTIFICATIONS", "words": "notifications"},
-    {"name": "android.permission.VIBRATE", "words": "vibration"},
-    {"name": "android.permission.SCHEDULE_EXACT_ALARM", "words": "exact alarms"},
-    {"name": "android.permission.USE_EXACT_ALARM", "words": "exact alarms"},
-    {"name": "android.permission.READ_MEDIA_IMAGES", "words": "your photos"},
-    {"name": "android.permission.READ_MEDIA_VIDEO", "words": "your videos"},
-    {"name": "android.permission.READ_EXTERNAL_STORAGE", "words": "your files"},
-    {"name": "android.permission.BLUETOOTH_CONNECT", "words": "Bluetooth devices"}
-  ],
   "powerful": [
     {
       "name": "android.permission.BIND_ACCESSIBILITY_SERVICE",

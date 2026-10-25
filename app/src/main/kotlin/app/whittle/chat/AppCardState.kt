@@ -1,7 +1,6 @@
 package app.whittle.chat
 
 import app.whittle.apps.InstallResult
-import app.whittle.apps.PermissionWords
 import app.whittle.apps.PowerfulDeclaration
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
@@ -64,12 +63,6 @@ fun addedPowerful(card: ThreadItem.App, installed: List<PowerfulDeclaration>?): 
     return if (installed == null) card.powerful else card.powerful.filter { (it.name to it.kind) !in have }
 }
 
-/** The permissions in plain words, each once; one that isn't in [words] shows as its constant name. */
-fun permissionWords(permissions: List<String>, words: List<PermissionWords>): String {
-    val byName = words.associate { it.name to it.words }
-    return permissions.map { byName[it] ?: it.substringAfterLast('.') }.distinct().joinToString(", ")
-}
-
 @Serializable
 private class BuiltApp(
     val app: String,
@@ -83,9 +76,9 @@ private class BuiltApp(
 private val lenient = Json { ignoreUnknownKeys = true }
 
 /** The card for a successful `build_app` result, or null when the text isn't one. */
-fun appCardFromBuild(key: String, result: String, tainted: Boolean): ThreadItem.App? = try {
+fun appCardFromBuild(key: String, result: String): ThreadItem.App? = try {
     val built = lenient.decodeFromString(BuiltApp.serializer(), result)
-    ThreadItem.App(key, built.app, built.`package`, built.versionCode, built.apk, built.permissions, built.powerful, tainted)
+    ThreadItem.App(key, built.app, built.`package`, built.versionCode, built.apk, built.permissions, built.powerful)
 } catch (_: SerializationException) {
     null
 } catch (_: IllegalArgumentException) {

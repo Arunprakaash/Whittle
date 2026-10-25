@@ -27,7 +27,7 @@ class InstallVerifyTest {
     private val directory = Files.createTempDirectory("install-verify").toFile()
     private val keyA = softwareKey("a")
     private val keyB = softwareKey("b")
-    private val card = ThreadItem.App("k", "Notes", "app.whittle.made.notes", 1, "notes/build/notes-1.apk", emptyList(), emptyList(), false)
+    private val card = ThreadItem.App("k", "Notes", "app.whittle.made.notes", 1, "notes/build/notes-1.apk", emptyList(), emptyList())
 
     @Test
     fun `a junk file is refused, not thrown`() {
