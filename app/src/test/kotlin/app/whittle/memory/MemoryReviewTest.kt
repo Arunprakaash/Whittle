@@ -96,12 +96,13 @@ class MemoryReviewTest {
         ConfigLoader(BundledConfigSource()).load(ConfigFiles.agentMessages, AgentMessages.serializer(), AgentMessages.SCHEMA_VERSION),
     ).value
     private val prompt = assertIs<Outcome.Success<PromptTemplate>>(PromptTemplate.load(BundledConfigSource(), ConfigFiles.memoryReviewPrompt)).value
+    private val inputPrompt = assertIs<Outcome.Success<PromptTemplate>>(PromptTemplate.load(BundledConfigSource(), ConfigFiles.memoryReviewInput)).value
     private val box = StateBox()
     private val memoryBackend = MemoryList()
     private var next = 0
     private val ids = IdGenerator { "id-${next++}-padding" }
     private val limits = MemoryReviewDefaults(
-        fileName = "x.bin", quietMillis = 1, maxSuggestions = 2, maxInputChars = 60, maxOutputTokens = 77, maxDismissed = 5, maxReviewedChats = 5,
+        fileName = "x.bin", quietMillis = 1, maxSuggestions = 2, maxInputChars = 60, maxOutputTokens = 77, maxDismissed = 5, maxDeclinedInInput = 2, maxReviewedChats = 5,
     )
     private var enabled = true
 
@@ -110,7 +111,7 @@ class MemoryReviewTest {
     private fun TestScope.review(adapter: Adapter, memory: MemoryStore = memory(this)): Pair<MemoryReview, MemorySuggestions> {
         val suggestions = MemorySuggestions(box, memory, limits, EpochClock { 9L }, ids, this)
         val oneShot = OneShot(ModelAdapterRegistry(setOf(adapter)), ProviderCatalog(ProviderCatalog.SCHEMA_VERSION, listOf(provider)), CredentialsProvider { Outcome.Success(Secret("key")) })
-        return MemoryReview(oneShot, suggestions, memory, prompt, limits) { enabled } to suggestions
+        return MemoryReview(oneShot, suggestions, memory, prompt, inputPrompt, limits) { enabled } to suggestions
     }
 
     private fun memory(scope: kotlinx.coroutines.CoroutineScope) =
@@ -165,6 +166,24 @@ class MemoryReviewTest {
         assertTrue("call me Sam" in sent)
         assertFalse("Reading the page" in sent || "SCREEN" in sent || "admin" in sent, sent)
         assertEquals(77, adapter.requests.single().maxOutputTokens)
+    }
+
+    @Test
+    fun `what is waiting and what was declined goes in the request`() = runTest {
+        val adapter = Adapter { reply("""{"facts":[{"text":"Waits one"},{"text":"Fresh fact"}]}""") }
+        val (review, suggestions) = review(adapter)
+        suggestions.add("old", listOf("Waits one" to null, "Dismissed A" to null, "Dismissed B" to null, "Dismissed C" to null))
+        suggestions.pending.value.drop(1).forEach { suggestions.dismiss(it.id) }
+
+        review.review("chat", listOf(user("hello")), model, automation = false)
+
+        val sent = adapter.requests.single().messages.single().text
+        // Only the newest two of the three dismissed texts, as the limit says.
+        assertTrue("waiting for the user (nothing, if no lines follow):\nWaits one\n" in sent, sent)
+        assertTrue("declined by the user (nothing, if no lines follow):\ndismissed b\ndismissed c\n" in sent, sent)
+        assertFalse("dismissed a" in sent)
+        assertTrue(sent.endsWith("The user's words:\nhello"), sent)
+        assertEquals(listOf("Waits one", "Fresh fact"), suggestions.pending.value.map { it.text })
     }
 
     @Test

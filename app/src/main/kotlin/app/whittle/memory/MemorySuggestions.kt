@@ -28,6 +28,9 @@ data class MemorySuggestion(val id: String, val text: String, val replaces: Stri
 @Serializable
 data class SuggestionsState(val pending: List<MemorySuggestion>, val dismissed: List<String>, val reviewedUserWords: Map<String, Int>)
 
+/** What the user has already seen of the review's proposals, as the model should hear it: still waiting, and declined. */
+data class SeenSuggestions(val waiting: List<String>, val declined: List<String>)
+
 /** Where [SuggestionsState] is kept; the phone uses an encrypted file. */
 interface SuggestionsBackend {
     /** What was saved, or an empty state when nothing is or it can't be read. */
@@ -38,8 +41,9 @@ interface SuggestionsBackend {
 
 /**
  * Facts the memory review proposed, which become memories only when the user keeps them. Texts that are already
- * remembered, already waiting or dismissed before are never proposed again. Dismissed texts and reviewed chats are
- * capped by [limits], oldest dropped first. A chat's entry isn't removed when the chat is deleted; the cap bounds it.
+ * remembered, already waiting or dismissed before are never proposed again; [seen] lets the review tell the model, so
+ * it doesn't propose them in other words either. Dismissed texts and reviewed chats are capped by [limits], oldest
+ * dropped first.
  */
 class MemorySuggestions(
     private val backend: SuggestionsBackend,
@@ -97,15 +101,34 @@ class MemorySuggestions(
             else -> memory.remember(text)
         }
         if (saved !is Outcome.Success) return@withLock saved
-        save(current.copy(pending = current.pending.filterNot { it.id == id })).map { saved.value }
+        // Edited words were the user's answer to the original wording: it must not come back either.
+        val dismissed = if (normal(text) == normal(suggestion.text)) current.dismissed else withDismissed(current.dismissed, suggestion.text)
+        save(current.copy(pending = current.pending.filterNot { it.id == id }, dismissed = dismissed)).map { saved.value }
     }
 
     /** Drops the suggestion and remembers its words so it's never proposed again. */
     suspend fun dismiss(id: String): Outcome<Unit> = changes.withLock {
         val current = load()
         val suggestion = current.pending.firstOrNull { it.id == id } ?: return@withLock Outcome.Success(Unit)
-        val dismissed = (current.dismissed - normal(suggestion.text) + normal(suggestion.text)).takeLast(limits.maxDismissed)
-        save(current.copy(pending = current.pending.filterNot { it.id == id }, dismissed = dismissed))
+        save(current.copy(pending = current.pending.filterNot { it.id == id }, dismissed = withDismissed(current.dismissed, suggestion.text)))
+    }
+
+    /** What the review should tell the model: the texts waiting, and the newest [MemoryReviewDefaults.maxDeclinedInInput] dismissed. */
+    suspend fun seen(): SeenSuggestions {
+        val current = load()
+        return SeenSuggestions(current.pending.map { it.text }, current.dismissed.takeLast(limits.maxDeclinedInInput))
+    }
+
+    /** The chat was deleted: its waiting suggestions and its review count go. */
+    suspend fun forgetChat(chatId: String): Outcome<Unit> = changes.withLock {
+        val current = load()
+        if (current.pending.none { it.chatId == chatId } && chatId !in current.reviewedUserWords) return@withLock Outcome.Success(Unit)
+        save(current.copy(pending = current.pending.filterNot { it.chatId == chatId }, reviewedUserWords = current.reviewedUserWords - chatId))
+    }
+
+    /** All chats were deleted: nothing waits and no chat counts as reviewed. What was dismissed stays dismissed. */
+    suspend fun forgetAllChats(): Outcome<Unit> = changes.withLock {
+        save(load().copy(pending = emptyList(), reviewedUserWords = emptyMap()))
     }
 
     /** How many of the user's words [chatId] had when it was last reviewed; 0 if never. */
@@ -130,6 +153,8 @@ class MemorySuggestions(
     }
 
     private fun normal(text: String) = text.trim().lowercase()
+
+    private fun withDismissed(dismissed: List<String>, text: String) = (dismissed - normal(text) + normal(text)).takeLast(limits.maxDismissed)
 
     private companion object {
         val WHITESPACE = Regex("""\s+""")

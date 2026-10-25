@@ -100,8 +100,9 @@
       "quietMillis": 60000,
       "maxSuggestions": 3,
       "maxInputChars": 6000,
-      "maxOutputTokens": 400,
+      "maxOutputTokens": 1200,
       "maxDismissed": 200,
+      "maxDeclinedInInput": 20,
       "maxReviewedChats": 200
     },
     "ideas": [

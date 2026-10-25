@@ -218,7 +218,8 @@ data class MemoryDefaults(
  * The memory review: after a chat goes quiet for [quietMillis], one model call reads at most [maxInputChars] of it and
  * proposes up to [maxSuggestions] facts (answering in at most [maxOutputTokens]); they wait in [fileName] (encrypted)
  * for the user. What's remembered about past reviews is capped so it can't grow forever: the last [maxDismissed] texts
- * the user dismissed and the last [maxReviewedChats] chats reviewed.
+ * the user dismissed and the last [maxReviewedChats] chats reviewed. The newest [maxDeclinedInInput] dismissed texts
+ * go back to the model with each review so it doesn't propose them again in other words.
  */
 @Serializable
 data class MemoryReviewDefaults(
@@ -228,11 +229,12 @@ data class MemoryReviewDefaults(
     val maxInputChars: Int,
     val maxOutputTokens: Int,
     val maxDismissed: Int,
+    val maxDeclinedInInput: Int,
     val maxReviewedChats: Int,
 ) {
     init {
         require(fileName.isNotBlank()) { "memory.review.fileName must be set" }
-        require(quietMillis > 0 && maxSuggestions > 0 && maxInputChars > 0 && maxOutputTokens > 0 && maxDismissed > 0 && maxReviewedChats > 0) {
+        require(quietMillis > 0 && maxSuggestions > 0 && maxInputChars > 0 && maxOutputTokens > 0 && maxDismissed > 0 && maxDeclinedInInput > 0 && maxReviewedChats > 0) {
             "memory.review limits must be positive"
         }
     }

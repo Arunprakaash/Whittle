@@ -83,6 +83,13 @@ class BundledConfigTest {
     }
 
     @Test
+    fun `memory review input declares the lists and the words`() {
+        val template = PromptTemplate.load(source, ConfigFiles.memoryReviewInput)
+        assertIs<Outcome.Success<PromptTemplate>>(template)
+        assertEquals(setOf("remembered", "waiting", "declined", "words"), template.value.placeholders)
+    }
+
+    @Test
     fun `models that can't chat with tools never reach the picker`() {
         val catalog = assertIs<Outcome.Success<ProviderCatalog>>(
             loader.load(ConfigFiles.providerCatalog, ProviderCatalog.serializer(), ProviderCatalog.SCHEMA_VERSION),

@@ -50,7 +50,7 @@ class MemorySuggestionsTest {
     private var next = 0
     private val ids = IdGenerator { "id-${next++}-padding" }
     private val review = MemoryReviewDefaults(
-        fileName = "x.bin", quietMillis = 1, maxSuggestions = 3, maxInputChars = 10, maxOutputTokens = 10, maxDismissed = 2, maxReviewedChats = 2,
+        fileName = "x.bin", quietMillis = 1, maxSuggestions = 3, maxInputChars = 10, maxOutputTokens = 10, maxDismissed = 2, maxDeclinedInInput = 1, maxReviewedChats = 2,
     )
 
     private fun memory(scope: CoroutineScope, items: Int = 5, chars: Int = 40) =
@@ -58,6 +58,53 @@ class MemorySuggestionsTest {
 
     private fun suggestions(scope: CoroutineScope, memory: MemoryStore = memory(scope)) =
         MemorySuggestions(box, memory, review, EpochClock { 9L }, ids, scope)
+
+    @Test
+    fun `an edited keep also dismisses the original wording`() = runTest {
+        val s = suggestions(this)
+        s.add("chat", listOf("Is vegetarian" to null, "Likes tea" to null))
+        val (veg, tea) = s.pending.value
+        assertIs<Outcome.Success<Memory>>(s.keep(veg.id, "Is vegetarian, no eggs"))
+        assertIs<Outcome.Success<Memory>>(s.keep(tea.id, "  likes TEA "))
+        // Only the edited one records the original; an unchanged keep (up to case and spacing) is not a dismissal.
+        assertEquals(listOf("is vegetarian"), box.saved.dismissed)
+        s.add("chat", listOf("Is vegetarian" to null))
+        assertTrue(s.pending.value.isEmpty())
+    }
+
+    @Test
+    fun `seen gives what waits and the newest declined`() = runTest {
+        val s = suggestions(this)
+        s.add("chat", listOf("One" to null, "Two" to null, "Three" to null, "Four" to null))
+        s.pending.value.take(2).forEach { s.dismiss(it.id) }
+        assertEquals(SeenSuggestions(listOf("Three", "Four"), listOf("two")), s.seen())
+    }
+
+    @Test
+    fun `forgetting a chat drops its waiting suggestions and review count`() = runTest {
+        val s = suggestions(this)
+        s.add("a", listOf("From a" to null))
+        s.add("b", listOf("From b" to null))
+        s.markReviewed("a", 2)
+        s.markReviewed("b", 3)
+        assertIs<Outcome.Success<Unit>>(s.forgetChat("a"))
+        assertEquals(listOf("From b"), s.pending.value.map { it.text })
+        assertEquals(0, s.reviewedCount("a"))
+        assertEquals(3, s.reviewedCount("b"))
+        assertEquals(listOf("From b"), box.saved.pending.map { it.text })
+    }
+
+    @Test
+    fun `forgetting every chat clears what waits but not what was dismissed`() = runTest {
+        val s = suggestions(this)
+        s.add("a", listOf("From a" to null, "Gone" to null))
+        s.dismiss(s.pending.value.last().id)
+        s.markReviewed("a", 2)
+        assertIs<Outcome.Success<Unit>>(s.forgetAllChats())
+        assertTrue(s.pending.value.isEmpty())
+        assertEquals(0, s.reviewedCount("a"))
+        assertEquals(listOf("gone"), box.saved.dismissed)
+    }
 
     @Test
     fun `keepSavesMemoryAndClears`() = runTest {
@@ -174,6 +221,6 @@ class MemorySuggestionsTest {
                 app.whittle.settings.AppDefaults.FILE, app.whittle.settings.AppDefaults.serializer(), app.whittle.settings.AppDefaults.SCHEMA_VERSION,
             ),
         ).value.memory.review
-        assertEquals(MemoryReviewDefaults("memory-suggestions.bin", 60_000, 3, 6_000, 400, 200, 200), defaults)
+        assertEquals(MemoryReviewDefaults("memory-suggestions.bin", 60_000, 3, 6_000, 1_200, 200, 20, 200), defaults)
     }
 }

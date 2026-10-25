@@ -486,12 +486,13 @@ class AppGraph(context: Context) {
     /** One model call outside a run, for the memory review. */
     val oneShot = OneShot(modelAdapters, providers, modelCredentials)
 
-    /** Proposes memories from the user's own words after a chat. The setting that turns it off comes later; until then it is always on. */
+    /** Proposes memories from the user's own words after a chat. Off when the user turns off Suggest memories after chats. */
     val memoryReview = MemoryReview(
         oneShot,
         memorySuggestions,
         memory,
         PromptTemplate.load(configSource, ConfigFiles.memoryReviewPrompt).orThrow(ConfigFiles.memoryReviewPrompt),
+        PromptTemplate.load(configSource, ConfigFiles.memoryReviewInput).orThrow(ConfigFiles.memoryReviewInput),
         appDefaults.memory.review,
         settings = { currentSettings.value?.suggestMemories ?: true },
     )

@@ -27,6 +27,7 @@ class MemoryReview(
     private val suggestions: MemorySuggestions,
     private val memory: MemoryStore,
     private val prompt: PromptTemplate,
+    private val inputPrompt: PromptTemplate,
     private val config: MemoryReviewDefaults,
     private val settings: () -> Boolean,
 ) {
@@ -47,7 +48,9 @@ class MemoryReview(
         if (words.size <= suggestions.reviewedCount(chatId)) return
         val remembered = memory.current()
         val system = (prompt.render(mapOf("maxSuggestions" to config.maxSuggestions.toString())) as? Outcome.Success)?.value ?: return
-        val reply = oneShot.complete(model, system, input(remembered.map { "${it.id}: ${it.text}" }, words), config.maxOutputTokens)
+        val seen = suggestions.seen()
+        val input = input(remembered.map { "${it.id}: ${it.text}" }, seen, words) ?: return
+        val reply = oneShot.complete(model, system, input, config.maxOutputTokens)
         val text = (reply as? Outcome.Success)?.value ?: return
         val known = remembered.map { it.id }.toSet()
         val facts = parse(text).filter { it.text.isNotBlank() }.take(config.maxSuggestions)
@@ -56,10 +59,18 @@ class MemoryReview(
         suggestions.markReviewed(chatId, words.size)
     }
 
-    /** The remembered lines, then the user's words with the newest kept: the oldest end is cut to fit [MemoryReviewDefaults.maxInputChars]. */
-    private fun input(remembered: List<String>, words: List<String>): String {
-        val said = words.joinToString("\n").takeLast(config.maxInputChars)
-        return "Already remembered:\n" + remembered.joinToString("\n").ifEmpty { "(nothing)" } + "\n\nThe user's words:\n" + said
+    /**
+     * The remembered lines, what was already suggested or declined, then the user's words with the newest kept: the
+     * oldest end is cut to fit [MemoryReviewDefaults.maxInputChars].
+     */
+    private fun input(remembered: List<String>, seen: SeenSuggestions, words: List<String>): String? {
+        val variables = mapOf(
+            "remembered" to remembered.joinToString("\n"),
+            "waiting" to seen.waiting.joinToString("\n"),
+            "declined" to seen.declined.joinToString("\n"),
+            "words" to words.joinToString("\n").takeLast(config.maxInputChars),
+        )
+        return (inputPrompt.render(variables) as? Outcome.Success)?.value?.trimEnd()
     }
 
     /** The first `{...}` block that reads as proposals; anything else, such as prose around it or bad JSON, is no facts. */
