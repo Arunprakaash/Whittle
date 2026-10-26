@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import app.whittle.settings.ui.resources.Res
 import app.whittle.settings.ui.resources.*
+import app.whittle.design.components.ReadingWidth
 import app.whittle.design.components.ScreenHeading
 import app.whittle.design.components.TopBarButton
 import app.whittle.design.components.WhittleIcon
@@ -104,12 +105,15 @@ fun BringModelScreen(
             }
         },
     ) { padding ->
-        Column(
-            Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = WhittleSpace.l),
-            verticalArrangement = Arrangement.spacedBy(WhittleSpace.xxl),
-        ) {
-            ScreenHeading(stringResource(Res.string.bring_model_title), stringResource(Res.string.bring_model_body), Modifier.padding(horizontal = WhittleSpace.s))
-            ProviderChoices(providers, selected, claudeCode, onProvider, onClaudeCode)
+        // On a wide window the page reads in a centred column; the whole width still scrolls.
+        ReadingWidth(WhittleSpace.l, Modifier.padding(padding).fillMaxSize()) { inset ->
+            Column(
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = inset),
+                verticalArrangement = Arrangement.spacedBy(WhittleSpace.xxl),
+            ) {
+                ScreenHeading(stringResource(Res.string.bring_model_title), stringResource(Res.string.bring_model_body), Modifier.padding(horizontal = WhittleSpace.s))
+                ProviderChoices(providers, selected, claudeCode, onProvider, onClaudeCode)
+            }
         }
     }
 }

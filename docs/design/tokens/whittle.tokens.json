@@ -760,7 +760,8 @@
     },
     "readingWidthMax": {
       "$type": "dimension",
-      "$value": "640px"
+      "$value": "768px",
+      "$description": "The widest a page's content gets: on a Mac window, a browser or a tablet it's centred at this width, and a phone is narrower anyway."
     }
   },
   "radius": {

@@ -61,6 +61,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import app.whittle.design.components.ReadingWidth
+import app.whittle.design.components.readingWidth
 import app.whittle.design.components.TopBarAction
 import app.whittle.design.components.TopBarActionGroup
 import app.whittle.design.components.TopBarButton
@@ -158,7 +160,8 @@ private fun FolderScreen(host: FilesHost, platform: FilesPlatform, path: String,
                 ),
             )
         }
-        Column(Modifier.padding(horizontal = WhittleSpace.l), verticalArrangement = Arrangement.spacedBy(WhittleSpace.l)) {
+        // On a wide window the folder reads in a centred column; the list still scrolls across the whole width.
+        Column(Modifier.readingWidth().padding(horizontal = WhittleSpace.l), verticalArrangement = Arrangement.spacedBy(WhittleSpace.l)) {
             if (searching) WhittleSearchBar(search, placeholder = stringResource(Res.string.files_search), clearLabel = stringResource(Res.string.search_clear))
             if (offerChanged) {
                 Choice(
@@ -169,28 +172,30 @@ private fun FolderScreen(host: FilesHost, platform: FilesPlatform, path: String,
                 )
             }
         }
-        LazyColumn(
-            contentPadding = PaddingValues(WhittleSpace.l),
-            verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline),
-        ) {
-            if (showChanged) {
-                val shown = changes.filter { query.isEmpty() || it.path.contains(query, ignoreCase = true) }
-                itemsIndexed(shown, key = { _, change -> change.path }) { index, change ->
-                    ChangedRow(change, path, defaults, segmentedShape(index, shown.size)) { onOpen(FilesPlace.Document(change.path, changes = true)) }
+        ReadingWidth(WhittleSpace.l, Modifier.weight(1f)) { inset ->
+            LazyColumn(
+                contentPadding = PaddingValues(horizontal = inset, vertical = WhittleSpace.l),
+                verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline),
+            ) {
+                if (showChanged) {
+                    val shown = changes.filter { query.isEmpty() || it.path.contains(query, ignoreCase = true) }
+                    itemsIndexed(shown, key = { _, change -> change.path }) { index, change ->
+                        ChangedRow(change, path, defaults, segmentedShape(index, shown.size)) { onOpen(FilesPlace.Document(change.path, changes = true)) }
+                    }
+                    if (shown.isEmpty()) item { Empty(Res.string.files_no_changes) }
+                } else {
+                    val shown = entries.orEmpty().filter { query.isEmpty() || it.name.contains(query, ignoreCase = true) }
+                    itemsIndexed(shown, key = { _, entry -> entry.path }) { index, entry ->
+                        EntryRow(
+                            entry = entry,
+                            defaults = defaults,
+                            shape = segmentedShape(index, shown.size),
+                            onClick = { onOpen(if (entry.directory) FilesPlace.Folder(entry.path) else FilesPlace.Document(entry.path)) },
+                            onLongClick = { deleting = entry },
+                        )
+                    }
+                    if (entries != null && shown.isEmpty()) item { Empty(Res.string.files_empty) }
                 }
-                if (shown.isEmpty()) item { Empty(Res.string.files_no_changes) }
-            } else {
-                val shown = entries.orEmpty().filter { query.isEmpty() || it.name.contains(query, ignoreCase = true) }
-                itemsIndexed(shown, key = { _, entry -> entry.path }) { index, entry ->
-                    EntryRow(
-                        entry = entry,
-                        defaults = defaults,
-                        shape = segmentedShape(index, shown.size),
-                        onClick = { onOpen(if (entry.directory) FilesPlace.Folder(entry.path) else FilesPlace.Document(entry.path)) },
-                        onLongClick = { deleting = entry },
-                    )
-                }
-                if (entries != null && shown.isEmpty()) item { Empty(Res.string.files_empty) }
             }
         }
     }
@@ -263,33 +268,36 @@ private fun DocumentScreen(
                 ),
             )
         }
-        if (added + removed > 0) {
-            Box(Modifier.padding(start = WhittleSpace.l, end = WhittleSpace.l, bottom = WhittleSpace.m)) {
-                Choice(
-                    first = stringResource(Res.string.files_view_file),
-                    second = if (removed > 0) stringResource(Res.string.files_view_changes, added, removed) else stringResource(Res.string.files_view_added, added),
-                    firstChosen = !showChanges,
-                    onChoose = { file -> onMode(!file) },
-                )
+        // On a wide window the file reads in a centred column, as the chat does.
+        Column(Modifier.weight(1f).readingWidth()) {
+            if (added + removed > 0) {
+                Box(Modifier.padding(start = WhittleSpace.l, end = WhittleSpace.l, bottom = WhittleSpace.m)) {
+                    Choice(
+                        first = stringResource(Res.string.files_view_file),
+                        second = if (removed > 0) stringResource(Res.string.files_view_changes, added, removed) else stringResource(Res.string.files_view_added, added),
+                        firstChosen = !showChanges,
+                        onChoose = { file -> onMode(!file) },
+                    )
+                }
             }
-        }
-        when (val shown = content) {
-            null -> Unit
-            is FileContent.Text -> if (showChanges) {
-                ChangesView(diff, change, defaults, name, chat != null) { onAsk(undoRequest) }
-            } else {
-                TextView(shown, marked, defaults, name)
+            when (val shown = content) {
+                null -> Unit
+                is FileContent.Text -> if (showChanges) {
+                    ChangesView(diff, change, defaults, name, chat != null) { onAsk(undoRequest) }
+                } else {
+                    TextView(shown, marked, defaults, name)
+                }
+                FileContent.Picture -> {
+                    val picture by produceState<ImageBitmap?>(null, place.path, version) { value = host.image(place.path, defaults.maxImageSidePx) }
+                    picture?.let { Image(bitmap = it, contentDescription = name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(WhittleSpace.l)) }
+                }
+                is FileContent.Pdf -> if (shown.pageRatios.isEmpty()) {
+                    NotShown(name, share, Modifier.fillMaxSize())
+                } else {
+                    PdfPages(host, place.path, shown.pageRatios, defaults.maxImageSidePx, Modifier.fillMaxSize())
+                }
+                FileContent.NotText -> NotShown(name, share, Modifier.fillMaxSize())
             }
-            FileContent.Picture -> {
-                val picture by produceState<ImageBitmap?>(null, place.path, version) { value = host.image(place.path, defaults.maxImageSidePx) }
-                picture?.let { Image(bitmap = it, contentDescription = name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(WhittleSpace.l)) }
-            }
-            is FileContent.Pdf -> if (shown.pageRatios.isEmpty()) {
-                NotShown(name, share, Modifier.fillMaxSize())
-            } else {
-                PdfPages(host, place.path, shown.pageRatios, defaults.maxImageSidePx, Modifier.fillMaxSize())
-            }
-            FileContent.NotText -> NotShown(name, share, Modifier.fillMaxSize())
         }
     }
 }
