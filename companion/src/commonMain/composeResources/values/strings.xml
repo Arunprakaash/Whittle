@@ -40,8 +40,12 @@
     <string name="connect_failed_help">Check that Use from your computer is on and the tunnel in step 2 is still running.</string>
     <string name="connect_lost">The phone stopped answering</string>
     <string name="connect_lost_help">The tunnel may have closed, or the phone went to sleep. Open the tunnel again and connect.</string>
-    <string name="preview_body">Opens http://127.0.0.1:%1$d in this computer's browser. The server runs on your phone, so its port needs a tunnel too:
-ssh -L %1$d:127.0.0.1:%1$d phone</string>
+    <string name="preview_body">Opens http://127.0.0.1:%1$d in this computer's browser. The server runs on your phone, so its port needs a tunnel too, in a terminal here:
+%2$s</string>
+    <string name="preview_opening">Opening a tunnel to port %1$d on your phone…</string>
+    <string name="preview_failed">Couldn't open a tunnel to port %1$d. Check that your phone is still connected, or open one in a terminal:
+%2$s</string>
+    <string name="preview_retry">Try again</string>
     <string name="preview_open">Open in browser</string>
     <string name="preview_cancel">Cancel</string>
     <string name="preview_waiting">It isn't serving yet; try again once its card says it's live.</string>

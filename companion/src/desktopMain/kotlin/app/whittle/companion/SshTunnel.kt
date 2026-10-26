@@ -6,24 +6,35 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.io.IOException
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.prefs.Preferences
 
 /**
  * Opens the way to the phone with this computer's own ssh and key, as the user would in a terminal: reads the token,
- * then keeps `ssh -N -L` running for the link on a free local port. It never asks for a password (the key is added
- * on the phone), takes the phone's host key the first time and refuses a changed one, as ssh's accept-new does.
+ * then keeps `ssh -N -L` running for the link on a free local port, and one more for each chat server opened here. It
+ * never asks for a password (the key is added on the phone), takes the phone's host key the first time and refuses a
+ * changed one, as ssh's accept-new does.
  */
 class SshTunnel(private val phone: PhoneAddress, private val ssh: String = SSH) : PhoneTunnel {
     private val preferences = Preferences.userNodeForPackage(SshTunnel::class.java)
     @Volatile private var tunnel: Process? = null
 
+    /** Where the open tunnel goes (user@host), for the forwards that follow it. */
+    @Volatile private var target: String? = null
+
+    /** Each server's forward, by its port on the phone. */
+    private val forwards = ConcurrentHashMap<Int, Forward>()
+
+    private class Forward(val local: Int, val process: Process)
+
     init {
-        // However the app ends, short of being killed outright, the tunnel ends with it.
-        Runtime.getRuntime().addShutdownHook(Thread { tunnel?.destroy() })
+        // However the app ends, short of being killed outright, the tunnel and its forwards end with it.
+        Runtime.getRuntime().addShutdownHook(Thread { tunnel?.destroy(); forwards.values.forEach { it.process.destroy() } })
     }
 
     override val publicKey: String?
@@ -44,28 +55,65 @@ class SshTunnel(private val phone: PhoneAddress, private val ssh: String = SSH) 
         if (read.code != 0) return@withContext problemOf(read)
         val token = read.output.trim().takeIf { it.isNotEmpty() } ?: return@withContext TunnelResult.Failed(read.error)
         val port = ServerSocket(0).use { it.localPort }
-        val forward = "$port:$LOOPBACK:${phone.port}"
-        val process = ProcessBuilder(listOf(ssh) + OPTIONS + TUNNEL_OPTIONS + listOf("-p", phone.sshPort.toString(), "-N", "-L", forward, target))
-            .redirectErrorStream(true)
-            .start()
+        val opened = listen(port, phone.port, target)
+        val process = opened.process ?: return@withContext TunnelResult.Failed(opened.said)
         tunnel = process
-        // Open once something listens on the local port, or failed once ssh gives up.
-        val listening = withTimeoutOrNull(OPEN_TIMEOUT_MILLIS) {
-            while (process.isAlive && !accepts(port)) delay(POLL_MILLIS)
-            process.isAlive
-        } == true
-        if (!listening) {
-            val said = process.inputStream.bufferedReader().readText().trim().ifEmpty { null }
-            close()
-            return@withContext TunnelResult.Failed(said)
-        }
+        this@SshTunnel.target = target
         preferences.put(LAST_HOST, host.trim())
         TunnelResult.Opened("ws://$LOOPBACK:$port/companion", token)
     }
 
+    override suspend fun forward(port: Int): Int? = withContext(Dispatchers.IO) {
+        val target = target ?: return@withContext null
+        forwards[port]?.let { open ->
+            if (open.process.isAlive) return@withContext open.local
+            forwards.remove(port)
+        }
+        // The same port here keeps the page's own links to it working; another when something here already has it.
+        val local = if (free(port)) port else ServerSocket(0).use { it.localPort }
+        val process = listen(local, port, target).process ?: return@withContext null
+        forwards[port] = Forward(local, process)
+        local
+    }
+
     override fun close() {
-        tunnel?.let { it.destroy(); it.waitFor(CLOSE_WAIT_SECONDS, TimeUnit.SECONDS) }
+        forwards.values.forEach { it.process.end() }
+        forwards.clear()
+        tunnel?.end()
         tunnel = null
+        target = null
+    }
+
+    private fun Process.end() {
+        destroy()
+        waitFor(CLOSE_WAIT_SECONDS, TimeUnit.SECONDS)
+    }
+
+    /** What starting a forward came to: ssh, listening, or what it said as it gave up. */
+    private class Listening(val process: Process?, val said: String?)
+
+    /** Starts `ssh -N -L` from [local] here to [remote] on the phone; done once something listens here, or ssh gives up. */
+    private suspend fun listen(local: Int, remote: Int, target: String): Listening {
+        val process = ProcessBuilder(listOf(ssh) + OPTIONS + TUNNEL_OPTIONS + listOf("-p", phone.sshPort.toString(), "-N", "-L", "$local:$LOOPBACK:$remote", target))
+            .redirectErrorStream(true)
+            .start()
+        val listening = withTimeoutOrNull(OPEN_TIMEOUT_MILLIS) {
+            while (process.isAlive && !accepts(local)) delay(POLL_MILLIS)
+            process.isAlive
+        } == true
+        if (listening) return Listening(process, null)
+        process.destroy()
+        val said = process.inputStream.bufferedReader().readText().trim().ifEmpty { null }
+        process.waitFor(CLOSE_WAIT_SECONDS, TimeUnit.SECONDS)
+        return Listening(null, said)
+    }
+
+    /** Whether nothing on this computer has [port] yet. */
+    private fun free(port: Int): Boolean = try {
+        ServerSocket(port, 1, InetAddress.getByName(LOOPBACK)).close()
+        true
+    } catch (_: IOException) {
+        false
     }
 
     private class Ran(val code: Int, val output: String, val error: String?)
