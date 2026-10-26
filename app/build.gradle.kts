@@ -15,7 +15,7 @@ android {
         targetSdk = libs.versions.androidLinuxTargetSdk.get().toInt()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         versionCode = 33
-        versionName = "0.26.0"
+        versionName = libs.versions.whittle.get()
         // PostHog's public project key comes from your Gradle properties, never from the repo.
         // Without it, telemetry stays on the device.
         val postHogProjectKey = providers.gradleProperty("whittle.posthogProjectKey").orElse("").get()
@@ -107,6 +107,15 @@ android.defaultConfig.buildConfigField("String", "SANDBOX_PROGRAM", "\"lib$sandb
 
 android.defaultConfig.buildConfigField("String", "RUNTIME_ASSETS", "\"$runtimeAssetDirectory\"")
 
+// The browser version, which the phone serves itself to the computers signed in to it.
+val companionWebDirectory = "companion-web"
+android.defaultConfig.buildConfigField("String", "COMPANION_WEB", "\"$companionWebDirectory\"")
+val companionWeb = tasks.register<WebBuildAssetsTask>("companionWebAssets") {
+    page.from(files(project(":companion").layout.buildDirectory.dir("dist/wasmJs/productionExecutable")).builtBy(":companion:wasmJsBrowserDistribution"))
+    folder.set(companionWebDirectory)
+    assetsDirectory.set(layout.buildDirectory.dir("generated/companionWeb/assets"))
+}
+
 // The full-colour launcher icon is drawn from the beaver's sprite file; the one-colour ones are in res/drawable.
 val spriteDrawables = tasks.register<GenerateSpriteDrawablesTask>("generateSpriteDrawables") {
     spriteFile.set(rootProject.layout.projectDirectory.file("docs/design/sprites/beaver.sprite.json"))
@@ -130,6 +139,7 @@ androidComponents {
         variant.sources.jniLibs?.addGeneratedSourceDirectory(runtime, TermuxRuntimeTask::jniLibsDirectory)
         variant.sources.jniLibs?.addGeneratedSourceDirectory(sandboxExecutable, NativeExecutableTask::jniLibsDirectory)
         variant.sources.assets?.addGeneratedSourceDirectory(runtime, TermuxRuntimeTask::assetsDirectory)
+        variant.sources.assets?.addGeneratedSourceDirectory(companionWeb, WebBuildAssetsTask::assetsDirectory)
     }
 }
 

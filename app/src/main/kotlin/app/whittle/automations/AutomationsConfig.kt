@@ -52,10 +52,6 @@ data class AutomationsConfig(
     }
 }
 
-/** The ideas still worth offering: those the user hasn't made yet, matched by name. */
-fun unusedIdeas(ideas: List<AutomationIdea>, automations: List<Automation>): List<AutomationIdea> =
-    ideas.filter { idea -> automations.none { it.name.trim().equals(idea.name, ignoreCase = true) } }
-
 /** A ready-made automation to start from: what it's called and does, when, and which [tools] choices it starts with. */
 @Serializable
 data class AutomationIdea(

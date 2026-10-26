@@ -10,12 +10,25 @@ import app.whittle.files.ui.FileEntry
 import app.whittle.linux.ui.KeyIssue
 import app.whittle.linux.ui.LinuxAction
 import app.whittle.linux.ui.LinuxScreenState
+import app.whittle.automations.ui.AutomationAction
+import app.whittle.automations.ui.AutomationEntry
+import app.whittle.automations.ui.AutomationSave
+import app.whittle.automations.ui.AutomationsState
+import app.whittle.automations.ui.RunNow
+import app.whittle.connections.ui.ConnectionAction
+import app.whittle.connections.ui.ConnectionAdd
+import app.whittle.connections.ui.ConnectionsState
+import app.whittle.connections.ui.NewConnection
+import app.whittle.memory.ui.MemoryAction
+import app.whittle.memory.ui.MemoryIssue
+import app.whittle.memory.ui.MemoryState
 import app.whittle.settings.FilesDefaults
 import app.whittle.settings.ui.SettingsAction
 import app.whittle.settings.ui.SettingsState
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 
 /**
  * The chat screen over a link: a computer shows the phone's chat screen and the phone does what it asks. Each message is
@@ -41,6 +54,21 @@ sealed interface ToPhone {
     @Serializable
     @SerialName("linux")
     data class Linux(val action: LinuxAction) : ToPhone
+
+    /** A change on the Memory page: forgetting one, or everything. */
+    @Serializable
+    @SerialName("memory")
+    data class Memory(val action: MemoryAction) : ToPhone
+
+    /** A change on the Automations pages: switching one on or off, or deleting it. */
+    @Serializable
+    @SerialName("automations")
+    data class Automations(val action: AutomationAction) : ToPhone
+
+    /** A change to a connection: connecting, renaming, removing, switching its tools. */
+    @Serializable
+    @SerialName("connections")
+    data class Connections(val action: ConnectionAction) : ToPhone
 
     /** Opens the model picker for this computer: the provider in use, its models listed with its saved key. */
     @Serializable
@@ -69,27 +97,42 @@ sealed interface FromPhone {
     data class Welcome(val files: FilesDefaults, val mount: String) : FromPhone
 
     /**
-     * The chat screen as it is now; sent whole whenever it changes. [sentAtMillis] is the phone's clock, so a computer
-     * whose clock differs still counts a task's time from when it started on the phone.
+     * What changed on one of the phone's screens, as a [JsonPatch] to the [stream]'s value: the first one whole, then
+     * only the changes, so a reply streaming in sends its new words and not the chat.
      */
     @Serializable
-    @SerialName("view")
-    data class View(val state: ChatScreenState, val sentAtMillis: Long, val filesVersion: Long = 0, val settings: SettingsState = SettingsState()) : FromPhone
+    @SerialName("changed")
+    data class Changed(val stream: Stream, val patch: JsonElement) : FromPhone
 
     @Serializable
     @SerialName("reply")
     data class Reply(val id: Long, val answer: Answer) : FromPhone
 
-    /** The Linux workspace page as it is now; sent whole whenever it changes, apart from the chat's [View]. */
+
+
+
+
+    /** Connecting a service failed, and the service's words for why. */
     @Serializable
-    @SerialName("linux")
-    data class Linux(val state: LinuxScreenState) : FromPhone
+    @SerialName("connector_failed")
+    data class ConnectorFailed(val reason: String) : FromPhone
 
     /** The model picker this computer opened, as it is now. */
     @Serializable
     @SerialName("picker")
     data class Picker(val state: PickerState) : FromPhone
 }
+
+/** The phone's screens a computer follows, each its own value and patched apart from the others. */
+@Serializable
+enum class Stream { Chat, Linux, Memory, Automations, Connections }
+
+/**
+ * The chat screen and Settings as they are now. [sentAtMillis] is the phone's clock, so a computer whose clock differs
+ * still counts a task's time from when it started on the phone.
+ */
+@Serializable
+data class ChatView(val state: ChatScreenState, val sentAtMillis: Long, val filesVersion: Long = 0, val settings: SettingsState = SettingsState())
 
 @Serializable
 sealed interface Question {
@@ -130,6 +173,36 @@ sealed interface Question {
     @Serializable
     @SerialName("add_computer")
     data class AddComputer(val key: String) : Question
+
+    /** Adds a server from the library, by its address. */
+    @Serializable
+    @SerialName("add_library_connection")
+    data class AddLibraryConnection(val url: String) : Question
+
+    /** Adds any server by its address, connecting it with [keys] when it signs in with them. */
+    @Serializable
+    @SerialName("add_connection")
+    data class AddConnection(val connection: NewConnection, val keys: Map<String, String>) : Question
+
+    /** Where a connection named [name] would have its sign-in return. */
+    @Serializable
+    @SerialName("return_address")
+    data class ReturnAddress(val name: String) : Question
+
+    /** Stores an automation, new or changed. */
+    @Serializable
+    @SerialName("save_automation")
+    data class SaveAutomation(val automation: AutomationEntry) : Question
+
+    /** Runs the automation with [id] now, in a new chat. */
+    @Serializable
+    @SerialName("run_automation")
+    data class RunAutomation(val id: String) : Question
+
+    /** Saves [text] as a new memory, or in place of the one with [id]. */
+    @Serializable
+    @SerialName("save_memory")
+    data class SaveMemory(val id: String?, val text: String) : Question
 }
 
 @Serializable
@@ -162,6 +235,30 @@ sealed interface Answer {
     @Serializable
     @SerialName("done")
     data object Done : Answer
+
+    /** The connection was added, or why not. */
+    @Serializable
+    @SerialName("connection_added")
+    data class ConnectionAdded(val result: ConnectionAdd) : Answer
+
+    @Serializable
+    @SerialName("address")
+    data class Address(val address: String) : Answer
+
+    /** What was stored, or why not. */
+    @Serializable
+    @SerialName("automation_saved")
+    data class AutomationSaved(val result: AutomationSave) : Answer
+
+    /** Whether the run started. */
+    @Serializable
+    @SerialName("ran")
+    data class Ran(val result: RunNow) : Answer
+
+    /** The memory was saved, or why not. */
+    @Serializable
+    @SerialName("memory_saved")
+    data class MemorySaved(val issue: MemoryIssue? = null) : Answer
 
     /** The key was added, or why not. */
     @Serializable

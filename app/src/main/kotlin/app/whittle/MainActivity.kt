@@ -1,13 +1,13 @@
 package app.whittle
 
-import app.whittle.settings.MemoryScreen
+import app.whittle.memory.ui.MemoryScreen
 import android.content.res.Configuration
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.WindowCompat
 import android.view.WindowManager
 import android.os.Build
-import app.whittle.settings.ConnectionToolsScreen
-import app.whittle.settings.ConnectionLibraryScreen
+import app.whittle.connections.ui.ConnectionLibraryScreen
+import app.whittle.connections.ui.ConnectionToolsScreen
 import app.whittle.design.theme.isDark
 import androidx.compose.runtime.DisposableEffect
 import android.graphics.Color
@@ -41,11 +41,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import app.whittle.automations.AutomationsScreen
-import app.whittle.automations.RunNowResult
+import app.whittle.automations.rememberPhoneAutomationsPlatform
+import app.whittle.automations.ui.AutomationsNavigation
+import app.whittle.automations.ui.AutomationsScreen
 import app.whittle.chat.rememberPhoneChatPlatform
 import app.whittle.storage.chats.ChatId
 import app.whittle.chat.ui.AllChatsScreen
+import app.whittle.settings.rememberPhoneConnectionsPlatform
 import app.whittle.settings.rememberPhoneSettingsPlatform
 import app.whittle.settings.ui.SettingsNavigation
 import app.whittle.settings.ui.SettingsScreen
@@ -303,7 +305,7 @@ class MainActivity : ComponentActivity() {
                                 showingMemory = false; showingLinux = false; showingConnectionLibrary = false; toolsOf = null
                                 chat.startWithScreen(screen)
                             }
-                            val toolsConnection = toolsOf?.let { id -> connections.firstOrNull { it.server.id == id } }
+                            val toolsConnection = toolsOf?.takeIf { id -> connections.any { it.server.id == id } }
                             val opening = files
                             if (opening != null) {
                                 val context = this@MainActivity
@@ -318,29 +320,22 @@ class MainActivity : ComponentActivity() {
                             } else if (showingAutomations) {
                                 LaunchedEffect(Unit) { chat.refreshProjects() }
                                 AutomationsScreen(
-                                    graph,
-                                    projects = state.projects.map { it.name },
-                                    onBack = { showingAutomations = false; showingSettings = true },
-                                    onRunNow = { automation ->
-                                        scope.launch {
-                                            when ((application as WhittleApplication).automationRunner.runNow(automation.id)) {
-                                                RunNowResult.STARTED -> { showingAutomations = false; showingSettings = false }
-                                                RunNowResult.BUSY -> Toast.makeText(this@MainActivity, R.string.automation_busy, Toast.LENGTH_SHORT).show()
-                                                RunNowResult.NO_MODEL -> Toast.makeText(this@MainActivity, R.string.automation_no_model, Toast.LENGTH_SHORT).show()
-                                                RunNowResult.NOT_FOUND -> Unit
-                                            }
-                                        }
-                                    },
-                                    onOpenChat = { id -> chat.openChat(id); showingAutomations = false; showingSettings = false },
+                                    host = (application as WhittleApplication).automationsHost,
+                                    platform = rememberPhoneAutomationsPlatform(graph),
+                                    navigation = AutomationsNavigation(
+                                        back = { showingAutomations = false; showingSettings = true },
+                                        openChat = { id -> chat.openChat(ChatId(id)); showingAutomations = false; showingSettings = false },
+                                        runStarted = { showingAutomations = false; showingSettings = false },
+                                    ),
                                 )
                             } else if (showingMemory) {
-                                MemoryScreen(graph, onBack = { showingMemory = false; showingSettings = true })
+                                MemoryScreen((application as WhittleApplication).memoryHost, onBack = { showingMemory = false; showingSettings = true })
                             } else if (showingLinux) {
                                 LinuxWorkspaceScreen((application as WhittleApplication).linuxHost, LinuxPlatform(opensLinksItself = true), onBack = { showingLinux = false; showingSettings = true })
                             } else if (showingConnectionLibrary) {
-                                ConnectionLibraryScreen(graph, onBack = { showingConnectionLibrary = false; showingSettings = true })
+                                ConnectionLibraryScreen((application as WhittleApplication).connectionsHost, rememberPhoneConnectionsPlatform(), onBack = { showingConnectionLibrary = false; showingSettings = true })
                             } else if (toolsConnection != null) {
-                                ConnectionToolsScreen(graph, toolsConnection, onBack = { toolsOf = null; showingSettings = true })
+                                ConnectionToolsScreen((application as WhittleApplication).connectionsHost, toolsConnection, onBack = { toolsOf = null; showingSettings = true })
                             } else if (showingModelPicker && choosingProvider) {
                                 val claudeCodeInUse = graph.claudeCode.runs(state.model) && pickerProvider == null
                                 val shownProvider = pickerProvider ?: state.model?.providerId?.takeUnless { claudeCodeInUse }
@@ -439,8 +434,9 @@ class MainActivity : ComponentActivity() {
                                     host = app.settingsHost,
                                     platform = rememberPhoneSettingsPlatform(
                                         graph,
+                                        app.connectionsHost,
                                         onBrowseConnections = { showingSettings = false; showingConnectionLibrary = true },
-                                        onConnectionTools = { connection -> showingSettings = false; toolsOf = connection.server.id },
+                                        onConnectionTools = { id -> showingSettings = false; toolsOf = id },
                                     ),
                                     navigation = SettingsNavigation(
                                         back = { showingSettings = false },

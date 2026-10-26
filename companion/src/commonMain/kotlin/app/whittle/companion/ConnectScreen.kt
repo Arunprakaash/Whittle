@@ -26,6 +26,9 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -60,21 +63,48 @@ import org.jetbrains.compose.resources.stringResource
 
 /**
  * The computer's first screen: the beaver scene with how the link stands, what this window is, and three numbered steps
- * (turn it on, open the tunnel, paste the token) with Connect under them. The phone's address, typed once, fills both
- * commands. From [TWO_COLUMNS] wide, the scene and the words sit beside the steps, and stay put while the steps scroll.
+ * with Connect under them. In a browser they're turn it on, open the tunnel, paste the token, the phone's address typed
+ * once filling both commands; where a [tunnel] opens by itself (the Mac app), they're turn it on, add this computer,
+ * and its address, and the phone it reached last is reached again at start. From [TWO_COLUMNS] wide, the scene and
+ * the words sit beside the steps, and stay put while the steps scroll.
  */
 @Composable
-internal fun ConnectScreen(state: LinkState, phone: PhoneAddress, token: String, onConnect: (String, String) -> Unit) {
-    var host by rememberSaveable { mutableStateOf("") }
+internal fun ConnectScreen(state: LinkState, phone: PhoneAddress, token: String, tunnel: PhoneTunnel?, onConnect: (String, String) -> Unit) {
+    var host by rememberSaveable { mutableStateOf(tunnel?.lastHost.orEmpty()) }
     var secret by rememberSaveable { mutableStateOf(token) }
-    val connect = { if (secret.isNotBlank() && state != LinkState.Connecting) onConnect(phone.webSocket, secret.trim()) }
+    var opening by remember { mutableStateOf(false) }
+    var tunnelProblem by remember { mutableStateOf<TunnelResult?>(null) }
+    val scope = rememberCoroutineScope()
+    val connecting = state == LinkState.Connecting || opening
+    val connect = { if (secret.isNotBlank() && !connecting) onConnect(phone.webSocket, secret.trim()) }
+    val openTunnel = {
+        if (tunnel != null && host.isNotBlank() && !connecting) {
+            opening = true
+            tunnelProblem = null
+            scope.launch {
+                when (val opened = tunnel.open(host)) {
+                    is TunnelResult.Opened -> onConnect(opened.address, opened.token)
+                    else -> tunnelProblem = opened
+                }
+                opening = false
+            }
+        }
+    }
+    if (tunnel?.lastHost != null) LaunchedEffect(Unit) { if ((state as? LinkState.Off)?.problem == null) openTunnel() }
+    val problem = tunnelProblem?.let { tunnelWords(it) } ?: (state as? LinkState.Off)?.problem?.let { PROBLEMS.getValue(it).let { (title, help) -> stringResource(title) to stringResource(help) } }
     val chrome = LocalWindowChrome.current
     Box(Modifier.fillMaxSize()) {
         // Where the app draws the window's top, it still moves the window.
         chrome?.let { window -> window.Draggable { Box(Modifier.fillMaxWidth().windowInsetsTopHeight(window.insets)) } }
         BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(chrome?.insets ?: WindowInsets(0))) {
-            val intro = @Composable { Intro(state) }
-            val steps = @Composable { Steps(state, phone, host, { host = it }, secret, { secret = it.trim() }, connect) }
+            val intro = @Composable { Intro(connecting, problem?.first) }
+            val steps = @Composable {
+                if (tunnel != null) {
+                    TunnelSteps(tunnel, connecting, problem, host, { host = it; tunnelProblem = null }, openTunnel)
+                } else {
+                    Steps(state, connecting, problem, phone, host, { host = it }, secret, { secret = it.trim() }, connect)
+                }
+            }
             if (maxWidth >= TWO_COLUMNS) {
                 Row(
                     Modifier.align(Alignment.TopCenter).widthIn(max = MAX_WIDTH).padding(horizontal = WhittleSpace.xxl),
@@ -96,22 +126,21 @@ internal fun ConnectScreen(state: LinkState, phone: PhoneAddress, token: String,
     }
 }
 
-/** The scene with how the link stands, then what this window is and who may open it. */
+/** The scene with how the link stands ([problem], when there is one), then what this window is and who may open it. */
 @Composable
-private fun Intro(state: LinkState) {
+private fun Intro(connecting: Boolean, problem: String?) {
     val colors = MaterialTheme.colorScheme
-    val problem = (state as? LinkState.Off)?.problem
     Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.xl)) {
         BeaverScene(
             title = stringResource(Res.string.connect_scene_title),
             status = when {
-                state == LinkState.Connecting -> stringResource(Res.string.connect_connecting)
-                problem != null -> stringResource(PROBLEMS.getValue(problem).first)
+                connecting -> stringResource(Res.string.connect_connecting)
+                problem != null -> problem
                 else -> stringResource(Res.string.connect_not_connected)
             },
-            working = state == LinkState.Connecting,
-            problem = problem != null,
-            progress = if (state == LinkState.Connecting) SceneProgress.Running else SceneProgress.None,
+            working = connecting,
+            problem = problem != null && !connecting,
+            progress = if (connecting) SceneProgress.Running else SceneProgress.None,
             modifier = Modifier.clip(RoundedCornerShape(WhittleRadius.xl)),
         )
         Column(Modifier.padding(horizontal = WhittleSpace.xs), verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
@@ -127,6 +156,8 @@ private fun Intro(state: LinkState) {
 @Composable
 private fun Steps(
     state: LinkState,
+    connecting: Boolean,
+    problem: Pair<String, String>?,
     phone: PhoneAddress,
     host: String,
     onHost: (String) -> Unit,
@@ -134,8 +165,6 @@ private fun Steps(
     onSecret: (String) -> Unit,
     onConnect: () -> Unit,
 ) {
-    val haptics = WhittleTheme.haptics
-    val connecting = state == LinkState.Connecting
     val target = host.trim().ifEmpty { stringResource(Res.string.connect_host_placeholder) }
     Column {
         Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
@@ -150,23 +179,79 @@ private fun Steps(
                 SecretField(secret, onSecret, stringResource(Res.string.connect_token), enabled = !connecting, isError = (state as? LinkState.Off)?.problem == LinkProblem.Refused, onDone = onConnect)
             }
         }
-        Button(
-            onClick = { haptics.perform(WhittleHaptic.Tap); onConnect() },
-            enabled = secret.isNotBlank() && !connecting,
-            shapes = ButtonDefaults.shapes(),
-            modifier = Modifier.fillMaxWidth().padding(top = WhittleSpace.l).height(WhittleSize.Button.large),
-        ) {
-            if (connecting) {
-                CircularProgressIndicator(Modifier.size(WhittleSize.Icon.l), strokeWidth = WhittleSpace.hairline, color = MaterialTheme.colorScheme.onPrimary)
-            } else {
-                WhittleIcon("computer", size = WhittleSize.Icon.l)
-            }
-            Spacer(Modifier.width(WhittleSpace.s))
-            Text(stringResource(if (connecting) Res.string.connect_connecting else Res.string.connect_go), style = MaterialTheme.typography.titleMedium)
-        }
-        (state as? LinkState.Off)?.problem?.let { problem -> Problem(PROBLEMS.getValue(problem)) }
+        ConnectButton(enabled = secret.isNotBlank(), connecting = connecting, onConnect = onConnect)
+        problem?.let { Problem(it) }
         SupportingNote("link", stringResource(Res.string.connect_link, phone.webSocket), Modifier.padding(top = WhittleSpace.m))
     }
+}
+
+/**
+ * Where the tunnel opens by itself: turn it on, add this computer's key on the phone (made in Terminal when it has
+ * none), and the phone's address; Connect reads the token and opens the tunnel.
+ */
+@Composable
+private fun TunnelSteps(
+    tunnel: PhoneTunnel,
+    connecting: Boolean,
+    problem: Pair<String, String>?,
+    host: String,
+    onHost: (String) -> Unit,
+    onConnect: () -> Unit,
+) {
+    // Read again when the user says they've made a key.
+    var checks by remember { mutableStateOf(0) }
+    val key = remember(checks) { tunnel.publicKey }
+    Column {
+        Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
+            NumberedStep(1, stringResource(Res.string.connect_step_on), stringResource(Res.string.connect_step_on_detail), segmentedShape(0, STEPS))
+            NumberedStep(2, stringResource(Res.string.connect_step_key), stringResource(Res.string.connect_step_key_detail), segmentedShape(1, STEPS)) {
+                if (key != null) {
+                    Command(key)
+                } else {
+                    Text(stringResource(Res.string.connect_no_key), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Command(tunnel.makeKeyCommand)
+                    TextButton(onClick = { checks++ }) { Text(stringResource(Res.string.connect_check_again)) }
+                }
+            }
+            NumberedStep(3, stringResource(Res.string.connect_step_address), stringResource(Res.string.connect_step_address_detail), segmentedShape(2, STEPS), done = host.isNotBlank()) {
+                WhittleFilledField(host, onHost, stringResource(Res.string.connect_phone), singleLine = true, enabled = !connecting)
+            }
+        }
+        ConnectButton(enabled = host.isNotBlank(), connecting = connecting, onConnect = onConnect)
+        problem?.let { Problem(it) }
+    }
+}
+
+/** Connect, or a spinner and Connecting… while it does. */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ConnectButton(enabled: Boolean, connecting: Boolean, onConnect: () -> Unit) {
+    val haptics = WhittleTheme.haptics
+    Button(
+        onClick = { haptics.perform(WhittleHaptic.Tap); onConnect() },
+        enabled = enabled && !connecting,
+        shapes = ButtonDefaults.shapes(),
+        modifier = Modifier.fillMaxWidth().padding(top = WhittleSpace.l).height(WhittleSize.Button.large),
+    ) {
+        if (connecting) {
+            CircularProgressIndicator(Modifier.size(WhittleSize.Icon.l), strokeWidth = WhittleSpace.hairline, color = MaterialTheme.colorScheme.onPrimary)
+        } else {
+            WhittleIcon("computer", size = WhittleSize.Icon.l)
+        }
+        Spacer(Modifier.width(WhittleSpace.s))
+        Text(stringResource(if (connecting) Res.string.connect_connecting else Res.string.connect_go), style = MaterialTheme.typography.titleMedium)
+    }
+}
+
+/** What the tunnel's failure was, and what to check. */
+@Composable
+private fun tunnelWords(result: TunnelResult): Pair<String, String>? = when (result) {
+    is TunnelResult.Opened -> null
+    TunnelResult.NotAdded -> stringResource(Res.string.connect_not_added) to stringResource(Res.string.connect_not_added_help)
+    TunnelResult.Unreachable -> stringResource(Res.string.connect_unreachable) to stringResource(Res.string.connect_unreachable_help)
+    TunnelResult.HostChanged -> stringResource(Res.string.connect_host_changed) to stringResource(Res.string.connect_host_changed_help)
+    TunnelResult.NoSsh -> stringResource(Res.string.connect_no_ssh) to stringResource(Res.string.connect_no_ssh_help)
+    is TunnelResult.Failed -> stringResource(Res.string.connect_tunnel_failed) to result.detail.orEmpty()
 }
 
 /** A command to run on this computer, with a copy button. */
@@ -185,7 +270,7 @@ private fun Command(command: String) {
 
 /** What went wrong, and what to check. */
 @Composable
-private fun Problem(words: Pair<StringResource, StringResource>) {
+private fun Problem(words: Pair<String, String>) {
     val colors = MaterialTheme.colorScheme
     Row(
         Modifier.fillMaxWidth().padding(top = WhittleSpace.l, start = WhittleSpace.s, end = WhittleSpace.s),
@@ -193,8 +278,8 @@ private fun Problem(words: Pair<StringResource, StringResource>) {
     ) {
         WhittleIcon("error", size = WhittleSize.Icon.m, tint = colors.error)
         Column {
-            Text(stringResource(words.first), style = MaterialTheme.typography.bodyMedium)
-            Text(stringResource(words.second), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+            Text(words.first, style = MaterialTheme.typography.bodyMedium)
+            if (words.second.isNotBlank()) Text(words.second, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         }
     }
 }

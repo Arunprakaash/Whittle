@@ -15,16 +15,21 @@ import androidx.compose.ui.window.rememberWindowState
 import app.whittle.design.window.LocalWindowChrome
 import app.whittle.design.window.WindowChrome
 
-/** The Mac app. WHITTLE_PHONE and WHITTLE_TOKEN, when set, connect at once. */
+/**
+ * The Mac app. It opens the tunnel to the phone itself, with this computer's ssh (WHITTLE_SSH names another);
+ * WHITTLE_PHONE and WHITTLE_TOKEN, when set, connect at once to a tunnel opened by hand instead.
+ */
 fun main() = application {
     val scope = rememberCoroutineScope()
     val link = remember { PhoneLink(scope) }
+    val tunnel = remember { SshTunnel(PhoneAddress.Default, ssh = System.getenv(SSH_VARIABLE) ?: SshTunnel.SSH) }
     val address = System.getenv(ADDRESS_VARIABLE) ?: PhoneAddress.Default.webSocket
     val token = System.getenv(TOKEN_VARIABLE).orEmpty()
     LaunchedEffect(Unit) { if (token.isNotBlank()) link.connect(address, token) }
-    Window(onCloseRequest = ::exitApplication, title = TITLE, state = rememberWindowState(width = 1200.dp, height = 900.dp)) {
+    // The tunnel goes with the app, so nothing is left listening once it's closed.
+    Window(onCloseRequest = { tunnel.close(); exitApplication() }, title = TITLE, state = rememberWindowState(width = 1200.dp, height = 900.dp)) {
         CompositionLocalProvider(LocalWindowChrome provides rememberMacChrome()) {
-            CompanionApp(link, token = token)
+            CompanionApp(link, token = token, tunnel = tunnel.takeIf { token.isBlank() })
         }
     }
 }
@@ -58,3 +63,4 @@ private const val MAC = "Mac"
 private val MAC_TITLE_BAR = 28.dp
 private const val ADDRESS_VARIABLE = "WHITTLE_PHONE"
 private const val TOKEN_VARIABLE = "WHITTLE_TOKEN"
+private const val SSH_VARIABLE = "WHITTLE_SSH"

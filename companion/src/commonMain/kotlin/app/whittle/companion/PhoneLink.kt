@@ -12,6 +12,10 @@ import app.whittle.connect.PickerState
 import app.whittle.chat.ui.ThreadRow
 import app.whittle.link.Answer
 import app.whittle.link.FromPhone
+import kotlinx.serialization.json.JsonElement
+import app.whittle.link.Stream
+import app.whittle.link.JsonPatch
+import app.whittle.link.ChatView
 import app.whittle.link.LinkJson
 import app.whittle.link.Question
 import app.whittle.link.ToPhone
@@ -24,6 +28,21 @@ import app.whittle.linux.ui.KeyIssue
 import app.whittle.linux.ui.LinuxAction
 import app.whittle.linux.ui.LinuxHost
 import app.whittle.linux.ui.LinuxScreenState
+import app.whittle.automations.ui.AutomationAction
+import app.whittle.automations.ui.AutomationEntry
+import app.whittle.automations.ui.AutomationSave
+import app.whittle.automations.ui.AutomationsHost
+import app.whittle.automations.ui.AutomationsState
+import app.whittle.automations.ui.RunNow
+import app.whittle.connections.ui.ConnectionAction
+import app.whittle.connections.ui.ConnectionAdd
+import app.whittle.connections.ui.ConnectionsHost
+import app.whittle.connections.ui.ConnectionsState
+import app.whittle.connections.ui.NewConnection
+import app.whittle.memory.ui.MemoryAction
+import app.whittle.memory.ui.MemoryHost
+import app.whittle.memory.ui.MemoryIssue
+import app.whittle.memory.ui.MemoryState
 import app.whittle.settings.ui.SettingsAction
 import app.whittle.settings.ui.SettingsHost
 import app.whittle.settings.ui.SettingsState
@@ -39,9 +58,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emptyFlow
@@ -129,6 +150,61 @@ class PhoneLink(private val scope: CoroutineScope) : ChatHost {
             else -> KeyIssue.NoAnswer
         }
     }
+    private val remoteMemory = MutableStateFlow(MemoryState())
+
+    /** What Whittle remembers on the phone, changed over the link. */
+    val memory: MemoryHost = object : MemoryHost {
+        override val state: StateFlow<MemoryState> = remoteMemory.asStateFlow()
+
+        override fun act(action: MemoryAction) {
+            outgoing.trySend(ToPhone.Memory(action))
+        }
+
+        override suspend fun save(id: String?, text: String): MemoryIssue? = when (val answer = ask(Question.SaveMemory(id, text))) {
+            is Answer.MemorySaved -> answer.issue
+            else -> MemoryIssue.Failed
+        }
+    }
+
+    private val remoteAutomations = MutableStateFlow(AutomationsState())
+
+    /** The phone's automations, changed and run over the link. */
+    val automations: AutomationsHost = object : AutomationsHost {
+        override val state: StateFlow<AutomationsState> = remoteAutomations.asStateFlow()
+
+        override fun act(action: AutomationAction) {
+            outgoing.trySend(ToPhone.Automations(action))
+        }
+
+        override suspend fun save(automation: AutomationEntry): AutomationSave = when (val answer = ask(Question.SaveAutomation(automation))) {
+            is Answer.AutomationSaved -> answer.result
+            else -> AutomationSave.Failed()
+        }
+
+        override suspend fun runNow(id: String): RunNow = (ask(Question.RunAutomation(id)) as? Answer.Ran)?.result ?: RunNow.NotFound
+    }
+
+    private val remoteConnections = MutableStateFlow(ConnectionsState())
+    private val connectorFailures = MutableSharedFlow<String>(extraBufferCapacity = FAILURES_KEPT)
+
+    /** The phone's connections, changed over the link; a service's own sign-in happens on the phone. */
+    val connections: ConnectionsHost = object : ConnectionsHost {
+        override val state: StateFlow<ConnectionsState> = remoteConnections.asStateFlow()
+        override val failures: Flow<String> = connectorFailures.asSharedFlow()
+
+        override fun act(action: ConnectionAction) {
+            outgoing.trySend(ToPhone.Connections(action))
+        }
+
+        override suspend fun addFromLibrary(url: String): ConnectionAdd =
+            (ask(Question.AddLibraryConnection(url)) as? Answer.ConnectionAdded)?.result ?: ConnectionAdd.Failed()
+
+        override suspend fun add(connection: NewConnection, keys: Map<String, String>): ConnectionAdd =
+            (ask(Question.AddConnection(connection, keys)) as? Answer.ConnectionAdded)?.result ?: ConnectionAdd.Failed()
+
+        override suspend fun returnAddressFor(name: String): String = (ask(Question.ReturnAddress(name)) as? Answer.Address)?.address.orEmpty()
+    }
+
     private val mutableFiles = MutableStateFlow<FilesHost?>(null)
 
     /** The phone's workspace for the file browser, once the phone has said how it lists files. */
@@ -149,19 +225,19 @@ class PhoneLink(private val scope: CoroutineScope) : ChatHost {
                 client.webSocket(address) {
                     send(Frame.Text(LinkJson.encodeToString(ToPhone.serializer(), ToPhone.Hello(token))))
                     val sender = launch { for (message in sending) send(Frame.Text(LinkJson.encodeToString(ToPhone.serializer(), message))) }
+                    // Each screen's value as last patched; a new link starts every one from whole.
+                    val streams = mutableMapOf<Stream, JsonElement>()
                     for (frame in incoming) {
                         val text = (frame as? Frame.Text)?.readText() ?: continue
                         when (val message = LinkJson.decodeFromString(FromPhone.serializer(), text)) {
                             is FromPhone.Welcome -> mutableFiles.value = RemoteFiles(message.files, message.mount)
-                            is FromPhone.View -> {
-                                remote.value = message.state.onThisClock(nowMillis() - message.sentAtMillis)
-                                filesVersion.value = message.filesVersion
-                                remoteSettings.value = message.settings
-                                mutableLink.value = LinkState.Live
+                            is FromPhone.Changed -> {
+                                val value = JsonPatch.apply(streams[message.stream], message.patch).also { streams[message.stream] = it }
+                                receive(message.stream, value)
                             }
                             is FromPhone.Reply -> replies.remove(message.id)?.complete(message.answer)
                             is FromPhone.Picker -> pickerState.value = message.state
-                            is FromPhone.Linux -> remoteLinux.value = message.state
+                            is FromPhone.ConnectorFailed -> connectorFailures.tryEmit(message.reason)
                         }
                     }
                     sender.cancel()
@@ -223,6 +299,23 @@ class PhoneLink(private val scope: CoroutineScope) : ChatHost {
         }
     }
 
+    /** A screen's new value, decoded and shown. */
+    private fun receive(stream: Stream, value: JsonElement) {
+        when (stream) {
+            Stream.Chat -> {
+                val view = LinkJson.decodeFromJsonElement(ChatView.serializer(), value)
+                remote.value = view.state.onThisClock(nowMillis() - view.sentAtMillis)
+                filesVersion.value = view.filesVersion
+                remoteSettings.value = view.settings
+                mutableLink.value = LinkState.Live
+            }
+            Stream.Linux -> remoteLinux.value = LinkJson.decodeFromJsonElement(LinuxScreenState.serializer(), value)
+            Stream.Memory -> remoteMemory.value = LinkJson.decodeFromJsonElement(MemoryState.serializer(), value)
+            Stream.Automations -> remoteAutomations.value = LinkJson.decodeFromJsonElement(AutomationsState.serializer(), value)
+            Stream.Connections -> remoteConnections.value = LinkJson.decodeFromJsonElement(ConnectionsState.serializer(), value)
+        }
+    }
+
     /** Asks the phone; null when it doesn't answer in time or the link drops. */
     private suspend fun ask(question: Question): Answer? {
         val id = nextQuestion++
@@ -240,6 +333,9 @@ class PhoneLink(private val scope: CoroutineScope) : ChatHost {
 
     private companion object {
         const val ANSWER_TIMEOUT_MILLIS = 15_000L
+
+        /** Failures not yet shown, while no page listens. */
+        const val FAILURES_KEPT = 4
     }
 }
 

@@ -23,7 +23,10 @@ import app.whittle.BuildConfig
 import app.whittle.assistant.AssistantRole
 import app.whittle.background.rememberNotificationPermissionRequest
 import app.whittle.chat.ChatViewModel
-import app.whittle.connectors.mcp.McpConnection
+import android.widget.Toast
+import app.whittle.connections.ui.ConnectionsHost
+import app.whittle.connections.ui.ConnectionsPlatform
+import app.whittle.connections.ui.ConnectionsSection
 import app.whittle.design.tokens.WhittleSpace
 import app.whittle.linux.kindOf
 import app.whittle.settings.ui.LinuxStatus
@@ -116,17 +119,23 @@ class PhoneSettingsHost(private val graph: AppGraph, private val chat: ChatViewM
 
 /** What Settings do through the phone itself: its connections and features, Android's prompts and roles, and updates. */
 @Composable
-fun rememberPhoneSettingsPlatform(graph: AppGraph, onBrowseConnections: () -> Unit, onConnectionTools: (McpConnection) -> Unit): SettingsPlatform {
+fun rememberPhoneSettingsPlatform(
+    graph: AppGraph,
+    connections: ConnectionsHost,
+    onBrowseConnections: () -> Unit,
+    onConnectionTools: (connectionId: String) -> Unit,
+): SettingsPlatform {
     val context = LocalContext.current
     val requestNotifications = rememberNotificationPermissionRequest()
-    return remember(graph, context, requestNotifications) {
+    val connectionsPlatform = rememberPhoneConnectionsPlatform()
+    return remember(graph, context, requestNotifications, connectionsPlatform) {
         object : SettingsPlatform {
             @Composable
             override fun PhoneSections() {
                 val settings by graph.currentSettings.collectAsState()
                 // Two sections, spaced as the page spaces its own.
                 Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.xl)) {
-                    ConnectionsSection(graph, onBrowse = onBrowseConnections, onChooseTools = onConnectionTools)
+                    ConnectionsSection(connections, connectionsPlatform, onBrowse = onBrowseConnections, onChooseTools = onConnectionTools)
                     PhoneSection(graph, settings)
                 }
             }
@@ -158,6 +167,13 @@ fun rememberPhoneSettingsPlatform(graph: AppGraph, onBrowseConnections: () -> Un
             }
         }
     }
+}
+
+/** What Connections do through the phone: a service's sign-in page opens here, and messages are toasts. */
+@Composable
+fun rememberPhoneConnectionsPlatform(): ConnectionsPlatform {
+    val context = LocalContext.current
+    return remember(context) { ConnectionsPlatform(signsInHere = true, toast = { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }) }
 }
 
 /** Android's "Install unknown apps" page for Whittle. */

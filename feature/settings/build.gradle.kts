@@ -25,6 +25,7 @@ kotlin {
             api(project(":design:system"))
             api(project(":feature:files"))
             api(libs.kotlinx.serialization.json)
+            implementation(libs.kotlinx.datetime)
         }
     }
 }

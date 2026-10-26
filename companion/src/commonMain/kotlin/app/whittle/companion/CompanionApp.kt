@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,6 +35,13 @@ import app.whittle.connect.PickerAction
 import app.whittle.files.ui.FilesBrowser
 import app.whittle.linux.ui.LinuxPlatform
 import app.whittle.linux.ui.LinuxWorkspaceScreen
+import app.whittle.memory.ui.MemoryScreen
+import app.whittle.connections.ui.ConnectionLibraryScreen
+import app.whittle.connections.ui.ConnectionToolsScreen
+import app.whittle.connections.ui.ConnectionsPlatform
+import app.whittle.automations.ui.AutomationsNavigation
+import app.whittle.automations.ui.AutomationsPlatform
+import app.whittle.automations.ui.AutomationsScreen
 import app.whittle.settings.ui.SettingsNavigation
 import app.whittle.settings.ui.SettingsScreen
 import app.whittle.files.ui.FilesOpening
@@ -63,7 +73,7 @@ class PhoneAddress(val port: Int, val tokenFile: String, val sshPort: Int, val u
 
 /** Whittle on a computer: connects to the phone, then shows its chat screen, the very one the phone draws. */
 @Composable
-fun CompanionApp(link: PhoneLink, phone: PhoneAddress = PhoneAddress.Default, token: String = "") {
+fun CompanionApp(link: PhoneLink, phone: PhoneAddress = PhoneAddress.Default, token: String = "", tunnel: PhoneTunnel? = null) {
     // The phone's look: its light or dark, and its colours, its wallpaper's when they're on.
     val look = link.state.collectAsState().value.look
     val dark = look.isDark()
@@ -75,7 +85,7 @@ fun CompanionApp(link: PhoneLink, phone: PhoneAddress = PhoneAddress.Default, to
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
             when (val state = link.link.collectAsState().value) {
                 LinkState.Live -> PhoneScreens(link)
-                else -> ConnectScreen(state, phone, token, onConnect = link::connect)
+                else -> ConnectScreen(state, phone, token, tunnel, onConnect = link::connect)
             }
         }
     }
@@ -88,6 +98,10 @@ private fun PhoneScreens(link: PhoneLink) {
     var settings by rememberSaveable { mutableStateOf(false) }
     var picking by rememberSaveable { mutableStateOf(false) }
     var linux by rememberSaveable { mutableStateOf(false) }
+    var memory by rememberSaveable { mutableStateOf(false) }
+    var automations by rememberSaveable { mutableStateOf(false) }
+    var library by rememberSaveable { mutableStateOf(false) }
+    var toolsOf by rememberSaveable { mutableStateOf<String?>(null) }
     var opening by rememberSaveable(stateSaver = filesOpeningSaver) { mutableStateOf<FilesOpening?>(null) }
     val files = link.files.collectAsState().value
     val platform = remember(files != null) {
@@ -101,31 +115,58 @@ private fun PhoneScreens(link: PhoneLink) {
             ),
         )
     }
+    // A service's own sign-in page returns to the phone, so it's signed in there; here such a row says so.
+    val connectionsPlatform = remember(platform) { ConnectionsPlatform(signsInHere = false, toast = platform::toast) }
     val open = opening
-    when {
-        open != null && files != null -> FilesBrowser(
-            host = files,
-            // Sharing and the device's file manager are the phone's; here the browser only reads.
-            platform = remember { FilesPlatform(toast = platform::toast) },
-            opening = open,
-            onAsk = { link.act(ChatAction.SendText(it)) },
-            onClose = { opening = null },
-        )
-        picking -> ModelPicking(link, onClose = { picking = false })
-        // The sign-in link opens from the row's Open link: a page opened by itself here would be blocked.
-        linux -> LinuxWorkspaceScreen(link.linux, remember { LinuxPlatform(opensLinksItself = false) }, onBack = { linux = false })
-        settings -> SettingsScreen(
-            host = link.settings,
-            platform = remember { ComputerSettingsPlatform() },
-            navigation = SettingsNavigation(back = { settings = false }, changeModel = { picking = true }, linux = { linux = true }),
-        )
-        allChats -> AllChatsScreen(
-            state = link.state.collectAsState().value,
-            onAction = link::act,
-            onBack = { allChats = false },
-            onOpen = { id -> link.act(ChatAction.OpenChat(id)); allChats = false },
-        )
-        else -> ChatScreen(link, platform)
+    // The phone's short messages, which a computer shows at the foot of its window.
+    val snackbars = remember { SnackbarHostState() }
+    val toast by platform.toasts.collectAsState()
+    LaunchedEffect(toast) {
+        toast?.let { message ->
+            snackbars.showSnackbar(message)
+            platform.toasts.value = null
+        }
+    }
+    Box(Modifier.fillMaxSize()) {
+        when {
+            open != null && files != null -> FilesBrowser(
+                host = files,
+                // Sharing and the device's file manager are the phone's; here the browser only reads.
+                platform = remember { FilesPlatform(toast = platform::toast) },
+                opening = open,
+                onAsk = { link.act(ChatAction.SendText(it)) },
+                onClose = { opening = null },
+            )
+            picking -> ModelPicking(link, onClose = { picking = false })
+            // The sign-in link opens from the row's Open link: a page opened by itself here would be blocked.
+            memory -> MemoryScreen(link.memory, onBack = { memory = false })
+            library -> ConnectionLibraryScreen(link.connections, connectionsPlatform, onBack = { library = false })
+            toolsOf != null -> ConnectionToolsScreen(link.connections, toolsOf.orEmpty(), onBack = { toolsOf = null })
+            // Permissions and notifications are the phone's to ask for; here a row that needs one can only be switched off.
+            automations -> AutomationsScreen(
+                host = link.automations,
+                platform = remember { AutomationsPlatform(requestCapabilities = null, requestNotifications = {}, toast = platform::toast) },
+                navigation = AutomationsNavigation(
+                    back = { automations = false },
+                    openChat = { id -> link.act(ChatAction.OpenChat(id)); automations = false; settings = false },
+                    runStarted = { automations = false; settings = false },
+                ),
+            )
+            linux -> LinuxWorkspaceScreen(link.linux, remember { LinuxPlatform(opensLinksItself = false) }, onBack = { linux = false })
+            settings -> SettingsScreen(
+                host = link.settings,
+                platform = remember { ComputerSettingsPlatform(link.connections, connectionsPlatform, onBrowseConnections = { library = true }, onConnectionTools = { toolsOf = it }) },
+                navigation = SettingsNavigation(back = { settings = false }, changeModel = { picking = true }, linux = { linux = true }, memory = { memory = true }, automations = { automations = true }),
+            )
+            allChats -> AllChatsScreen(
+                state = link.state.collectAsState().value,
+                onAction = link::act,
+                onBack = { allChats = false },
+                onOpen = { id -> link.act(ChatAction.OpenChat(id)); allChats = false },
+            )
+            else -> ChatScreen(link, platform)
+        }
+        SnackbarHost(snackbars, Modifier.align(Alignment.BottomCenter).padding(WhittleSpace.l))
     }
 }
 

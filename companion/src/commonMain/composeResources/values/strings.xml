@@ -16,6 +16,21 @@
     <string name="connect_host_placeholder">phone</string>
     <string name="connect_copy">Copy</string>
     <string name="connect_link">Link address %1$s</string>
+    <string name="connect_step_key">Add this computer on your phone</string>
+    <string name="connect_step_key_detail">On your phone: Settings › Linux workspace, then + by Computers. Paste this computer's key.</string>
+    <string name="connect_no_key">This computer has no key yet. Make one in Terminal, then check again:</string>
+    <string name="connect_check_again">Check again</string>
+    <string name="connect_step_address">Connect to it</string>
+    <string name="connect_step_address_detail">Its address is on the Wi-Fi chip there. Whittle opens the tunnel and reads the token for you.</string>
+    <string name="connect_not_added">The phone didn't let this computer in.</string>
+    <string name="connect_not_added_help">Add this computer's key on the phone (step 2), then connect.</string>
+    <string name="connect_unreachable">Couldn't reach the phone.</string>
+    <string name="connect_unreachable_help">Check the address, that it's on the same Wi-Fi, and that Use from your computer is on.</string>
+    <string name="connect_host_changed">That isn't the phone this computer knew.</string>
+    <string name="connect_host_changed_help">If you reset Linux on the phone, remove its line from ~/.ssh/known_hosts, then connect.</string>
+    <string name="connect_no_ssh">This computer has no ssh.</string>
+    <string name="connect_no_ssh_help">Whittle uses the computer's own ssh to reach the phone.</string>
+    <string name="connect_tunnel_failed">The tunnel didn't open.</string>
     <string name="connect_token">Token</string>
     <string name="connect_go">Connect</string>
     <string name="connect_connecting">Connecting…</string>
@@ -31,5 +46,5 @@ ssh -L %1$d:127.0.0.1:%1$d phone</string>
     <string name="preview_cancel">Cancel</string>
     <string name="preview_waiting">It isn't serving yet; try again once its card says it's live.</string>
     <!-- Settings on a computer: what only the phone can change. -->
-    <string name="settings_on_phone">Connections, phone features, the assistant and updates are in Whittle on your phone.</string>
+    <string name="settings_on_phone">Phone features, the assistant and updates are in Whittle on your phone.</string>
 </resources>

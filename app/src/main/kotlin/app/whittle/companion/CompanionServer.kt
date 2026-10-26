@@ -7,15 +7,35 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import app.whittle.chat.ui.ChatAction
 import app.whittle.chat.ui.ChatHost
 import app.whittle.link.Answer
+import app.whittle.link.ChatView
 import app.whittle.link.FromPhone
+import app.whittle.link.JsonPatch
+import app.whittle.link.Stream
+import app.whittle.linux.ui.LinuxScreenState
+import app.whittle.memory.ui.MemoryState
+import app.whittle.automations.ui.AutomationsState
+import app.whittle.connections.ui.ConnectionsState
+import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.json.JsonElement
 import app.whittle.link.LinkJson
 import app.whittle.link.Question
 import app.whittle.link.ToPhone
 import app.whittle.connect.ModelPickerHost
 import app.whittle.files.ui.FilesHost
 import app.whittle.linux.ui.LinuxHost
+import app.whittle.automations.ui.AutomationsHost
+import app.whittle.connections.ui.ConnectionsHost
+import app.whittle.memory.ui.MemoryHost
 import app.whittle.settings.ui.SettingsHost
+import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.defaultForFilePath
 import io.ktor.server.application.install
+import io.ktor.server.response.respond
+import io.ktor.server.response.respondOutputStream
+import io.ktor.server.routing.RoutingContext
+import io.ktor.server.routing.get
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.EmbeddedServer
 import io.ktor.server.engine.embeddedServer
@@ -41,6 +61,7 @@ import kotlinx.serialization.SerializationException
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import java.security.MessageDigest
 import java.security.SecureRandom
 
@@ -58,8 +79,13 @@ class CompanionServer(
     private val files: FilesHost,
     private val settings: SettingsHost,
     private val linux: LinuxHost,
+    private val memory: MemoryHost,
+    private val automations: AutomationsHost,
+    private val connections: ConnectionsHost,
     /** A model picker for one computer, alive in [scope] until it closes it or leaves. */
     private val picker: (scope: CoroutineScope) -> ModelPickerHost,
+    /** A file of the browser version, by its path in the page; null when there's no such file. */
+    private val page: (path: String) -> InputStream?,
 ) {
     private val lock = Mutex()
     private var server: EmbeddedServer<*, *>? = null
@@ -69,7 +95,11 @@ class CompanionServer(
         val token = withContext(Dispatchers.IO) { token() } ?: return@withLock
         server = embeddedServer(CIO, host = LOOPBACK, port = config.port) {
             install(WebSockets)
-            routing { webSocket(PATH) { serve(token) } }
+            routing {
+                webSocket(PATH) { serve(token) }
+                // The browser version, so a computer opens it through the same tunnel; it asks for the token like any other.
+                get("/{path...}") { servePage(call.parameters.getAll("path").orEmpty()) }
+            }
         }.also { withContext(Dispatchers.IO) { it.start(wait = false) } }
     }
 
@@ -86,20 +116,18 @@ class CompanionServer(
             return
         }
         write(FromPhone.Welcome(files.defaults, files.mount))
-        // The latest state only, at most every updateMillis, so a streaming reply doesn't flood a slow link.
-        val sender = launch {
-            combine(host.state, files.version, settings.state, ::Triple).collect { (state, filesVersion, settingsState) ->
-                write(FromPhone.View(state, System.currentTimeMillis(), filesVersion, settingsState))
-                delay(config.updateMillis)
-            }
+        // Each screen apart, so setup's progress doesn't resend the chat, and each as changes after the first.
+        val chat = combine(host.state, files.version, settings.state) { state, filesVersion, settingsState ->
+            ChatView(state, System.currentTimeMillis(), filesVersion, settingsState)
         }
-        // The Linux page apart, so setup's progress doesn't resend the chat.
-        val linuxSender = launch {
-            linux.state.collect { state ->
-                write(FromPhone.Linux(state))
-                delay(config.updateMillis)
-            }
-        }
+        val senders = listOf(
+            stream(Stream.Chat, chat, ChatView.serializer()),
+            stream(Stream.Linux, linux.state, LinuxScreenState.serializer()),
+            stream(Stream.Memory, memory.state, MemoryState.serializer()),
+            stream(Stream.Automations, automations.state, AutomationsState.serializer()),
+            stream(Stream.Connections, connections.state, ConnectionsState.serializer()),
+            launch { connections.failures.collect { write(FromPhone.ConnectorFailed(it)) } },
+        )
         // This computer's model picker, while it has one open.
         var picking: Pair<ModelPickerHost, Job>? = null
         val closePicker = { picking?.second?.cancel(); picking = null }
@@ -109,6 +137,9 @@ class CompanionServer(
                     is ToPhone.Act -> if (allowed(message.action)) withContext(Dispatchers.Main) { host.act(message.action) }
                     is ToPhone.Settings -> withContext(Dispatchers.Main) { settings.act(message.action) }
                     is ToPhone.Linux -> withContext(Dispatchers.Main) { linux.act(message.action) }
+                    is ToPhone.Memory -> withContext(Dispatchers.Main) { memory.act(message.action) }
+                    is ToPhone.Automations -> withContext(Dispatchers.Main) { automations.act(message.action) }
+                    is ToPhone.Connections -> withContext(Dispatchers.Main) { connections.act(message.action) }
                     ToPhone.OpenPicker -> {
                         closePicker()
                         val job = Job(coroutineContext[Job])
@@ -124,9 +155,31 @@ class CompanionServer(
             }
         } finally {
             closePicker()
-            sender.cancel()
-            linuxSender.cancel()
+            senders.forEach { it.cancel() }
         }
+    }
+
+    /**
+     * Sends [values] as [stream]: whole the first time, then only what changed, at most every updateMillis, so a reply
+     * streaming in doesn't flood a slow link. Each computer has its own, starting whole.
+     */
+    private fun <T> DefaultWebSocketServerSession.stream(stream: Stream, values: Flow<T>, serializer: KSerializer<T>): Job = launch {
+        var sent: JsonElement? = null
+        values.collect { value ->
+            val now = LinkJson.encodeToJsonElement(serializer, value)
+            JsonPatch.diff(sent, now)?.let { write(FromPhone.Changed(stream, it)) }
+            sent = now
+            delay(config.updateMillis)
+        }
+    }
+
+    /** One file of the browser version, its index for the bare address; nothing outside the page's own folder. */
+    private suspend fun RoutingContext.servePage(segments: List<String>) {
+        if (segments.any { it == PARENT || it.startsWith(HIDDEN) }) return call.respond(HttpStatusCode.NotFound)
+        val path = segments.joinToString(SEPARATOR).ifEmpty { INDEX }
+        val file = withContext(Dispatchers.IO) { page(path) } ?: return call.respond(HttpStatusCode.NotFound)
+        val type = if (path.endsWith(WASM_SUFFIX)) WASM else ContentType.defaultForFilePath(path)
+        call.respondOutputStream(type) { file.use { it.copyTo(this) } }
     }
 
     /** Allow on a capability card is Android's own prompt, on the phone; a computer may only decline. */
@@ -142,6 +195,12 @@ class CompanionServer(
         is Question.PdfPage -> Answer.Picture(files.pdfPage(question.path, question.index, question.widthPx)?.let { encode(it, PNG) })
         is Question.DeleteFile -> Answer.Done.also { files.delete(question.path) }
         is Question.AddComputer -> Answer.KeyAdded(linux.addComputer(question.key))
+        is Question.SaveMemory -> Answer.MemorySaved(memory.save(question.id, question.text))
+        is Question.SaveAutomation -> Answer.AutomationSaved(automations.save(question.automation))
+        is Question.RunAutomation -> Answer.Ran(automations.runNow(question.id))
+        is Question.AddLibraryConnection -> Answer.ConnectionAdded(connections.addFromLibrary(question.url))
+        is Question.AddConnection -> Answer.ConnectionAdded(connections.add(question.connection, question.keys))
+        is Question.ReturnAddress -> Answer.Address(connections.returnAddressFor(question.name))
     }
 
     /** [image] encoded for the link: JPEG for photos, PNG for pages, whose text JPEG would blur. */
@@ -181,6 +240,14 @@ class CompanionServer(
     private companion object {
         const val LOOPBACK = "127.0.0.1"
         const val PATH = "/companion"
+        const val INDEX = "index.html"
+        const val SEPARATOR = "/"
+        const val PARENT = ".."
+        const val HIDDEN = "."
+        const val WASM_SUFFIX = ".wasm"
+
+        /** Browsers compile WebAssembly as it downloads only when it's served as such. */
+        val WASM = ContentType("application", "wasm")
         const val REFUSED = "not signed in"
         const val MILLIS_PER_SECOND = 1_000L
         const val STOP_GRACE_MILLIS = 500L

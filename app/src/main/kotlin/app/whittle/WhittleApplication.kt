@@ -23,11 +23,17 @@ import app.whittle.chat.ChatViewModel
 import app.whittle.chat.PhoneChatHost
 import app.whittle.connect.ModelPicker
 import app.whittle.files.PhoneFilesHost
+import app.whittle.settings.PhoneConnectionsHost
+import app.whittle.settings.PhoneMemoryHost
+import app.whittle.automations.PhoneAutomationsHost
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
 import app.whittle.settings.PhoneSettingsHost
 import app.whittle.linux.PhoneLinuxHost
 import app.whittle.companion.CompanionServer
 import app.whittle.linux.ComputerAccessState
 import java.io.File
+import java.io.IOException
 import app.whittle.storage.chats.ChatId
 import app.whittle.quickstart.QuickStart
 import app.whittle.connectors.mcp.ConnectorState
@@ -56,6 +62,12 @@ class WhittleApplication : Application() {
     /** The phone's settings as the Settings page shows them, on the phone and on the user's computers. */
     val settingsHost: PhoneSettingsHost by lazy { PhoneSettingsHost(graph, chat) }
     val linuxHost: PhoneLinuxHost by lazy { PhoneLinuxHost(this, graph) }
+    val memoryHost: PhoneMemoryHost by lazy { PhoneMemoryHost(graph) }
+    val connectionsHost: PhoneConnectionsHost by lazy { PhoneConnectionsHost(this, graph) }
+    val automationsHost: PhoneAutomationsHost by lazy {
+        val projects = chat.state.map { state -> state.projects.map { it.name } }.distinctUntilChanged()
+        PhoneAutomationsHost(graph, automationRunner, projects.stateIn(graph.appScope, SharingStarted.Eagerly, emptyList()))
+    }
 
     /** [chat] as the chat screen draws it, on the phone and on the user's computers. */
     val chatHost: PhoneChatHost by lazy { PhoneChatHost(chat, graph, this, graph.appScope) }
@@ -76,7 +88,17 @@ class WhittleApplication : Application() {
             files = filesHost,
             settings = settingsHost,
             linux = linuxHost,
+            memory = memoryHost,
+            automations = automationsHost,
+            connections = connectionsHost,
             picker = { scope -> ModelPicker(graph, scope, current = chat.state.value.model) },
+            page = { path ->
+                try {
+                    assets.open("${BuildConfig.COMPANION_WEB}/$path")
+                } catch (_: IOException) {
+                    null
+                }
+            },
         )
     }
 
