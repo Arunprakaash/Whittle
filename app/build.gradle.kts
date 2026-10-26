@@ -135,6 +135,7 @@ androidComponents {
 
 dependencies {
     implementation(project(":design:system"))
+    implementation(project(":feature:chat"))
     implementation(project(":config:defaults"))
     implementation(project(":agent:runtime"))
     implementation(project(":policy:engine"))
@@ -161,6 +162,10 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
+    // Computers showing the phone's chats.
+    implementation(libs.ktor.server.core)
+    implementation(libs.ktor.server.cio)
+    implementation(libs.ktor.server.websockets)
     implementation(libs.apksig)
 
     testImplementation(libs.okhttp.mockwebserver)

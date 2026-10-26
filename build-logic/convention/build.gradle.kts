@@ -29,6 +29,10 @@ gradlePlugin {
             id = libs.plugins.whittle.android.compose.library.get().pluginId
             implementationClass = "AndroidComposeLibraryConventionPlugin"
         }
+        register("multiplatformComposeLibrary") {
+            id = libs.plugins.whittle.multiplatform.compose.library.get().pluginId
+            implementationClass = "MultiplatformComposeLibraryConventionPlugin"
+        }
         register("androidApplication") {
             id = libs.plugins.whittle.android.application.get().pluginId
             implementationClass = "AndroidApplicationConventionPlugin"

@@ -1,5 +1,6 @@
 package app.whittle.linux
 
+import app.whittle.companion.CompanionConfig
 import app.whittle.core.config.ConfigName
 import app.whittle.core.config.PromptTemplate
 import app.whittle.core.config.VersionedConfig
@@ -34,6 +35,8 @@ data class ComputerAccessConfig(
     /** Shown in Add a computer: prints the computer's public key, and makes one when there's none. */
     val printKeyCommand: String,
     val makeKeyCommand: String,
+    /** The phone's chats on a computer that signed in, over the same SSH. */
+    val companion: CompanionConfig,
     /** Reaching the phone from anywhere, through Tailscale run inside Linux. */
     val tailscale: TailscaleConfig,
 ) : VersionedConfig {

@@ -7,9 +7,6 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import java.io.File
 
-/** Which buttons an app card offers, from the version of the app that is installed. */
-enum class AppCardState { INSTALL, UPDATE, OPEN, NEWER_INSTALLED }
-
 /** What an app card shows about its install; [installed] is null until read or when the app isn't installed. */
 data class AppUiState(
     val installed: Int? = null,
@@ -25,14 +22,6 @@ data class AppUiState(
  */
 fun stillInstalling(installing: Boolean, installed: Int?, cardVersion: Int, sessionId: Int?, liveSessions: Set<Int>): Boolean =
     installing && installed != cardVersion && (sessionId == null || sessionId in liveSessions)
-
-/** The card always stands for its own build: an installed build that is older gets Update, a newer one is never replaced. */
-fun appCardState(card: ThreadItem.App, installed: Int?): AppCardState = when {
-    installed == null -> AppCardState.INSTALL
-    installed < card.versionCode -> AppCardState.UPDATE
-    installed == card.versionCode -> AppCardState.OPEN
-    else -> AppCardState.NEWER_INSTALLED
-}
 
 /**
  * The thread with [card] at its end: a rebuild of an app already shown moves its card down, keeping that card's key so

@@ -4,3 +4,6 @@
 # Keep file and line numbers so crash reports from the field can be read with the mapping file.
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
+
+# Ktor (the companion server) checks for a desktop debugger through java.lang.management, which Android lacks.
+-dontwarn java.lang.management.**

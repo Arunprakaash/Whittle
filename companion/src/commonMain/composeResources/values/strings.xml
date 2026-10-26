@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Whittle on a computer: its own few words, before it shows the phone's chat screen. -->
+<resources>
+    <string name="connect_title">Connect to your phone</string>
+    <string name="connect_body">Turn on Use from your computer in Whittle on your phone (Settings › Linux workspace). Then, from this computer, open a tunnel and read the token:\nssh -L %1$d:127.0.0.1:%1$d phone cat %2$s</string>
+    <string name="connect_address">Phone address</string>
+    <string name="connect_token">Token</string>
+    <string name="connect_go">Connect</string>
+    <string name="connect_connecting">Connecting…</string>
+    <string name="connect_refused">The phone didn't accept that token.</string>
+    <string name="connect_failed">Couldn't reach the phone. Is Use from your computer on, and the tunnel open?</string>
+    <string name="connect_lost">The phone stopped answering.</string>
+    <string name="preview_body">Opens http://127.0.0.1:%1$d in this computer's browser. The server runs on your phone, so its port needs a tunnel too:
+ssh -L %1$d:127.0.0.1:%1$d phone</string>
+    <string name="preview_open">Open in browser</string>
+    <string name="preview_cancel">Cancel</string>
+    <string name="preview_waiting">It isn't serving yet; try again once its card says it's live.</string>
+</resources>

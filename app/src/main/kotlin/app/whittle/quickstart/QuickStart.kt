@@ -9,7 +9,6 @@ import android.graphics.Canvas
 import android.graphics.drawable.Icon
 import androidx.core.graphics.createBitmap
 import app.whittle.R
-import app.whittle.design.R as DesignR
 
 /**
  * One tap from outside the app into a new chat: the launcher icon's long-press menu (New chat, Speak) and the Quick
@@ -50,8 +49,8 @@ enum class QuickStart(val action: String) {
         fun publish(context: Context) {
             val manager = context.getSystemService(ShortcutManager::class.java)
             manager.dynamicShortcuts = listOf(
-                shortcut(context, NEW_CHAT, R.string.quick_new_chat, DesignR.drawable.ms_edit_square),
-                shortcut(context, SPEAK, R.string.quick_speak, DesignR.drawable.ms_mic),
+                shortcut(context, NEW_CHAT, R.string.quick_new_chat, R.drawable.ms_edit_square),
+                shortcut(context, SPEAK, R.string.quick_speak, R.drawable.ms_mic),
             )
         }
 

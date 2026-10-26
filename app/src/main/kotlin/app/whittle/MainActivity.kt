@@ -44,8 +44,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.whittle.automations.AutomationsScreen
 import app.whittle.automations.RunNowResult
-import app.whittle.chat.AllChatsScreen
-import app.whittle.chat.ChatScreen
+import app.whittle.chat.rememberPhoneChatPlatform
+import app.whittle.storage.chats.ChatId
+import app.whittle.chat.ui.AllChatsScreen
+import app.whittle.chat.ui.ChatNavigation
+import app.whittle.chat.ui.ChatScreen
+import app.whittle.chat.ui.LocalUserContent
+import app.whittle.observability.posthog.userContent
+import androidx.compose.runtime.CompositionLocalProvider
 import app.whittle.connect.ConnectScreen
 import app.whittle.connect.ConnectViewModel
 import app.whittle.design.theme.WhittleTheme
@@ -200,6 +206,7 @@ class MainActivity : ComponentActivity() {
                         Gate.Chat -> {
                             // The app owns the chat session, so a task outlives this screen.
                             val chat = (application as WhittleApplication).chat
+                            val chatHost = (application as WhittleApplication).chatHost
                             // The first task asks once for notifications, so its background progress can show.
                             val requestNotifications = rememberNotificationPermissionRequest()
                             val running = chat.state.collectAsStateWithLifecycle().value.running
@@ -429,27 +436,26 @@ class MainActivity : ComponentActivity() {
                             } else if (showingAllChats) {
                                 BackHandler { showingAllChats = false }
                                 AllChatsScreen(
-                                    state = state,
-                                    viewModel = chat,
+                                    state = chatHost.state.collectAsStateWithLifecycle().value,
+                                    onAction = chatHost::act,
                                     onBack = { showingAllChats = false },
-                                    onOpen = { id -> chat.openChat(id); showingAllChats = false },
+                                    onOpen = { id -> chat.openChat(ChatId(id)); showingAllChats = false },
                                 )
                             } else {
-                                ChatScreen(
-                                    state = state,
-                                    viewModel = chat,
-                                    sidebarMaxChats = graph.sidebarMaxChats,
-                                    voiceDefaults = graph.voiceDefaults,
-                                    previewHeight = graph.previewSheetHeight,
-                                    onViewAllChats = { showingAllChats = true },
-                                    onOpenSettings = { showingSettings = true },
-                                    avatarSeed = settings?.avatarSeed,
-                                    aboveComposer = { LinuxProgressStrip(graph, compact = true) },
-                                    onOpenProjects = { files = FilesOpening(FilesPlace.Folder("")) },
-                                    onOpenFiles = { files = it },
-                                    recentProjects = graph.projectDefaults.recentCount,
-                                    onChangeModel = { pickerFromChat = true; pickerOpenings += 1; showingModelPicker = true },
-                                )
+                                val navigation = remember {
+                                    ChatNavigation(
+                                        viewAllChats = { showingAllChats = true },
+                                        openSettings = { showingSettings = true },
+                                        openProjects = { files = FilesOpening(FilesPlace.Folder("")) },
+                                        openFile = { path, chatId -> files = FilesOpening(FilesPlace.Document(path), chatId) },
+                                        openFolder = { path, chatId -> files = FilesOpening(FilesPlace.Folder(path), chatId) },
+                                        changeModel = { pickerFromChat = true; pickerOpenings += 1; showingModelPicker = true },
+                                    )
+                                }
+                                // What the user and the agent wrote stays out of session recordings.
+                                CompositionLocalProvider(LocalUserContent provides Modifier.userContent()) {
+                                    ChatScreen(chatHost, rememberPhoneChatPlatform(chat, graph, navigation))
+                                }
                             }
                         }
                     }

@@ -1,5 +1,6 @@
 package app.whittle.linux
 
+import app.whittle.companion.CompanionConfig
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -17,6 +18,7 @@ class ComputerAccessConfigTest {
         schemaVersion = 1, port = port, user = "root", checkCommand = "true", installCommand = "true", installTimeoutSeconds = 1,
         keysFile = "/etc/whittle/computers", serveCommand = serveCommand, startWaitSeconds = 1, keptOutputChars = 100,
         keyTypes = listOf("ssh-ed25519"), maxComputers = 2, printKeyCommand = "cat key.pub", makeKeyCommand = "ssh-keygen",
+        companion = CompanionConfig(port = 8790, tokenFile = "/root/token", tokenBytes = 32, helloTimeoutSeconds = 1, updateMillis = 1),
         tailscale = tailscale,
     )
 

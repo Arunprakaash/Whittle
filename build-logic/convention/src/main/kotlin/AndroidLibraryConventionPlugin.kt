@@ -12,7 +12,11 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
 
         val jvmTarget = JavaVersion.toVersion(libs.requiredVersion("jvmTarget"))
         extensions.configure<LibraryExtension> {
-            compileSdk = libs.requiredVersion("androidCompileSdk").toInt()
+            compileSdk {
+                version = release(libs.requiredVersion("androidCompileSdk").toInt()) {
+                    minorApiLevel = libs.requiredVersion("androidCompileSdkMinor").toInt()
+                }
+            }
             defaultConfig {
                 minSdk = libs.requiredVersion("androidMinSdk").toInt()
                 consumerProguardFiles("consumer-rules.pro")
