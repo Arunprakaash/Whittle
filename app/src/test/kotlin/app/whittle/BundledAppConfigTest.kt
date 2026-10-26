@@ -416,5 +416,7 @@ class BundledAppConfigTest {
         assertTrue("PasswordAuthentication=no" in serve && "KbdInteractiveAuthentication=no" in serve, "computers sign in with keys only")
         assertTrue("--no-install-recommends" in config.installCommand, "the server installs without recommended extras")
         assertTrue("ssh-ed25519" in config.keyTypes)
+        assertTrue("--tun=userspace-networking" in config.tailscale.daemonCommand, "Tailscale runs without a VPN or root")
+        assertTrue("--no-install-recommends" in config.tailscale.installCommand)
     }
 }

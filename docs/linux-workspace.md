@@ -206,6 +206,16 @@ VS Code or Cursor over Remote-SSH, and the phone's dev servers through `ssh -L`.
 - **Kept alive** by a foreground notification with Turn off while it's on. Reset and Remove turn it off first.
 - **Under proot** sshd needs `/run/sshd` made before it starts and `StrictModes=no`, as proot reports every file as
   root's.
+- **Tailscale, for anywhere.** Set up from the same section, Tailscale installs in Linux from Tailscale's own
+  repository and runs as `tailscaled --tun=userspace-networking`: no VPN slot, no root, no separate app. It hands
+  connections from the tailnet to the phone's loopback, so the SSH server needs no address of its own for it.
+  - It runs only while access is on and it's signed in; the switch turns on with Wi-Fi or with Tailscale, and moves
+    between them as the phone changes network.
+  - Sign-in is by the link `tailscale up` gives, opened in the browser; Whittle never sees the account.
+  - Commands that talk to the daemon need the sandbox's network flag, as the CLI uses a Unix socket.
+  - `status --json --peers=false` keeps the status small; sign-out waits for the daemon to save the signed-out state
+    before stopping it.
+  - Devices on the user's tailnet can reach every loopback port, servers included; the section's footer says so.
 
 ## Localhost preview
 
