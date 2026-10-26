@@ -1,5 +1,7 @@
 package app.whittle.chat.ui
 
+import app.whittle.files.ui.nowMillis
+import app.whittle.files.ui.timeAgo
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement

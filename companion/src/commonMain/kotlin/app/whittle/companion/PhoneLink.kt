@@ -1,17 +1,22 @@
 package app.whittle.companion
 
+import app.whittle.files.ui.nowMillis
 import androidx.compose.ui.graphics.ImageBitmap
 import app.whittle.chat.ui.ChatAction
 import app.whittle.chat.ui.ChatEvent
 import app.whittle.chat.ui.ChatHost
 import app.whittle.chat.ui.ChatScreenState
 import app.whittle.chat.ui.ThreadRow
-import app.whittle.chat.ui.nowMillis
 import app.whittle.chat.ui.link.Answer
 import app.whittle.chat.ui.link.FromPhone
 import app.whittle.chat.ui.link.LinkJson
 import app.whittle.chat.ui.link.Question
 import app.whittle.chat.ui.link.ToPhone
+import app.whittle.files.FileChange
+import app.whittle.files.ui.FileContent
+import app.whittle.files.ui.FileEntry
+import app.whittle.files.ui.FilesHost
+import app.whittle.settings.FilesDefaults
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
@@ -68,6 +73,12 @@ class PhoneLink(private val scope: CoroutineScope) : ChatHost {
     // Haptics and toasts are the phone's own; the computer has nothing to feel.
     override val events: Flow<ChatEvent> = emptyFlow()
 
+    private val filesVersion = MutableStateFlow(0L)
+    private val mutableFiles = MutableStateFlow<FilesHost?>(null)
+
+    /** The phone's workspace for the file browser, once the phone has said how it lists files. */
+    val files: StateFlow<FilesHost?> = mutableFiles.asStateFlow()
+
     private var outgoing = Channel<ToPhone>(Channel.UNLIMITED)
     private val replies = mutableMapOf<Long, CompletableDeferred<Answer>>()
     private var nextQuestion = 0L
@@ -86,8 +97,10 @@ class PhoneLink(private val scope: CoroutineScope) : ChatHost {
                     for (frame in incoming) {
                         val text = (frame as? Frame.Text)?.readText() ?: continue
                         when (val message = LinkJson.decodeFromString(FromPhone.serializer(), text)) {
+                            is FromPhone.Welcome -> mutableFiles.value = RemoteFiles(message.files, message.mount)
                             is FromPhone.View -> {
                                 remote.value = message.state.onThisClock(nowMillis() - message.sentAtMillis)
+                                filesVersion.value = message.filesVersion
                                 mutableLink.value = LinkState.Live
                             }
                             is FromPhone.Reply -> replies.remove(message.id)?.complete(message.answer)
@@ -130,6 +143,26 @@ class PhoneLink(private val scope: CoroutineScope) : ChatHost {
     override suspend fun image(path: String, maxSidePx: Int?): ImageBitmap? {
         val encoded = (ask(Question.Image(path, maxSidePx)) as? Answer.Picture)?.encoded ?: return null
         return decodeImage(Base64.decode(encoded))
+    }
+
+    /** The phone's workspace, read over the link. */
+    private inner class RemoteFiles(override val defaults: FilesDefaults, override val mount: String) : FilesHost {
+        override val version: StateFlow<Long> = filesVersion.asStateFlow()
+
+        override suspend fun list(path: String): List<FileEntry> = (ask(Question.ListFolder(path)) as? Answer.Entries)?.entries.orEmpty()
+
+        override suspend fun changes(chat: String): List<FileChange> = (ask(Question.Changes(chat)) as? Answer.Changes)?.changes.orEmpty()
+
+        override suspend fun open(path: String): FileContent = (ask(Question.OpenFile(path)) as? Answer.Content)?.content ?: FileContent.NotText
+
+        override suspend fun image(path: String, maxSidePx: Int): ImageBitmap? = this@PhoneLink.image(path, maxSidePx)
+
+        override suspend fun pdfPage(path: String, index: Int, widthPx: Int): ImageBitmap? =
+            (ask(Question.PdfPage(path, index, widthPx)) as? Answer.Picture)?.encoded?.let { decodeImage(Base64.decode(it)) }
+
+        override suspend fun delete(path: String) {
+            ask(Question.DeleteFile(path))
+        }
     }
 
     /** Asks the phone; null when it doesn't answer in time or the link drops. */

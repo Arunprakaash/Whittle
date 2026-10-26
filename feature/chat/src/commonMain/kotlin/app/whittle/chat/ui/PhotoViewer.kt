@@ -1,5 +1,6 @@
 package app.whittle.chat.ui
 
+import app.whittle.files.ui.sizeText
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures

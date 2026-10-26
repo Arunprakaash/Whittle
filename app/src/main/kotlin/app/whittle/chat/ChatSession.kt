@@ -435,7 +435,8 @@ class ChatSession(
             else -> graph.claudeCode.config.fileArguments[tool] ?: return null
         }
         val path = (arguments[argument] as? JsonPrimitive)?.contentOrNull ?: return null
-        return workspacePath(path, graph.linux.workspaceMount)
+        val project = chatId?.let { graph.workspaces.projectOf(WorkspaceId(it.value)) }
+        return workspacePath(path, graph.linux.workspaceMount, project)
     }
 
     private fun onToolCallDecided(event: RunEvent.ToolCallDecided) {

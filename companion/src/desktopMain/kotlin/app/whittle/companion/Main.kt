@@ -12,8 +12,8 @@ import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
-import app.whittle.chat.ui.LocalWindowChrome
-import app.whittle.chat.ui.WindowChrome
+import app.whittle.design.window.LocalWindowChrome
+import app.whittle.design.window.WindowChrome
 
 /** The Mac app. WHITTLE_PHONE and WHITTLE_TOKEN, when set, connect at once. */
 fun main() = application {

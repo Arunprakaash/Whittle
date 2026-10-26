@@ -153,8 +153,8 @@ class PhoneChatHost(private val chat: ChatViewModel, private val graph: AppGraph
             ThemeMode.Light -> false
             ThemeMode.Dark -> true
         }
-        val wallpaper = (settings?.wallpaperColors ?: graph.defaultAppearance.wallpaperColors) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-        if (!wallpaper) return PhoneLook(dark)
+        val wallpaper = settings?.wallpaperColors ?: graph.defaultAppearance.wallpaperColors
+        if (!wallpaper || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return PhoneLook(dark)
         return PhoneLook(dark, SchemeColors.of(dynamicLightColorScheme(context)), SchemeColors.of(dynamicDarkColorScheme(context)))
     }
 

@@ -1,5 +1,11 @@
 package app.whittle.chat.ui
 
+import app.whittle.design.window.BackHandler
+import app.whittle.design.window.LocalWindowChrome
+import app.whittle.design.window.WindowTopBar
+import app.whittle.design.window.plainTextClip
+import app.whittle.files.ui.sizeText
+import app.whittle.files.ui.nowMillis
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement

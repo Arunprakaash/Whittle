@@ -1,4 +1,4 @@
-package app.whittle.chat.ui
+package app.whittle.design.window
 
 import androidx.compose.runtime.Composable
 

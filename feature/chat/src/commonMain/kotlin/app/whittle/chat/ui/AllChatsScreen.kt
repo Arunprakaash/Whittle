@@ -1,5 +1,8 @@
 package app.whittle.chat.ui
 
+import app.whittle.design.window.LocalWindowChrome
+import app.whittle.design.window.WindowTopBar
+import app.whittle.files.ui.nowMillis
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize

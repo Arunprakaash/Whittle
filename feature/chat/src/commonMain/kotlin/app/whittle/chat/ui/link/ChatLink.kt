@@ -2,6 +2,10 @@ package app.whittle.chat.ui.link
 
 import app.whittle.chat.ui.ChatAction
 import app.whittle.chat.ui.ChatScreenState
+import app.whittle.files.FileChange
+import app.whittle.files.ui.FileContent
+import app.whittle.files.ui.FileEntry
+import app.whittle.settings.FilesDefaults
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -29,13 +33,18 @@ sealed interface ToPhone {
 
 @Serializable
 sealed interface FromPhone {
+    /** Sent once the computer is let in: how the file browser lists and shows files, and where the workspace is. */
+    @Serializable
+    @SerialName("welcome")
+    data class Welcome(val files: FilesDefaults, val mount: String) : FromPhone
+
     /**
      * The chat screen as it is now; sent whole whenever it changes. [sentAtMillis] is the phone's clock, so a computer
      * whose clock differs still counts a task's time from when it started on the phone.
      */
     @Serializable
     @SerialName("view")
-    data class View(val state: ChatScreenState, val sentAtMillis: Long) : FromPhone
+    data class View(val state: ChatScreenState, val sentAtMillis: Long, val filesVersion: Long = 0) : FromPhone
 
     @Serializable
     @SerialName("reply")
@@ -56,6 +65,26 @@ sealed interface Question {
     @Serializable
     @SerialName("image")
     data class Image(val path: String, val maxSidePx: Int?) : Question
+
+    @Serializable
+    @SerialName("list_folder")
+    data class ListFolder(val path: String) : Question
+
+    @Serializable
+    @SerialName("changes")
+    data class Changes(val chat: String) : Question
+
+    @Serializable
+    @SerialName("open_file")
+    data class OpenFile(val path: String) : Question
+
+    @Serializable
+    @SerialName("pdf_page")
+    data class PdfPage(val path: String, val index: Int, val widthPx: Int) : Question
+
+    @Serializable
+    @SerialName("delete_file")
+    data class DeleteFile(val path: String) : Question
 }
 
 @Serializable
@@ -72,6 +101,22 @@ sealed interface Answer {
     @Serializable
     @SerialName("picture")
     data class Picture(val encoded: String?) : Answer
+
+    @Serializable
+    @SerialName("entries")
+    data class Entries(val entries: List<FileEntry>) : Answer
+
+    @Serializable
+    @SerialName("file_changes")
+    data class Changes(val changes: List<FileChange>) : Answer
+
+    @Serializable
+    @SerialName("content")
+    data class Content(val content: FileContent) : Answer
+
+    @Serializable
+    @SerialName("done")
+    data object Done : Answer
 }
 
 /** The JSON both sides write: unknown fields are let through, so an older computer keeps working with a newer phone. */

@@ -1,5 +1,7 @@
 package app.whittle.chat.ui
 
+import app.whittle.design.window.LocalWindowChrome
+import app.whittle.files.ui.nowMillis
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize

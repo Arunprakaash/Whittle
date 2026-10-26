@@ -12,6 +12,12 @@ class WorkspacePathsTest {
     }
 
     @Test
+    fun `a relative path is in the chat's project, as the file tools take it`() {
+        assertEquals("lumen-books/src/App.css", workspacePath("src/App.css", MOUNT, project = "lumen-books"))
+        assertEquals("lumen-books/src/App.css", workspacePath("/workspace/lumen-books/src/App.css", MOUNT, project = "lumen-books"))
+    }
+
+    @Test
     fun `paths outside the workspace have no place in it`() {
         assertNull(workspacePath("/root/.bashrc", MOUNT))
         assertNull(workspacePath("/workspace", MOUNT))

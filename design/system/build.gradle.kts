@@ -34,6 +34,7 @@ kotlin {
             kotlin.srcDir(generateDesignTokens.flatMap { it.outputDirectory })
             kotlin.srcDir(generateSprites.flatMap { it.outputDirectory })
         }
+        androidMain.dependencies { implementation(libs.androidx.activity.compose) }
         // Desktop reads the same font files Android bundles.
         named("desktopMain") { resources.srcDir("src/androidMain/res/font") }
     }

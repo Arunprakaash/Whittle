@@ -136,6 +136,7 @@ androidComponents {
 dependencies {
     implementation(project(":design:system"))
     implementation(project(":feature:chat"))
+    implementation(project(":feature:files"))
     implementation(project(":config:defaults"))
     implementation(project(":agent:runtime"))
     implementation(project(":policy:engine"))

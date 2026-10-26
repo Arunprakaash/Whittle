@@ -70,6 +70,7 @@ include(
     ":storage:chats",
     ":design:system",
     ":feature:chat",
+    ":feature:files",
     ":app",
     ":companion",
     ":dev:cli",

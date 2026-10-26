@@ -11,7 +11,3 @@ actual fun reopensAt(millis: Long): String {
     val flags = DateUtils.FORMAT_SHOW_TIME or if (DateUtils.isToday(millis)) 0 else DateUtils.FORMAT_SHOW_WEEKDAY
     return DateUtils.formatDateTime(LocalContext.current, millis, flags)
 }
-
-@Composable
-actual fun timeAgo(millis: Long, nowMillis: Long): String =
-    DateUtils.getRelativeTimeSpanString(millis, nowMillis, DateUtils.MINUTE_IN_MILLIS).toString()

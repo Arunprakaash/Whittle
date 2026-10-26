@@ -24,9 +24,14 @@ import app.whittle.chat.ui.AllChatsScreen
 import app.whittle.chat.ui.ChatAction
 import app.whittle.chat.ui.ChatNavigation
 import app.whittle.chat.ui.ChatScreen
-import app.whittle.chat.ui.LocalWindowChrome
+import app.whittle.design.window.LocalWindowChrome
 import app.whittle.chat.ui.isDark
 import app.whittle.companion.resources.Res
+import app.whittle.files.ui.FilesBrowser
+import app.whittle.files.ui.FilesOpening
+import app.whittle.files.ui.FilesPlace
+import app.whittle.files.ui.FilesPlatform
+import app.whittle.files.ui.filesOpeningSaver
 import app.whittle.companion.resources.*
 import app.whittle.design.components.BottomActionButton
 import app.whittle.design.components.ScreenHeading
@@ -68,19 +73,39 @@ fun CompanionApp(link: PhoneLink, phone: PhoneAddress = PhoneAddress.Default, to
     }
 }
 
+/** The phone's screens: the chat, the Chats page, and the file browser for projects and files. */
 @Composable
 private fun PhoneScreens(link: PhoneLink) {
     var allChats by rememberSaveable { mutableStateOf(false) }
-    val platform = remember { ComputerChatPlatform(ChatNavigation(viewAllChats = { allChats = true })) }
-    if (allChats) {
-        AllChatsScreen(
+    var opening by rememberSaveable(stateSaver = filesOpeningSaver) { mutableStateOf<FilesOpening?>(null) }
+    val files = link.files.collectAsState().value
+    val platform = remember(files != null) {
+        ComputerChatPlatform(
+            ChatNavigation(
+                viewAllChats = { allChats = true },
+                openProjects = files?.let { { opening = FilesOpening(FilesPlace.Folder("")) } },
+                openFile = files?.let { { path, chat -> opening = FilesOpening(FilesPlace.Document(path), chat) } },
+                openFolder = files?.let { { path, chat -> opening = FilesOpening(FilesPlace.Folder(path), chat) } },
+            ),
+        )
+    }
+    val open = opening
+    when {
+        open != null && files != null -> FilesBrowser(
+            host = files,
+            // Sharing and the device's file manager are the phone's; here the browser only reads.
+            platform = remember { FilesPlatform(toast = platform::toast) },
+            opening = open,
+            onAsk = { link.act(ChatAction.SendText(it)) },
+            onClose = { opening = null },
+        )
+        allChats -> AllChatsScreen(
             state = link.state.collectAsState().value,
             onAction = link::act,
             onBack = { allChats = false },
             onOpen = { id -> link.act(ChatAction.OpenChat(id)); allChats = false },
         )
-    } else {
-        ChatScreen(link, platform)
+        else -> ChatScreen(link, platform)
     }
 }
 

@@ -21,6 +21,7 @@ import app.whittle.apps.AppToolchainService
 import app.whittle.chat.ChatEvent
 import app.whittle.chat.ChatViewModel
 import app.whittle.chat.PhoneChatHost
+import app.whittle.files.PhoneFilesHost
 import app.whittle.companion.CompanionServer
 import app.whittle.linux.ComputerAccessState
 import java.io.File
@@ -46,6 +47,9 @@ class WhittleApplication : Application() {
      */
     val chat: ChatViewModel by lazy { ChatViewModel(graph, startToolchainSetup = { AppToolchainService.start(this) }) }
 
+    /** The workspace's files as the file browser reads them, on the phone and on the user's computers. */
+    val filesHost: PhoneFilesHost by lazy { PhoneFilesHost(graph) }
+
     /** [chat] as the chat screen draws it, on the phone and on the user's computers. */
     val chatHost: PhoneChatHost by lazy { PhoneChatHost(chat, graph, this, graph.appScope) }
 
@@ -62,6 +66,7 @@ class WhittleApplication : Application() {
             config = graph.computerAccess.config.companion,
             linuxFile = { path -> graph.linux.root()?.let { File(it, path.removePrefix("/")) } },
             host = chatHost,
+            files = filesHost,
         )
     }
 

@@ -1,17 +1,5 @@
-package app.whittle.files
+package app.whittle.files.ui
 
-import android.content.ActivityNotFoundException
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.ComponentName
-import android.content.Context
-import android.content.Intent
-import android.graphics.BitmapFactory
-import android.text.format.DateUtils
-import android.text.format.Formatter
-import android.webkit.MimeTypeMap
-import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -19,11 +7,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,7 +22,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.selection.selectable
@@ -46,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -60,20 +53,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.whittle.AppGraph
-import app.whittle.MainActivity
-import app.whittle.R
-import app.whittle.core.common.getOrNull
 import app.whittle.design.components.TopBarAction
 import app.whittle.design.components.TopBarActionGroup
 import app.whittle.design.components.TopBarButton
@@ -88,46 +75,46 @@ import app.whittle.design.tokens.WhittleRadius
 import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
 import app.whittle.design.tokens.WhittleTextStyles
+import app.whittle.design.window.BackHandler
+import app.whittle.design.window.LocalWindowChrome
+import app.whittle.design.window.WindowTopBar
+import app.whittle.design.window.plainTextClip
+import app.whittle.files.CodeColors
+import app.whittle.files.DiffLine
+import app.whittle.files.FileChange
+import app.whittle.files.LineDiff
+import app.whittle.files.ui.resources.Res
+import app.whittle.files.ui.resources.*
 import app.whittle.settings.FilesDefaults
-import app.whittle.tools.api.WorkspaceId
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import java.io.File
-import java.io.IOException
-
-/** A place in the workspace, by its path in it; "" is the workspace itself. */
-@Serializable
-sealed interface FilesPlace {
-    @Serializable
-    data class Folder(val path: String) : FilesPlace
-
-    @Serializable
-    data class Document(val path: String, val changes: Boolean = false) : FilesPlace
-}
-
-/** Opening the browser: where, and the chat it was opened from (its Changed filter and Ask to undo), if any. */
-@Serializable
-data class FilesOpening(val place: FilesPlace, val chat: String? = null)
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import org.jetbrains.compose.resources.stringResource
 
 /**
- * The shared workspace, inside Whittle: its projects and folders, any file in it, and what a chat changed, line by
- * line. Opened from the chat (with that chat's changes) or from Projects. Back walks up the places visited.
+ * The shared workspace: its projects and folders, any file in it, and what a chat changed, line by line. Opened from the
+ * chat (with that chat's changes) or from Projects. Back walks up the places visited. [onAsk] sends the user's words to
+ * the chat, as Ask to undo does.
  */
 @Composable
-fun FilesBrowser(graph: AppGraph, opening: FilesOpening, onAsk: (String) -> Unit, onClose: () -> Unit) {
+fun FilesBrowser(
+    host: FilesHost,
+    platform: FilesPlatform,
+    opening: FilesOpening,
+    onAsk: (String) -> Unit,
+    onClose: () -> Unit,
+) {
     val places = rememberSaveable(opening, saver = placesSaver) { mutableStateListOf(opening.place) }
     val back = { if (places.size > 1) places.removeAt(places.lastIndex) else onClose() }
-    BackHandler(onBack = { back() })
-    val chat = opening.chat?.let(::WorkspaceId)
+    BackHandler(enabled = true) { back() }
     when (val place = places.last()) {
-        is FilesPlace.Folder -> FolderScreen(graph, place.path, chat, onBack = { back() }, onOpen = { places += it })
+        is FilesPlace.Folder -> FolderScreen(host, platform, place.path, opening.chat, onBack = { back() }, onOpen = { places += it })
         is FilesPlace.Document -> DocumentScreen(
-            graph = graph,
+            host = host,
+            platform = platform,
             place = place,
-            chat = chat,
+            chat = opening.chat,
             onBack = { back() },
             onMode = { changes -> places[places.lastIndex] = place.copy(changes = changes) },
             onAsk = { request -> onAsk(request); onClose() },
@@ -136,17 +123,15 @@ fun FilesBrowser(graph: AppGraph, opening: FilesOpening, onAsk: (String) -> Unit
 }
 
 /** A folder: at the workspace, the chat's changes or everything; below it, everything. */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FolderScreen(graph: AppGraph, path: String, chat: WorkspaceId?, onBack: () -> Unit, onOpen: (FilesPlace) -> Unit) {
-    val context = LocalContext.current
+private fun FolderScreen(host: FilesHost, platform: FilesPlatform, path: String, chat: String?, onBack: () -> Unit, onOpen: (FilesPlace) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
-    val defaults = graph.filesDefaults
-    val version by graph.fileChanges.version.collectAsStateWithLifecycle()
+    val defaults = host.defaults
+    val version by host.version.collectAsState()
     var reloads by remember { mutableIntStateOf(0) }
-    val entries by produceState<List<Entry>?>(null, path, version, reloads) { value = withContext(Dispatchers.IO) { list(graph, path) } }
-    val allChanges by produceState(emptyList<FileChange>(), chat, version) { value = chat?.let { graph.fileChanges.changes(it) }.orEmpty() }
+    val entries by produceState<List<FileEntry>?>(null, path, version, reloads) { value = host.list(path) }
+    val allChanges by produceState(emptyList<FileChange>(), chat, version) { value = chat?.let { host.changes(it) }.orEmpty() }
     val changes = FileChange.within(path, allChanges)
     val atWorkspace = path.isEmpty()
     // A chat with a project opens the browser in its folder, so Changed is offered there too, and in any folder
@@ -157,27 +142,28 @@ private fun FolderScreen(graph: AppGraph, path: String, chat: WorkspaceId?, onBa
     var searching by rememberSaveable { mutableStateOf(false) }
     val search = rememberTextFieldState()
     val query = search.text.toString().trim()
-    var deleting by remember { mutableStateOf<Entry?>(null) }
+    var deleting by remember { mutableStateOf<FileEntry?>(null) }
+    val unavailable = stringResource(Res.string.files_unavailable)
     Column(Modifier.fillMaxSize().background(colors.surface).safeDrawingPadding()) {
         TopBar(
-            title = if (atWorkspace) stringResource(R.string.files_title) else path.substringAfterLast('/'),
-            subtitle = listOf(graph.linux.workspaceMount, path).filter { it.isNotEmpty() }.joinToString("/"),
+            title = if (atWorkspace) stringResource(Res.string.files_title) else path.substringAfterLast('/'),
+            subtitle = listOf(host.mount, path).filter { it.isNotEmpty() }.joinToString("/"),
             onBack = onBack,
         ) {
-            val actions = listOfNotNull(
-                Triple("search", R.string.files_search) { searching = !searching },
-                Triple("open_in_new", R.string.files_open_in_files) {
-                    if (!WorkspaceDocumentsProvider.open(context)) Toast.makeText(context, R.string.files_unavailable, Toast.LENGTH_SHORT).show()
-                }.takeIf { atWorkspace },
+            val openInFiles = platform.openInFiles
+            Actions(
+                listOfNotNull(
+                    Triple("search", Res.string.files_search) { searching = !searching },
+                    if (atWorkspace && openInFiles != null) Triple("open_in_new", Res.string.files_open_in_files) { if (!openInFiles()) platform.toast(unavailable) } else null,
+                ),
             )
-            Actions(actions)
         }
         Column(Modifier.padding(horizontal = WhittleSpace.l), verticalArrangement = Arrangement.spacedBy(WhittleSpace.l)) {
-            if (searching) WhittleSearchBar(search, placeholder = stringResource(R.string.files_search), clearLabel = stringResource(R.string.search_clear))
+            if (searching) WhittleSearchBar(search, placeholder = stringResource(Res.string.files_search), clearLabel = stringResource(Res.string.search_clear))
             if (offerChanged) {
                 Choice(
-                    first = stringResource(R.string.files_filter_changed, changes.size),
-                    second = stringResource(R.string.files_filter_all),
+                    first = stringResource(Res.string.files_filter_changed, changes.size),
+                    second = stringResource(Res.string.files_filter_all),
                     firstChosen = showChanged,
                     onChoose = { chosen = it },
                 )
@@ -192,7 +178,7 @@ private fun FolderScreen(graph: AppGraph, path: String, chat: WorkspaceId?, onBa
                 itemsIndexed(shown, key = { _, change -> change.path }) { index, change ->
                     ChangedRow(change, path, defaults, segmentedShape(index, shown.size)) { onOpen(FilesPlace.Document(change.path, changes = true)) }
                 }
-                if (shown.isEmpty()) item { Empty(R.string.files_no_changes) }
+                if (shown.isEmpty()) item { Empty(Res.string.files_no_changes) }
             } else {
                 val shown = entries.orEmpty().filter { query.isEmpty() || it.name.contains(query, ignoreCase = true) }
                 itemsIndexed(shown, key = { _, entry -> entry.path }) { index, entry ->
@@ -204,25 +190,25 @@ private fun FolderScreen(graph: AppGraph, path: String, chat: WorkspaceId?, onBa
                         onLongClick = { deleting = entry },
                     )
                 }
-                if (entries != null && shown.isEmpty()) item { Empty(R.string.files_empty) }
+                if (entries != null && shown.isEmpty()) item { Empty(Res.string.files_empty) }
             }
         }
     }
     deleting?.let { entry ->
         AlertDialog(
             onDismissRequest = { deleting = null },
-            title = { Text(stringResource(R.string.files_delete_title, entry.name)) },
-            text = { Text(stringResource(R.string.files_delete_body)) },
+            title = { Text(stringResource(Res.string.files_delete_title, entry.name)) },
+            text = { Text(stringResource(Res.string.files_delete_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     deleting = null
                     scope.launch {
-                        withContext(Dispatchers.IO) { graph.workspaces.resolve(entry.path).getOrNull()?.deleteRecursively() }
+                        host.delete(entry.path)
                         reloads++
                     }
-                }) { Text(stringResource(R.string.files_delete_confirm), color = colors.error) }
+                }) { Text(stringResource(Res.string.files_delete_confirm), color = colors.error) }
             },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.files_cancel)) } },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(Res.string.files_cancel)) } },
         )
     }
 }
@@ -230,24 +216,26 @@ private fun FolderScreen(graph: AppGraph, path: String, chat: WorkspaceId?, onBa
 /** A file: its text with the chat's changed lines marked, or its Changes; an image as itself. */
 @Composable
 private fun DocumentScreen(
-    graph: AppGraph,
+    host: FilesHost,
+    platform: FilesPlatform,
     place: FilesPlace.Document,
-    chat: WorkspaceId?,
+    chat: String?,
     onBack: () -> Unit,
     onMode: (Boolean) -> Unit,
     onAsk: (String) -> Unit,
 ) {
-    val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
-    val defaults = graph.filesDefaults
-    val version by graph.fileChanges.version.collectAsStateWithLifecycle()
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
+    val defaults = host.defaults
+    val version by host.version.collectAsState()
     val name = place.path.substringAfterLast('/')
-    val undoRequest = stringResource(R.string.files_undo_request, place.path)
-    val content by produceState<Content?>(null, place.path, version) { value = withContext(Dispatchers.IO) { load(graph, place.path, defaults) } }
+    val undoRequest = stringResource(Res.string.files_undo_request, place.path)
+    val content by produceState<FileContent?>(null, place.path, version) { value = host.open(place.path) }
     val change by produceState<FileChange?>(null, chat, place.path, version) {
-        value = chat?.let { graph.fileChanges.changes(it).firstOrNull { change -> change.path == place.path } }
+        value = chat?.let { host.changes(it).firstOrNull { change -> change.path == place.path } }
     }
-    val text = content as? Content.Text
+    val text = content as? FileContent.Text
     val diff = remember(text, change) {
         val known = change?.takeIf { it.comparable } ?: return@remember emptyList()
         text ?: return@remember emptyList()
@@ -260,25 +248,26 @@ private fun DocumentScreen(
     val marked = remember(diff, change) {
         if (change?.created == true) emptySet() else diff.filterIsInstance<DiffLine.Added>().mapTo(HashSet()) { it.number }
     }
+    val share = platform.share?.let { share -> { share(place.path, name) } }
     Column(Modifier.fillMaxSize().background(colors.surface).safeDrawingPadding()) {
-        val parent = place.path.substringBeforeLast('/', "").ifEmpty { graph.linux.workspaceMount }
+        val parent = place.path.substringBeforeLast('/', "").ifEmpty { host.mount }
         TopBar(
             title = name,
-            subtitle = text?.let { "$parent · " + pluralStringResource(R.plurals.files_lines, it.lines.size, it.lines.size) } ?: parent,
+            subtitle = text?.let { "$parent · " + pluralStringResource(Res.plurals.files_lines, it.lines.size, it.lines.size) } ?: parent,
             onBack = onBack,
         ) {
             Actions(
                 listOfNotNull(
-                    text?.let { Triple("content_copy", R.string.files_copy) { copy(context, name, it.lines.joinToString("\n")) } },
-                    Triple("share", R.string.files_share) { shareFile(context, place.path, name) },
+                    text?.let { Triple("content_copy", Res.string.files_copy) { scope.launch { clipboard.setClipEntry(plainTextClip(name, it.lines.joinToString("\n"))) } } },
+                    share?.let { Triple("share", Res.string.files_share, it) },
                 ),
             )
         }
         if (added + removed > 0) {
             Box(Modifier.padding(start = WhittleSpace.l, end = WhittleSpace.l, bottom = WhittleSpace.m)) {
                 Choice(
-                    first = stringResource(R.string.files_view_file),
-                    second = if (removed > 0) stringResource(R.string.files_view_changes, added, removed) else stringResource(R.string.files_view_added, added),
+                    first = stringResource(Res.string.files_view_file),
+                    second = if (removed > 0) stringResource(Res.string.files_view_changes, added, removed) else stringResource(Res.string.files_view_added, added),
                     firstChosen = !showChanges,
                     onChoose = { file -> onMode(!file) },
                 )
@@ -286,25 +275,55 @@ private fun DocumentScreen(
         }
         when (val shown = content) {
             null -> Unit
-            is Content.Text -> if (showChanges) {
+            is FileContent.Text -> if (showChanges) {
                 ChangesView(diff, change, defaults, name, chat != null) { onAsk(undoRequest) }
             } else {
                 TextView(shown, marked, defaults, name)
             }
-            is Content.Picture -> Image(
-                bitmap = shown.bitmap,
-                contentDescription = name,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize().padding(WhittleSpace.l),
-            )
-            is Content.Pdf -> PdfPages(shown.file, name, defaults.maxImageSidePx, Modifier.fillMaxSize()) { shareFile(context, place.path, name) }
-            Content.NotText -> NotShown(name, { shareFile(context, place.path, name) }, Modifier.fillMaxSize())
+            FileContent.Picture -> {
+                val picture by produceState<ImageBitmap?>(null, place.path, version) { value = host.image(place.path, defaults.maxImageSidePx) }
+                picture?.let { Image(bitmap = it, contentDescription = name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(WhittleSpace.l)) }
+            }
+            is FileContent.Pdf -> if (shown.pageRatios.isEmpty()) {
+                NotShown(name, share, Modifier.fillMaxSize())
+            } else {
+                PdfPages(host, place.path, shown.pageRatios, defaults.maxImageSidePx, Modifier.fillMaxSize())
+            }
+            FileContent.NotText -> NotShown(name, share, Modifier.fillMaxSize())
+        }
+    }
+}
+
+/** A PDF as its pages, one under another, each drawn as it scrolls into view at the screen's width (at most [maxSide]). */
+@Composable
+private fun PdfPages(host: FilesHost, path: String, ratios: List<Float>, maxSide: Int, modifier: Modifier) {
+    BoxWithConstraints(modifier) {
+        val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }.coerceAtMost(maxSide)
+        LazyColumn(
+            contentPadding = PaddingValues(start = WhittleSpace.m, end = WhittleSpace.m, bottom = WhittleSpace.m),
+            verticalArrangement = Arrangement.spacedBy(WhittleSpace.s),
+        ) {
+            itemsIndexed(ratios) { index, ratio ->
+                val label = stringResource(Res.string.files_pdf_page, index + 1, ratios.size)
+                val page by produceState<ImageBitmap?>(null, path, index, widthPx) { value = host.pdfPage(path, index, widthPx) }
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(ratio)
+                        .clip(RoundedCornerShape(WhittleRadius.s))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    page?.let { Image(it, contentDescription = label, contentScale = ContentScale.FillWidth, modifier = Modifier.fillMaxWidth()) }
+                        ?: Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun TextView(text: Content.Text, marked: Set<Int>, defaults: FilesDefaults, name: String) {
+private fun TextView(text: FileContent.Text, marked: Set<Int>, defaults: FilesDefaults, name: String) {
     val colors = MaterialTheme.colorScheme
     val code = rememberCodeColors(defaults, name)
     LazyColumn(
@@ -321,7 +340,7 @@ private fun TextView(text: Content.Text, marked: Set<Int>, defaults: FilesDefaul
                 Text(code.line(line), style = WhittleTextStyles.mono, color = colors.onSurface, modifier = Modifier.padding(end = WhittleSpace.m))
             }
         }
-        if (text.truncated) item { Empty(R.string.files_truncated) }
+        if (text.truncated) item { Empty(Res.string.files_truncated) }
     }
 }
 
@@ -338,7 +357,7 @@ private fun ChangesView(diff: List<DiffLine>, change: FileChange?, defaults: Fil
                 horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s),
             ) {
                 WhittleIcon("history", size = WhittleSize.Icon.m, tint = colors.onSurfaceVariant)
-                Text(pluralStringResource(R.plurals.files_since, it.edits, it.edits), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                Text(pluralStringResource(Res.plurals.files_since, it.edits, it.edits), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
             }
         }
         LazyColumn(
@@ -359,7 +378,7 @@ private fun ChangesView(diff: List<DiffLine>, change: FileChange?, defaults: Fil
                 Row(Modifier.fillMaxWidth().background(background), verticalAlignment = Alignment.Top) {
                     if (line is DiffLine.Folded) {
                         Text(
-                            pluralStringResource(R.plurals.files_folded, line.lines, line.lines),
+                            pluralStringResource(Res.plurals.files_folded, line.lines, line.lines),
                             style = WhittleTextStyles.mono,
                             color = colors.outline,
                             modifier = Modifier.padding(horizontal = WhittleSpace.l),
@@ -385,7 +404,7 @@ private fun ChangesView(diff: List<DiffLine>, change: FileChange?, defaults: Fil
             ) {
                 WhittleIcon("undo", size = WhittleSize.Icon.l)
                 Spacer(Modifier.width(WhittleSpace.s))
-                Text(stringResource(R.string.files_undo), style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(Res.string.files_undo), style = MaterialTheme.typography.labelLarge)
             }
         }
     }
@@ -413,22 +432,26 @@ private fun rememberCodeColors(defaults: FilesDefaults, name: String): CodeColor
 /** Back, the place's name over its path, and its actions as one connected group. */
 @Composable
 private fun TopBar(title: String, subtitle: String, onBack: () -> Unit, actions: @Composable () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = WhittleSpace.m, vertical = WhittleSpace.s),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s),
-    ) {
-        TopBarButton("arrow_back", stringResource(R.string.files_back), onBack)
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, style = WhittleTextStyles.mono, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    // Where the app draws the window's top (a Mac's), the bar sits under the window's buttons and moves the window.
+    val chrome = LocalWindowChrome.current?.insets ?: WindowInsets(0)
+    WindowTopBar {
+        Row(
+            Modifier.fillMaxWidth().windowInsetsPadding(chrome).padding(horizontal = WhittleSpace.m, vertical = WhittleSpace.s),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s),
+        ) {
+            TopBarButton("arrow_back", stringResource(Res.string.files_back), onBack)
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(subtitle, style = WhittleTextStyles.mono, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            actions()
         }
-        actions()
     }
 }
 
 @Composable
-private fun Actions(actions: List<Triple<String, Int, () -> Unit>>) {
+private fun Actions(actions: List<Triple<String, StringResource, () -> Unit>>) {
     when (actions.size) {
         0 -> Unit
         1 -> actions.single().let { (icon, label, onClick) -> TopBarButton(icon, stringResource(label), onClick) }
@@ -476,12 +499,8 @@ private fun ChangedRow(change: FileChange, folder: String, defaults: FilesDefaul
     val shownPath = if (folder.isEmpty()) change.path else change.path.removePrefix("$folder/")
     val name = shownPath.substringAfterLast('/')
     val parent = shownPath.substringBeforeLast('/', "")
-    val now = System.currentTimeMillis()
-    val ago = if (now - change.lastAtMillis < DateUtils.MINUTE_IN_MILLIS) {
-        stringResource(R.string.files_just_now)
-    } else {
-        DateUtils.getRelativeTimeSpanString(change.lastAtMillis, now, DateUtils.MINUTE_IN_MILLIS).toString()
-    }
+    val now = nowMillis()
+    val ago = if (now - change.lastAtMillis < MILLIS_PER_MINUTE) stringResource(Res.string.files_just_now) else timeAgo(change.lastAtMillis, now)
     Row(
         Modifier.fillMaxWidth().clip(shape).background(colors.surfaceContainerLow).clickable(onClick = onClick)
             .padding(start = WhittleSpace.m, top = WhittleSpace.m, end = WhittleSpace.l, bottom = WhittleSpace.m),
@@ -496,9 +515,9 @@ private fun ChangedRow(change: FileChange, folder: String, defaults: FilesDefaul
             Text(listOf(parent, ago).filter { it.isNotEmpty() }.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         val (badge, container, content) = if (change.created) {
-            Triple(R.string.files_badge_new, colors.secondaryContainer, colors.onSecondaryContainer)
+            Triple(Res.string.files_badge_new, colors.secondaryContainer, colors.onSecondaryContainer)
         } else {
-            Triple(R.string.files_badge_edited, colors.tertiaryContainer, colors.onTertiaryContainer)
+            Triple(Res.string.files_badge_edited, colors.tertiaryContainer, colors.onTertiaryContainer)
         }
         Text(
             stringResource(badge),
@@ -511,8 +530,7 @@ private fun ChangedRow(change: FileChange, folder: String, defaults: FilesDefaul
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun EntryRow(entry: Entry, defaults: FilesDefaults, shape: RoundedCornerShape, onClick: () -> Unit, onLongClick: () -> Unit) {
-    val context = LocalContext.current
+private fun EntryRow(entry: FileEntry, defaults: FilesDefaults, shape: RoundedCornerShape, onClick: () -> Unit, onLongClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     Row(
         Modifier.fillMaxWidth().clip(shape).background(colors.surfaceContainerLow).combinedClickable(onClick = onClick, onLongClick = onLongClick)
@@ -528,7 +546,7 @@ private fun EntryRow(entry: Entry, defaults: FilesDefaults, shape: RoundedCorner
         }
         Text(entry.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         Text(
-            if (entry.directory) pluralStringResource(R.plurals.files_items, entry.items, entry.items) else Formatter.formatShortFileSize(context, entry.size),
+            if (entry.directory) pluralStringResource(Res.plurals.files_items, entry.items, entry.items) else sizeText(entry.size),
             style = WhittleTextStyles.mono,
             color = colors.onSurfaceVariant,
         )
@@ -537,7 +555,7 @@ private fun EntryRow(entry: Entry, defaults: FilesDefaults, shape: RoundedCorner
 }
 
 @Composable
-private fun Empty(text: Int) {
+private fun Empty(text: StringResource) {
     Text(
         stringResource(text),
         style = MaterialTheme.typography.bodyMedium,
@@ -546,9 +564,9 @@ private fun Empty(text: Int) {
     )
 }
 
-/** A file Whittle can't show, such as a zip or a spreadsheet: what it is, and Share to open it in another app. */
+/** A file Whittle can't show, such as a zip or a spreadsheet: what it is, and Share to open it in another app where there's one. */
 @Composable
-internal fun NotShown(name: String, onShare: () -> Unit, modifier: Modifier = Modifier) {
+private fun NotShown(name: String, onShare: (() -> Unit)?, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
     Column(
         modifier.padding(WhittleSpace.xxl),
@@ -563,109 +581,25 @@ internal fun NotShown(name: String, onShare: () -> Unit, modifier: Modifier = Mo
         }
         Text(name, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Text(
-            stringResource(R.string.files_not_text),
+            stringResource(Res.string.files_not_text),
             style = MaterialTheme.typography.bodyMedium,
             color = colors.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
-        FilledTonalButton(onClick = onShare) {
-            WhittleIcon("share", size = WhittleSize.Icon.m)
-            Spacer(Modifier.width(WhittleSpace.s))
-            Text(stringResource(R.string.files_share))
-        }
-    }
-}
-
-/** One thing in a folder. */
-private data class Entry(val name: String, val path: String, val directory: Boolean, val size: Long, val items: Int)
-
-/** What a file shows as. */
-private sealed interface Content {
-    data class Text(val lines: List<String>, val truncated: Boolean) : Content
-
-    data class Picture(val bitmap: ImageBitmap) : Content
-
-    data class Pdf(val file: File) : Content
-
-    data object NotText : Content
-}
-
-private data class Quad(val mark: String, val number: String, val text: String, val background: androidx.compose.ui.graphics.Color)
-
-/** A folder's contents, folders first, both by name; Whittle's own files are left out. */
-private fun list(graph: AppGraph, path: String): List<Entry> {
-    val folder = graph.workspaces.resolve(path.ifEmpty { CURRENT }).getOrNull() ?: return emptyList()
-    val hidden = graph.filesDefaults.hiddenNames
-    return folder.listFiles().orEmpty()
-        .filter { it.name !in hidden }
-        .map { file ->
-            Entry(
-                name = file.name,
-                path = listOf(path, file.name).filter { it.isNotEmpty() }.joinToString("/"),
-                directory = file.isDirectory,
-                size = if (file.isFile) file.length() else 0L,
-                items = if (file.isDirectory) file.list()?.size ?: 0 else 0,
-            )
-        }
-        .sortedWith(compareBy<Entry>({ !it.directory }, { it.name.lowercase() }))
-}
-
-private fun load(graph: AppGraph, path: String, defaults: FilesDefaults): Content {
-    val file = graph.workspaces.resolve(path).getOrNull()?.takeIf { it.isFile } ?: return Content.NotText
-    if (defaults.isImage(file.name)) return picture(file, defaults.maxImageSidePx) ?: Content.NotText
-    if (defaults.isPdf(file.name)) return Content.Pdf(file)
-    return try {
-        val buffer = CharArray(defaults.maxPreviewChars + 1)
-        val read = file.bufferedReader().use { reader ->
-            var total = 0
-            while (total < buffer.size) {
-                val count = reader.read(buffer, total, buffer.size - total)
-                if (count < 0) break
-                total += count
+        onShare?.let { share ->
+            FilledTonalButton(onClick = share) {
+                WhittleIcon("share", size = WhittleSize.Icon.m)
+                Spacer(Modifier.width(WhittleSpace.s))
+                Text(stringResource(Res.string.files_share))
             }
-            total
         }
-        val text = String(buffer, 0, minOf(read, defaults.maxPreviewChars))
-        if (NUL in text) return Content.NotText
-        Content.Text(textLines(text), truncated = read > defaults.maxPreviewChars)
-    } catch (exception: IOException) {
-        Content.NotText
     }
 }
+
+private data class Quad(val mark: String, val number: String, val text: String, val background: Color)
 
 /** A text's lines; the newline that ends the last one doesn't start another. */
-private fun textLines(text: String): List<String> = text.removeSuffix("\n").lines()
-
-private fun picture(file: File, maxSide: Int): Content.Picture? {
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    BitmapFactory.decodeFile(file.path, bounds)
-    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-    var sample = 1
-    while (maxOf(bounds.outWidth, bounds.outHeight) / sample > maxSide) sample *= 2
-    val bitmap = BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return null
-    return Content.Picture(bitmap.asImageBitmap())
-}
-
-private fun copy(context: Context, name: String, text: String) {
-    context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(name, text))
-}
-
-/** Offers a workspace file to other apps through Android's share sheet. */
-fun shareFile(context: Context, path: String, name: String) {
-    val type = MimeTypeMap.getSingleton().getMimeTypeFromExtension(name.substringAfterLast('.', "").lowercase()) ?: FALLBACK_TYPE
-    val send = Intent(Intent.ACTION_SEND)
-        .setType(type)
-        .putExtra(Intent.EXTRA_STREAM, WorkspaceDocumentsProvider.documentUri(context, path))
-        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    try {
-        // Whittle takes shares too; sharing a file back into it would only copy it into uploads again.
-        val chooser = Intent.createChooser(send, name)
-            .putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS, arrayOf(ComponentName(context, MainActivity::class.java)))
-        context.startActivity(chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    } catch (exception: ActivityNotFoundException) {
-        Toast.makeText(context, R.string.files_unavailable, Toast.LENGTH_SHORT).show()
-    }
-}
+fun textLines(text: String): List<String> = text.removeSuffix("\n").lines()
 
 /** Keeps an open browser across configuration changes and process death. */
 val filesOpeningSaver = Saver<FilesOpening?, String>(
@@ -678,10 +612,9 @@ private val placesSaver = listSaver<MutableList<FilesPlace>, String>(
     restore = { saved -> mutableStateListOf(*saved.map { Json.decodeFromString(FilesPlace.serializer(), it) }.toTypedArray()) },
 )
 
-private const val CURRENT = "."
-private const val NUL = '\u0000'
 private const val ADDED = "+"
 private const val REMOVED = "−"
-private const val FALLBACK_TYPE = "application/octet-stream"
+private const val MILLIS_PER_MINUTE = 60_000L
+
 /** Changed lines take a light wash of the change's colour, so the text stays easy to read. */
 private const val CHANGE_ALPHA = 0.5f

@@ -57,10 +57,13 @@ import app.whittle.connect.ConnectViewModel
 import app.whittle.design.theme.WhittleTheme
 import androidx.compose.foundation.layout.padding
 import app.whittle.design.tokens.WhittleSpace
-import app.whittle.files.FilesBrowser
-import app.whittle.files.FilesOpening
-import app.whittle.files.FilesPlace
-import app.whittle.files.filesOpeningSaver
+import app.whittle.files.WorkspaceDocumentsProvider
+import app.whittle.files.shareFile
+import app.whittle.files.ui.FilesBrowser
+import app.whittle.files.ui.FilesOpening
+import app.whittle.files.ui.FilesPlace
+import app.whittle.files.ui.FilesPlatform
+import app.whittle.files.ui.filesOpeningSaver
 import app.whittle.linux.LinuxProgressStrip
 import app.whittle.linux.LinuxSetupScreen
 import app.whittle.onboarding.ONBOARDING_STEPS
@@ -300,7 +303,15 @@ class MainActivity : ComponentActivity() {
                             val toolsConnection = toolsOf?.let { id -> connections.firstOrNull { it.server.id == id } }
                             val opening = files
                             if (opening != null) {
-                                FilesBrowser(graph, opening, onAsk = chat::sendText, onClose = { files = null })
+                                val context = this@MainActivity
+                                val filesPlatform = remember {
+                                    FilesPlatform(
+                                        share = { path, name -> shareFile(context, path, name) },
+                                        openInFiles = { WorkspaceDocumentsProvider.open(context) },
+                                        toast = { message -> Toast.makeText(context, message, Toast.LENGTH_SHORT).show() },
+                                    )
+                                }
+                                FilesBrowser((application as WhittleApplication).filesHost, filesPlatform, opening, onAsk = chat::sendText, onClose = { files = null })
                             } else if (showingAutomations) {
                                 LaunchedEffect(Unit) { chat.refreshProjects() }
                                 AutomationsScreen(

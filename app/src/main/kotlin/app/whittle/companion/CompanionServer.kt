@@ -11,6 +11,7 @@ import app.whittle.chat.ui.link.FromPhone
 import app.whittle.chat.ui.link.LinkJson
 import app.whittle.chat.ui.link.Question
 import app.whittle.chat.ui.link.ToPhone
+import app.whittle.files.ui.FilesHost
 import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.EmbeddedServer
@@ -25,6 +26,7 @@ import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -48,6 +50,7 @@ class CompanionServer(
     /** The host file at a Linux path; null before Linux is set up. */
     private val linuxFile: (String) -> File?,
     private val host: ChatHost,
+    private val files: FilesHost,
 ) {
     private val lock = Mutex()
     private var server: EmbeddedServer<*, *>? = null
@@ -73,10 +76,11 @@ class CompanionServer(
             close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, REFUSED))
             return
         }
+        write(FromPhone.Welcome(files.defaults, files.mount))
         // The latest state only, at most every updateMillis, so a streaming reply doesn't flood a slow link.
         val sender = launch {
-            host.state.collect { state ->
-                write(FromPhone.View(state, System.currentTimeMillis()))
+            combine(host.state, files.version, ::Pair).collect { (state, filesVersion) ->
+                write(FromPhone.View(state, System.currentTimeMillis(), filesVersion))
                 delay(config.updateMillis)
             }
         }
@@ -100,10 +104,16 @@ class CompanionServer(
         is Question.CreateProject -> Answer.Created(host.createProject(question.name))
         is Question.ProcessOutput -> Answer.Output(host.processOutput(question.key, question.lines))
         is Question.Image -> Answer.Picture(host.image(question.path, question.maxSidePx)?.let { encode(it) })
+        is Question.ListFolder -> Answer.Entries(files.list(question.path))
+        is Question.Changes -> Answer.Changes(files.changes(question.chat))
+        is Question.OpenFile -> Answer.Content(files.open(question.path))
+        is Question.PdfPage -> Answer.Picture(files.pdfPage(question.path, question.index, question.widthPx)?.let { encode(it, PNG) })
+        is Question.DeleteFile -> Answer.Done.also { files.delete(question.path) }
     }
 
-    private suspend fun encode(image: ImageBitmap): String = withContext(Dispatchers.Default) {
-        val bytes = ByteArrayOutputStream().also { image.asAndroidBitmap().compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, it) }.toByteArray()
+    /** [image] encoded for the link: JPEG for photos, PNG for pages, whose text JPEG would blur. */
+    private suspend fun encode(image: ImageBitmap, format: Bitmap.CompressFormat = Bitmap.CompressFormat.JPEG): String = withContext(Dispatchers.Default) {
+        val bytes = ByteArrayOutputStream().also { image.asAndroidBitmap().compress(format, JPEG_QUALITY, it) }.toByteArray()
         Base64.encodeToString(bytes, Base64.NO_WRAP)
     }
 
@@ -143,5 +153,6 @@ class CompanionServer(
         const val STOP_GRACE_MILLIS = 500L
         const val STOP_TIMEOUT_MILLIS = 2_000L
         const val JPEG_QUALITY = 85
+        val PNG = Bitmap.CompressFormat.PNG
     }
 }

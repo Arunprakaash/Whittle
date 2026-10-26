@@ -1,5 +1,6 @@
 package app.whittle.chat.ui
 
+import app.whittle.files.ui.nowMillis
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
