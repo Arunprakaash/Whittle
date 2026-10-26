@@ -20,7 +20,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.AlertDialog
 import app.whittle.background.rememberNotificationPermissionRequest
-import app.whittle.settings.SettingsScreen
 import app.whittle.design.theme.WhittleAppearance
 import app.whittle.design.components.LocalSiteIcons
 import androidx.compose.runtime.CompositionLocalProvider
@@ -47,9 +46,12 @@ import app.whittle.automations.RunNowResult
 import app.whittle.chat.rememberPhoneChatPlatform
 import app.whittle.storage.chats.ChatId
 import app.whittle.chat.ui.AllChatsScreen
+import app.whittle.settings.rememberPhoneSettingsPlatform
+import app.whittle.settings.ui.SettingsNavigation
+import app.whittle.settings.ui.SettingsScreen
 import app.whittle.chat.ui.ChatNavigation
 import app.whittle.chat.ui.ChatScreen
-import app.whittle.chat.ui.LocalUserContent
+import app.whittle.design.window.LocalUserContent
 import app.whittle.observability.posthog.userContent
 import androidx.compose.runtime.CompositionLocalProvider
 import app.whittle.connect.ConnectScreen
@@ -71,7 +73,8 @@ import app.whittle.onboarding.ONBOARDING_STEP_LINUX
 import app.whittle.onboarding.ONBOARDING_STEP_MODEL
 import app.whittle.onboarding.OnboardingSteps
 import app.whittle.onboarding.WelcomeScreen
-import app.whittle.linux.LinuxWorkspaceScreen
+import app.whittle.linux.ui.LinuxPlatform
+import app.whittle.linux.ui.LinuxWorkspaceScreen
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.getAndUpdate
@@ -85,6 +88,7 @@ import app.whittle.core.common.getOrNull
 import app.whittle.core.model.ProviderId
 import app.whittle.storage.secrets.SecretKey
 import app.whittle.connect.BringModelScreen
+import app.whittle.connect.ProviderEntry
 import app.whittle.connect.ClaudeCodeChoice
 import app.whittle.claudecode.ClaudeCodeEntry
 import app.whittle.claudecode.ClaudeCodeFlow
@@ -194,8 +198,7 @@ class MainActivity : ComponentActivity() {
                                 ClaudeCodeStep.None -> {
                                     val connect = viewModel(key = "connect$connectOpenings") { ConnectViewModel(graph) }
                                     ConnectScreen(
-                                        connect.state.collectAsStateWithLifecycle().value,
-                                        connect,
+                                        connect.picker,
                                         header = {
                                             LinuxProgressStrip(graph, compact = false, Modifier.padding(top = WhittleSpace.s))
                                             OnboardingSteps(ONBOARDING_STEP_MODEL, ONBOARDING_STEPS, Modifier.padding(vertical = WhittleSpace.xl))
@@ -333,7 +336,7 @@ class MainActivity : ComponentActivity() {
                             } else if (showingMemory) {
                                 MemoryScreen(graph, onBack = { showingMemory = false; showingSettings = true })
                             } else if (showingLinux) {
-                                LinuxWorkspaceScreen(graph, onBack = { showingLinux = false; showingSettings = true })
+                                LinuxWorkspaceScreen((application as WhittleApplication).linuxHost, LinuxPlatform(opensLinksItself = true), onBack = { showingLinux = false; showingSettings = true })
                             } else if (showingConnectionLibrary) {
                                 ConnectionLibraryScreen(graph, onBack = { showingConnectionLibrary = false; showingSettings = true })
                             } else if (toolsConnection != null) {
@@ -342,10 +345,11 @@ class MainActivity : ComponentActivity() {
                                 val claudeCodeInUse = graph.claudeCode.runs(state.model) && pickerProvider == null
                                 val shownProvider = pickerProvider ?: state.model?.providerId?.takeUnless { claudeCodeInUse }
                                 BringModelScreen(
-                                    providers = graph.providers.providers,
-                                    selected = shownProvider,
+                                    providers = graph.providers.providers.map { ProviderEntry(it.id.value, it.displayName, it.tagline, it.keysUrl) },
+                                    selected = shownProvider?.value,
                                     claudeCode = ClaudeCodeChoice(graph.claudeCode.config.displayName, claudeCodeInUse).takeIf { graph.claudeCode.config.enabled },
-                                    onProvider = { id ->
+                                    onProvider = { picked ->
+                                        val id = ProviderId(picked)
                                         scope.launch {
                                             // A provider whose key is still saved lists its models; another one is connected with its key.
                                             if (graph.secrets.get(SecretKey.providerApiKey(id)).getOrNull() != null) {
@@ -425,24 +429,26 @@ class MainActivity : ComponentActivity() {
                                     ConnectViewModel(graph, current = state.model, provider = pickerProvider ?: state.model?.providerId)
                                 }
                                 ModelPickerScreen(
-                                    state = picker.state.collectAsStateWithLifecycle().value,
-                                    viewModel = picker,
+                                    host = picker.picker,
                                     onClose = { showingModelPicker = false; showingSettings = !pickerFromChat; pickerFromChat = false; pickerProvider = null },
                                     onUseAnother = { choosingProvider = true },
                                 )
                             } else if (showingSettings) {
+                                val app = application as WhittleApplication
                                 SettingsScreen(
-                                    graph = graph,
-                                    settings = settings,
-                                    model = state.model,
-                                    onBack = { showingSettings = false },
-                                    onChangeModel = { showingSettings = false; pickerOpenings += 1; showingModelPicker = true },
-                                    onDeleteAllChats = chat::deleteAllChats,
-                                    onBrowseConnections = { showingSettings = false; showingConnectionLibrary = true },
-                                    onConnectionTools = { connection -> showingSettings = false; toolsOf = connection.server.id },
-                                    onMemory = { showingSettings = false; showingMemory = true },
-                                    onAutomations = { showingSettings = false; showingAutomations = true },
-                                    onLinux = { showingSettings = false; showingLinux = true },
+                                    host = app.settingsHost,
+                                    platform = rememberPhoneSettingsPlatform(
+                                        graph,
+                                        onBrowseConnections = { showingSettings = false; showingConnectionLibrary = true },
+                                        onConnectionTools = { connection -> showingSettings = false; toolsOf = connection.server.id },
+                                    ),
+                                    navigation = SettingsNavigation(
+                                        back = { showingSettings = false },
+                                        changeModel = { showingSettings = false; pickerOpenings += 1; showingModelPicker = true },
+                                        linux = { showingSettings = false; showingLinux = true },
+                                        memory = { showingSettings = false; showingMemory = true },
+                                        automations = { showingSettings = false; showingAutomations = true },
+                                    ),
                                 )
                             } else if (showingAllChats) {
                                 BackHandler { showingAllChats = false }

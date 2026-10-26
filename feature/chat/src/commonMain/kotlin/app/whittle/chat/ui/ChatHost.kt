@@ -127,9 +127,3 @@ fun interface WorkspaceImageLoader {
 /** The images in the chat, from its host. */
 val LocalWorkspaceImages = staticCompositionLocalOf { WorkspaceImageLoader { _, _ -> null } }
 
-/** Marks what the user and the agent wrote, did and made, which stays out of session recordings. */
-val LocalUserContent = staticCompositionLocalOf<Modifier> { Modifier }
-
-/** This, kept out of session recordings where the device makes them. */
-@Composable
-fun Modifier.userContent(): Modifier = then(LocalUserContent.current)

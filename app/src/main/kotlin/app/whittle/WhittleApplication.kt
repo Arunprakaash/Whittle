@@ -21,7 +21,10 @@ import app.whittle.apps.AppToolchainService
 import app.whittle.chat.ChatEvent
 import app.whittle.chat.ChatViewModel
 import app.whittle.chat.PhoneChatHost
+import app.whittle.connect.ModelPicker
 import app.whittle.files.PhoneFilesHost
+import app.whittle.settings.PhoneSettingsHost
+import app.whittle.linux.PhoneLinuxHost
 import app.whittle.companion.CompanionServer
 import app.whittle.linux.ComputerAccessState
 import java.io.File
@@ -50,6 +53,10 @@ class WhittleApplication : Application() {
     /** The workspace's files as the file browser reads them, on the phone and on the user's computers. */
     val filesHost: PhoneFilesHost by lazy { PhoneFilesHost(graph) }
 
+    /** The phone's settings as the Settings page shows them, on the phone and on the user's computers. */
+    val settingsHost: PhoneSettingsHost by lazy { PhoneSettingsHost(graph, chat) }
+    val linuxHost: PhoneLinuxHost by lazy { PhoneLinuxHost(this, graph) }
+
     /** [chat] as the chat screen draws it, on the phone and on the user's computers. */
     val chatHost: PhoneChatHost by lazy { PhoneChatHost(chat, graph, this, graph.appScope) }
 
@@ -67,6 +74,9 @@ class WhittleApplication : Application() {
             linuxFile = { path -> graph.linux.root()?.let { File(it, path.removePrefix("/")) } },
             host = chatHost,
             files = filesHost,
+            settings = settingsHost,
+            linux = linuxHost,
+            picker = { scope -> ModelPicker(graph, scope, current = chat.state.value.model) },
         )
     }
 

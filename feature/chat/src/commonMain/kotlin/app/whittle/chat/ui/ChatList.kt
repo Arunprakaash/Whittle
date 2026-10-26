@@ -1,5 +1,6 @@
 package app.whittle.chat.ui
 
+import app.whittle.design.window.userContent
 import app.whittle.design.components.WhittleMenu
 import app.whittle.design.components.MenuAction
 import androidx.compose.foundation.ExperimentalFoundationApi

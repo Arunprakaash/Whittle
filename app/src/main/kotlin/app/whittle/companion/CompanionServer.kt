@@ -6,12 +6,15 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import app.whittle.chat.ui.ChatAction
 import app.whittle.chat.ui.ChatHost
-import app.whittle.chat.ui.link.Answer
-import app.whittle.chat.ui.link.FromPhone
-import app.whittle.chat.ui.link.LinkJson
-import app.whittle.chat.ui.link.Question
-import app.whittle.chat.ui.link.ToPhone
+import app.whittle.link.Answer
+import app.whittle.link.FromPhone
+import app.whittle.link.LinkJson
+import app.whittle.link.Question
+import app.whittle.link.ToPhone
+import app.whittle.connect.ModelPickerHost
 import app.whittle.files.ui.FilesHost
+import app.whittle.linux.ui.LinuxHost
+import app.whittle.settings.ui.SettingsHost
 import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.EmbeddedServer
@@ -24,7 +27,9 @@ import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -51,6 +56,10 @@ class CompanionServer(
     private val linuxFile: (String) -> File?,
     private val host: ChatHost,
     private val files: FilesHost,
+    private val settings: SettingsHost,
+    private val linux: LinuxHost,
+    /** A model picker for one computer, alive in [scope] until it closes it or leaves. */
+    private val picker: (scope: CoroutineScope) -> ModelPickerHost,
 ) {
     private val lock = Mutex()
     private var server: EmbeddedServer<*, *>? = null
@@ -79,21 +88,44 @@ class CompanionServer(
         write(FromPhone.Welcome(files.defaults, files.mount))
         // The latest state only, at most every updateMillis, so a streaming reply doesn't flood a slow link.
         val sender = launch {
-            combine(host.state, files.version, ::Pair).collect { (state, filesVersion) ->
-                write(FromPhone.View(state, System.currentTimeMillis(), filesVersion))
+            combine(host.state, files.version, settings.state, ::Triple).collect { (state, filesVersion, settingsState) ->
+                write(FromPhone.View(state, System.currentTimeMillis(), filesVersion, settingsState))
                 delay(config.updateMillis)
             }
         }
+        // The Linux page apart, so setup's progress doesn't resend the chat.
+        val linuxSender = launch {
+            linux.state.collect { state ->
+                write(FromPhone.Linux(state))
+                delay(config.updateMillis)
+            }
+        }
+        // This computer's model picker, while it has one open.
+        var picking: Pair<ModelPickerHost, Job>? = null
+        val closePicker = { picking?.second?.cancel(); picking = null }
         try {
             for (frame in incoming) {
                 when (val message = (frame as? Frame.Text)?.let(::read)) {
                     is ToPhone.Act -> if (allowed(message.action)) withContext(Dispatchers.Main) { host.act(message.action) }
+                    is ToPhone.Settings -> withContext(Dispatchers.Main) { settings.act(message.action) }
+                    is ToPhone.Linux -> withContext(Dispatchers.Main) { linux.act(message.action) }
+                    ToPhone.OpenPicker -> {
+                        closePicker()
+                        val job = Job(coroutineContext[Job])
+                        val opened = withContext(Dispatchers.Main) { picker(CoroutineScope(coroutineContext + job)) }
+                        launch(job) { opened.state.collect { write(FromPhone.Picker(it)) } }
+                        picking = opened to job
+                    }
+                    is ToPhone.Picker -> picking?.first?.let { open -> withContext(Dispatchers.Main) { open.act(message.action) } }
+                    ToPhone.ClosePicker -> closePicker()
                     is ToPhone.Ask -> launch { write(FromPhone.Reply(message.id, answer(message.question))) }
                     is ToPhone.Hello, null -> Unit
                 }
             }
         } finally {
+            closePicker()
             sender.cancel()
+            linuxSender.cancel()
         }
     }
 
@@ -109,6 +141,7 @@ class CompanionServer(
         is Question.OpenFile -> Answer.Content(files.open(question.path))
         is Question.PdfPage -> Answer.Picture(files.pdfPage(question.path, question.index, question.widthPx)?.let { encode(it, PNG) })
         is Question.DeleteFile -> Answer.Done.also { files.delete(question.path) }
+        is Question.AddComputer -> Answer.KeyAdded(linux.addComputer(question.key))
     }
 
     /** [image] encoded for the link: JPEG for photos, PNG for pages, whose text JPEG would blur. */

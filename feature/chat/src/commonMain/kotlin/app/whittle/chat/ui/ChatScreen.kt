@@ -1,5 +1,6 @@
 package app.whittle.chat.ui
 
+import app.whittle.design.window.userContent
 import app.whittle.design.window.BackHandler
 import app.whittle.design.window.LocalWindowChrome
 import app.whittle.design.window.WindowTopBar

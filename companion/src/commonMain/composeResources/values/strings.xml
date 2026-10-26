@@ -15,4 +15,6 @@ ssh -L %1$d:127.0.0.1:%1$d phone</string>
     <string name="preview_open">Open in browser</string>
     <string name="preview_cancel">Cancel</string>
     <string name="preview_waiting">It isn't serving yet; try again once its card says it's live.</string>
+    <!-- Settings on a computer: what only the phone can change. -->
+    <string name="settings_on_phone">Connections, phone features, the assistant and updates are in Whittle on your phone.</string>
 </resources>

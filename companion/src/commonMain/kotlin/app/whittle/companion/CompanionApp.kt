@@ -27,7 +27,15 @@ import app.whittle.chat.ui.ChatScreen
 import app.whittle.design.window.LocalWindowChrome
 import app.whittle.chat.ui.isDark
 import app.whittle.companion.resources.Res
+import androidx.compose.runtime.DisposableEffect
+import app.whittle.connect.BringModelScreen
+import app.whittle.connect.ModelPickerScreen
+import app.whittle.connect.PickerAction
 import app.whittle.files.ui.FilesBrowser
+import app.whittle.linux.ui.LinuxPlatform
+import app.whittle.linux.ui.LinuxWorkspaceScreen
+import app.whittle.settings.ui.SettingsNavigation
+import app.whittle.settings.ui.SettingsScreen
 import app.whittle.files.ui.FilesOpening
 import app.whittle.files.ui.FilesPlace
 import app.whittle.files.ui.FilesPlatform
@@ -73,16 +81,20 @@ fun CompanionApp(link: PhoneLink, phone: PhoneAddress = PhoneAddress.Default, to
     }
 }
 
-/** The phone's screens: the chat, the Chats page, and the file browser for projects and files. */
+/** The phone's screens: the chat, the Chats page, the file browser for projects and files, and Settings. */
 @Composable
 private fun PhoneScreens(link: PhoneLink) {
     var allChats by rememberSaveable { mutableStateOf(false) }
+    var settings by rememberSaveable { mutableStateOf(false) }
+    var picking by rememberSaveable { mutableStateOf(false) }
+    var linux by rememberSaveable { mutableStateOf(false) }
     var opening by rememberSaveable(stateSaver = filesOpeningSaver) { mutableStateOf<FilesOpening?>(null) }
     val files = link.files.collectAsState().value
     val platform = remember(files != null) {
         ComputerChatPlatform(
             ChatNavigation(
                 viewAllChats = { allChats = true },
+                openSettings = { settings = true },
                 openProjects = files?.let { { opening = FilesOpening(FilesPlace.Folder("")) } },
                 openFile = files?.let { { path, chat -> opening = FilesOpening(FilesPlace.Document(path), chat) } },
                 openFolder = files?.let { { path, chat -> opening = FilesOpening(FilesPlace.Folder(path), chat) } },
@@ -99,6 +111,14 @@ private fun PhoneScreens(link: PhoneLink) {
             onAsk = { link.act(ChatAction.SendText(it)) },
             onClose = { opening = null },
         )
+        picking -> ModelPicking(link, onClose = { picking = false })
+        // The sign-in link opens from the row's Open link: a page opened by itself here would be blocked.
+        linux -> LinuxWorkspaceScreen(link.linux, remember { LinuxPlatform(opensLinksItself = false) }, onBack = { linux = false })
+        settings -> SettingsScreen(
+            host = link.settings,
+            platform = remember { ComputerSettingsPlatform() },
+            navigation = SettingsNavigation(back = { settings = false }, changeModel = { picking = true }, linux = { linux = true }),
+        )
         allChats -> AllChatsScreen(
             state = link.state.collectAsState().value,
             onAction = link::act,
@@ -106,6 +126,30 @@ private fun PhoneScreens(link: PhoneLink) {
             onOpen = { id -> link.act(ChatAction.OpenChat(id)); allChats = false },
         )
         else -> ChatScreen(link, platform)
+    }
+}
+
+/**
+ * Changing the model, from Settings: the phone's picker for this computer, its models listed with the saved key; Use
+ * another lists the providers, and a key typed here goes to the phone to be checked and kept.
+ */
+@Composable
+private fun ModelPicking(link: PhoneLink, onClose: () -> Unit) {
+    val picker = remember { link.openPicker() }
+    DisposableEffect(picker) { onDispose { link.closePicker() } }
+    var choosing by rememberSaveable { mutableStateOf(false) }
+    if (choosing) {
+        val state = picker.state.collectAsState().value
+        BringModelScreen(
+            providers = state.providers,
+            selected = state.providerId,
+            claudeCode = null,
+            onProvider = { picker.act(PickerAction.SelectProvider(it)); choosing = false },
+            onClaudeCode = {},
+            onBack = { choosing = false },
+        )
+    } else {
+        ModelPickerScreen(picker, onClose = onClose, onUseAnother = { choosing = true })
     }
 }
 

@@ -6,17 +6,27 @@ import app.whittle.chat.ui.ChatAction
 import app.whittle.chat.ui.ChatEvent
 import app.whittle.chat.ui.ChatHost
 import app.whittle.chat.ui.ChatScreenState
+import app.whittle.connect.ModelPickerHost
+import app.whittle.connect.PickerAction
+import app.whittle.connect.PickerState
 import app.whittle.chat.ui.ThreadRow
-import app.whittle.chat.ui.link.Answer
-import app.whittle.chat.ui.link.FromPhone
-import app.whittle.chat.ui.link.LinkJson
-import app.whittle.chat.ui.link.Question
-import app.whittle.chat.ui.link.ToPhone
+import app.whittle.link.Answer
+import app.whittle.link.FromPhone
+import app.whittle.link.LinkJson
+import app.whittle.link.Question
+import app.whittle.link.ToPhone
 import app.whittle.files.FileChange
 import app.whittle.files.ui.FileContent
 import app.whittle.files.ui.FileEntry
 import app.whittle.files.ui.FilesHost
 import app.whittle.settings.FilesDefaults
+import app.whittle.linux.ui.KeyIssue
+import app.whittle.linux.ui.LinuxAction
+import app.whittle.linux.ui.LinuxHost
+import app.whittle.linux.ui.LinuxScreenState
+import app.whittle.settings.ui.SettingsAction
+import app.whittle.settings.ui.SettingsHost
+import app.whittle.settings.ui.SettingsState
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
@@ -73,7 +83,52 @@ class PhoneLink(private val scope: CoroutineScope) : ChatHost {
     // Haptics and toasts are the phone's own; the computer has nothing to feel.
     override val events: Flow<ChatEvent> = emptyFlow()
 
+    private val pickerState = MutableStateFlow(PickerState())
+
+    /** Opens the phone's model picker for this computer; [closePicker] when done. */
+    fun openPicker(): ModelPickerHost {
+        pickerState.value = PickerState()
+        outgoing.trySend(ToPhone.OpenPicker)
+        return object : ModelPickerHost {
+            override val state: StateFlow<PickerState> = pickerState.asStateFlow()
+
+            override fun act(action: PickerAction) {
+                outgoing.trySend(ToPhone.Picker(action))
+            }
+        }
+    }
+
+    fun closePicker() {
+        outgoing.trySend(ToPhone.ClosePicker)
+    }
+
     private val filesVersion = MutableStateFlow(0L)
+    private val remoteSettings = MutableStateFlow(SettingsState())
+
+    /** The phone's Settings page, changed over the link. */
+    val settings: SettingsHost = object : SettingsHost {
+        override val state: StateFlow<SettingsState> = remoteSettings.asStateFlow()
+
+        override fun act(action: SettingsAction) {
+            outgoing.trySend(ToPhone.Settings(action))
+        }
+    }
+
+    private val remoteLinux = MutableStateFlow(LinuxScreenState())
+
+    /** The phone's Linux workspace page, changed over the link. */
+    val linux: LinuxHost = object : LinuxHost {
+        override val state: StateFlow<LinuxScreenState> = remoteLinux.asStateFlow()
+
+        override fun act(action: LinuxAction) {
+            outgoing.trySend(ToPhone.Linux(action))
+        }
+
+        override suspend fun addComputer(key: String): KeyIssue? = when (val answer = ask(Question.AddComputer(key))) {
+            is Answer.KeyAdded -> answer.issue
+            else -> KeyIssue.NoAnswer
+        }
+    }
     private val mutableFiles = MutableStateFlow<FilesHost?>(null)
 
     /** The phone's workspace for the file browser, once the phone has said how it lists files. */
@@ -101,9 +156,12 @@ class PhoneLink(private val scope: CoroutineScope) : ChatHost {
                             is FromPhone.View -> {
                                 remote.value = message.state.onThisClock(nowMillis() - message.sentAtMillis)
                                 filesVersion.value = message.filesVersion
+                                remoteSettings.value = message.settings
                                 mutableLink.value = LinkState.Live
                             }
                             is FromPhone.Reply -> replies.remove(message.id)?.complete(message.answer)
+                            is FromPhone.Picker -> pickerState.value = message.state
+                            is FromPhone.Linux -> remoteLinux.value = message.state
                         }
                     }
                     sender.cancel()

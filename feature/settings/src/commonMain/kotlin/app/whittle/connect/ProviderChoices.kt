@@ -1,6 +1,6 @@
 package app.whittle.connect
 
-import androidx.activity.compose.BackHandler
+import app.whittle.design.window.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,11 +23,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
-import app.whittle.R
-import app.whittle.core.model.ProviderId
+import app.whittle.settings.ui.resources.Res
+import app.whittle.settings.ui.resources.*
 import app.whittle.design.components.ScreenHeading
 import app.whittle.design.components.TopBarButton
 import app.whittle.design.components.WhittleIcon
@@ -37,7 +37,6 @@ import app.whittle.design.tokens.WhittleHaptic
 import app.whittle.design.tokens.WhittleRadius
 import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
-import app.whittle.llm.api.ProviderDescriptor
 
 /** Claude Code as a provider choice: its name, and whether it's the one in use. */
 data class ClaudeCodeChoice(val name: String, val selected: Boolean)
@@ -48,10 +47,10 @@ data class ClaudeCodeChoice(val name: String, val selected: Boolean)
  */
 @Composable
 fun ProviderChoices(
-    providers: List<ProviderDescriptor>,
-    selected: ProviderId?,
+    providers: List<ProviderEntry>,
+    selected: String?,
     claudeCode: ClaudeCodeChoice?,
-    onProvider: (ProviderId) -> Unit,
+    onProvider: (String) -> Unit,
     onClaudeCode: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
@@ -74,7 +73,7 @@ fun ProviderChoices(
             ChoiceRow(
                 icon = CLAUDE_CODE_ICON,
                 name = choice.name,
-                detail = stringResource(R.string.claude_code_option_detail),
+                detail = stringResource(Res.string.claude_code_option_detail),
                 selected = choice.selected,
                 trailing = if (choice.selected) CHECK_ICON else CHEVRON_ICON,
                 index = count - 1,
@@ -89,19 +88,19 @@ fun ProviderChoices(
 /** Changing how the model is brought: the same choices as the first run, with the one in use ticked. */
 @Composable
 fun BringModelScreen(
-    providers: List<ProviderDescriptor>,
-    selected: ProviderId?,
+    providers: List<ProviderEntry>,
+    selected: String?,
     claudeCode: ClaudeCodeChoice?,
-    onProvider: (ProviderId) -> Unit,
+    onProvider: (String) -> Unit,
     onClaudeCode: () -> Unit,
     onBack: () -> Unit,
 ) {
-    BackHandler(onBack = onBack)
+    BackHandler(enabled = true, onBack = onBack)
     Scaffold(
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = WhittleSpace.m, vertical = WhittleSpace.s)) {
-                TopBarButton("arrow_back", stringResource(R.string.connect_back), onBack)
+                TopBarButton("arrow_back", stringResource(Res.string.connect_back), onBack)
             }
         },
     ) { padding ->
@@ -109,7 +108,7 @@ fun BringModelScreen(
             Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = WhittleSpace.l),
             verticalArrangement = Arrangement.spacedBy(WhittleSpace.xxl),
         ) {
-            ScreenHeading(stringResource(R.string.bring_model_title), stringResource(R.string.bring_model_body), Modifier.padding(horizontal = WhittleSpace.s))
+            ScreenHeading(stringResource(Res.string.bring_model_title), stringResource(Res.string.bring_model_body), Modifier.padding(horizontal = WhittleSpace.s))
             ProviderChoices(providers, selected, claudeCode, onProvider, onClaudeCode)
         }
     }
@@ -117,7 +116,7 @@ fun BringModelScreen(
 
 /** One way to bring a model, or to sign in: an icon tile, a name and a line about it, in a segmented list. */
 @Composable
-internal fun ChoiceRow(
+fun ChoiceRow(
     icon: String,
     name: String,
     detail: String,

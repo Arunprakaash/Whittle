@@ -1,15 +1,22 @@
 package app.whittle.connect
 
-import android.content.ActivityNotFoundException
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.foundation.layout.Box
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.saveable.rememberSaveable
+import app.whittle.design.window.WindowTopBar
+import app.whittle.design.window.LocalWindowChrome
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.runtime.collectAsState
+import app.whittle.design.window.BackHandler
+import app.whittle.design.window.plainText
+import app.whittle.design.window.secretContent
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -23,8 +30,6 @@ import androidx.compose.ui.graphics.SolidColor
 import app.whittle.design.components.connectedShape
 import app.whittle.design.tokens.WhittleFonts
 import app.whittle.design.tokens.WhittleRadius
-import androidx.activity.compose.BackHandler
-import app.whittle.observability.posthog.hiddenFromReplay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -61,13 +66,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
-import app.whittle.R
+import app.whittle.settings.ui.resources.Res
+import app.whittle.settings.ui.resources.*
 import app.whittle.design.components.TopBarButton
 import app.whittle.design.components.WhittleIcon
 import app.whittle.design.components.WhittleSearchBar
@@ -76,18 +82,17 @@ import app.whittle.design.theme.WhittleTheme
 import app.whittle.design.tokens.WhittleHaptic
 import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
-import app.whittle.llm.api.ModelDescriptor
 
 /** Connecting the first model. [header] sits above it: on first run, Linux's setup and the step bar. */
 @Composable
 fun ConnectScreen(
-    state: ConnectState,
-    viewModel: ConnectViewModel,
+    host: ModelPickerHost,
     header: @Composable ColumnScope.() -> Unit = {},
     /** Claude Code's name when it's offered as a way to bring a model; [onClaudeCode] opens its setup. */
     claudeCode: String? = null,
     onClaudeCode: () -> Unit = {},
 ) {
+    val state by host.state.collectAsState()
     Column(
         Modifier
             .fillMaxSize()
@@ -98,14 +103,14 @@ fun ConnectScreen(
     ) {
         header()
         when (val phase = state.phase) {
-            is ConnectPhase.ChooseModel -> Column(
+            is PickerPhase.ChooseModel -> Column(
                 Modifier.weight(1f).padding(vertical = WhittleSpace.l),
                 verticalArrangement = Arrangement.spacedBy(WhittleSpace.l),
             ) {
-                PickerTitle(viewModel::backToKey)
-                ChooseModel(phase, viewModel, onChoose = { viewModel.choose(it) })
+                PickerTitle({ host.act(PickerAction.BackToKey) })
+                ChooseModel(phase, host, onChoose = { host.act(PickerAction.Choose(it.id)) })
             }
-            else -> EnterKey(state, phase, viewModel, claudeCode, onClaudeCode)
+            else -> EnterKey(state, phase, host, claudeCode, onClaudeCode)
         }
     }
 }
@@ -114,12 +119,12 @@ fun ConnectScreen(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ModelPickerScreen(
-    state: ConnectState,
-    viewModel: ConnectViewModel,
+    host: ModelPickerHost,
     onClose: () -> Unit,
     onUseAnother: () -> Unit,
 ) {
-    BackHandler(onBack = onClose)
+    BackHandler(enabled = true, onBack = onClose)
+    val state by host.state.collectAsState()
     val haptics = WhittleTheme.haptics
     Column(
         Modifier
@@ -129,35 +134,37 @@ fun ModelPickerScreen(
             .imePadding(),
     ) {
         // The same top bar as Settings and the other screens it opens.
-        PickerTitle(onClose, Modifier.padding(horizontal = WhittleSpace.m, vertical = WhittleSpace.s))
+        WindowTopBar {
+            PickerTitle(onClose, Modifier.windowInsetsPadding(LocalWindowChrome.current?.insets ?: WindowInsets(0)).padding(horizontal = WhittleSpace.m, vertical = WhittleSpace.s))
+        }
         Column(
             Modifier.weight(1f).padding(horizontal = WhittleSpace.l, vertical = WhittleSpace.l),
             verticalArrangement = Arrangement.spacedBy(WhittleSpace.l),
         ) {
             val switchProvider: @Composable () -> Unit = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(state.provider.displayName, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                    TextButton(onClick = onUseAnother) { Text(stringResource(R.string.model_picker_other_provider)) }
+                    Text(state.provider?.displayName.orEmpty(), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                    TextButton(onClick = onUseAnother) { Text(stringResource(Res.string.model_picker_other_provider)) }
                 }
             }
             when (val phase = state.phase) {
-                is ConnectPhase.ChooseModel -> ChooseModel(phase, viewModel, onChoose = { viewModel.choose(it, onClose) }, header = switchProvider)
-                ConnectPhase.Checking -> {
+                is PickerPhase.ChooseModel -> ChooseModel(phase, host, onChoose = { host.act(PickerAction.Choose(it.id)); onClose() }, header = switchProvider)
+                PickerPhase.Checking -> {
                     switchProvider()
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
                         CircularProgressIndicator(Modifier.size(WhittleSize.Icon.m), strokeWidth = WhittleSpace.hairline)
-                        Text(stringResource(R.string.model_picker_loading), style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(Res.string.model_picker_loading), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
-                is ConnectPhase.LoadFailed -> {
+                is PickerPhase.LoadFailed -> {
                     switchProvider()
-                    Text(errorText(phase.error, state.provider.displayName), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-                    Button(onClick = { haptics.perform(WhittleHaptic.Tap); viewModel.retry() }, shapes = ButtonDefaults.shapes()) {
-                        Text(stringResource(R.string.model_picker_retry))
+                    Text(errorText(phase.error, state.provider?.displayName.orEmpty()), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                    Button(onClick = { haptics.perform(WhittleHaptic.Tap); host.act(PickerAction.Retry) }, shapes = ButtonDefaults.shapes()) {
+                        Text(stringResource(Res.string.model_picker_retry))
                     }
                 }
                 // The saved key is missing: ask for it, as when connecting.
-                is ConnectPhase.EnterKey -> EnterKey(state, phase, viewModel)
+                is PickerPhase.EnterKey -> EnterKey(state, phase, host)
             }
         }
     }
@@ -171,8 +178,8 @@ private fun PickerTitle(onBack: () -> Unit, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m),
     ) {
-        TopBarButton("arrow_back", stringResource(R.string.connect_back), onBack)
-        Text(stringResource(R.string.connect_choose_model), style = MaterialTheme.typography.titleLarge)
+        TopBarButton("arrow_back", stringResource(Res.string.connect_back), onBack)
+        Text(stringResource(Res.string.connect_choose_model), style = MaterialTheme.typography.titleLarge)
     }
 }
 
@@ -180,50 +187,54 @@ private fun PickerTitle(onBack: () -> Unit, modifier: Modifier = Modifier) {
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ColumnScope.EnterKey(
-    state: ConnectState,
-    phase: ConnectPhase,
-    viewModel: ConnectViewModel,
+    state: PickerState,
+    phase: PickerPhase,
+    host: ModelPickerHost,
     claudeCode: String? = null,
     onClaudeCode: () -> Unit = {},
 ) {
     val haptics = WhittleTheme.haptics
     val colors = MaterialTheme.colorScheme
     val uriHandler = LocalUriHandler.current
-    val checking = phase == ConnectPhase.Checking
+    val checking = phase == PickerPhase.Checking
+    // The key stays on the screen it's typed on until Connect sends it to be checked.
+    var key by rememberSaveable { mutableStateOf("") }
+    val connect = { if (key.isNotBlank() && !checking) host.act(PickerAction.Connect(key.trim())) }
     Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.xxl)) {
         Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
-            Text(stringResource(R.string.connect_title), style = MaterialTheme.typography.headlineMedium)
-            Text(stringResource(R.string.connect_body), style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant)
+            Text(stringResource(Res.string.connect_title), style = MaterialTheme.typography.headlineMedium)
+            Text(stringResource(Res.string.connect_body), style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant)
         }
         Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
-            Text(stringResource(R.string.connect_provider), style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(Res.string.connect_provider), style = MaterialTheme.typography.labelLarge)
             ProviderChoices(
                 providers = state.providers,
                 selected = state.providerId,
                 claudeCode = claudeCode?.let { ClaudeCodeChoice(it, selected = false) },
-                onProvider = viewModel::selectProvider,
+                onProvider = { host.act(PickerAction.SelectProvider(it)) },
                 onClaudeCode = onClaudeCode,
                 enabled = !checking,
             )
         }
         Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
-            KeyField(state, phase, viewModel)
-            state.provider.keysUrl?.let { url ->
+            KeyField(key, state, phase, onKey = { typed ->
+                key = typed
+                // A new key clears what was said about the last one.
+                if ((phase as? PickerPhase.EnterKey)?.error != null) host.act(PickerAction.BackToKey)
+            }, onDone = connect)
+            state.provider?.keysUrl?.let { url ->
                 Row(
                     Modifier
                         .clip(CircleShape)
                         .clickable(role = Role.Button) {
-                            try {
-                                uriHandler.openUri(url)
-                            } catch (exception: ActivityNotFoundException) {
-                                // No browser on the phone; the link has nowhere to go.
-                            }
+                            // With no browser to open it, the link has nowhere to go.
+                            runCatching { uriHandler.openUri(url) }
                         }
                         .padding(WhittleSpace.xs),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s),
                 ) {
-                    Text(stringResource(R.string.connect_get_key, state.provider.displayName), style = MaterialTheme.typography.labelLarge, color = colors.primary)
+                    Text(stringResource(Res.string.connect_get_key, state.provider?.displayName.orEmpty()), style = MaterialTheme.typography.labelLarge, color = colors.primary)
                     WhittleIcon("open_in_new", size = WhittleSize.Icon.m, tint = colors.primary)
                 }
             }
@@ -231,38 +242,38 @@ private fun ColumnScope.EnterKey(
     }
     Spacer(Modifier.weight(1f))
     Button(
-        onClick = { haptics.perform(WhittleHaptic.Tap); viewModel.connect() },
+        onClick = { haptics.perform(WhittleHaptic.Tap); connect() },
         shapes = ButtonDefaults.shapes(),
-        enabled = state.key.isNotBlank() && !checking,
+        enabled = key.isNotBlank() && !checking,
         modifier = Modifier.padding(top = WhittleSpace.l, bottom = WhittleSpace.xxl).fillMaxWidth().height(WhittleSize.Button.large),
     ) {
         if (checking) {
             CircularProgressIndicator(Modifier.size(WhittleSize.Icon.m), strokeWidth = WhittleSpace.hairline, color = colors.onPrimary)
             Spacer(Modifier.size(WhittleSpace.s))
-            Text(stringResource(R.string.connect_checking), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(Res.string.connect_checking), style = MaterialTheme.typography.titleMedium)
         } else {
             WhittleIcon("key", size = WhittleSize.Icon.l)
             Spacer(Modifier.size(WhittleSpace.s))
-            Text(stringResource(R.string.connect_action), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(Res.string.connect_action), style = MaterialTheme.typography.titleMedium)
         }
     }
 }
 
 /** The key: a filled, rounded field like the search bar, its label on top (green while typing, red when refused), the key in mono. */
 @Composable
-private fun KeyField(state: ConnectState, phase: ConnectPhase, viewModel: ConnectViewModel) {
-    val error = (phase as? ConnectPhase.EnterKey)?.error
+private fun KeyField(key: String, state: PickerState, phase: PickerPhase, onKey: (String) -> Unit, onDone: () -> Unit) {
+    val error = (phase as? PickerPhase.EnterKey)?.error
     SecretField(
-        value = state.key,
-        onValueChange = viewModel::updateKey,
-        label = stringResource(R.string.connect_key_label),
-        enabled = phase != ConnectPhase.Checking,
+        value = key,
+        onValueChange = onKey,
+        label = stringResource(Res.string.connect_key_label),
+        enabled = phase != PickerPhase.Checking,
         isError = error != null,
-        onDone = viewModel::connect,
+        onDone = onDone,
     )
     error?.let {
         Text(
-            errorText(it, state.provider.displayName),
+            errorText(it, state.provider?.displayName.orEmpty()),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error,
             modifier = Modifier.padding(start = WhittleSpace.xl),
@@ -287,10 +298,9 @@ fun SecretField(
     var keyVisible by remember { mutableStateOf(false) }
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    val context = LocalContext.current
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
-    val pasteLabel = stringResource(R.string.connect_key_paste)
+    val pasteLabel = stringResource(Res.string.connect_key_paste)
     val accent = when {
         isError -> colors.error
         focused -> colors.primary
@@ -307,7 +317,7 @@ fun SecretField(
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done, autoCorrectEnabled = false),
         keyboardActions = KeyboardActions(onDone = { onDone() }),
         interactionSource = interaction,
-        modifier = Modifier.fillMaxWidth().hiddenFromReplay(),
+        modifier = Modifier.fillMaxWidth().secretContent(),
         decorationBox = { input ->
             Row(
                 Modifier
@@ -324,7 +334,7 @@ fun SecretField(
                         .clip(CircleShape)
                         .clickable(enabled = enabled, role = Role.Button) {
                             scope.launch {
-                                clipboard.getClipEntry()?.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()?.trim()
+                                clipboard.getClipEntry()?.plainText()?.trim()
                                     ?.let(onValueChange)
                             }
                         }
@@ -340,7 +350,7 @@ fun SecretField(
                 IconButton(onClick = { keyVisible = !keyVisible }) {
                     WhittleIcon(
                         if (keyVisible) "visibility_off" else "visibility",
-                        contentDescription = stringResource(if (keyVisible) R.string.connect_key_hide else R.string.connect_key_show),
+                        contentDescription = stringResource(if (keyVisible) Res.string.connect_key_hide else Res.string.connect_key_show),
                         tint = colors.onSurfaceVariant,
                     )
                 }
@@ -351,29 +361,29 @@ fun SecretField(
 
 @Composable
 private fun ChooseModel(
-    phase: ConnectPhase.ChooseModel,
-    viewModel: ConnectViewModel,
-    onChoose: (ModelDescriptor) -> Unit,
+    phase: PickerPhase.ChooseModel,
+    host: ModelPickerHost,
+    onChoose: (ModelEntry) -> Unit,
     header: (@Composable () -> Unit)? = null,
 ) {
     val haptics = WhittleTheme.haptics
     header?.invoke()
     val search = rememberTextFieldState(phase.query)
-    LaunchedEffect(search) { snapshotFlow { search.text.toString() }.collect(viewModel::updateQuery) }
-    WhittleSearchBar(search, placeholder = stringResource(R.string.connect_search_models), clearLabel = stringResource(R.string.search_clear))
+    LaunchedEffect(search) { snapshotFlow { search.text.toString() }.collect { host.act(PickerAction.Query(it)) } }
+    WhittleSearchBar(search, placeholder = stringResource(Res.string.connect_search_models), clearLabel = stringResource(Res.string.search_clear))
     val models = phase.visible
     if (models.isEmpty()) {
-        Text(stringResource(R.string.connect_no_models), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(Res.string.connect_no_models), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     LazyColumn(verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
-        itemsIndexed(models, key = { _, model -> model.id.value }) { index, model ->
+        itemsIndexed(models, key = { _, model -> model.id }) { index, model ->
             ModelRow(model, segmentedShape(index, models.size)) { haptics.perform(WhittleHaptic.Approve); onChoose(model) }
         }
     }
 }
 
 @Composable
-private fun ModelRow(model: ModelDescriptor, shape: RoundedCornerShape, onClick: () -> Unit) {
+private fun ModelRow(model: ModelEntry, shape: RoundedCornerShape, onClick: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -382,17 +392,17 @@ private fun ModelRow(model: ModelDescriptor, shape: RoundedCornerShape, onClick:
             .padding(horizontal = WhittleSpace.l, vertical = WhittleSpace.m),
     ) {
         Text(model.displayName, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (model.displayName != model.id.value) {
-            Text(model.id.value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        if (model.displayName != model.id) {
+            Text(model.id, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
     }
 }
 
 @Composable
-private fun errorText(error: ConnectError, provider: String): String = when (error) {
-    ConnectError.KeyRejected -> stringResource(R.string.error_key_rejected, provider)
-    ConnectError.Unreachable -> stringResource(R.string.error_unreachable, provider)
-    is ConnectError.ProviderFailed -> stringResource(R.string.error_provider, provider, error.statusCode)
-    ConnectError.StorageFailed -> stringResource(R.string.error_storage)
-    ConnectError.Unknown -> stringResource(R.string.error_generic)
+private fun errorText(error: PickerError, provider: String): String = when (error) {
+    PickerError.KeyRejected -> stringResource(Res.string.error_key_rejected, provider)
+    PickerError.Unreachable -> stringResource(Res.string.error_unreachable, provider)
+    is PickerError.ProviderFailed -> stringResource(Res.string.error_provider, provider, error.statusCode)
+    PickerError.StorageFailed -> stringResource(Res.string.error_storage)
+    PickerError.Unknown -> stringResource(Res.string.error_generic)
 }

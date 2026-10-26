@@ -71,6 +71,8 @@ include(
     ":design:system",
     ":feature:chat",
     ":feature:files",
+    ":feature:settings",
+    ":feature:link",
     ":app",
     ":companion",
     ":dev:cli",

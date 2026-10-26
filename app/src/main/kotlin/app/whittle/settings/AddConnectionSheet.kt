@@ -58,6 +58,7 @@ import app.whittle.connectors.mcp.McpConnection
 import app.whittle.connectors.mcp.McpTransportKind
 import app.whittle.connectors.mcp.OAuthClientCredentials
 import app.whittle.core.common.Outcome
+import app.whittle.design.components.CopyableText
 import app.whittle.design.components.WhittleIcon
 import app.whittle.design.components.connectedShape
 import app.whittle.design.components.segmentedShape

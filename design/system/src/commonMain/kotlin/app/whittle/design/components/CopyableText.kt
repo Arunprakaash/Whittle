@@ -1,4 +1,4 @@
-package app.whittle.settings
+package app.whittle.design.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -13,7 +13,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import app.whittle.design.components.WhittleIcon
 import app.whittle.design.tokens.WhittleFonts
 import app.whittle.design.tokens.WhittleRadius
 import app.whittle.design.tokens.WhittleSize
@@ -24,7 +23,7 @@ import app.whittle.design.tokens.WhittleSpace
  * below, when given. [code] sets it in the mono face, for commands.
  */
 @Composable
-internal fun CopyableText(text: String, copyDescription: String, onCopy: () -> Unit, label: String? = null, hint: String? = null, code: Boolean = false) {
+fun CopyableText(text: String, copyDescription: String, onCopy: () -> Unit, label: String? = null, hint: String? = null, code: Boolean = false) {
     val colors = MaterialTheme.colorScheme
     Column(
         Modifier.fillMaxWidth().background(colors.surfaceContainerLowest, RoundedCornerShape(WhittleRadius.l)).padding(start = WhittleSpace.m, top = WhittleSpace.s, bottom = WhittleSpace.s),

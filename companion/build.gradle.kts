@@ -15,7 +15,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(project(":feature:chat"))
+            implementation(project(":feature:link"))
             implementation(libs.compose.mp.resources)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.websockets)

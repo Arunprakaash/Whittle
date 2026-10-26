@@ -2,6 +2,10 @@ package app.whittle.connect
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import app.whittle.AppGraph
 import app.whittle.core.common.HarnessError
 import app.whittle.core.common.Outcome
@@ -70,11 +74,12 @@ sealed interface ConnectError {
  * provider's saved key lists its models and is never asked for again. Only a key that's missing is asked for.
  * A provider outside the catalog (Claude Code) is treated as none.
  */
-class ConnectViewModel(
+class ModelPicker(
     private val graph: AppGraph,
+    private val scope: CoroutineScope,
     current: ModelDescriptor? = null,
     provider: ProviderId? = current?.providerId,
-) : ViewModel() {
+) : ModelPickerHost {
     private val connected: ProviderId? = provider?.takeIf { id -> graph.providers.providers.any { it.id == id } }
 
     private val _state = MutableStateFlow(
@@ -85,7 +90,24 @@ class ConnectViewModel(
             switching = connected != null,
         ),
     )
-    val state: StateFlow<ConnectState> = _state.asStateFlow()
+    /** The phone's own view of the picker, with its models as the catalog describes them. */
+    val connectState: StateFlow<ConnectState> = _state.asStateFlow()
+
+    override val state: StateFlow<PickerState> = _state.map(::picker).stateIn(scope, SharingStarted.Eagerly, picker(_state.value))
+
+    override fun act(action: PickerAction) {
+        when (action) {
+            is PickerAction.SelectProvider -> selectProvider(ProviderId(action.id))
+            is PickerAction.Connect -> {
+                updateKey(action.key)
+                connect()
+            }
+            is PickerAction.Query -> updateQuery(action.query)
+            PickerAction.BackToKey -> backToKey()
+            PickerAction.Retry -> retry()
+            is PickerAction.Choose -> (_state.value.phase as? ConnectPhase.ChooseModel)?.models?.firstOrNull { it.id.value == action.modelId }?.let(::choose)
+        }
+    }
 
     init {
         retry()
@@ -95,7 +117,7 @@ class ConnectViewModel(
     fun retry() {
         val provider = connected ?: return
         _state.update { it.copy(phase = ConnectPhase.Checking) }
-        viewModelScope.launch {
+        scope.launch {
             val key = graph.secrets.get(SecretKey.providerApiKey(provider)).getOrNull()
             val phase = if (key == null) {
                 ConnectPhase.EnterKey(error = null)
@@ -112,7 +134,7 @@ class ConnectViewModel(
     /** Picks the provider; one whose key is still saved on this phone lists its models without asking for it again. */
     fun selectProvider(id: ProviderId) {
         _state.update { it.copy(providerId = id, phase = ConnectPhase.EnterKey(error = null)) }
-        viewModelScope.launch {
+        scope.launch {
             val key = graph.secrets.get(SecretKey.providerApiKey(id)).getOrNull() ?: return@launch
             if (_state.value.providerId != id) return@launch
             _state.update { it.copy(phase = ConnectPhase.Checking) }
@@ -138,7 +160,7 @@ class ConnectViewModel(
         val key = Secret(current.key.trim())
         if (key.reveal().isEmpty() || current.phase == ConnectPhase.Checking) return
         _state.update { it.copy(phase = ConnectPhase.Checking) }
-        viewModelScope.launch {
+        scope.launch {
             val phase = graph.keyVerifier.verify(current.provider, key)
                 .flatMap { graph.modelLister.listModels(current.provider, key) }
                 .flatMap { models -> graph.secrets.put(SecretKey.providerApiKey(current.providerId), key).map { models } }
@@ -153,10 +175,30 @@ class ConnectViewModel(
     }
 
     fun choose(model: ModelDescriptor, then: () -> Unit = {}) {
-        viewModelScope.launch {
+        scope.launch {
             graph.connections.save(model)
             then()
         }
+    }
+
+    private fun picker(state: ConnectState) = PickerState(
+        providers = state.providers.map { ProviderEntry(it.id.value, it.displayName, it.tagline, it.keysUrl) },
+        providerId = state.providerId.value,
+        phase = when (val phase = state.phase) {
+            is ConnectPhase.EnterKey -> PickerPhase.EnterKey(phase.error?.let(::pickerError))
+            ConnectPhase.Checking -> PickerPhase.Checking
+            is ConnectPhase.LoadFailed -> PickerPhase.LoadFailed(pickerError(phase.error))
+            is ConnectPhase.ChooseModel -> PickerPhase.ChooseModel(phase.models.map { ModelEntry(it.id.value, it.displayName) }, phase.query)
+        },
+        switching = state.switching,
+    )
+
+    private fun pickerError(error: ConnectError): PickerError = when (error) {
+        ConnectError.KeyRejected -> PickerError.KeyRejected
+        ConnectError.Unreachable -> PickerError.Unreachable
+        is ConnectError.ProviderFailed -> PickerError.ProviderFailed(error.statusCode)
+        ConnectError.StorageFailed -> PickerError.StorageFailed
+        ConnectError.Unknown -> PickerError.Unknown
     }
 
     /** Models that can use tools, newest families first (gpt-6 before gpt-3.5); ids sort that way within a provider. */
@@ -174,6 +216,11 @@ class ConnectViewModel(
     private companion object {
         val KEY_REJECTED_CODES = setOf(401, 403)
     }
+}
+
+/** The picker on the phone's own screen, kept across rotations like any screen's state. */
+class ConnectViewModel(graph: AppGraph, current: ModelDescriptor? = null, provider: ProviderId? = current?.providerId) : ViewModel() {
+    val picker = ModelPicker(graph, viewModelScope, current, provider)
 }
 
 private fun String.searchable(): String = lowercase().filter { it.isLetterOrDigit() }
