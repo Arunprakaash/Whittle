@@ -67,6 +67,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import app.whittle.chat.ui.resources.Res
 import app.whittle.chat.ui.resources.*
+import app.whittle.design.components.ReadingWidth
+import app.whittle.design.components.readingInset
 import app.whittle.design.components.AgentState
 import app.whittle.design.components.AnswerFooter
 import app.whittle.design.components.AnswerFooterUi
@@ -366,21 +368,24 @@ private fun Thread(
         if (following && items.isNotEmpty()) listState.scrollToItem(items.lastIndex + if (footer != null) 1 else 0, scrollOffset = Int.MAX_VALUE)
     }
     Box(Modifier.fillMaxSize()) {
-        LazyColumn(
-            state = listState,
-            contentPadding = PaddingValues(start = WhittleSpace.l, top = WhittleSpace.l, end = WhittleSpace.l, bottom = WhittleSpace.l + dockSpace),
-            verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            // One footer per turn, under its last answer; the turn's sources join it instead of a row of their own.
-            // A plan lives in the status card while it runs; afterwards it's in the run's summary.
-            val plan = AnswerFooters.plan(items)
-            items(items.filterNot { it.key in plan.folded || it is ThreadRow.Plan }, key = { it.key }) { item ->
-                ThreadRowView(item, rows, Modifier.animateItem(), plan.footers[item.key])
-            }
-            footer?.let { note ->
-                item(key = FOOTER_KEY) {
-                    Box(Modifier.fillMaxWidth().animateItem().padding(vertical = WhittleSpace.xxl), contentAlignment = Alignment.Center) { note(Modifier) }
+        // The thread reads in a centred column on a wide window; the whole width still scrolls.
+        ReadingWidth(WhittleSpace.l, Modifier.fillMaxSize()) { inset ->
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(start = inset, top = WhittleSpace.l, end = inset, bottom = WhittleSpace.l + dockSpace),
+                verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                // One footer per turn, under its last answer; the turn's sources join it instead of a row of their own.
+                // A plan lives in the status card while it runs; afterwards it's in the run's summary.
+                val plan = AnswerFooters.plan(items)
+                items(items.filterNot { it.key in plan.folded || it is ThreadRow.Plan }, key = { it.key }) { item ->
+                    ThreadRowView(item, rows, Modifier.animateItem(), plan.footers[item.key])
+                }
+                footer?.let { note ->
+                    item(key = FOOTER_KEY) {
+                        Box(Modifier.fillMaxWidth().animateItem().padding(vertical = WhittleSpace.xxl), contentAlignment = Alignment.Center) { note(Modifier) }
+                    }
                 }
             }
         }
@@ -553,73 +558,76 @@ private fun Dock(
         }
     }
     val openAttachment = LocalOpenAttachment.current
-    // No background of its own: only the cards, the chip and the composer cover the thread behind them.
-    Column(
-        modifier.fillMaxWidth().padding(start = WhittleSpace.m, end = WhittleSpace.m, bottom = WhittleSpace.s),
-        verticalArrangement = Arrangement.spacedBy(WhittleSpace.s),
-    ) {
-        AnimatedVisibility(state.status != null, enter = WhittleTransitions.riseInPlace(), exit = WhittleTransitions.sinkOutPlace()) {
-            state.status?.let { status ->
-                StatusLine(
-                    // A plan step under way is work, even while the model thinks between its actions.
-                    state = if (status.plan?.any { it.state == PlanRowState.Active } == true) AgentState.Acting else status.state.agentState,
-                    verb = status.verb ?: stringResource(
-                        when {
-                            status.retrying -> Res.string.status_retrying
-                            status.state == RunState.Thinking -> Res.string.status_thinking
-                            status.state == RunState.Acting -> Res.string.status_writing
-                            else -> Res.string.status_done
+    // No background of its own: only the cards, the chip and the composer cover the thread behind them. On a wide window
+    // it lines up with the thread's column.
+    ReadingWidth(WhittleSpace.m, modifier.fillMaxWidth()) { inset ->
+        Column(
+            Modifier.fillMaxWidth().padding(start = inset, end = inset, bottom = WhittleSpace.s),
+            verticalArrangement = Arrangement.spacedBy(WhittleSpace.s),
+        ) {
+            AnimatedVisibility(state.status != null, enter = WhittleTransitions.riseInPlace(), exit = WhittleTransitions.sinkOutPlace()) {
+                state.status?.let { status ->
+                    StatusLine(
+                        // A plan step under way is work, even while the model thinks between its actions.
+                        state = if (status.plan?.any { it.state == PlanRowState.Active } == true) AgentState.Acting else status.state.agentState,
+                        verb = status.verb ?: stringResource(
+                            when {
+                                status.retrying -> Res.string.status_retrying
+                                status.state == RunState.Thinking -> Res.string.status_thinking
+                                status.state == RunState.Acting -> Res.string.status_writing
+                                else -> Res.string.status_done
+                            },
+                        ),
+                        elapsed = elapsed(status.startedAtMillis),
+                        stopLabel = stringResource(Res.string.status_stop),
+                        onStop = { act(ChatAction.Stop) },
+                        // A step or plan names what the user asked for; the default labels don't.
+                        contentModifier = if (status.verb != null || status.plan != null) Modifier.userContent() else Modifier,
+                        plan = status.plan?.let { steps ->
+                            StatusPlanUi(
+                                progress = stringResource(Res.string.plan_progress, steps.count { it.state == PlanRowState.Done }, steps.size),
+                                steps = steps.map { it.toUi() },
+                            )
                         },
-                    ),
-                    elapsed = elapsed(status.startedAtMillis),
-                    stopLabel = stringResource(Res.string.status_stop),
-                    onStop = { act(ChatAction.Stop) },
-                    // A step or plan names what the user asked for; the default labels don't.
-                    contentModifier = if (status.verb != null || status.plan != null) Modifier.userContent() else Modifier,
-                    plan = status.plan?.let { steps ->
-                        StatusPlanUi(
-                            progress = stringResource(Res.string.plan_progress, steps.count { it.state == PlanRowState.Done }, steps.size),
-                            steps = steps.map { it.toUi() },
-                        )
-                    },
+                    )
+                }
+            }
+            platform.AboveComposer()
+            // Where the next task runs, right where it's typed; while a task runs, its status line stands here instead.
+            AnimatedVisibility(!state.running, enter = WhittleTransitions.riseInPlace(), exit = WhittleTransitions.sinkOutPlace()) {
+                ProjectChip(state.project, onClick = onChooseProject, modifier = Modifier.padding(start = WhittleSpace.xs))
+            }
+            AnimatedVisibility(state.screen != null, enter = WhittleTransitions.riseInPlace(), exit = WhittleTransitions.sinkOutPlace()) {
+                ScreenChip(state.screen?.appName, onRemove = { act(ChatAction.RemoveScreen) }, modifier = Modifier.padding(start = WhittleSpace.xs).userContent())
+            }
+            AnimatedVisibility(
+                state.attachments.isNotEmpty() || state.attaching > 0,
+                enter = WhittleTransitions.riseInPlace(),
+                exit = WhittleTransitions.sinkOutPlace(),
+            ) {
+                AttachmentTray(
+                    attachments = state.attachments,
+                    attaching = state.attaching,
+                    onOpen = { openAttachment(state.attachments, it) },
+                    onRemove = { act(ChatAction.RemoveAttachment(it.path)) },
+                    modifier = Modifier.userContent(),
+                    imagesUnseen = state.imagesUnseen,
                 )
             }
-        }
-        platform.AboveComposer()
-        // Where the next task runs, right where it's typed; while a task runs, its status line stands here instead.
-        AnimatedVisibility(!state.running, enter = WhittleTransitions.riseInPlace(), exit = WhittleTransitions.sinkOutPlace()) {
-            ProjectChip(state.project, onClick = onChooseProject, modifier = Modifier.padding(start = WhittleSpace.xs))
-        }
-        AnimatedVisibility(state.screen != null, enter = WhittleTransitions.riseInPlace(), exit = WhittleTransitions.sinkOutPlace()) {
-            ScreenChip(state.screen?.appName, onRemove = { act(ChatAction.RemoveScreen) }, modifier = Modifier.padding(start = WhittleSpace.xs).userContent())
-        }
-        AnimatedVisibility(
-            state.attachments.isNotEmpty() || state.attaching > 0,
-            enter = WhittleTransitions.riseInPlace(),
-            exit = WhittleTransitions.sinkOutPlace(),
-        ) {
-            AttachmentTray(
-                attachments = state.attachments,
-                attaching = state.attaching,
-                onOpen = { openAttachment(state.attachments, it) },
-                onRemove = { act(ChatAction.RemoveAttachment(it.path)) },
+            Composer(
+                value = state.input,
+                onValueChange = { act(ChatAction.UpdateInput(it)) },
+                placeholder = stringResource(if (state.running) Res.string.composer_placeholder_running else Res.string.composer_placeholder),
+                sendLabel = stringResource(Res.string.composer_send),
+                onSend = { act(ChatAction.Send) },
+                enabled = state.model != null,
                 modifier = Modifier.userContent(),
-                imagesUnseen = state.imagesUnseen,
+                voice = voice,
+                attach = onAttach?.let { ComposerAttach(stringResource(Res.string.composer_attach), it) },
+                hasAttachments = state.attachments.isNotEmpty(),
+                focusRequester = composerFocus,
             )
         }
-        Composer(
-            value = state.input,
-            onValueChange = { act(ChatAction.UpdateInput(it)) },
-            placeholder = stringResource(if (state.running) Res.string.composer_placeholder_running else Res.string.composer_placeholder),
-            sendLabel = stringResource(Res.string.composer_send),
-            onSend = { act(ChatAction.Send) },
-            enabled = state.model != null,
-            modifier = Modifier.userContent(),
-            voice = voice,
-            attach = onAttach?.let { ComposerAttach(stringResource(Res.string.composer_attach), it) },
-            hasAttachments = state.attachments.isNotEmpty(),
-            focusRequester = composerFocus,
-        )
     }
 }
 
@@ -628,7 +636,7 @@ private fun EmptyThread(state: ChatScreenState, act: (ChatAction) -> Unit, modif
     // Centred while it fits; with the keyboard up or a long draft it scrolls instead of running under the dock.
     BoxWithConstraints(modifier.fillMaxSize()) {
         Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight).padding(horizontal = WhittleSpace.xxl, vertical = WhittleSpace.l),
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight).padding(horizontal = readingInset(maxWidth, WhittleSpace.xxl), vertical = WhittleSpace.l),
             verticalArrangement = Arrangement.spacedBy(WhittleSpace.s, Alignment.CenterVertically),
         ) {
             WelcomeMascot(Modifier.padding(bottom = WhittleSpace.m))

@@ -33,10 +33,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import app.whittle.design.components.ReadingWidth
 import app.whittle.design.components.BeaverScene
 import app.whittle.design.components.MenuAction
 import app.whittle.design.components.SceneProgress
@@ -85,25 +87,28 @@ fun LinuxWorkspaceScreen(host: LinuxHost, platform: LinuxPlatform, onBack: () ->
         containerColor = MaterialTheme.colorScheme.surface,
         topBar = { TopBar(state, onBack, onRepair = { host.act(LinuxAction.Repair) }, onConfirm = { confirming = it }) },
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.padding(padding).fillMaxSize(),
-            contentPadding = PaddingValues(bottom = WhittleSpace.xl),
-            verticalArrangement = Arrangement.spacedBy(WhittleSpace.xl),
-        ) {
-            item { BeaverScene(state.imageName, sceneStatus(state), working = state.kind == LinuxKind.SettingUp, progress = sceneProgress(state)) }
-            when (state.kind) {
-                LinuxKind.NotSetUp -> notSetUp(state, host)
-                LinuxKind.SettingUp -> state.progress?.let { progress -> padded { Progress(progress) } }
-                LinuxKind.Failed -> {
-                    state.progress?.let { progress -> padded { Progress(progress) } }
-                    padded { SetUpButton(state, host, Res.string.linux_try_again) }
-                }
-                LinuxKind.Ready -> {
-                    padded { ComputersSection(state.access, host) }
-                    padded { AccessSection(state, host, platform) }
-                    if (state.running.isNotEmpty()) padded { RunningSection(state.running) { host.act(LinuxAction.StopAll) } }
-                    padded { StorageSection(state.usage) { host.act(LinuxAction.ClearCaches) } }
-                    padded { AppBuildingSection(state.toolchain) { host.act(LinuxAction.RemoveToolchain) } }
+        // On a wide window the page reads in a centred column; the whole width still scrolls.
+        ReadingWidth(0.dp, Modifier.padding(padding).fillMaxSize()) { inset ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = inset, end = inset, bottom = WhittleSpace.xl),
+                verticalArrangement = Arrangement.spacedBy(WhittleSpace.xl),
+            ) {
+                item { BeaverScene(state.imageName, sceneStatus(state), working = state.kind == LinuxKind.SettingUp, progress = sceneProgress(state)) }
+                when (state.kind) {
+                    LinuxKind.NotSetUp -> notSetUp(state, host)
+                    LinuxKind.SettingUp -> state.progress?.let { progress -> padded { Progress(progress) } }
+                    LinuxKind.Failed -> {
+                        state.progress?.let { progress -> padded { Progress(progress) } }
+                        padded { SetUpButton(state, host, Res.string.linux_try_again) }
+                    }
+                    LinuxKind.Ready -> {
+                        padded { ComputersSection(state.access, host) }
+                        padded { AccessSection(state, host, platform) }
+                        if (state.running.isNotEmpty()) padded { RunningSection(state.running) { host.act(LinuxAction.StopAll) } }
+                        padded { StorageSection(state.usage) { host.act(LinuxAction.ClearCaches) } }
+                        padded { AppBuildingSection(state.toolchain) { host.act(LinuxAction.RemoveToolchain) } }
+                    }
                 }
             }
         }

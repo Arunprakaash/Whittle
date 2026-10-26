@@ -56,6 +56,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import app.whittle.design.components.ReadingWidth
 import app.whittle.design.components.BottomActionButton
 import app.whittle.design.components.MenuAction
 import app.whittle.design.components.ScreenHeading
@@ -130,43 +131,46 @@ private fun AutomationsList(host: AutomationsHost, onBack: () -> Unit, onOpen: (
             if (!full && blank != null) BottomActionButton("add", stringResource(Res.string.automation_new), { onOpen(blank, true) })
         },
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.padding(padding).fillMaxSize(),
-            contentPadding = PaddingValues(start = WhittleSpace.l, end = WhittleSpace.l, top = WhittleSpace.s, bottom = WhittleSpace.l),
-            verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline),
-        ) {
-            item {
-                ScreenHeading(
-                    stringResource(Res.string.automation_title),
-                    stringResource(Res.string.automation_intro),
-                    Modifier.padding(start = WhittleSpace.s, end = WhittleSpace.s, bottom = WhittleSpace.xl),
-                )
-            }
-            if (automations.isEmpty()) {
-                item { EmptyAutomations(state.ideas) { idea -> onOpen(idea.draft, true) } }
-            }
-            itemsIndexed(automations, key = { _, automation -> automation.id }) { index, automation ->
-                AutomationRow(
-                    automation = automation,
-                    status = automationStatus(automation, state.zone, now),
-                    shape = segmentedShape(index, automations.size),
-                    onClick = { onOpen(automation, false) },
-                    onEnabledChange = { on -> host.act(AutomationAction.SetEnabled(automation.id, on)) },
-                )
-            }
-            if (automations.isNotEmpty()) {
+        // On a wide window the page reads in a centred column; the whole width still scrolls.
+        ReadingWidth(WhittleSpace.l, Modifier.padding(padding).fillMaxSize()) { inset ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = inset, end = inset, top = WhittleSpace.s, bottom = WhittleSpace.l),
+                verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline),
+            ) {
                 item {
-                    SupportingNote(
-                        "forum",
-                        if (full) stringResource(Res.string.automation_limit, state.maxAutomations) else stringResource(Res.string.automation_ask_tip),
-                        Modifier.padding(top = WhittleSpace.l),
+                    ScreenHeading(
+                        stringResource(Res.string.automation_title),
+                        stringResource(Res.string.automation_intro),
+                        Modifier.padding(start = WhittleSpace.s, end = WhittleSpace.s, bottom = WhittleSpace.xl),
                     )
                 }
-                // The recipes stay one tap away after the first automation, without the ones already made.
-                val more = unusedIdeas(state.ideas, automations)
-                if (!full && more.isNotEmpty()) {
+                if (automations.isEmpty()) {
+                    item { EmptyAutomations(state.ideas) { idea -> onOpen(idea.draft, true) } }
+                }
+                itemsIndexed(automations, key = { _, automation -> automation.id }) { index, automation ->
+                    AutomationRow(
+                        automation = automation,
+                        status = automationStatus(automation, state.zone, now),
+                        shape = segmentedShape(index, automations.size),
+                        onClick = { onOpen(automation, false) },
+                        onEnabledChange = { on -> host.act(AutomationAction.SetEnabled(automation.id, on)) },
+                    )
+                }
+                if (automations.isNotEmpty()) {
                     item {
-                        IdeasSection(more, stringResource(Res.string.automation_more_ideas), Modifier.padding(top = WhittleSpace.xxl)) { idea -> onOpen(idea.draft, true) }
+                        SupportingNote(
+                            "forum",
+                            if (full) stringResource(Res.string.automation_limit, state.maxAutomations) else stringResource(Res.string.automation_ask_tip),
+                            Modifier.padding(top = WhittleSpace.l),
+                        )
+                    }
+                    // The recipes stay one tap away after the first automation, without the ones already made.
+                    val more = unusedIdeas(state.ideas, automations)
+                    if (!full && more.isNotEmpty()) {
+                        item {
+                            IdeasSection(more, stringResource(Res.string.automation_more_ideas), Modifier.padding(top = WhittleSpace.xxl)) { idea -> onOpen(idea.draft, true) }
+                        }
                     }
                 }
             }
@@ -396,115 +400,116 @@ private fun AutomationEditor(
             }
         },
     ) { padding ->
-        Column(
-            Modifier
-                .padding(padding)
-                .fillMaxSize()
-                .imePadding()
-                .verticalScroll(scroll)
-                .padding(start = WhittleSpace.l, end = WhittleSpace.l, top = WhittleSpace.s, bottom = WhittleSpace.xxxl),
-            verticalArrangement = Arrangement.spacedBy(WhittleSpace.xxl),
-        ) {
-            if (!isNew) {
-                LastRun(
-                    automation = live,
-                    status = automationStatus(live, state.zone, now),
-                    lastRun = live.lastRunAtMillis?.let { dayAndTime(it, state.zone, now) },
-                    enabled = !saving,
-                    onRunNow = { if (changed) save { saved -> runNow(saved) } else runNow(live) },
-                    onOpenChat = { live.lastChatId?.let(navigation.openChat) },
-                )
-            }
-            error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = colors.error, modifier = Modifier.padding(horizontal = WhittleSpace.s)) }
-            Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
-                WhittleFilledField(
-                    value = name,
-                    onValueChange = { name = it.take(state.maxNameChars.takeIf { max -> max > 0 } ?: it.length); error = null },
-                    label = stringResource(Res.string.automation_name),
-                    singleLine = true,
-                    enabled = !saving,
-                    modifier = Modifier.userContent(),
-                )
-                WhittleFilledField(
-                    value = prompt,
-                    onValueChange = { prompt = it.take(state.maxPromptChars.takeIf { max -> max > 0 } ?: it.length); error = null },
-                    label = stringResource(Res.string.automation_prompt),
-                    minLines = PROMPT_LINES,
-                    hint = stringResource(Res.string.automation_prompt_hint),
-                    enabled = !saving,
-                    modifier = Modifier.userContent(),
-                )
-            }
-            Section(stringResource(Res.string.automation_when)) {
-                When(
-                    minuteOfDay = minuteOfDay,
-                    days = days,
-                    summary = stringResource(
-                        Res.string.automation_when_summary,
-                        daysText(days),
-                        nextRun(minuteOfDay, days, state.zone, now)?.let { dayAndTime(it, state.zone, now) }.orEmpty(),
-                    ),
-                    enabled = !saving,
-                    onPickTime = { pickingTime = true },
-                    onDaysChange = { days = it },
-                )
-            }
-            Section(stringResource(Res.string.automation_where)) {
-                Box {
-                    SettingsRow(
-                        icon = if (project != null) "folder" else "workspaces",
-                        title = project ?: stringResource(Res.string.automation_project_whole),
-                        subtitle = stringResource(if (project != null) Res.string.automation_project_kept else Res.string.automation_project_pick),
-                        shape = segmentedShape(0, 1),
-                        enabled = !saving,
-                        onClick = { pickingProject = true },
-                        modifier = Modifier.userContent(),
-                        trailing = { WhittleIcon("expand_more", size = WhittleSize.Icon.l, tint = colors.onSurfaceVariant) },
-                    )
-                    WhittleMenu(
-                        expanded = pickingProject,
-                        onDismiss = { pickingProject = false },
-                        groups = listOf(
-                            listOf(MenuAction(stringResource(Res.string.automation_project_whole), "workspaces", { project = null; error = null })),
-                            // A project whose folder is gone stays pickable so it isn't lost silently.
-                            (state.projects + listOfNotNull(project).filter { it !in state.projects }).map { folder ->
-                                MenuAction(folder, "folder", { project = folder; error = null })
-                            },
-                        ).filter { it.isNotEmpty() },
-                    )
-                }
-            }
-            SettingsSection(
-                title = stringResource(Res.string.automation_tools),
-                description = stringResource(Res.string.automation_tools_hint),
+        // On a wide window the page reads in a centred column; the whole width still scrolls.
+        ReadingWidth(WhittleSpace.l, Modifier.padding(padding).fillMaxSize().imePadding()) { inset ->
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scroll)
+                    .padding(start = inset, end = inset, top = WhittleSpace.s, bottom = WhittleSpace.xxxl),
+                verticalArrangement = Arrangement.spacedBy(WhittleSpace.xxl),
             ) {
-                state.tools.forEachIndexed { index, choice ->
-                    val checked = tools.containsAll(choice.toolIds)
-                    val ask = platform.requestCapabilities
-                    SettingsToggleRow(
-                        icon = choice.icon,
-                        title = choice.labelFor(project),
-                        subtitle = null,
-                        checked = checked,
-                        onCheckedChange = { on ->
-                            tools = if (on) tools + choice.toolIds else tools - choice.toolIds.toSet()
-                            // A row that needs a permission (reading health data while closed) asks for it now, and goes
-                            // back off if it isn't granted.
-                            if (on && choice.capabilities.isNotEmpty() && ask != null) {
-                                ask(choice.capabilities) { granted -> if (!granted) tools = tools - choice.toolIds.toSet() }
-                            }
-                        },
-                        shape = segmentedShape(index, state.tools.size),
-                        // Where the device can't ask Android for what a row needs, it can only be switched off here.
-                        enabled = !saving && (checked || choice.capabilities.isEmpty() || ask != null),
+                if (!isNew) {
+                    LastRun(
+                        automation = live,
+                        status = automationStatus(live, state.zone, now),
+                        lastRun = live.lastRunAtMillis?.let { dayAndTime(it, state.zone, now) },
+                        enabled = !saving,
+                        onRunNow = { if (changed) save { saved -> runNow(saved) } else runNow(live) },
+                        onOpenChat = { live.lastChatId?.let(navigation.openChat) },
                     )
                 }
+                error?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = colors.error, modifier = Modifier.padding(horizontal = WhittleSpace.s)) }
+                Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
+                    WhittleFilledField(
+                        value = name,
+                        onValueChange = { name = it.take(state.maxNameChars.takeIf { max -> max > 0 } ?: it.length); error = null },
+                        label = stringResource(Res.string.automation_name),
+                        singleLine = true,
+                        enabled = !saving,
+                        modifier = Modifier.userContent(),
+                    )
+                    WhittleFilledField(
+                        value = prompt,
+                        onValueChange = { prompt = it.take(state.maxPromptChars.takeIf { max -> max > 0 } ?: it.length); error = null },
+                        label = stringResource(Res.string.automation_prompt),
+                        minLines = PROMPT_LINES,
+                        hint = stringResource(Res.string.automation_prompt_hint),
+                        enabled = !saving,
+                        modifier = Modifier.userContent(),
+                    )
+                }
+                Section(stringResource(Res.string.automation_when)) {
+                    When(
+                        minuteOfDay = minuteOfDay,
+                        days = days,
+                        summary = stringResource(
+                            Res.string.automation_when_summary,
+                            daysText(days),
+                            nextRun(minuteOfDay, days, state.zone, now)?.let { dayAndTime(it, state.zone, now) }.orEmpty(),
+                        ),
+                        enabled = !saving,
+                        onPickTime = { pickingTime = true },
+                        onDaysChange = { days = it },
+                    )
+                }
+                Section(stringResource(Res.string.automation_where)) {
+                    Box {
+                        SettingsRow(
+                            icon = if (project != null) "folder" else "workspaces",
+                            title = project ?: stringResource(Res.string.automation_project_whole),
+                            subtitle = stringResource(if (project != null) Res.string.automation_project_kept else Res.string.automation_project_pick),
+                            shape = segmentedShape(0, 1),
+                            enabled = !saving,
+                            onClick = { pickingProject = true },
+                            modifier = Modifier.userContent(),
+                            trailing = { WhittleIcon("expand_more", size = WhittleSize.Icon.l, tint = colors.onSurfaceVariant) },
+                        )
+                        WhittleMenu(
+                            expanded = pickingProject,
+                            onDismiss = { pickingProject = false },
+                            groups = listOf(
+                                listOf(MenuAction(stringResource(Res.string.automation_project_whole), "workspaces", { project = null; error = null })),
+                                // A project whose folder is gone stays pickable so it isn't lost silently.
+                                (state.projects + listOfNotNull(project).filter { it !in state.projects }).map { folder ->
+                                    MenuAction(folder, "folder", { project = folder; error = null })
+                                },
+                            ).filter { it.isNotEmpty() },
+                        )
+                    }
+                }
+                SettingsSection(
+                    title = stringResource(Res.string.automation_tools),
+                    description = stringResource(Res.string.automation_tools_hint),
+                ) {
+                    state.tools.forEachIndexed { index, choice ->
+                        val checked = tools.containsAll(choice.toolIds)
+                        val ask = platform.requestCapabilities
+                        SettingsToggleRow(
+                            icon = choice.icon,
+                            title = choice.labelFor(project),
+                            subtitle = null,
+                            checked = checked,
+                            onCheckedChange = { on ->
+                                tools = if (on) tools + choice.toolIds else tools - choice.toolIds.toSet()
+                                // A row that needs a permission (reading health data while closed) asks for it now, and goes
+                                // back off if it isn't granted.
+                                if (on && choice.capabilities.isNotEmpty() && ask != null) {
+                                    ask(choice.capabilities) { granted -> if (!granted) tools = tools - choice.toolIds.toSet() }
+                                }
+                            },
+                            shape = segmentedShape(index, state.tools.size),
+                            // Where the device can't ask Android for what a row needs, it can only be switched off here.
+                            enabled = !saving && (checked || choice.capabilities.isEmpty() || ask != null),
+                        )
+                    }
+                }
+                SupportingNote(
+                    "notifications",
+                    name.trim().takeIf { it.isNotEmpty() }?.let { stringResource(Res.string.automation_runs_note, it) }
+                        ?: stringResource(Res.string.automation_runs_note_unnamed),
+                )
             }
-            SupportingNote(
-                "notifications",
-                name.trim().takeIf { it.isNotEmpty() }?.let { stringResource(Res.string.automation_runs_note, it) }
-                    ?: stringResource(Res.string.automation_runs_note_unnamed),
-            )
         }
     }
     if (pickingTime) {

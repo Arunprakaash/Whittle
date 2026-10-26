@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import app.whittle.design.components.ReadingWidth
 import app.whittle.design.components.SettingsChoiceRow
 import app.whittle.design.components.SettingsRow
 import app.whittle.design.components.SettingsSection
@@ -80,161 +81,164 @@ fun SettingsScreen(host: SettingsHost, platform: SettingsPlatform, navigation: S
             }
         },
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.padding(padding).fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = WhittleSpace.l, vertical = WhittleSpace.l),
-            verticalArrangement = Arrangement.spacedBy(WhittleSpace.xl),
-        ) {
-            item {
-                SettingsSection(stringResource(Res.string.settings_section_model)) {
-                    SettingsRow(
-                        icon = "smart_toy",
-                        title = state.model ?: stringResource(Res.string.settings_model_none),
-                        subtitle = null,
-                        shape = segmentedShape(0, 1),
-                        onClick = navigation.changeModel,
-                        trailing = chevron.takeIf { navigation.changeModel != null },
-                    )
-                }
-            }
-            item { platform.PhoneSections() }
-            item {
-                // Three places of their own, each row named after the screen it opens and showing only its state.
-                SettingsSection(stringResource(Res.string.settings_section_workspace)) {
-                    val image = state.linux.imageName
-                    SettingsRow(
-                        icon = "terminal",
-                        title = stringResource(Res.string.linux_title),
-                        subtitle = when (state.linux.kind) {
-                            LinuxKind.NotSetUp -> stringResource(Res.string.linux_status_not_set_up, image)
-                            LinuxKind.SettingUp -> stringResource(Res.string.linux_status_setting_up, image)
-                            LinuxKind.Ready -> image
-                            LinuxKind.Failed -> stringResource(Res.string.linux_status_failed, image)
-                        },
-                        shape = segmentedShape(0, 3),
-                        onClick = navigation.linux,
-                        trailing = chevron.takeIf { navigation.linux != null },
-                    )
-                    SettingsRow(
-                        icon = "bookmarks",
-                        title = stringResource(Res.string.memory_heading),
-                        subtitle = if (state.memories == 0) {
-                            stringResource(Res.string.memory_none)
-                        } else {
-                            pluralStringResource(Res.plurals.memory_count, state.memories, state.memories)
-                        },
-                        shape = segmentedShape(1, 3),
-                        onClick = navigation.memory,
-                        trailing = chevron.takeIf { navigation.memory != null },
-                    )
-                    SettingsRow(
-                        icon = "schedule",
-                        title = stringResource(Res.string.automation_title),
-                        subtitle = if (state.automationsOn > 0) {
-                            stringResource(Res.string.automation_settings_on, state.automationsOn)
-                        } else {
-                            stringResource(Res.string.automation_settings_idle)
-                        },
-                        shape = segmentedShape(2, 3),
-                        onClick = navigation.automations,
-                        trailing = chevron.takeIf { navigation.automations != null },
-                    )
-                }
-            }
-            item {
-                SettingsSection(stringResource(Res.string.settings_section_appearance)) {
-                    SettingsChoiceRow(
-                        icon = "contrast",
-                        title = stringResource(Res.string.settings_theme_title),
-                        shape = segmentedShape(0, 3),
-                        enabled = state.loaded,
-                    ) {
-                        ThemeChoice(selected = state.themeMode, enabled = state.loaded, onSelect = { act(SettingsAction.SetTheme(it)) })
-                    }
-                    SettingsToggleRow(
-                        icon = "wallpaper",
-                        title = stringResource(Res.string.settings_wallpaper_title),
-                        subtitle = null,
-                        checked = state.wallpaperColors,
-                        onCheckedChange = { act(SettingsAction.SetWallpaperColors(it)) },
-                        shape = segmentedShape(1, 3),
-                        enabled = state.wallpaperAvailable && state.loaded,
-                    )
-                    SettingsToggleRow(
-                        icon = "vibration",
-                        title = stringResource(Res.string.settings_haptics_title),
-                        subtitle = null,
-                        checked = state.haptics,
-                        onCheckedChange = { act(SettingsAction.SetHaptics(it)) },
-                        shape = segmentedShape(2, 3),
-                        enabled = state.loaded,
-                    )
-                }
-            }
-            item {
-                val assistant = platform.assistantHeld()
-                val rows = if (assistant != null) 2 else 1
-                SettingsSection(stringResource(Res.string.settings_section_tasks)) {
-                    SettingsToggleRow(
-                        icon = "notifications",
-                        title = stringResource(Res.string.settings_background_title),
-                        subtitle = null,
-                        checked = state.keepRunningInBackground,
-                        onCheckedChange = { on ->
-                            act(SettingsAction.SetKeepRunning(on))
-                            if (on) platform.requestNotifications?.invoke()
-                        },
-                        shape = segmentedShape(0, rows),
-                        enabled = state.loaded,
-                    )
-                    if (assistant != null) {
+        // On a wide window the page reads in a centred column; the whole width still scrolls.
+        ReadingWidth(WhittleSpace.l, Modifier.padding(padding).fillMaxSize()) { inset ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = inset, vertical = WhittleSpace.l),
+                verticalArrangement = Arrangement.spacedBy(WhittleSpace.xl),
+            ) {
+                item {
+                    SettingsSection(stringResource(Res.string.settings_section_model)) {
                         SettingsRow(
-                            icon = "assistant",
-                            title = stringResource(Res.string.settings_assistant_title),
-                            subtitle = stringResource(if (assistant) Res.string.settings_assistant_on else Res.string.settings_assistant_off),
-                            shape = segmentedShape(1, rows),
-                            onClick = platform::chooseAssistant,
-                            trailing = chevron,
+                            icon = "smart_toy",
+                            title = state.model ?: stringResource(Res.string.settings_model_none),
+                            subtitle = null,
+                            shape = segmentedShape(0, 1),
+                            onClick = navigation.changeModel,
+                            trailing = chevron.takeIf { navigation.changeModel != null },
                         )
                     }
                 }
-            }
-            item {
-                val sharing = state.analyticsAvailable && state.shareUsageData
-                SettingsSection(stringResource(Res.string.settings_section_privacy)) {
-                    SettingsToggleRow(
-                        icon = "insights",
-                        title = stringResource(Res.string.settings_usage_title),
-                        subtitle = null,
-                        checked = sharing,
-                        onCheckedChange = { act(SettingsAction.SetShareUsage(it)) },
-                        shape = segmentedShape(0, 2),
-                        enabled = state.analyticsAvailable && state.loaded,
-                    )
-                    SettingsToggleRow(
-                        icon = "screen_record",
-                        title = stringResource(Res.string.settings_recordings_title),
-                        subtitle = null,
-                        checked = sharing && state.screenRecordings,
-                        onCheckedChange = { act(SettingsAction.SetRecordings(it)) },
-                        shape = segmentedShape(1, 2),
-                        enabled = sharing,
-                    )
+                item { platform.PhoneSections() }
+                item {
+                    // Three places of their own, each row named after the screen it opens and showing only its state.
+                    SettingsSection(stringResource(Res.string.settings_section_workspace)) {
+                        val image = state.linux.imageName
+                        SettingsRow(
+                            icon = "terminal",
+                            title = stringResource(Res.string.linux_title),
+                            subtitle = when (state.linux.kind) {
+                                LinuxKind.NotSetUp -> stringResource(Res.string.linux_status_not_set_up, image)
+                                LinuxKind.SettingUp -> stringResource(Res.string.linux_status_setting_up, image)
+                                LinuxKind.Ready -> image
+                                LinuxKind.Failed -> stringResource(Res.string.linux_status_failed, image)
+                            },
+                            shape = segmentedShape(0, 3),
+                            onClick = navigation.linux,
+                            trailing = chevron.takeIf { navigation.linux != null },
+                        )
+                        SettingsRow(
+                            icon = "bookmarks",
+                            title = stringResource(Res.string.memory_heading),
+                            subtitle = if (state.memories == 0) {
+                                stringResource(Res.string.memory_none)
+                            } else {
+                                pluralStringResource(Res.plurals.memory_count, state.memories, state.memories)
+                            },
+                            shape = segmentedShape(1, 3),
+                            onClick = navigation.memory,
+                            trailing = chevron.takeIf { navigation.memory != null },
+                        )
+                        SettingsRow(
+                            icon = "schedule",
+                            title = stringResource(Res.string.automation_title),
+                            subtitle = if (state.automationsOn > 0) {
+                                stringResource(Res.string.automation_settings_on, state.automationsOn)
+                            } else {
+                                stringResource(Res.string.automation_settings_idle)
+                            },
+                            shape = segmentedShape(2, 3),
+                            onClick = navigation.automations,
+                            trailing = chevron.takeIf { navigation.automations != null },
+                        )
+                    }
                 }
-            }
-            item {
-                SettingsSection(stringResource(Res.string.settings_section_data)) {
-                    SettingsRow(
-                        icon = "delete",
-                        title = stringResource(Res.string.settings_delete_all_title),
-                        subtitle = null,
-                        shape = segmentedShape(0, 1),
-                        destructive = true,
-                        onClick = { confirmingDelete = true },
-                    )
+                item {
+                    SettingsSection(stringResource(Res.string.settings_section_appearance)) {
+                        SettingsChoiceRow(
+                            icon = "contrast",
+                            title = stringResource(Res.string.settings_theme_title),
+                            shape = segmentedShape(0, 3),
+                            enabled = state.loaded,
+                        ) {
+                            ThemeChoice(selected = state.themeMode, enabled = state.loaded, onSelect = { act(SettingsAction.SetTheme(it)) })
+                        }
+                        SettingsToggleRow(
+                            icon = "wallpaper",
+                            title = stringResource(Res.string.settings_wallpaper_title),
+                            subtitle = null,
+                            checked = state.wallpaperColors,
+                            onCheckedChange = { act(SettingsAction.SetWallpaperColors(it)) },
+                            shape = segmentedShape(1, 3),
+                            enabled = state.wallpaperAvailable && state.loaded,
+                        )
+                        SettingsToggleRow(
+                            icon = "vibration",
+                            title = stringResource(Res.string.settings_haptics_title),
+                            subtitle = null,
+                            checked = state.haptics,
+                            onCheckedChange = { act(SettingsAction.SetHaptics(it)) },
+                            shape = segmentedShape(2, 3),
+                            enabled = state.loaded,
+                        )
+                    }
                 }
+                item {
+                    val assistant = platform.assistantHeld()
+                    val rows = if (assistant != null) 2 else 1
+                    SettingsSection(stringResource(Res.string.settings_section_tasks)) {
+                        SettingsToggleRow(
+                            icon = "notifications",
+                            title = stringResource(Res.string.settings_background_title),
+                            subtitle = null,
+                            checked = state.keepRunningInBackground,
+                            onCheckedChange = { on ->
+                                act(SettingsAction.SetKeepRunning(on))
+                                if (on) platform.requestNotifications?.invoke()
+                            },
+                            shape = segmentedShape(0, rows),
+                            enabled = state.loaded,
+                        )
+                        if (assistant != null) {
+                            SettingsRow(
+                                icon = "assistant",
+                                title = stringResource(Res.string.settings_assistant_title),
+                                subtitle = stringResource(if (assistant) Res.string.settings_assistant_on else Res.string.settings_assistant_off),
+                                shape = segmentedShape(1, rows),
+                                onClick = platform::chooseAssistant,
+                                trailing = chevron,
+                            )
+                        }
+                    }
+                }
+                item {
+                    val sharing = state.analyticsAvailable && state.shareUsageData
+                    SettingsSection(stringResource(Res.string.settings_section_privacy)) {
+                        SettingsToggleRow(
+                            icon = "insights",
+                            title = stringResource(Res.string.settings_usage_title),
+                            subtitle = null,
+                            checked = sharing,
+                            onCheckedChange = { act(SettingsAction.SetShareUsage(it)) },
+                            shape = segmentedShape(0, 2),
+                            enabled = state.analyticsAvailable && state.loaded,
+                        )
+                        SettingsToggleRow(
+                            icon = "screen_record",
+                            title = stringResource(Res.string.settings_recordings_title),
+                            subtitle = null,
+                            checked = sharing && state.screenRecordings,
+                            onCheckedChange = { act(SettingsAction.SetRecordings(it)) },
+                            shape = segmentedShape(1, 2),
+                            enabled = sharing,
+                        )
+                    }
+                }
+                item {
+                    SettingsSection(stringResource(Res.string.settings_section_data)) {
+                        SettingsRow(
+                            icon = "delete",
+                            title = stringResource(Res.string.settings_delete_all_title),
+                            subtitle = null,
+                            shape = segmentedShape(0, 1),
+                            destructive = true,
+                            onClick = { confirmingDelete = true },
+                        )
+                    }
+                }
+                item { About(state, platform, act) }
             }
-            item { About(state, platform, act) }
         }
     }
     if (confirmingDelete) {
