@@ -295,12 +295,18 @@ class RunNotifications(private val context: Context) {
             .build()
     }
 
-    /** While computers may sign in to Linux over SSH: how ([signIn]), with Turn off. */
-    fun computerAccess(signIn: String): Notification =
+    /**
+     * While computers may sign in to Linux over SSH: how ([signIn]), with Turn off. [overTailscale] when Tailscale is the
+     * only way in; [anywhere] is the tailnet address too, while on Wi-Fi.
+     */
+    fun computerAccess(signIn: String, overTailscale: Boolean, anywhere: String?): Notification =
         Notification.Builder(context, CHANNEL_RUNNING)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(context.getString(R.string.notify_computer_title))
+            .setContentTitle(context.getString(if (overTailscale) R.string.notify_computer_title_tailscale else R.string.notify_computer_title))
             .setContentText(signIn)
+            .apply {
+                anywhere?.let { setStyle(Notification.InboxStyle().addLine(signIn).addLine(context.getString(R.string.notify_computer_anywhere, it))) }
+            }
             .setContentIntent(openApp())
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -352,6 +358,15 @@ class RunNotifications(private val context: Context) {
         Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
+
+    /** Shown for the moment the computer-access service starts after access went off, before it ends. */
+    fun computerAccessStopping(): Notification =
+        Notification.Builder(context, CHANNEL_RUNNING)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.notify_computer_title))
+            .setCategory(Notification.CATEGORY_SERVICE)
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .build()
 
     private fun turnOffComputerAccess(): PendingIntent = PendingIntent.getService(
         context,

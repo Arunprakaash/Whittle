@@ -26,16 +26,18 @@ class ComputerAccessService : Service() {
         val access = app.graph.computerAccess
         if (intent?.action == ACTION_TURN_OFF) access.turnOff()
         val on = access.state.value as? ComputerAccessState.On
+        // Started with startForegroundService, it must go foreground before anything else, even to stop at once.
+        startInForeground(RunNotifications.ID_COMPUTER_ACCESS, on?.let(::notification) ?: app.notifications.computerAccessStopping())
         if (on == null) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
         }
-        startInForeground(RunNotifications.ID_COMPUTER_ACCESS, app.notifications.computerAccess(access.config.signIn(on.address)))
         scope.launch {
             access.state.collect { state ->
                 when (state) {
                     is ComputerAccessState.On ->
-                        app.notificationManager.notify(RunNotifications.ID_COMPUTER_ACCESS, app.notifications.computerAccess(access.config.signIn(state.address)))
+                        app.notificationManager.notify(RunNotifications.ID_COMPUTER_ACCESS, notification(state))
                     ComputerAccessState.Off, is ComputerAccessState.Failed -> {
                         stopForeground(STOP_FOREGROUND_REMOVE)
                         stopSelf()
@@ -48,6 +50,12 @@ class ComputerAccessService : Service() {
         // The server ends with the app; nothing to bring back if Android ends the service.
         return START_NOT_STICKY
     }
+
+    private fun notification(on: ComputerAccessState.On) = app.notifications.computerAccess(
+        signIn = app.graph.computerAccess.config.signIn(on.address),
+        overTailscale = on.wifi == null,
+        anywhere = on.tailscale?.takeIf { on.wifi != null },
+    )
 
     override fun onDestroy() {
         scope.cancel()

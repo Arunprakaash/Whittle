@@ -5,11 +5,12 @@ import app.whittle.design.R
 
 /**
  * Every icon config can name: the bundled Material Symbols, plus one-colour brand marks for services a setting works
- * through (Health Connect). Brand marks are tinted by the theme like the symbols, so they never bring their own colours.
+ * through (Health Connect, Tailscale). Brand marks are tinted by the theme like the symbols, so they never bring their own colours.
  */
 object WhittleIcons {
     private val brands: Map<String, Int> = mapOf(
         "health_connect" to R.drawable.brand_health_connect,
+        "tailscale" to R.drawable.brand_tailscale,
     )
 
     val names: Set<String> get() = MaterialSymbols.names + brands.keys

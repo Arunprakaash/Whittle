@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tailscale for Your computer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..24,400,0..1,0&display=swap">
+<style>
+  :root {
+    --page: #EEF0EE; --ink: #171D1A; --ink-2: #404944; --ink-3: #707973; --line: #D6DBD7; --card: #FFFFFF;
+    --accent: #2B6A55; --accent-soft: #CDE9DC;
+    /* The phones use the neutral wallpaper colors seen on the emulator. */
+    --p-bg: #F9F9F9; --p-row: #F1F1F1; --p-ink: #1F1F1F; --p-ink-2: #5E5E5E; --p-icon-bg: #E3E3E3; --p-on: #5A5A5A; --p-off: #E3E3E3;
+    --p-field: #FFFFFF; --p-shade: #DADDE0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --page: #0F1512; --ink: #DEE4DF; --ink-2: #C0C9C3; --ink-3: #8A938D; --line: #303633; --card: #171D1A; --accent: #97D4BA; --accent-soft: #1F3A30; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --page: #0F1512; --ink: #DEE4DF; --ink-2: #C0C9C3; --ink-3: #8A938D; --line: #303633; --card: #171D1A; --accent: #97D4BA; --accent-soft: #1F3A30; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 400 15px/1.5 Figtree, system-ui, sans-serif; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding-block: 40px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  h1 { font-weight: 600; font-size: 30px; line-height: 1.2; margin: 0 0 8px; text-wrap: balance; }
+  .lede { color: var(--ink-2); max-width: 72ch; margin: 0 0 24px; }
+  .rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 0 0 28px; padding: 0; list-style: none; }
+  .rules li { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+  .rules b { display: block; font-weight: 600; margin-bottom: 2px; }
+  .rules span { color: var(--ink-2); font-size: 14px; }
+  .states { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 20px; }
+  .states .label { font: 500 12px/1 "Geist Mono", monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-right: 4px; }
+  .chip { font: 500 14px Figtree, sans-serif; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; cursor: pointer; }
+  .chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+  .compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 24px; justify-items: center; }
+  .col { width: 100%; max-width: 390px; min-width: 0; }
+  .col h2 { font: 600 16px Figtree, sans-serif; margin: 0 0 2px; }
+  .col p { margin: 0 0 8px; color: var(--ink-3); font-size: 13.5px; }
+  .phone { background: var(--p-bg); color: var(--p-ink); border-radius: 36px; border: 8px solid #1d1d1f; height: 780px; max-width: 100%; overflow-y: auto; overscroll-behavior: contain; padding: 18px 14px 28px; box-shadow: 0 20px 40px -24px rgba(0,0,0,.4); position: relative; }
+  .phone::-webkit-scrollbar { width: 0; }
+  .bar { display: flex; align-items: center; gap: 14px; padding: 6px 2px 14px; }
+  .back { width: 40px; height: 40px; border-radius: 50%; background: #EAEAEA; display: grid; place-items: center; flex: none; }
+  .bar h3 { margin: 0; font: 600 20px Figtree, sans-serif; }
+  .sec { margin: 0 0 18px; }
+  .sec-title { font: 500 13px Figtree, sans-serif; color: var(--p-ink-2); margin: 0 0 8px 12px; }
+  .foot { font-size: 12.5px; color: var(--p-ink-2); margin: 8px 12px 0; line-height: 1.45; }
+  .group { display: flex; flex-direction: column; gap: 3px; }
+  .row { display: flex; align-items: center; gap: 12px; background: var(--p-row); padding: 12px 14px; min-height: 58px; border-radius: 6px; }
+  .group .row:first-child { border-top-left-radius: 20px; border-top-right-radius: 20px; }
+  .group .row:last-child { border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; }
+  .ic { width: 36px; height: 36px; border-radius: 50%; background: var(--p-icon-bg); display: grid; place-items: center; flex: none; }
+  .ms { font-family: "Material Symbols Rounded"; font-size: 20px; line-height: 1; color: var(--p-ink-2); font-variation-settings: "opsz" 20; }
+  .txt { flex: 1; min-width: 0; }
+  .t { font: 500 15.5px/1.3 Figtree, sans-serif; }
+  .t.mono { font: 500 13.5px/1.35 "Geist Mono", monospace; word-break: break-all; }
+  .s { font-size: 13.5px; color: var(--p-ink-2); line-height: 1.35; margin-top: 2px; }
+  .sw { width: 46px; height: 28px; border-radius: 999px; background: var(--p-off); border: 2px solid #8E8E8E; position: relative; flex: none; }
+  .sw::after { content: ""; position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; border-radius: 50%; background: #8E8E8E; }
+  .sw.on { background: var(--p-on); border-color: var(--p-on); }
+  .sw.on::after { left: 22px; top: 2px; width: 20px; height: 20px; background: #fff; }
+  .sw.dis { opacity: .45; }
+  .textbtn { font: 500 14px Figtree, sans-serif; color: var(--p-ink); padding: 6px 8px; flex: none; }
+  .iconbtn { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+  .new { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 22px; }
+  .card { background: var(--p-row); border-radius: 20px; padding: 14px; margin: 0 0 18px; display: flex; gap: 12px; align-items: center; }
+  .muted { color: var(--p-ink-2); font-size: 13.5px; }
+  /* Sheet */
+  .scrim { position: absolute; inset: 0; background: rgba(0,0,0,.32); border-radius: 28px; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--p-bg); border-radius: 28px 28px 22px 22px; padding: 10px 18px 22px; display: flex; flex-direction: column; gap: 14px; }
+  .handle { width: 36px; height: 4px; border-radius: 2px; background: #C4C4C4; align-self: center; }
+  .sheet h4 { margin: 4px 0 0; font: 600 22px/1.25 Figtree, sans-serif; }
+  .code { background: var(--p-field); border-radius: 14px; padding: 10px 6px 10px 12px; display: flex; align-items: center; gap: 8px; font: 400 13.5px "Geist Mono", monospace; }
+  .code span { flex: 1; min-width: 0; word-break: break-all; }
+  .field { background: var(--p-field); border: 1px solid #8E8E8E; border-radius: 16px; padding: 8px 14px 12px; }
+  .field label { display: block; font-size: 12px; color: var(--p-ink-2); }
+  .field div { font: 400 13.5px/1.4 "Geist Mono", monospace; word-break: break-all; min-height: 58px; }
+  .btn { background: #3D3D3D; color: #fff; border-radius: 999px; padding: 14px; text-align: center; font: 500 15px Figtree, sans-serif; }
+  /* Shade */
+  .shade { background: var(--p-shade); }
+  .notif { background: #F3F3F3; border-radius: 26px; padding: 14px 16px; display: flex; gap: 12px; margin-top: 8px; }
+  .notif .app { width: 36px; height: 36px; border-radius: 50%; background: #2C5E4A; display: grid; place-items: center; flex: none; }
+  .notif .app .ms { color: #fff; }
+  .notif .meta { font-size: 13px; color: var(--p-ink-2); }
+  .notif .nt { font: 500 15px Figtree, sans-serif; margin-top: 2px; }
+  .notif .nb { font-size: 14px; color: var(--p-ink-2); }
+  .notif .acts { display: flex; gap: 8px; margin-top: 10px; }
+  .notif .acts span { background: #E4E4E4; border-radius: 999px; padding: 7px 14px; font: 500 13.5px Figtree, sans-serif; }
+  /* Below */
+  h2.sec-h { font: 600 18px Figtree, sans-serif; margin: 44px 0 6px; }
+  .sub { color: var(--ink-2); margin: 0 0 12px; font-size: 14px; max-width: 72ch; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; }
+  .cards div { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+  .cards b { display: block; margin-bottom: 4px; }
+  .cards span { color: var(--ink-2); font-size: 14px; }
+  .cards code { font: 400 12.5px "Geist Mono", monospace; background: var(--page); padding: 1px 5px; border-radius: 5px; word-break: break-all; }
+  .note { color: var(--ink-3); font-size: 13px; margin-top: 12px; }
+
+  .term { background: #1d1f21; color: #d5d8d6; border-radius: 14px; padding: 14px 16px; font: 400 13px/1.6 "Geist Mono", monospace; overflow-x: auto; white-space: pre; }
+  .term .p { color: #8abeb7; } .term .c { color: #7f8c8d; }
+  .row.wait .s { color: var(--p-ink); }
+  .badge { font: 500 11px "Geist Mono", monospace; background: var(--accent-soft); color: var(--accent); border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: 1px; }
+  .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 0; font-size: 14px; color: var(--ink-2); }
+  .flow b { color: var(--ink); font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Your computer, from anywhere, with Tailscale</h1>
+  <p class="lede">Today, Use from your computer works only on the same Wi-Fi. With Tailscale, your computer reaches the phone from any network: mobile data, a café, another city. Tailscale runs inside Whittle's Linux, like the SSH server, so there's no extra app and no VPN on the phone. It adds one row and one sign-in to the Your computer section. Everything else is the section you already have.</p>
+  <ul class="rules">
+    <li><b>Optional, and yours</b><span>Off until you set it up. You sign in with your own Tailscale account (free for personal use) in the browser; Whittle never sees your password.</span></li>
+    <li><b>Wi-Fi or Tailscale</b><span>The switch works whenever either is there. Away from Wi-Fi it carries on over Tailscale, instead of switching off.</span></li>
+    <li><b>Keys still decide</b><span>Being on your tailnet lets a device knock; only computers you added can sign in.</span></li>
+    <li><b>Says what it opens</b><span>Devices on your tailnet can also open servers Whittle runs, like a preview on port 5173. The footer says so.</span></li>
+  </ul>
+
+  <div class="states" role="group" aria-label="Try states">
+    <span class="label">Try</span>
+    <button class="chip" data-state="none" aria-pressed="false">Not set up</button>
+    <button class="chip" data-state="installing" aria-pressed="false">Setting up</button>
+    <button class="chip" data-state="signin" aria-pressed="false">Waiting for sign-in</button>
+    <button class="chip" data-state="both" aria-pressed="true">Connected, on Wi-Fi</button>
+    <button class="chip" data-state="away" aria-pressed="false">Away from Wi-Fi</button>
+    <button class="chip" data-state="signedout" aria-pressed="false">Signed out</button>
+  </div>
+
+  <div class="compare">
+    <div class="col">
+      <h2>Settings › Linux workspace</h2>
+      <p>The Tailscale row is new (dashed); the rest is today's section.</p>
+      <div class="phone" id="settings"></div>
+    </div>
+    <div class="col">
+      <h2>While it's on</h2>
+      <p>The same notification, naming the network.</p>
+      <div class="phone shade" id="notif"></div>
+    </div>
+    <div class="col">
+      <h2>On your computer</h2>
+      <p>Tailscale on the computer too, signed in to the same account.</p>
+      <div id="computer"></div>
+    </div>
+  </div>
+
+  <h2 class="sec-h">Setting it up</h2>
+  <div class="flow"><b>Set up</b> → installs Tailscale in Linux (about 70 MB, once) → <b>Sign in</b> opens Tailscale's page in your browser → the row turns <b>Connected</b> by itself.</div>
+
+  <h2 class="sec-h">Checked on the emulator</h2>
+  <div class="cards">
+    <div><b>Runs inside Linux</b><span>Tailscale 1.104.2 installed from Tailscale's own repository in 23 s and ran under proot in userspace mode: no VPN, no root, no separate app.</span></div>
+    <div><b>Sign-in by link</b><span><code>tailscale up</code> printed a login link; signing in there joined the phone to the tailnet as whittle-emulator.</span></div>
+    <div><b>SSH from the Mac</b><span>Key sign-in to 100.119.93.43 in 0.29 s over a direct connection, a real terminal, and a dev server through <code>ssh -L</code>.</span></div>
+    <div><b>No extra listener</b><span>Tailscale hands incoming connections to the phone's loopback, where SSH already listens. Whittle only keeps SSH on while Tailscale is connected.</span></div>
+  </div>
+
+  <h2 class="sec-h">Still to choose</h2>
+  <div class="cards">
+    <div><b>Phone's name on the tailnet</b><span>Proposed: "whittle-" plus the phone's model, like whittle-pixel-9. You can rename it in Tailscale's admin console.</span></div>
+    <div><b>Remove Tailscale</b><span>Sign out keeps it installed; "Remove Tailscale too" in Sign out's dialog takes it out. Set up but never signed in, tapping the row offers Remove.</span></div>
+    <div><b>Tailscale's mark</b><span>Tailscale's own one-colour mark, tinted by the theme like Health Connect's. The prototype uses a stand-in.</span></div>
+  </div>
+  <p class="note">Wording follows the Settings rule: a row's second line says its state, and only when there is one.</p>
+</div>
+
+<script>
+const state = { mode: "both" };
+const row = (icon, title, sub, trail = "", cls = "", mono = false) =>
+  `<div class="row ${cls}"><div class="ic"><span class="ms">${icon}</span></div><div class="txt"><div class="t${mono ? " mono" : ""}">${title}</div>${sub ? `<div class="s">${sub}</div>` : ""}</div>${trail}</div>`;
+const sw = (on, dis) => `<span class="sw${on ? " on" : ""}${dis ? " dis" : ""}"></span>`;
+const btn = t => `<span class="textbtn">${t}</span>`;
+const sec = (title, rows, opts = {}) =>
+  `<section class="sec${opts.cls ? " " + opts.cls : ""}">${title ? `<div class="sec-title">${title}</div>` : ""}<div class="group">${rows.join("")}</div>${opts.foot ? `<div class="foot">${opts.foot}</div>` : ""}</section>`;
+const bar = t => `<div class="bar"><div class="back"><span class="ms">arrow_back</span></div><h3>${t}</h3></div>`;
+const copy = `<span class="iconbtn"><span class="ms">content_copy</span></span>`;
+const WIFI = "192.168.1.23", TS = "100.101.2.3", NAME = "whittle-pixel-9";
+
+function tailscaleRow() {
+  const m = state.mode;
+  if (m === "none") return row("hub", "Tailscale", "Reach this phone from anywhere", btn("Set up"), "new");
+  if (m === "installing") return row("hub", "Tailscale", "Setting up · 70 MB", "", "new");
+  if (m === "signin") return row("hub", "Tailscale", "Waiting for you to sign in", btn("Open link"), "new wait");
+  if (m === "signedout") return row("hub", "Tailscale", "Signed out", btn("Sign in"), "new");
+  return row("hub", "Tailscale", `Connected · ${NAME}`, btn("Sign out"), "new");
+}
+
+function settings() {
+  const m = state.mode;
+  const connected = m === "both" || m === "away";
+  const wifi = m !== "away";
+  const on = connected || (wifi && m !== "none");
+  const address = wifi ? WIFI : TS;
+  const sub = on ? (m === "away" ? "On · Tailscale" : connected ? "On · Wi-Fi and Tailscale" : `On · ${WIFI}`) : "Needs Wi-Fi or Tailscale";
+  const rows = [row("computer", "Use from your computer", sub, sw(on, !on)), tailscaleRow()];
+  if (on) {
+    if (wifi) rows.push(row("terminal", `ssh -p 8022 root@${WIFI}`, "Same Wi-Fi", copy, "", true));
+    if (connected) rows.push(row("terminal", `ssh -p 8022 root@${TS}`, "Anywhere, over Tailscale", copy, "", true));
+    rows.push(row("laptop_mac", "arun@MacBook-Pro-2", "SHA256:ceINK1RgNCYd6Ap0…", btn("Remove")));
+    rows.push(row("add", "Add a computer", ""));
+  }
+  const foot = connected
+    ? "Only computers you add can sign in. Devices on your tailnet can also open servers Whittle runs."
+    : on ? "Same Wi-Fi only. Only computers you add can sign in." : "Sign in over SSH from a computer on the same Wi-Fi, or anywhere with Tailscale.";
+  return bar("Linux workspace") +
+    `<div class="card"><div class="ic"><span class="ms">terminal</span></div><div><div class="t">Ubuntu 24.04 LTS</div><div class="muted">Ready · 1.4 GB</div></div></div>` +
+    sec("", [row("build", "App building", "Set up · 157 MB", btn("Remove"))]) +
+    sec("Your computer", rows, { foot }) +
+    sec("", [row("build", "Repair", ""), row("restart_alt", "Reset to a fresh Ubuntu", ""), row("delete", "Remove", "Frees 1.4 GB")]);
+}
+
+function notif() {
+  const m = state.mode;
+  const connected = m === "both" || m === "away";
+  const on = connected || (m !== "away" && m !== "none");
+  if (!on) return `<div style="height:8px"></div><div class="muted" style="padding:16px">No notification while it's off.</div>`;
+  const line = m === "away" ? `ssh -p 8022 root@${TS}` : `ssh -p 8022 root@${WIFI}`;
+  const extra = connected && m !== "away" ? `<div class="nb">Anywhere: ${TS} on Tailscale</div>` : "";
+  return `<div style="height:8px"></div><div class="notif"><div class="app"><span class="ms">computer</span></div><div style="flex:1;min-width:0">
+    <div class="meta">Whittle · now</div>
+    <div class="nt">Your computer can connect${m === "away" ? " over Tailscale" : ""}</div>
+    <div class="nb">${line}</div>${extra}
+    <div class="acts"><span>Turn off</span></div></div></div>`;
+}
+
+function computer() {
+  const m = state.mode;
+  const connected = m === "both" || m === "away";
+  if (!connected) return `<div class="cards"><div><b>Not on Tailscale yet</b><span>Install Tailscale on the computer and sign in with the same account. Until then, it connects on the same Wi-Fi only.</span></div></div>`;
+  return `<div class="term"><span class="c"># Anywhere, as long as both are on Tailscale</span>
+<span class="p">$</span> ssh -p 8022 root@${TS}
+root@localhost:~# ls /workspace
+lumen-books  moonlit-book
+
+<span class="c"># A dev server Whittle runs on the phone</span>
+<span class="p">$</span> open http://${TS}:5173
+
+<span class="c"># Cursor or VS Code: Remote-SSH › Connect to Host</span>
+root@${TS}:8022</div>`;
+}
+
+function render() {
+  for (const [id, fn] of [["settings", settings], ["notif", notif], ["computer", computer]]) {
+    const el = document.getElementById(id);
+    const top = el.scrollTop;
+    el.innerHTML = fn();
+    el.scrollTop = top;
+  }
+}
+
+document.querySelectorAll(".chip").forEach(chip => chip.addEventListener("click", () => {
+  state.mode = chip.dataset.state;
+  document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", String(c === chip)));
+  render();
+}));
+render();
+</script>
+</body>
+</html>

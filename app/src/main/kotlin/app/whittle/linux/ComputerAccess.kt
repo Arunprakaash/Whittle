@@ -15,7 +15,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.selects.select
@@ -37,8 +40,11 @@ sealed interface ComputerAccessState {
 
     data object Starting : ComputerAccessState
 
-    /** Computers on the same Wi-Fi can sign in at [address]. */
-    data class On(val address: String) : ComputerAccessState
+    /** Computers can sign in: on the same Wi-Fi at [wifi], and from anywhere over Tailscale at [tailscale]. */
+    data class On(val wifi: String?, val tailscale: String?) : ComputerAccessState {
+        /** Where a computer signs in, the Wi-Fi address first. */
+        val address: String get() = wifi ?: tailscale.orEmpty()
+    }
 
     /** It didn't turn on, or stopped; [detail] is the server's or installer's last line, when there is one. */
     data class Failed(val detail: String?) : ComputerAccessState
@@ -59,6 +65,8 @@ class ComputerAccess(
     /** Where the server's commands start; null before Linux is set up. */
     private val folder: () -> File?,
     private val wifi: () -> StateFlow<String?>,
+    /** Reaching the phone from anywhere, when the user set it up. */
+    val tailscale: Tailscale,
     private val scope: CoroutineScope,
     /** Told when the server starts and stops serving, to keep the app alive behind a notification. */
     private val serving: (Boolean) -> Unit,
@@ -78,6 +86,11 @@ class ComputerAccess(
 
     /** The Wi-Fi address computers reach the phone at; null when it isn't on Wi-Fi. */
     val address: StateFlow<String?> get() = wifi()
+
+    /** Where computers can reach the phone right now: its Wi-Fi address, its tailnet address, either or neither. */
+    private val networks: StateFlow<Networks> by lazy {
+        combine(wifi(), tailscale.address, ::Networks).stateIn(scope, SharingStarted.Eagerly, Networks(wifi().value, tailscale.address.value))
+    }
 
     /** Reads the keys file, for Settings. */
     suspend fun load() = keysLock.withLock {
@@ -101,39 +114,72 @@ class ComputerAccess(
         job = scope.launch { serve() }
     }
 
+    /**
+     * Signs in to Tailscale. While access is on, the tailnet joins as soon as the user has signed in; while it's off,
+     * it turns on once connected, as signing in is asking to be reached that way.
+     */
+    fun signInToTailscale() {
+        tailscale.signIn()
+        if (job?.isActive == true) return
+        scope.launch {
+            val ended = tailscale.state.first { it is TailscaleState.Connected || it is TailscaleState.Failed || it is TailscaleState.SignedOut }
+            if (ended is TailscaleState.Connected) turnOn()
+        }
+    }
+
     fun turnOff() {
         job?.cancel()
         job = null
         mutableState.value = ComputerAccessState.Off
+        scope.launch { tailscale.stop() }
     }
 
     private suspend fun serve() {
-        var address = wifi().value ?: return
+        // Turning on shows at once: Tailscale and the server can take a few seconds.
+        mutableState.value = ComputerAccessState.Starting
         val directory = folder() ?: return fail(null)
+        // Tailscale first, when it's signed in: away from Wi-Fi it's the only way in. Its address reaches [networks] a
+        // moment after it connects, so this waits for a way in rather than looking once.
+        if (tailscale.signedIn) tailscale.start()
+        if (withTimeoutOrNull(config.tailscale.connectWaitSeconds * MILLIS_PER_SECOND) { networks.first { !it.none } } == null) {
+            // Tailscale's row says why it didn't connect; the switch goes back off.
+            tailscale.timedOut()
+            mutableState.value = ComputerAccessState.Off
+            return
+        }
         if (!installed(directory)) {
             mutableState.value = ComputerAccessState.Installing
             val installed = commands.run(config.installCommand, directory, config.installTimeoutSeconds, network = true)
             if (installed !is Outcome.Success || installed.value.exitCode != 0) return fail((installed as? Outcome.Success)?.value?.let(::lastLine))
         }
         if (keysFile()?.let(::ensureExists) != true) return fail(null)
-        // Serves until the server stops or Wi-Fi changes; a new address starts it again there.
-        while (true) {
-            address = when (val ended = serveAt(address, directory)) {
-                is Ended.Moved -> ended.address ?: break
-                is Ended.Stopped -> return fail(ended.detail)
+        // Serves until the server stops or no way in is left; a new Wi-Fi address, or none, starts it again there.
+        while (!networks.value.none) {
+            when (val ended = serveAt(networks.value.wifi, directory)) {
+                Ended.Moved -> continue
+                is Ended.Stopped -> {
+                    tailscale.stop()
+                    return fail(ended.detail)
+                }
             }
         }
+        finish()
+    }
+
+    /** Off, with Tailscale stopped too, once neither Wi-Fi nor Tailscale is there. */
+    private suspend fun finish() {
+        tailscale.stop()
         mutableState.value = ComputerAccessState.Off
     }
 
-    /** Runs the server at [address] until it stops by itself or Wi-Fi changes. */
-    private suspend fun serveAt(address: String, directory: File): Ended = coroutineScope {
+    /** Runs the server on the phone and at [wifi] until it stops by itself, Wi-Fi changes, or no way in is left. */
+    private suspend fun serveAt(wifi: String?, directory: File): Ended = coroutineScope {
         mutableState.value = ComputerAccessState.Starting
-        val process = when (val started = starter.start(config.serve(address), directory, network = true, mergeOutput = true)) {
+        val process = when (val started = starter.start(config.serve(wifi), directory, network = true, mergeOutput = true)) {
             is Outcome.Failure -> return@coroutineScope Ended.Stopped(started.error.message)
             is Outcome.Success -> started.value
         }
-        val output = Output(config.keptOutputChars)
+        val output = ProcessOutput(config.keptOutputChars)
         val reader = launch(Dispatchers.IO) { output.read(process) }
         try {
             val up = withTimeoutOrNull(config.startWaitSeconds * MILLIS_PER_SECOND) {
@@ -141,14 +187,17 @@ class ComputerAccess(
                 process.isAlive
             }
             if (up != true) return@coroutineScope Ended.Stopped(output.lastLine())
-            mutableState.value = ComputerAccessState.On(address)
+            // On before the notification's service starts, as it reads this to show how to sign in.
+            mutableState.value = ComputerAccessState.On(wifi, networks.value.tailscale)
             serving(true)
+            // Tailscale coming and going shows here; it needs no restart, as it reaches the phone's loopback.
+            val shown = launch { networks.collect { mutableState.value = ComputerAccessState.On(wifi, it.tailscale) } }
             val exited = async(Dispatchers.IO) { runInterruptible { process.waitFor() } }
-            val moved = async { wifi().first { it != address } }
+            val moved = async { networks.first { it.wifi != wifi || it.none } }
             select<Ended> {
                 exited.onAwait { moved.cancel(); Ended.Stopped(output.lastLine()) }
-                moved.onAwait { next -> exited.cancel(); Ended.Moved(next) }
-            }
+                moved.onAwait { exited.cancel(); Ended.Moved }
+            }.also { shown.cancel() }
         } finally {
             withContext(NonCancellable + Dispatchers.IO) {
                 starter.kill(process, output.processGroup)
@@ -189,36 +238,16 @@ class ComputerAccess(
     private fun lastLine(result: CommandResult): String? =
         result.stderr.ifBlank { result.stdout }.lines().lastOrNull { it.isNotBlank() }?.trim()
 
-    /** How serving at one address ended: Wi-Fi moved to [address] (null when it's gone), or the server stopped. */
+    /** How serving ended: the ways in changed, or the server stopped. */
     private sealed interface Ended {
-        data class Moved(val address: String?) : Ended
+        data object Moved : Ended
 
         data class Stopped(val detail: String?) : Ended
     }
 
-    /** The server's output: its process group first (see [CommandStarter]), then its latest lines. */
-    private class Output(private val keptChars: Int) {
-        @Volatile var processGroup: Int? = null
-        private val text = StringBuilder()
-
-        fun read(process: Process) = try {
-            process.inputStream.bufferedReader().useLines { lines ->
-                lines.forEachIndexed { index, line ->
-                    if (index == 0) {
-                        processGroup = line.trim().toIntOrNull()
-                    } else {
-                        synchronized(text) {
-                            text.append(line).append('\n')
-                            if (text.length > keptChars) text.delete(0, text.length - keptChars)
-                        }
-                    }
-                }
-            }
-        } catch (exception: IOException) {
-            // Closed after a stop; what was read is the output.
-        }
-
-        fun lastLine(): String? = synchronized(text) { text.lines().lastOrNull { it.isNotBlank() }?.trim() }
+    /** The phone's Wi-Fi and tailnet addresses, each null when it's not there. */
+    private data class Networks(val wifi: String?, val tailscale: String?) {
+        val none: Boolean get() = wifi == null && tailscale == null
     }
 
     private companion object {

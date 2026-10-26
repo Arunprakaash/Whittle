@@ -48,6 +48,7 @@ import app.whittle.core.config.ConsentLevel
 import app.whittle.settings.UserSettings
 import app.whittle.settings.SettingsStore
 import android.content.Context
+import android.os.Build
 import android.text.format.DateFormat
 import android.system.ErrnoException
 import android.system.Os
@@ -92,6 +93,7 @@ import app.whittle.settings.AppDefaults
 import app.whittle.tools.android.HealthConnect
 import app.whittle.linux.ComputerAccess
 import app.whittle.linux.ComputerAccessConfig
+import app.whittle.linux.Tailscale
 import app.whittle.linux.WifiAddress
 import app.whittle.background.ComputerAccessService
 import app.whittle.updates.SelfUpdate
@@ -410,15 +412,20 @@ class AppGraph(context: Context) {
     }
 
     /** The user's own computers signing in to Linux over SSH, from Settings › Linux workspace. */
-    val computerAccess = ComputerAccess(
-        config = load(ComputerAccessConfig.FILE, ComputerAccessConfig.serializer(), ComputerAccessConfig.SCHEMA_VERSION),
-        environment = linux.environment,
-        linuxFile = { path -> linux.root()?.let { File(it, path.removePrefix("/")) } },
-        folder = { workspaces.folder().getOrNull() },
-        wifi = WifiAddress(context)::address,
-        scope = appScope,
-        serving = { on -> if (on) ComputerAccessService.start(context) },
-    )
+    val computerAccess = load(ComputerAccessConfig.FILE, ComputerAccessConfig.serializer(), ComputerAccessConfig.SCHEMA_VERSION).let { config ->
+        val linuxFile = { path: String -> linux.root()?.let { File(it, path.removePrefix("/")) } }
+        val folder = { workspaces.folder().getOrNull() }
+        ComputerAccess(
+            config = config,
+            environment = linux.environment,
+            linuxFile = linuxFile,
+            folder = folder,
+            wifi = WifiAddress(context)::address,
+            tailscale = Tailscale(config.tailscale, linux.environment, linuxFile, folder, Build.MODEL, appScope),
+            scope = appScope,
+            serving = { on -> if (on) ComputerAccessService.start(context) },
+        )
+    }
 
     /** Claude Code, run in Linux with the user's own Claude plan, as another way to bring a model. */
     val claudeCode = ClaudeCodeConfig.FILE.let { file ->
