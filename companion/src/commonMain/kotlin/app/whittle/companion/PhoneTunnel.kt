@@ -17,7 +17,13 @@ interface PhoneTunnel {
     /** Reads the token from the phone at [host] and opens the tunnel; what to connect to, or why it couldn't. */
     suspend fun open(host: String): TunnelResult
 
-    /** Closes the tunnel, as the app quits. */
+    /**
+     * Forwards [port] on the phone, where a chat's server listens, to this computer while the tunnel is open: the port
+     * it's at here (the same one when that's free), or null when it couldn't. Asking again reuses the open forward.
+     */
+    suspend fun forward(port: Int): Int?
+
+    /** Closes the tunnel and every forward, as the app quits. */
     fun close()
 }
 

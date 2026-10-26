@@ -62,6 +62,9 @@ class PhoneAddress(val port: Int, val tokenFile: String, val sshPort: Int, val u
     /** Opens the link's port from this computer to the phone at [host], and stays open (-N) while the terminal does. */
     fun tunnel(host: String): String = "ssh -p $sshPort -N -L $port:127.0.0.1:$port $user@$host"
 
+    /** Opens a server's [port] from this computer to the phone at [host], as [tunnel] does the link's. */
+    fun forward(port: Int, host: String): String = "ssh -p $sshPort -N -L $port:127.0.0.1:$port $user@$host"
+
     /** Prints the token the phone at [host] keeps in Linux. */
     fun readToken(host: String): String = "ssh -p $sshPort $user@$host cat $tokenFile"
 
@@ -84,16 +87,19 @@ fun CompanionApp(link: PhoneLink, phone: PhoneAddress = PhoneAddress.Default, to
     ) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
             when (val state = link.link.collectAsState().value) {
-                LinkState.Live -> PhoneScreens(link)
+                LinkState.Live -> PhoneScreens(link, phone, tunnel)
                 else -> ConnectScreen(state, phone, token, tunnel, onConnect = link::connect)
             }
         }
     }
 }
 
-/** The phone's screens: the chat, the Chats page, the file browser for projects and files, and Settings. */
+/**
+ * The phone's screens: the chat, the Chats page, the file browser for projects and files, and Settings. A [tunnel] of
+ * the app's own also opens a chat's server here.
+ */
 @Composable
-private fun PhoneScreens(link: PhoneLink) {
+private fun PhoneScreens(link: PhoneLink, phone: PhoneAddress, tunnel: PhoneTunnel?) {
     var allChats by rememberSaveable { mutableStateOf(false) }
     var settings by rememberSaveable { mutableStateOf(false) }
     var picking by rememberSaveable { mutableStateOf(false) }
@@ -113,6 +119,8 @@ private fun PhoneScreens(link: PhoneLink) {
                 openFile = files?.let { { path, chat -> opening = FilesOpening(FilesPlace.Document(path), chat) } },
                 openFolder = files?.let { { path, chat -> opening = FilesOpening(FilesPlace.Folder(path), chat) } },
             ),
+            phone = phone,
+            previews = tunnel,
         )
     }
     // A service's own sign-in page returns to the phone, so it's signed in there; here such a row says so.
