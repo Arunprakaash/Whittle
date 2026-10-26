@@ -1,6 +1,6 @@
 [versions]
 # Whittle's own version: the phone app's and the computer app's.
-whittle = "0.27.0"
+whittle = "0.27.1"
 ndk = "28.2.13676358"
 # Toolchain
 agp = "9.3.1"
