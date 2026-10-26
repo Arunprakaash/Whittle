@@ -69,6 +69,7 @@ import app.whittle.R
 import app.whittle.connect.ChoiceRow
 import app.whittle.connect.SecretField
 import app.whittle.design.components.BottomActionButton
+import app.whittle.design.components.NumberedStep
 import app.whittle.design.components.ScreenHeading
 import app.whittle.design.components.SupportingNote
 import app.whittle.design.components.TopBarButton
@@ -291,7 +292,7 @@ fun ClaudeCodeSetupScreen(claudeCode: ClaudeCode, onBack: () -> Unit, onSignIn: 
                 stringResource(R.string.claude_code_step_sign_in) to stringResource(R.string.claude_code_step_sign_in_detail),
             )
             Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
-                steps.forEachIndexed { index, (title, detail) -> NumberedRow(index + 1, title, detail, segmentedShape(index, steps.size)) }
+                steps.forEachIndexed { index, (title, detail) -> NumberedStep(index + 1, title, detail, segmentedShape(index, steps.size)) }
             }
             Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
                 SupportingNote("account_balance_wallet", stringResource(R.string.claude_code_term_plan))
@@ -662,24 +663,6 @@ private fun CodeField(value: String, onValueChange: (String) -> Unit, enabled: B
                 keyboardActions = KeyboardActions(onSend = { onSend() }),
                 modifier = Modifier.fillMaxWidth().semantics { contentDescription = label },
             )
-        }
-    }
-}
-
-@Composable
-private fun NumberedRow(number: Int, title: String, detail: String, shape: RoundedCornerShape) {
-    val colors = MaterialTheme.colorScheme
-    Row(
-        Modifier.fillMaxWidth().clip(shape).background(colors.surfaceContainerLow).padding(WhittleSpace.m),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(WhittleSpace.m),
-    ) {
-        Box(Modifier.size(WhittleSize.Tile.s).background(colors.secondaryContainer, CircleShape), contentAlignment = Alignment.Center) {
-            Text(number.toString(), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = colors.onSecondaryContainer)
-        }
-        Column {
-            Text(title, style = MaterialTheme.typography.titleSmall)
-            Text(detail, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         }
     }
 }

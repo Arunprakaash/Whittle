@@ -2,14 +2,29 @@
 <!-- Whittle on a computer: its own few words, before it shows the phone's chat screen. -->
 <resources>
     <string name="connect_title">Connect to your phone</string>
-    <string name="connect_body">Turn on Use from your computer in Whittle on your phone (Settings › Linux workspace). Then, from this computer, open a tunnel and read the token:\nssh -L %1$d:127.0.0.1:%1$d phone cat %2$s</string>
-    <string name="connect_address">Phone address</string>
+    <string name="connect_body">This window shows Whittle as it runs on your phone: your chats, files and settings. They stay on the phone; nothing is copied here.</string>
+    <string name="connect_keeps">Only computers you add on the phone can open the tunnel, and only with its token.</string>
+    <string name="connect_scene_title">Whittle on your phone</string>
+    <string name="connect_not_connected">Not connected</string>
+    <string name="connect_step_on">Turn on Use from your computer</string>
+    <string name="connect_step_on_detail">On your phone: Settings › Linux workspace. Its address is on the Wi-Fi chip there.</string>
+    <string name="connect_phone">Phone's address, like 192.168.1.23</string>
+    <string name="connect_step_tunnel">Open the tunnel</string>
+    <string name="connect_step_tunnel_detail">In a terminal on this computer; leave it running.</string>
+    <string name="connect_step_token">Paste the token</string>
+    <string name="connect_step_token_detail">Read it from the phone with this, then paste it here.</string>
+    <string name="connect_host_placeholder">phone</string>
+    <string name="connect_copy">Copy</string>
+    <string name="connect_link">Link address %1$s</string>
     <string name="connect_token">Token</string>
     <string name="connect_go">Connect</string>
     <string name="connect_connecting">Connecting…</string>
     <string name="connect_refused">The phone didn't accept that token.</string>
-    <string name="connect_failed">Couldn't reach the phone. Is Use from your computer on, and the tunnel open?</string>
+    <string name="connect_refused_help">Copy it again with the command in step 3; it changes when Linux is reset.</string>
+    <string name="connect_failed">Couldn't reach the phone.</string>
+    <string name="connect_failed_help">Check that Use from your computer is on and the tunnel in step 2 is still running.</string>
     <string name="connect_lost">The phone stopped answering.</string>
+    <string name="connect_lost_help">The tunnel may have closed, or the phone went to sleep. Open the tunnel again and connect.</string>
     <string name="preview_body">Opens http://127.0.0.1:%1$d in this computer's browser. The server runs on your phone, so its port needs a tunnel too:
 ssh -L %1$d:127.0.0.1:%1$d phone</string>
     <string name="preview_open">Open in browser</string>

@@ -12,6 +12,7 @@ import app.whittle.linux.ui.LinuxAction
 import app.whittle.linux.ui.LinuxHost
 import app.whittle.linux.ui.LinuxScreenState
 import app.whittle.linux.ui.LinuxUsage
+import app.whittle.linux.ui.RunningProcess
 import app.whittle.linux.ui.SetupFacts
 import app.whittle.linux.ui.SetupProgress
 import app.whittle.linux.ui.SetupStep
@@ -21,6 +22,7 @@ import app.whittle.linux.ui.TailscaleRow
 import app.whittle.linux.ui.Toolchain
 import app.whittle.linux.ui.ToolchainIssue
 import app.whittle.settings.ui.LinuxKind
+import app.whittle.tools.workspace.ProcessStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -69,7 +71,7 @@ class PhoneLinuxHost(private val context: Context, private val graph: AppGraph) 
                 sizeBytes = sizes.toolchainBytes,
                 removeFailed = sizes.removeFailed?.let { if (it == ToolchainFailure.InUse) ToolchainIssue.InUse else ToolchainIssue.Other },
             ),
-            access = accessOf(computerAccess, reachable = wifi != null || tailscale.signedIn, computers),
+            access = accessOf(computerAccess, wifi, tailnet, computers),
             tailscale = rowOf(tailnet),
         )
     }.stateIn(graph.appScope, SharingStarted.Eagerly, LinuxScreenState())
@@ -157,8 +159,16 @@ class PhoneLinuxHost(private val context: Context, private val graph: AppGraph) 
         measured.update { it.copy(toolchainRead = true, toolchainReady = ready, toolchainBytes = size) }
     }
 
-    /** The names of what's running, as they change: not on every line a process prints. */
-    private fun running() = graph.processes.processes.map { all -> all.filter { it.live }.map { it.name } }.distinctUntilChanged()
+    /** What's running, as it changes: not on every line a process prints. */
+    private fun running() = graph.processes.processes.map { all ->
+        all.filter { it.live }.map { process ->
+            RunningProcess(
+                name = process.name,
+                port = process.port?.takeIf { process.listening },
+                starting = process.status == ProcessStatus.Starting || (process.port != null && !process.listening),
+            )
+        }
+    }.distinctUntilChanged()
 
     private fun progress(state: LinuxState, imageName: String): SetupProgress? {
         val (from, current) = when (state) {
@@ -193,9 +203,11 @@ class PhoneLinuxHost(private val context: Context, private val graph: AppGraph) 
         )
     }
 
-    private fun accessOf(state: ComputerAccessState, reachable: Boolean, computers: List<ComputerKey>): app.whittle.linux.ui.ComputerAccess {
+    private fun accessOf(state: ComputerAccessState, wifi: String?, tailnet: TailscaleState, computers: List<ComputerKey>): app.whittle.linux.ui.ComputerAccess {
         val on = state as? ComputerAccessState.On
         val config = access.config
+        // The tailnet address while it's on, and the last one Tailscale gave while it's off.
+        val tailnetAddress = on?.tailscale ?: (tailnet as? TailscaleState.SignedIn)?.ip ?: (tailnet as? TailscaleState.Connected)?.ip
         return app.whittle.linux.ui.ComputerAccess(
             kind = when (state) {
                 ComputerAccessState.Off -> AccessKind.Off
@@ -207,10 +219,11 @@ class PhoneLinuxHost(private val context: Context, private val graph: AppGraph) 
             wifi = on?.wifi,
             tailscale = on?.tailscale,
             detail = (state as? ComputerAccessState.Failed)?.detail,
-            reachable = reachable,
-            computers = computers.map { ComputerRow(comment = it.comment, fingerprint = it.fingerprint) },
-            signInWifi = on?.wifi?.let(config::signIn),
-            signInTailscale = on?.tailscale?.let(config::signIn),
+            reachable = wifi != null || tailscale.signedIn,
+            computers = computers.map { ComputerRow(comment = it.comment, fingerprint = it.fingerprint, type = it.type.removePrefix(KEY_TYPE_PREFIX)) },
+            wifiAddress = wifi,
+            signInWifi = wifi?.let(config::signIn),
+            signInTailscale = tailnetAddress?.let(config::signIn),
             printKeyCommand = config.printKeyCommand,
             makeKeyCommand = config.makeKeyCommand,
             maxComputers = config.maxComputers,
@@ -243,6 +256,8 @@ class PhoneLinuxHost(private val context: Context, private val graph: AppGraph) 
     )
 
     private companion object {
+        /** OpenSSH names key types "ssh-ed25519"; people say "ed25519". */
+        const val KEY_TYPE_PREFIX = "ssh-"
         val STEP_ICONS = mapOf(
             LinuxSetupStep.Download to "download",
             LinuxSetupStep.Unpack to "folder_zip",

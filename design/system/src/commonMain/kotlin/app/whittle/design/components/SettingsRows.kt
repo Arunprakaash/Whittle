@@ -41,15 +41,23 @@ fun SettingsSection(
     modifier: Modifier = Modifier,
     description: String? = null,
     footer: String? = null,
+    /** The section's one action, at the end of its title's line: a switch, a + or a text button. */
+    action: (@Composable () -> Unit)? = null,
     rows: @Composable ColumnScope.() -> Unit,
 ) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
-        Text(
-            title,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = WhittleSpace.m),
-        )
+        Row(
+            Modifier.fillMaxWidth().then(if (action != null) Modifier.heightIn(min = WhittleSize.touchTarget) else Modifier),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                title,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f).padding(start = WhittleSpace.m),
+            )
+            action?.invoke()
+        }
         description?.let {
             Text(
                 it,

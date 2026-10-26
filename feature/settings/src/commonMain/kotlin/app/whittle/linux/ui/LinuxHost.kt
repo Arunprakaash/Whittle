@@ -32,12 +32,16 @@ data class LinuxScreenState(
     val facts: SetupFacts? = null,
     /** Setting up, or failed: this run's steps so far. */
     val progress: SetupProgress? = null,
-    /** The names of what the agent has running in Linux. */
-    val running: List<String> = emptyList(),
+    /** What the agent has running in Linux. */
+    val running: List<RunningProcess> = emptyList(),
     val toolchain: Toolchain = Toolchain(),
     val access: ComputerAccess = ComputerAccess(),
     val tailscale: TailscaleRow = TailscaleRow(),
 )
+
+/** A server or watcher the agent started: [port] once something answers there; [starting] until it's up. */
+@Serializable
+data class RunningProcess(val name: String, val port: Int? = null, val starting: Boolean = false)
 
 @Serializable
 data class LinuxUsage(val base: Long, val added: Long, val caches: Long)
@@ -83,7 +87,12 @@ data class ComputerAccess(
     /** There's a way in right now: Wi-Fi, or Tailscale signed in. */
     val reachable: Boolean = false,
     val computers: List<ComputerRow> = emptyList(),
-    /** What a computer types to sign in, on the same Wi-Fi and over Tailscale. */
+    /** The phone's Wi-Fi address now, whether or not the switch is on; null off Wi-Fi. */
+    val wifiAddress: String? = null,
+    /**
+     * What a computer types to sign in, on the same Wi-Fi and over Tailscale: known whenever the address is, so the
+     * page shows them dimmed while the switch is off and nothing moves when it's turned on.
+     */
     val signInWifi: String? = null,
     val signInTailscale: String? = null,
     /** Shown in Add a computer: prints the computer's key, and makes one when there's none. */
@@ -96,7 +105,7 @@ data class ComputerAccess(
 enum class AccessKind { Off, Installing, Starting, On, Failed }
 
 @Serializable
-data class ComputerRow(val comment: String, val fingerprint: String)
+data class ComputerRow(val comment: String, val fingerprint: String, val type: String = "")
 
 @Serializable
 data class TailscaleRow(

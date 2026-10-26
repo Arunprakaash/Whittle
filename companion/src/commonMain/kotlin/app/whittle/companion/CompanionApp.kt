@@ -5,9 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -41,10 +39,6 @@ import app.whittle.files.ui.FilesPlace
 import app.whittle.files.ui.FilesPlatform
 import app.whittle.files.ui.filesOpeningSaver
 import app.whittle.companion.resources.*
-import app.whittle.design.components.BottomActionButton
-import app.whittle.design.components.ScreenHeading
-import app.whittle.design.components.SupportingNote
-import app.whittle.design.components.WhittleFilledField
 import app.whittle.design.theme.ThemeMode
 import app.whittle.design.theme.WhittleAppearance
 import app.whittle.design.theme.WhittleTheme
@@ -52,12 +46,18 @@ import app.whittle.design.tokens.WhittleSpace
 import org.jetbrains.compose.resources.stringResource
 
 /** Where a computer reaches the phone, and how it finds the token: the port and file the phone's config names. */
-class PhoneAddress(val port: Int, val tokenFile: String) {
+class PhoneAddress(val port: Int, val tokenFile: String, val sshPort: Int, val user: String) {
     val webSocket: String get() = "ws://127.0.0.1:$port/companion"
 
+    /** Opens the link's port from this computer to the phone at [host], and stays open (-N) while the terminal does. */
+    fun tunnel(host: String): String = "ssh -p $sshPort -N -L $port:127.0.0.1:$port $user@$host"
+
+    /** Prints the token the phone at [host] keeps in Linux. */
+    fun readToken(host: String): String = "ssh -p $sshPort $user@$host cat $tokenFile"
+
     companion object {
-        /** The phone's defaults (computer-access.json). */
-        val Default = PhoneAddress(port = 8790, tokenFile = "/root/.whittle/companion-token")
+        /** The phone's defaults (computer-access.json): the link's port and token, and its SSH server's. */
+        val Default = PhoneAddress(port = 8790, tokenFile = "/root/.whittle/companion-token", sshPort = 8022, user = "root")
     }
 }
 
@@ -153,34 +153,3 @@ private fun ModelPicking(link: PhoneLink, onClose: () -> Unit) {
     }
 }
 
-@Composable
-private fun ConnectScreen(state: LinkState, phone: PhoneAddress, token: String, onConnect: (String, String) -> Unit) {
-    var address by rememberSaveable { mutableStateOf(phone.webSocket) }
-    var secret by rememberSaveable { mutableStateOf(token) }
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        // Where the app draws the window's top, it still moves the window.
-        LocalWindowChrome.current?.let { chrome ->
-            chrome.Draggable { Box(Modifier.fillMaxWidth().windowInsetsTopHeight(chrome.insets).align(Alignment.TopCenter)) }
-        }
-        Column(Modifier.widthIn(max = FORM_WIDTH).padding(WhittleSpace.l), verticalArrangement = Arrangement.spacedBy(WhittleSpace.l)) {
-            ScreenHeading(stringResource(Res.string.connect_title), stringResource(Res.string.connect_body, phone.port, phone.tokenFile))
-            WhittleFilledField(address, { address = it }, stringResource(Res.string.connect_address), singleLine = true)
-            WhittleFilledField(secret, { secret = it.trim() }, stringResource(Res.string.connect_token), singleLine = true)
-            (state as? LinkState.Off)?.problem?.let { problem ->
-                val words = when (problem) {
-                    LinkProblem.Refused -> Res.string.connect_refused
-                    LinkProblem.Unreachable -> Res.string.connect_failed
-                    LinkProblem.Lost -> Res.string.connect_lost
-                }
-                SupportingNote("error", stringResource(words))
-            }
-            BottomActionButton(
-                icon = "computer",
-                label = stringResource(if (state == LinkState.Connecting) Res.string.connect_connecting else Res.string.connect_go),
-                onClick = { if (secret.isNotBlank()) onConnect(address.trim(), secret) },
-            )
-        }
-    }
-}
-
-private val FORM_WIDTH = 520.dp

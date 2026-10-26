@@ -23,10 +23,10 @@ import app.whittle.design.tokens.WhittleSpace
  * below, when given. [code] sets it in the mono face, for commands.
  */
 @Composable
-fun CopyableText(text: String, copyDescription: String, onCopy: () -> Unit, label: String? = null, hint: String? = null, code: Boolean = false) {
+fun CopyableText(text: String, copyDescription: String, onCopy: () -> Unit, label: String? = null, hint: String? = null, code: Boolean = false, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
     Column(
-        Modifier.fillMaxWidth().background(colors.surfaceContainerLowest, RoundedCornerShape(WhittleRadius.l)).padding(start = WhittleSpace.m, top = WhittleSpace.s, bottom = WhittleSpace.s),
+        modifier.fillMaxWidth().background(colors.surfaceContainerLowest, RoundedCornerShape(WhittleRadius.l)).padding(start = WhittleSpace.m, top = WhittleSpace.s, bottom = WhittleSpace.s),
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.xs),
     ) {
         label?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant) }
