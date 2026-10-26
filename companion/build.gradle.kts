@@ -126,3 +126,10 @@ tasks.register<Copy>("releaseDmg") {
 compose.resources {
     packageOfResClass = "app.whittle.companion.resources"
 }
+
+// Binaryen's optimizing pass is the slowest step of the browser build (minutes on CI, where every build starts clean),
+// and Kotlin keeps it out of the build cache. Everything it reads is a declared input: the linked Wasm, its arguments
+// and wasm-opt itself, whose path names Binaryen's version. So its output is reused like any other task's.
+tasks.withType<org.jetbrains.kotlin.gradle.targets.wasm.binaryen.BinaryenExec>().configureEach {
+    outputs.cacheIf("its inputs, Binaryen's version among them, are all declared") { true }
+}
