@@ -1,9 +1,5 @@
 plugins {
-    alias(libs.plugins.whittle.android.compose.library)
-}
-
-android {
-    namespace = "app.whittle.design"
+    alias(libs.plugins.whittle.multiplatform.compose.library)
 }
 
 // The theme's colors, type, dimensions, motion and haptics are generated from the design tokens.
@@ -20,9 +16,31 @@ val generateSprites = tasks.register<GenerateSpriteKotlinTask>("generateSprites"
     outputDirectory.set(layout.buildDirectory.dir("generated/source/sprites"))
 }
 
-androidComponents {
-    onVariants { variant ->
-        variant.sources.kotlin?.addGeneratedSourceDirectory(generateDesignTokens, GenerateDesignTokensTask::outputDirectory)
-        variant.sources.kotlin?.addGeneratedSourceDirectory(generateSprites, GenerateSpriteKotlinTask::outputDirectory)
+kotlin {
+    android {
+        namespace = "app.whittle.design"
+        compileSdk {
+            version = release(libs.versions.androidCompileSdk.get().toInt()) {
+                minorApiLevel = libs.versions.androidCompileSdkMinor.get().toInt()
+            }
+        }
+        minSdk = libs.versions.androidMinSdk.get().toInt()
+        // The fonts stay Android resources there, for their variable weights.
+        androidResources { enable = true }
     }
+
+    sourceSets {
+        commonMain {
+            kotlin.srcDir(generateDesignTokens.flatMap { it.outputDirectory })
+            kotlin.srcDir(generateSprites.flatMap { it.outputDirectory })
+        }
+        androidMain.dependencies { implementation(libs.androidx.activity.compose) }
+        // Desktop reads the same font files Android bundles.
+        named("desktopMain") { resources.srcDir("src/androidMain/res/font") }
+    }
+}
+
+compose.resources {
+    publicResClass = true
+    packageOfResClass = "app.whittle.design.resources"
 }

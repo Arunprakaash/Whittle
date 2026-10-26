@@ -76,10 +76,11 @@ class AskToFixTest {
 
     @Test
     fun `the requests Ask to fix shows as the user's message name the program and leave the output out`() {
-        val strings = File("src/main/res/values/strings.xml")
-        val document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(strings)
-        val all = document.getElementsByTagName("string")
-        val byName = (0 until all.length).map { all.item(it) as Element }.associate { it.getAttribute("name") to it.textContent }
+        // The cards' requests are the chat screen's words; the preview's are the phone's.
+        val byName = listOf("src/main/res/values/strings.xml", "../feature/chat/src/commonMain/composeResources/values/strings.xml").flatMap { path ->
+            val all = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(File(path)).getElementsByTagName("string")
+            (0 until all.length).map { all.item(it) as Element }.map { it.getAttribute("name") to it.textContent }
+        }.toMap()
         // One short line each, whose only arguments are the app's name and folder, or the process's or preview's name.
         mapOf("app_fix_message" to 2, "process_fix_message" to 1, "preview_fix_message" to 1).forEach { (name, arguments) ->
             val text = byName.getValue(name)

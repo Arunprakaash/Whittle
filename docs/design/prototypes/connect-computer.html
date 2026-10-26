@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connect to your phone</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..24,400,0..1,0&display=swap">
+<style>
+  :root {
+    --page: #EEF0EE; --ink: #171D1A; --ink-2: #404944; --ink-3: #707973; --line: #D6DBD7; --card: #FFFFFF;
+    --accent: #2B6A55; --accent-soft: #CDE9DC;
+    /* The window: Whittle's neutral wallpaper colours, as the Mac app draws them. */
+    --w-bg: #F9F9F9; --w-low: #F1F1F1; --w-high: #E8E8E8; --w-lowest: #FFFFFF; --w-ink: #1F1F1F; --w-ink-2: #5E5E5E; --w-ink-3: #8E8E8E;
+    --w-num: #E3E3E3; --w-button: #5E5E5E; --w-on-button: #FFFFFF; --w-error: #B3261E; --w-outline: #D0D0D0;
+    --s-sky: #EEEEEE; --s-far: #C9C9C9; --s-far-2: #DCDCDC; --s-ground: #E6E6E6; --s-ground-2: #CFCFCF; --s-progress: #5E5E5E;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --page: #0F1512; --ink: #DEE4DF; --ink-2: #C0C9C3; --ink-3: #8A938D; --line: #303633; --card: #171D1A; --accent: #97D4BA; --accent-soft: #1F3A30;
+      --w-bg: #131313; --w-low: #1F1F1F; --w-high: #2A2A2A; --w-lowest: #0E0E0E; --w-ink: #E3E3E3; --w-ink-2: #C4C4C4; --w-ink-3: #8E8E8E;
+      --w-num: #2F2F2F; --w-button: #C6C6C6; --w-on-button: #131313; --w-error: #F2B8B5; --w-outline: #3A3A3A;
+      --s-sky: #1C1C1C; --s-far: #3A3A3A; --s-far-2: #2C2C2C; --s-ground: #262626; --s-ground-2: #343434; --s-progress: #C6C6C6;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page: #0F1512; --ink: #DEE4DF; --ink-2: #C0C9C3; --ink-3: #8A938D; --line: #303633; --card: #171D1A; --accent: #97D4BA; --accent-soft: #1F3A30;
+    --w-bg: #131313; --w-low: #1F1F1F; --w-high: #2A2A2A; --w-lowest: #0E0E0E; --w-ink: #E3E3E3; --w-ink-2: #C4C4C4; --w-ink-3: #8E8E8E;
+    --w-num: #2F2F2F; --w-button: #C6C6C6; --w-on-button: #131313; --w-error: #F2B8B5; --w-outline: #3A3A3A;
+    --s-sky: #1C1C1C; --s-far: #3A3A3A; --s-far-2: #2C2C2C; --s-ground: #262626; --s-ground-2: #343434; --s-progress: #C6C6C6;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 400 15px/1.5 Figtree, system-ui, sans-serif; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding-block: 40px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  h1 { font-weight: 600; font-size: 30px; line-height: 1.2; margin: 0 0 8px; text-wrap: balance; }
+  .lede { color: var(--ink-2); max-width: 76ch; margin: 0 0 24px; }
+  .states { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 22px; }
+  .states .label { font: 500 12px/1 "Geist Mono", monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin: 0 4px 0 10px; }
+  .states .label:first-child { margin-left: 0; }
+  .toggle { font: 500 14px Figtree, sans-serif; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; cursor: pointer; }
+  .toggle[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+  .frame-title { font: 600 16px Figtree, sans-serif; margin: 26px 0 2px; }
+  .frame-note { margin: 0 0 10px; color: var(--ink-3); font-size: 13.5px; }
+  .ms { font-family: "Material Symbols Rounded"; font-size: 20px; line-height: 1; color: var(--w-ink-2); font-variation-settings: "opsz" 20; user-select: none; }
+
+  /* The Mac window and a narrow browser tab, both drawing the same screen. */
+  .mac { background: var(--w-bg); color: var(--w-ink); border-radius: 14px; border: 1px solid var(--line); box-shadow: 0 24px 48px -28px rgba(0,0,0,.45); overflow: auto; resize: both; min-width: 340px; max-width: 100%; height: 760px; display: flex; flex-direction: column; }
+  .grip { font-size: 12.5px; color: var(--ink-3); margin: 6px 0 0; display: flex; gap: 6px; align-items: center; }
+  .mac .lights { display: flex; gap: 8px; padding: 12px 14px 0; height: 32px; flex: none; }
+  .mac .lights i { width: 12px; height: 12px; border-radius: 50%; background: var(--w-high); }
+  .tab { width: 100%; max-width: 400px; background: var(--w-bg); color: var(--w-ink); border-radius: 14px; border: 1px solid var(--line); overflow: hidden; }
+  .tab .url { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--card); font: 400 12.5px "Geist Mono", monospace; color: var(--ink-3); }
+
+  /* One narrow column in the middle of the window: the scene, the address and Connect. Setup sits under it, quietly. */
+  .screen { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px 20px 40px; }
+  .col { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+  /* The scene from the Linux page: the beaver, far woods and the ground line, with how the link stands. */
+  .scene { position: relative; border-radius: 24px; overflow: hidden; }
+  .scene svg { display: block; width: 100%; height: 180px; }
+  .scene .status { position: absolute; left: 18px; top: 16px; }
+  .scene .status b { display: block; font: 600 17px/1.25 Figtree, sans-serif; }
+  .scene .status span { font-size: 14px; color: var(--w-ink-2); }
+  .scene .status span.bad { color: var(--w-error); }
+  .scene .bar-line { position: absolute; left: 0; bottom: 0; height: 6px; background: var(--s-progress); animation: indeterminate 1.4s ease-in-out infinite; }
+  @keyframes indeterminate { 0% { left: 0; width: 0; } 50% { left: 20%; width: 55%; } 100% { left: 100%; width: 0; } }
+  .gnaw-a { animation: gnaw-a .62s steps(1) infinite; }
+  .gnaw-b { opacity: 0; animation: gnaw-b .62s steps(1) infinite; }
+  @keyframes gnaw-a { 0% { opacity: 1; } 42% { opacity: 0; } }
+  @keyframes gnaw-b { 0% { opacity: 0; } 42% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .gnaw-a, .gnaw-b, .scene .bar-line { animation: none; } .gnaw-b { opacity: 0; } }
+
+  /* The address field, as Whittle's outlined fields: label above, hint below. */
+  .addr { display: flex; align-items: center; gap: 10px; background: var(--w-lowest); border-radius: 16px; padding: 4px 6px 4px 14px; border: 1px solid transparent; }
+  .addr:focus-within { border-color: var(--w-ink-3); }
+  .addr.bad { border-color: var(--w-error); }
+  .addr .ms { color: var(--w-ink-3); }
+  .addr input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font: 400 15px "Geist Mono", monospace; color: var(--w-ink); padding: 12px 0; }
+  .addr input::placeholder { color: var(--w-ink-3); font-family: Figtree, sans-serif; }
+  .hint { font-size: 13px; color: var(--w-ink-3); padding: 0 14px; margin-top: -8px; }
+  .hint.bad { color: var(--w-error); }
+
+  .connect { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; border: 0; border-radius: 999px; background: var(--w-button); color: var(--w-on-button); padding: 15px; font: 500 16px Figtree, sans-serif; cursor: pointer; }
+  .connect .ms { color: var(--w-on-button); }
+  .connect[disabled] { opacity: .45; cursor: default; }
+  .spin { width: 18px; height: 18px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--w-on-button) 35%, transparent); border-top-color: var(--w-on-button); animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* First time: two numbered rows, short. Once a phone has connected they fold into one line. */
+  .setup { margin-top: 12px; display: flex; flex-direction: column; gap: 2px; }
+  .setup-h { display: flex; align-items: center; justify-content: space-between; font: 500 13px Figtree, sans-serif; color: var(--w-ink-3); padding: 0 6px 8px; background: none; border: 0; cursor: pointer; width: 100%; text-align: left; }
+  .setup-h .ms { font-size: 18px; color: var(--w-ink-3); transition: transform .2s; }
+  .setup-h[aria-expanded="true"] .ms { transform: rotate(180deg); }
+  .step { background: var(--w-low); padding: 12px 14px; border-radius: 6px; display: flex; gap: 12px; align-items: center; }
+  .step:nth-of-type(1) { border-top-left-radius: 20px; border-top-right-radius: 20px; }
+  .step:last-child { border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; }
+  .num { width: 26px; height: 26px; border-radius: 50%; background: var(--w-num); display: grid; place-items: center; font: 600 13px Figtree, sans-serif; flex: none; }
+  .step .body { flex: 1; min-width: 0; }
+  .step .t { font: 500 14.5px/1.3 Figtree, sans-serif; }
+  .step .d { font-size: 13px; color: var(--w-ink-3); }
+  .step .d code { font: 400 12.5px "Geist Mono", monospace; color: var(--w-ink-2); }
+  .iconbtn { width: 36px; height: 36px; border: 0; background: var(--w-high); display: grid; place-items: center; cursor: pointer; border-radius: 50%; flex: none; }
+  .iconbtn .ms { font-size: 18px; }
+  .copied .ms { color: var(--w-ink); }
+
+  h2.sec-h { font: 600 18px Figtree, sans-serif; margin: 44px 0 6px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; }
+  .cards div { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+  .cards b { display: block; margin-bottom: 4px; }
+  .cards span { color: var(--ink-2); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Connect to your phone, simpler</h1>
+  <p class="lede">The Mac app's first screen, cut down to what you do on it: type the phone's address and connect. The beaver scene says how the link stands, so it's the heading too. Setting up a phone for the first time is two short rows under Connect, and they fold away once a phone has connected. Try the states, and type in the field.</p>
+
+  <div class="states" role="group" aria-label="Try states">
+    <span class="label">State</span>
+    <button class="toggle" data-link="first" aria-pressed="true">First time</button>
+    <button class="toggle" data-link="back" aria-pressed="false">Coming back</button>
+    <button class="toggle" data-link="connecting" aria-pressed="false">Connecting</button>
+    <button class="toggle" data-link="unreachable" aria-pressed="false">Couldn't reach it</button>
+    <button class="toggle" data-link="notAdded" aria-pressed="false">Not added</button>
+    <span class="label">Theme</span>
+    <button class="toggle" data-theme-set="light" aria-pressed="false">Light</button>
+    <button class="toggle" data-theme-set="dark" aria-pressed="false">Dark</button>
+  </div>
+
+  <p class="frame-title">The Mac app</p>
+  <p class="frame-note">One column in the middle of the window, at any size.</p>
+  <div class="mac"><div class="lights"><i></i><i></i><i></i></div><div class="screen" id="mac"></div></div>
+  <p class="grip"><span class="ms">drag_pan</span>Drag the window's bottom-right corner to try other sizes.</p>
+
+  <h2 class="sec-h">What changes</h2>
+  <div class="cards">
+    <div><b>One thing to do</b><span>The address and Connect are the screen. The two-column layout, the intro paragraph and the lock note go; the scene's title says what this is.</span></div>
+    <div><b>Setup only when it's needed</b><span>Two rows of a few words each: turn it on, add this Mac's key. After the first connection they fold into "Set up another phone", and the address is filled in.</span></div>
+    <div><b>The key, one tap</b><span>The key isn't shown in full. A copy button copies it, and the row shows its type and its last few characters so you can tell it's this Mac's.</span></div>
+    <div><b>Problems where they happen</b><span>The scene's status turns red, and the line under the address says what to do. "Not added" opens the setup rows.</span></div>
+  </div>
+</div>
+
+<script>
+  const state = { link: "first", phone: "", open: true, copied: false };
+  const KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ17zwjTKzWd1t3hCnWIR1toKt9zcKIJ/JQmf6R3NezK arun@MacBook-Pro-2";
+
+  /** Whittle's beaver, from docs/design/sprites/beaver.sprite.json. */
+  const PALETTE = { D: "#4E3220", B: "#9A6440", H: "#B5804F", C: "#C77D5E", T: "#E7C39A", N: "#2A1B12", K: "#171D1A", W: "#FFFFFF", O: "#F2BD5C", S: "#E9C58F", G: "#B98A55", P: "#F2D7A6" };
+  const FRAMES = {
+    lookUp: ["..DD........DD..", ".DHBDDDDDDDDBHD.", ".DBHHHHHHHHHHBD.", ".DBBBWKBBBBWKBD.", ".DBBBKKBBBBKKBD.", ".DBBBBBBBBBBBBD.", ".DBCBTTTTTTBCBD.", ".DBBTTTNNTTTBBD.", ".DBBTTTTTTTTBBD.", ".DBBBTTOOTTBBBD.", "..DBBBBOOBBBBD..", "..DBBBBBBBBBBD..", "..DBBDDDDDDBBD..", "..DDD......DDD.."],
+    lookUpBlink: ["..DD........DD..", ".DHBDDDDDDDDBHD.", ".DBHHHHHHHHHHBD.", ".DBBBBBBBBBBBBD.", ".DBBBKKBBBBKKBD.", ".DBBBBBBBBBBBBD.", ".DBCBTTTTTTBCBD.", ".DBBTTTNNTTTBBD.", ".DBBTTTTTTTTBBD.", ".DBBBTTOOTTBBBD.", "..DBBBBOOBBBBD..", "..DBBBBBBBBBBD..", "..DBBDDDDDDBBD..", "..DDD......DDD.."],
+    earLeft: ["............DD..", ".DDDDDDDDDDDBHD.", ".DBHHHHHHHHHHBD.", ".DBBBWKBBBBWKBD.", ".DBBBKKBBBBKKBD.", ".DBBBBBBBBBBBBD.", ".DBCBTTTTTTBCBD.", ".DBBTTTNNTTTBBD.", ".DBBTTTTTTTTBBD.", ".DBBBTTOOTTBBBD.", "..DBBBBOOBBBBD..", "..DBBBBBBBBBBD..", "..DBBDDDDDDBBD..", "..DDD......DDD.."],
+    earRight: ["..DD............", ".DHBDDDDDDDDDDD.", ".DBHHHHHHHHHHBD.", ".DBBBWKBBBBWKBD.", ".DBBBKKBBBBKKBD.", ".DBBBBBBBBBBBBD.", ".DBCBTTTTTTBCBD.", ".DBBTTTNNTTTBBD.", ".DBBTTTTTTTTBBD.", ".DBBBTTOOTTBBBD.", "..DBBBBOOBBBBD..", "..DBBBBBBBBBBD..", "..DBBDDDDDDBBD..", "..DDD......DDD.."],
+    gnawUp: ["..DD........DD..", ".DHBDDDDDDDDBHD.", ".DBHHHHHHHHHHBD.", ".DBBBBBBBBBBBBD.", ".DBBWKBBBBWKBBD.", ".DBBKKBBBBKKBBD.", ".DBCBTTTTTTBCBD.", ".DBBTTTNNTTTBBD.", ".DBBTTTTTTTTBBD.", ".DBBBTTOOTTBBBD.", "..DBBBBOOBBBBD..", "GSSDSSSSSSSSDSSG", "..DBBDDDDDDBBD..", "..DDD......DDD.."],
+    gnawBite: ["..DD........DD..", ".DHBDDDDDDDDBHD.", ".DBHHHHHHHHHHBD.", ".DBBBBBBBBBBBBD.", ".DBBBBBBBBBBBBD.", ".DBBKKBBBBKKBBD.", ".DBCBTTTTTTBCBD.", ".DBBTTTNNTTTBBD.", ".DBBTTTTTTTTBBD.", ".DBBBTTTTTTBBBD.", "..DBBBBOOBBBBD..", "GSSDSSSOOSSSDSSG", "..DBBDDDDDDBBD..", "..DDD......DDD.."],
+  };
+  const THINKING = [["lookUp", 700], ["earLeft", 150], ["lookUp", 900], ["earRight", 150], ["lookUp", 500], ["lookUpBlink", 120], ["lookUp", 600]];
+  const PINE = ["....x....", "...xxx...", "..xxxxx..", "...xxx...", "..xxxxx..", ".xxxxxxx.", "..xxxxx..", ".xxxxxxx.", "xxxxxxxxx", ".xxxxxxx.", "xxxxxxxxx", "....x....", "....x...."];
+  const WOODS = [[10, 3], [16, 0], [21, 2], [27, 4], [32, 1], [76, 2], [82, 0], [87, 3], [93, 1], [98, 4]];
+  let poseNow = "lookUp";
+
+  function sprite(rows, x0, y0, size, cls, frame) {
+    let out = `<g class="${cls}"${frame ? ` data-frame="${frame}" style="display:${frame === poseNow ? "inline" : "none"}"` : ""}>`;
+    rows.forEach((row, y) => [...row].forEach((c, x) => {
+      if (PALETTE[c]) out += `<rect x="${x0 + x * size}" y="${y0 + y * size}" width="${size + .05}" height="${size + .05}" fill="${PALETTE[c]}"/>`;
+    }));
+    return out + "</g>";
+  }
+
+  function scene() {
+    const ground = 164, size = 4.5, x0 = 180 - 8 * size, y0 = ground - 14 * size, cell = 3;
+    let woods = "";
+    WOODS.forEach(([column, sink]) => PINE.forEach((row, y) => [...row].forEach((c, x) => {
+      if (c !== "x") return;
+      woods += `<rect x="${(column + x) * cell}" y="${ground - 22 - (PINE.length - y - sink) * cell}" width="${cell}" height="${cell}" fill="var(${(column + x) % 2 ? "--s-far" : "--s-far-2"})"/>`;
+    })));
+    const working = state.link === "connecting";
+    const beaver = working
+      ? sprite(FRAMES.gnawUp, x0, y0, size, "gnaw-a") + sprite(FRAMES.gnawBite, x0, y0, size, "gnaw-b")
+      : ["lookUp", "earLeft", "earRight", "lookUpBlink"].map(f => sprite(FRAMES[f], x0, y0, size, "", f)).join("");
+    const status = {
+      first: ["Not connected", ""], back: ["Not connected", ""], connecting: ["Connecting…", ""],
+      unreachable: ["Couldn't reach it", "bad"], notAdded: ["This Mac isn't added yet", "bad"],
+    }[state.link];
+    return `<div class="scene"><svg viewBox="0 0 360 180" preserveAspectRatio="xMidYMax slice" role="img" aria-label="Whittle's beaver${working ? ", gnawing a stick" : ""}">
+      <rect width="360" height="180" fill="var(--s-sky)"/>${woods}${beaver}
+      <rect y="${ground}" width="360" height="16" fill="var(--s-ground)"/><rect y="${ground}" width="360" height="2" fill="var(--s-ground-2)"/></svg>
+      <div class="status"><b>Connect to your phone</b><span class="${status[1]}">${status[0]}</span></div>
+      ${working ? '<div class="bar-line"></div>' : ""}</div>`;
+  }
+
+  const ic = (name) => `<span class="ms" aria-hidden="true">${name}</span>`;
+  /** The key's type and its last characters: enough to tell it's this Mac's. */
+  const shortKey = () => { const [type, body] = KEY.split(" "); return `${type.replace("ssh-", "")} …${body.slice(-6)}`; };
+
+  function screen() {
+    const connecting = state.link === "connecting";
+    const hint = {
+      unreachable: ["Check the address, and that Use from your computer is on.", "bad"],
+      notAdded: ["Add this Mac's key on the phone, below.", "bad"],
+    }[state.link];
+    const ready = state.phone.trim() && !connecting;
+    return `<div class="col">
+      ${scene()}
+      <label class="addr ${hint ? "bad" : ""}">${ic("wifi")}<input data-field="phone" value="${state.phone}" placeholder="Phone's address, like 192.168.1.23" aria-label="Phone's address" ${connecting ? "disabled" : ""}></label>
+      ${hint ? `<div class="hint bad">${hint[0]}</div>` : ""}
+      <button class="connect" ${ready ? "" : "disabled"}>${connecting ? '<span class="spin"></span>Connecting…' : `${ic("computer")}Connect`}</button>
+      <div class="setup">
+        <button class="setup-h" data-toggle-setup aria-expanded="${state.open}"><span>${state.link === "first" ? "First time" : "Set up another phone"}</span>${ic("expand_more")}</button>
+        ${state.open ? `
+        <div class="step"><div class="num">1</div><div class="body"><div class="t">Turn on Use from your computer</div><div class="d">Settings › Linux workspace, which shows its address</div></div></div>
+        <div class="step"><div class="num">2</div><div class="body"><div class="t">Add this Mac's key</div><div class="d">Tap + by Computers, then paste <code>${shortKey()}</code></div></div>
+          <button class="iconbtn ${state.copied ? "copied" : ""}" data-copy aria-label="Copy this Mac's key">${ic(state.copied ? "check" : "content_copy")}</button></div>` : ""}
+      </div>
+    </div>`;
+  }
+
+  function render() {
+    const focused = document.activeElement?.dataset?.field;
+    document.getElementById("mac").innerHTML = screen();
+    if (focused) {
+      const input = document.querySelector(`#mac [data-field="${focused}"]`);
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+  }
+
+  document.addEventListener("input", (event) => {
+    const field = event.target.dataset?.field;
+    if (!field) return;
+    state[field] = event.target.value;
+    render();
+  });
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest("[data-link]");
+    if (link) {
+      state.link = link.dataset.link;
+      // Setup is open the first time and when the phone didn't know this Mac; otherwise it's folded.
+      state.open = state.link === "first" || state.link === "notAdded";
+      state.phone = state.link === "first" ? "" : "192.168.1.23";
+      document.querySelectorAll("[data-link]").forEach(b => b.setAttribute("aria-pressed", b === link));
+      return render();
+    }
+    if (event.target.closest("[data-toggle-setup]")) {
+      state.open = !state.open;
+      return render();
+    }
+    if (event.target.closest("[data-copy]")) {
+      navigator.clipboard?.writeText(KEY).catch(() => {});
+      state.copied = true; render();
+      setTimeout(() => { state.copied = false; render(); }, 1600);
+      return;
+    }
+    const theme = event.target.closest("[data-theme-set]");
+    if (theme) {
+      const on = theme.getAttribute("aria-pressed") !== "true";
+      document.querySelectorAll("[data-theme-set]").forEach(b => b.setAttribute("aria-pressed", on && b === theme));
+      if (on) document.documentElement.dataset.theme = theme.dataset.themeSet; else delete document.documentElement.dataset.theme;
+    }
+  });
+
+  function think(step = 0) {
+    const [frame, millis] = THINKING[step];
+    poseNow = frame;
+    document.querySelectorAll("[data-frame]").forEach(g => { g.style.display = g.dataset.frame === frame ? "inline" : "none"; });
+    setTimeout(() => think((step + 1) % THINKING.length), millis);
+  }
+
+  render();
+  if (!matchMedia("(prefers-reduced-motion: reduce)").matches) think();
+</script>
+</body>
+</html>

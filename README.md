@@ -314,6 +314,24 @@ Install it on a connected device:
 adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
+### The Mac app
+
+`companion` is Whittle on a computer: the phone's own screens, in a Mac window or a browser tab, over an ssh tunnel
+to the phone. Run it from the repo:
+
+```bash
+./gradlew :companion:run
+```
+
+Build the release `.dmg` into `dist/` (packaging needs a JDK with `jpackage`; see `whittle.packageJdk` below). It's
+signed and notarized when `~/.whittle/mac-signing.properties` is set up, and signed ad hoc otherwise:
+
+```bash
+./gradlew :companion:releaseDmg
+```
+
+[Releasing](docs/releasing.md) is the checklist for a release, the APK and the `.dmg` together.
+
 To update the pinned Termux packages, edit `app/termux-runtimes.json` and refresh the lock file:
 
 ```bash
@@ -330,6 +348,8 @@ Keep these in `~/.gradle/gradle.properties`, never in the repo:
 | `whittle.replayShowContent=true` | Your own test builds show content in session replays. Never set it for builds you ship. |
 | `whittle.posthogDebug=true` | Verbose PostHog logging. |
 | `whittle.releaseSigningFile` | Path to the signing properties (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`). Defaults to `~/.whittle/release-signing.properties`. Without it the release APK is unsigned. |
+| `whittle.packageJdk` | A JDK with `jpackage` for building the Mac app's `.dmg`; Android Studio's has none. |
+| `whittle.macSigningFile` | Path to the Mac signing properties (`identity`, `appleId`, `password`, `teamId`, optional `keychain`). Defaults to `~/.whittle/mac-signing.properties`. Without it the `.dmg` is signed ad hoc and isn't notarized. |
 
 ## Run the agent from a terminal
 

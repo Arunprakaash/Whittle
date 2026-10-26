@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Whittle on a computer: its own few words, before it shows the phone's chat screen. -->
+<resources>
+    <string name="connect_title">Connect to your phone</string>
+    <string name="connect_not_connected">Not connected</string>
+    <string name="connect_step_on">Turn on Use from your computer</string>
+    <string name="connect_step_on_detail">Settings › Linux workspace, which shows its address</string>
+    <string name="connect_phone">Phone's address, like 192.168.1.23</string>
+    <string name="connect_step_tunnel">Open the tunnel</string>
+    <string name="connect_step_tunnel_detail">In a terminal on this computer; leave it running.</string>
+    <string name="connect_step_token">Paste the token</string>
+    <string name="connect_step_token_detail">Read it from the phone with this, then paste it here.</string>
+    <string name="connect_host_placeholder">phone</string>
+    <string name="connect_copy">Copy</string>
+    <string name="connect_step_key">Add this computer's key</string>
+    <string name="connect_step_key_detail">Tap + by Computers, then paste %1$s</string>
+    <string name="connect_no_key">This computer has no key yet. Make one in Terminal, then check again:</string>
+    <string name="connect_setup_first">First time</string>
+    <string name="connect_setup_another">Set up another phone</string>
+    <string name="connect_lost_again_help">The phone may have gone to sleep. Connect again.</string>
+    <string name="connect_step_key_detail_no_key">Tap + by Computers, then paste its key</string>
+    <string name="connect_copy_key">Copy this computer's key</string>
+    <string name="connect_copied">Copied</string>
+    <string name="connect_check_again">Check again</string>
+    <string name="connect_not_added">This computer isn't added yet</string>
+    <string name="connect_not_added_help">Add this computer's key on the phone, below.</string>
+    <string name="connect_unreachable">Couldn't reach it</string>
+    <string name="connect_unreachable_help">Check the address, and that Use from your computer is on.</string>
+    <string name="connect_host_changed">That isn't the phone this computer knew</string>
+    <string name="connect_host_changed_help">If you reset Linux on the phone, remove its line from ~/.ssh/known_hosts, then connect.</string>
+    <string name="connect_no_ssh">This computer has no ssh</string>
+    <string name="connect_no_ssh_help">Whittle uses the computer's own ssh to reach the phone.</string>
+    <string name="connect_tunnel_failed">The tunnel didn't open</string>
+    <string name="connect_token">Token</string>
+    <string name="connect_go">Connect</string>
+    <string name="connect_connecting">Connecting…</string>
+    <string name="connect_refused">The phone didn't accept that token</string>
+    <string name="connect_refused_help">Copy it again with the command in step 3; it changes when Linux is reset.</string>
+    <string name="connect_failed">Couldn't reach the phone</string>
+    <string name="connect_failed_help">Check that Use from your computer is on and the tunnel in step 2 is still running.</string>
+    <string name="connect_lost">The phone stopped answering</string>
+    <string name="connect_lost_help">The tunnel may have closed, or the phone went to sleep. Open the tunnel again and connect.</string>
+    <string name="preview_body">Opens http://127.0.0.1:%1$d in this computer's browser. The server runs on your phone, so its port needs a tunnel too:
+ssh -L %1$d:127.0.0.1:%1$d phone</string>
+    <string name="preview_open">Open in browser</string>
+    <string name="preview_cancel">Cancel</string>
+    <string name="preview_waiting">It isn't serving yet; try again once its card says it's live.</string>
+    <!-- Settings on a computer: what only the phone can change. -->
+    <string name="settings_on_phone">Phone features, the assistant and updates are in Whittle on your phone.</string>
+</resources>

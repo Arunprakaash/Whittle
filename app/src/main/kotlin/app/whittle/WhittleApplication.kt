@@ -20,6 +20,20 @@ import app.whittle.background.RunProgress
 import app.whittle.apps.AppToolchainService
 import app.whittle.chat.ChatEvent
 import app.whittle.chat.ChatViewModel
+import app.whittle.chat.PhoneChatHost
+import app.whittle.connect.ModelPicker
+import app.whittle.files.PhoneFilesHost
+import app.whittle.settings.PhoneConnectionsHost
+import app.whittle.settings.PhoneMemoryHost
+import app.whittle.automations.PhoneAutomationsHost
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
+import app.whittle.settings.PhoneSettingsHost
+import app.whittle.linux.PhoneLinuxHost
+import app.whittle.companion.CompanionServer
+import app.whittle.linux.ComputerAccessState
+import java.io.File
+import java.io.IOException
 import app.whittle.storage.chats.ChatId
 import app.whittle.quickstart.QuickStart
 import app.whittle.connectors.mcp.ConnectorState
@@ -42,12 +56,51 @@ class WhittleApplication : Application() {
      */
     val chat: ChatViewModel by lazy { ChatViewModel(graph, startToolchainSetup = { AppToolchainService.start(this) }) }
 
+    /** The workspace's files as the file browser reads them, on the phone and on the user's computers. */
+    val filesHost: PhoneFilesHost by lazy { PhoneFilesHost(graph) }
+
+    /** The phone's settings as the Settings page shows them, on the phone and on the user's computers. */
+    val settingsHost: PhoneSettingsHost by lazy { PhoneSettingsHost(graph, chat) }
+    val linuxHost: PhoneLinuxHost by lazy { PhoneLinuxHost(this, graph) }
+    val memoryHost: PhoneMemoryHost by lazy { PhoneMemoryHost(graph) }
+    val connectionsHost: PhoneConnectionsHost by lazy { PhoneConnectionsHost(this, graph) }
+    val automationsHost: PhoneAutomationsHost by lazy {
+        val projects = chat.state.map { state -> state.projects.map { it.name } }.distinctUntilChanged()
+        PhoneAutomationsHost(graph, automationRunner, projects.stateIn(graph.appScope, SharingStarted.Eagerly, emptyList()))
+    }
+
+    /** [chat] as the chat screen draws it, on the phone and on the user's computers. */
+    val chatHost: PhoneChatHost by lazy { PhoneChatHost(chat, graph, this, graph.appScope) }
+
     /** Starts automations in [chat] when they're due, or when the user taps Run now. */
     val automationRunner: AutomationRunner by lazy {
         AutomationRunner(graph.automations, SessionAutomationChat(chat), graph.clock, inForeground = { inForeground }, protect = ::startRunService)
     }
 
     val notifications: RunNotifications by lazy { RunNotifications(this) }
+
+    /** The chat screen on the user's computers, served while computer access is on. */
+    private val companion: CompanionServer by lazy {
+        CompanionServer(
+            config = graph.computerAccess.config.companion,
+            linuxFile = { path -> graph.linux.root()?.let { File(it, path.removePrefix("/")) } },
+            host = chatHost,
+            files = filesHost,
+            settings = settingsHost,
+            linux = linuxHost,
+            memory = memoryHost,
+            automations = automationsHost,
+            connections = connectionsHost,
+            picker = { scope -> ModelPicker(graph, scope, current = chat.state.value.model) },
+            page = { path ->
+                try {
+                    assets.open("${BuildConfig.COMPANION_WEB}/$path")
+                } catch (_: IOException) {
+                    null
+                }
+            },
+        )
+    }
 
     /** The screen the assistant read, until the chat takes it (see [app.whittle.assistant.AssistSession]). */
     val assistIncoming = MutableStateFlow<ScreenContext?>(null)
@@ -104,6 +157,11 @@ class WhittleApplication : Application() {
                         }
                     }
                 }
+            }
+        }
+        graph.appScope.launch {
+            graph.computerAccess.state.map { it is ComputerAccessState.On }.distinctUntilChanged().collect { on ->
+                if (on) companion.start() else companion.stop()
             }
         }
         scope.launch {

@@ -14,10 +14,30 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    // Kotlin's browser build adds its own tool repositories; these settings ones are used instead.
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
         google()
         mavenCentral()
+        // The browser build's tools, which Kotlin downloads: Node.js, Yarn and Binaryen.
+        ivy("https://nodejs.org/dist") {
+            name = "Node.js"
+            patternLayout { artifact("v[revision]/[artifact](-v[revision]-[classifier]).[ext]") }
+            metadataSources { artifact() }
+            content { includeModule("org.nodejs", "node") }
+        }
+        ivy("https://github.com/yarnpkg/yarn/releases/download") {
+            name = "Yarn"
+            patternLayout { artifact("v[revision]/[artifact](-v[revision]).[ext]") }
+            metadataSources { artifact() }
+            content { includeModule("com.yarnpkg", "yarn") }
+        }
+        ivy("https://github.com/WebAssembly/binaryen/releases/download") {
+            name = "Binaryen"
+            patternLayout { artifact("version_[revision]/[module]-version_[revision]-[classifier].[ext]") }
+            metadataSources { artifact() }
+            content { includeModule("com.github.webassembly", "binaryen") }
+        }
     }
 }
 
@@ -49,6 +69,11 @@ include(
     ":storage:runs",
     ":storage:chats",
     ":design:system",
+    ":feature:chat",
+    ":feature:files",
+    ":feature:settings",
+    ":feature:link",
     ":app",
+    ":companion",
     ":dev:cli",
 )

@@ -4,6 +4,8 @@ import app.whittle.apps.ApkFacts
 import app.whittle.apps.AppManifest
 import app.whittle.apps.PowerfulDeclaration
 import app.whittle.apps.PowerfulKind
+import app.whittle.chat.ui.AppCardState
+import app.whittle.chat.ui.appCardState
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -15,15 +17,15 @@ class AppCardStateTest {
 
     @Test
     fun `buttons follow the installed version`() {
-        assertEquals(AppCardState.INSTALL, appCardState(card, null))
-        assertEquals(AppCardState.UPDATE, appCardState(card, 2))
-        assertEquals(AppCardState.OPEN, appCardState(card, 3))
+        assertEquals(AppCardState.INSTALL, appCardState(card.versionCode, null))
+        assertEquals(AppCardState.UPDATE, appCardState(card.versionCode, 2))
+        assertEquals(AppCardState.OPEN, appCardState(card.versionCode, 3))
     }
 
     @Test
     fun `the card installs its own APK, not a newer one`() {
         // A newer build is installed: this older card never downgrades, it just opens.
-        assertEquals(AppCardState.NEWER_INSTALLED, appCardState(card, 5))
+        assertEquals(AppCardState.NEWER_INSTALLED, appCardState(card.versionCode, 5))
         assertEquals(File("/ws/notes/build/notes-3.apk"), resolveApk(File("/ws"), card.apkPath))
     }
 

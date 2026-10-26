@@ -1,5 +1,6 @@
 package app.whittle.apps
 
+import app.whittle.linux.ui.Toolchain
 import app.whittle.agent.AgentMessages
 import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.core.common.Outcome
@@ -237,11 +238,11 @@ class AppToolchainTest {
 
     @Test
     fun `Remove is offered for a set-up toolchain or a half-finished one, but not during setup or a build`() {
-        assertTrue(canRemoveToolchain(ready = true, size = 400_000_000L, installing = false, building = false))
-        assertTrue(canRemoveToolchain(ready = false, size = 120_000_000L, installing = false, building = false), "a broken setup can be cleared")
-        assertFalse(canRemoveToolchain(ready = false, size = null, installing = false, building = false))
-        assertFalse(canRemoveToolchain(ready = true, size = 400_000_000L, installing = true, building = false))
-        assertFalse(canRemoveToolchain(ready = true, size = 400_000_000L, installing = false, building = true))
+        assertTrue(Toolchain(ready = true, sizeBytes = 400_000_000L, installing = false, building = false).removable)
+        assertTrue(Toolchain(ready = false, sizeBytes = 120_000_000L, installing = false, building = false).removable, "a broken setup can be cleared")
+        assertFalse(Toolchain(ready = false, sizeBytes = null, installing = false, building = false).removable)
+        assertFalse(Toolchain(ready = true, sizeBytes = 400_000_000L, installing = true, building = false).removable)
+        assertFalse(Toolchain(ready = true, sizeBytes = 400_000_000L, installing = false, building = true).removable)
     }
 
     @Test

@@ -13,7 +13,11 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
 
         val jvmTarget = JavaVersion.toVersion(libs.requiredVersion("jvmTarget"))
         extensions.configure<ApplicationExtension> {
-            compileSdk = libs.requiredVersion("androidCompileSdk").toInt()
+            compileSdk {
+                version = release(libs.requiredVersion("androidCompileSdk").toInt()) {
+                    minorApiLevel = libs.requiredVersion("androidCompileSdkMinor").toInt()
+                }
+            }
             defaultConfig {
                 minSdk = libs.requiredVersion("androidMinSdk").toInt()
                 targetSdk = libs.requiredVersion("androidTargetSdk").toInt()

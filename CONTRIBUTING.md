@@ -11,7 +11,8 @@ How Whittle is built, and how to build it, is in the [README](README.md).
 - Rebase on `main` before asking for review, so the branch builds on what's there now.
 - In the description say what changed and why, how you tested it (tests, lint, a phone or emulator, which
   Android version), and what you haven't checked yet.
-- Releases (version bump, tag, APK) are done by a maintainer after merging.
+- Releases (version bump, tag, APK and Mac app) are done by a maintainer after merging, following
+  [Releasing](docs/releasing.md).
 
 ## Commits
 

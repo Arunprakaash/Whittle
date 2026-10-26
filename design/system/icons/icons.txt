@@ -41,6 +41,7 @@ error
 expand_less
 expand_more
 extension
+fingerprint
 folder
 folder_open
 folder_zip
@@ -56,7 +57,9 @@ install_mobile
 keep:fill
 key
 language
+laptop_mac
 light_mode:fill
+link
 lock
 memory
 menu_book

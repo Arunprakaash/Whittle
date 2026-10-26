@@ -1,13 +1,13 @@
 package app.whittle
 
-import app.whittle.settings.MemoryScreen
+import app.whittle.memory.ui.MemoryScreen
 import android.content.res.Configuration
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.WindowCompat
 import android.view.WindowManager
 import android.os.Build
-import app.whittle.settings.ConnectionToolsScreen
-import app.whittle.settings.ConnectionLibraryScreen
+import app.whittle.connections.ui.ConnectionLibraryScreen
+import app.whittle.connections.ui.ConnectionToolsScreen
 import app.whittle.design.theme.isDark
 import androidx.compose.runtime.DisposableEffect
 import android.graphics.Color
@@ -20,7 +20,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.AlertDialog
 import app.whittle.background.rememberNotificationPermissionRequest
-import app.whittle.settings.SettingsScreen
 import app.whittle.design.theme.WhittleAppearance
 import app.whittle.design.components.LocalSiteIcons
 import androidx.compose.runtime.CompositionLocalProvider
@@ -42,19 +41,33 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import app.whittle.automations.AutomationsScreen
-import app.whittle.automations.RunNowResult
-import app.whittle.chat.AllChatsScreen
-import app.whittle.chat.ChatScreen
+import app.whittle.automations.rememberPhoneAutomationsPlatform
+import app.whittle.automations.ui.AutomationsNavigation
+import app.whittle.automations.ui.AutomationsScreen
+import app.whittle.chat.rememberPhoneChatPlatform
+import app.whittle.storage.chats.ChatId
+import app.whittle.chat.ui.AllChatsScreen
+import app.whittle.settings.rememberPhoneConnectionsPlatform
+import app.whittle.settings.rememberPhoneSettingsPlatform
+import app.whittle.settings.ui.SettingsNavigation
+import app.whittle.settings.ui.SettingsScreen
+import app.whittle.chat.ui.ChatNavigation
+import app.whittle.chat.ui.ChatScreen
+import app.whittle.design.window.LocalUserContent
+import app.whittle.observability.posthog.userContent
+import androidx.compose.runtime.CompositionLocalProvider
 import app.whittle.connect.ConnectScreen
 import app.whittle.connect.ConnectViewModel
 import app.whittle.design.theme.WhittleTheme
 import androidx.compose.foundation.layout.padding
 import app.whittle.design.tokens.WhittleSpace
-import app.whittle.files.FilesBrowser
-import app.whittle.files.FilesOpening
-import app.whittle.files.FilesPlace
-import app.whittle.files.filesOpeningSaver
+import app.whittle.files.WorkspaceDocumentsProvider
+import app.whittle.files.shareFile
+import app.whittle.files.ui.FilesBrowser
+import app.whittle.files.ui.FilesOpening
+import app.whittle.files.ui.FilesPlace
+import app.whittle.files.ui.FilesPlatform
+import app.whittle.files.ui.filesOpeningSaver
 import app.whittle.linux.LinuxProgressStrip
 import app.whittle.linux.LinuxSetupScreen
 import app.whittle.onboarding.ONBOARDING_STEPS
@@ -62,7 +75,8 @@ import app.whittle.onboarding.ONBOARDING_STEP_LINUX
 import app.whittle.onboarding.ONBOARDING_STEP_MODEL
 import app.whittle.onboarding.OnboardingSteps
 import app.whittle.onboarding.WelcomeScreen
-import app.whittle.linux.LinuxWorkspaceScreen
+import app.whittle.linux.ui.LinuxPlatform
+import app.whittle.linux.ui.LinuxWorkspaceScreen
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.getAndUpdate
@@ -76,6 +90,7 @@ import app.whittle.core.common.getOrNull
 import app.whittle.core.model.ProviderId
 import app.whittle.storage.secrets.SecretKey
 import app.whittle.connect.BringModelScreen
+import app.whittle.connect.ProviderEntry
 import app.whittle.connect.ClaudeCodeChoice
 import app.whittle.claudecode.ClaudeCodeEntry
 import app.whittle.claudecode.ClaudeCodeFlow
@@ -185,8 +200,7 @@ class MainActivity : ComponentActivity() {
                                 ClaudeCodeStep.None -> {
                                     val connect = viewModel(key = "connect$connectOpenings") { ConnectViewModel(graph) }
                                     ConnectScreen(
-                                        connect.state.collectAsStateWithLifecycle().value,
-                                        connect,
+                                        connect.picker,
                                         header = {
                                             LinuxProgressStrip(graph, compact = false, Modifier.padding(top = WhittleSpace.s))
                                             OnboardingSteps(ONBOARDING_STEP_MODEL, ONBOARDING_STEPS, Modifier.padding(vertical = WhittleSpace.xl))
@@ -200,6 +214,7 @@ class MainActivity : ComponentActivity() {
                         Gate.Chat -> {
                             // The app owns the chat session, so a task outlives this screen.
                             val chat = (application as WhittleApplication).chat
+                            val chatHost = (application as WhittleApplication).chatHost
                             // The first task asks once for notifications, so its background progress can show.
                             val requestNotifications = rememberNotificationPermissionRequest()
                             val running = chat.state.collectAsStateWithLifecycle().value.running
@@ -290,44 +305,46 @@ class MainActivity : ComponentActivity() {
                                 showingMemory = false; showingLinux = false; showingConnectionLibrary = false; toolsOf = null
                                 chat.startWithScreen(screen)
                             }
-                            val toolsConnection = toolsOf?.let { id -> connections.firstOrNull { it.server.id == id } }
+                            val toolsConnection = toolsOf?.takeIf { id -> connections.any { it.server.id == id } }
                             val opening = files
                             if (opening != null) {
-                                FilesBrowser(graph, opening, onAsk = chat::sendText, onClose = { files = null })
+                                val context = this@MainActivity
+                                val filesPlatform = remember {
+                                    FilesPlatform(
+                                        share = { path, name -> shareFile(context, path, name) },
+                                        openInFiles = { WorkspaceDocumentsProvider.open(context) },
+                                        toast = { message -> Toast.makeText(context, message, Toast.LENGTH_SHORT).show() },
+                                    )
+                                }
+                                FilesBrowser((application as WhittleApplication).filesHost, filesPlatform, opening, onAsk = chat::sendText, onClose = { files = null })
                             } else if (showingAutomations) {
                                 LaunchedEffect(Unit) { chat.refreshProjects() }
                                 AutomationsScreen(
-                                    graph,
-                                    projects = state.projects.map { it.name },
-                                    onBack = { showingAutomations = false; showingSettings = true },
-                                    onRunNow = { automation ->
-                                        scope.launch {
-                                            when ((application as WhittleApplication).automationRunner.runNow(automation.id)) {
-                                                RunNowResult.STARTED -> { showingAutomations = false; showingSettings = false }
-                                                RunNowResult.BUSY -> Toast.makeText(this@MainActivity, R.string.automation_busy, Toast.LENGTH_SHORT).show()
-                                                RunNowResult.NO_MODEL -> Toast.makeText(this@MainActivity, R.string.automation_no_model, Toast.LENGTH_SHORT).show()
-                                                RunNowResult.NOT_FOUND -> Unit
-                                            }
-                                        }
-                                    },
-                                    onOpenChat = { id -> chat.openChat(id); showingAutomations = false; showingSettings = false },
+                                    host = (application as WhittleApplication).automationsHost,
+                                    platform = rememberPhoneAutomationsPlatform(graph),
+                                    navigation = AutomationsNavigation(
+                                        back = { showingAutomations = false; showingSettings = true },
+                                        openChat = { id -> chat.openChat(ChatId(id)); showingAutomations = false; showingSettings = false },
+                                        runStarted = { showingAutomations = false; showingSettings = false },
+                                    ),
                                 )
                             } else if (showingMemory) {
-                                MemoryScreen(graph, onBack = { showingMemory = false; showingSettings = true })
+                                MemoryScreen((application as WhittleApplication).memoryHost, onBack = { showingMemory = false; showingSettings = true })
                             } else if (showingLinux) {
-                                LinuxWorkspaceScreen(graph, onBack = { showingLinux = false; showingSettings = true })
+                                LinuxWorkspaceScreen((application as WhittleApplication).linuxHost, LinuxPlatform(opensLinksItself = true), onBack = { showingLinux = false; showingSettings = true })
                             } else if (showingConnectionLibrary) {
-                                ConnectionLibraryScreen(graph, onBack = { showingConnectionLibrary = false; showingSettings = true })
+                                ConnectionLibraryScreen((application as WhittleApplication).connectionsHost, rememberPhoneConnectionsPlatform(), onBack = { showingConnectionLibrary = false; showingSettings = true })
                             } else if (toolsConnection != null) {
-                                ConnectionToolsScreen(graph, toolsConnection, onBack = { toolsOf = null; showingSettings = true })
+                                ConnectionToolsScreen((application as WhittleApplication).connectionsHost, toolsConnection, onBack = { toolsOf = null; showingSettings = true })
                             } else if (showingModelPicker && choosingProvider) {
                                 val claudeCodeInUse = graph.claudeCode.runs(state.model) && pickerProvider == null
                                 val shownProvider = pickerProvider ?: state.model?.providerId?.takeUnless { claudeCodeInUse }
                                 BringModelScreen(
-                                    providers = graph.providers.providers,
-                                    selected = shownProvider,
+                                    providers = graph.providers.providers.map { ProviderEntry(it.id.value, it.displayName, it.tagline, it.keysUrl) },
+                                    selected = shownProvider?.value,
                                     claudeCode = ClaudeCodeChoice(graph.claudeCode.config.displayName, claudeCodeInUse).takeIf { graph.claudeCode.config.enabled },
-                                    onProvider = { id ->
+                                    onProvider = { picked ->
+                                        val id = ProviderId(picked)
                                         scope.launch {
                                             // A provider whose key is still saved lists its models; another one is connected with its key.
                                             if (graph.secrets.get(SecretKey.providerApiKey(id)).getOrNull() != null) {
@@ -407,49 +424,51 @@ class MainActivity : ComponentActivity() {
                                     ConnectViewModel(graph, current = state.model, provider = pickerProvider ?: state.model?.providerId)
                                 }
                                 ModelPickerScreen(
-                                    state = picker.state.collectAsStateWithLifecycle().value,
-                                    viewModel = picker,
+                                    host = picker.picker,
                                     onClose = { showingModelPicker = false; showingSettings = !pickerFromChat; pickerFromChat = false; pickerProvider = null },
                                     onUseAnother = { choosingProvider = true },
                                 )
                             } else if (showingSettings) {
+                                val app = application as WhittleApplication
                                 SettingsScreen(
-                                    graph = graph,
-                                    settings = settings,
-                                    model = state.model,
-                                    onBack = { showingSettings = false },
-                                    onChangeModel = { showingSettings = false; pickerOpenings += 1; showingModelPicker = true },
-                                    onDeleteAllChats = chat::deleteAllChats,
-                                    onBrowseConnections = { showingSettings = false; showingConnectionLibrary = true },
-                                    onConnectionTools = { connection -> showingSettings = false; toolsOf = connection.server.id },
-                                    onMemory = { showingSettings = false; showingMemory = true },
-                                    onAutomations = { showingSettings = false; showingAutomations = true },
-                                    onLinux = { showingSettings = false; showingLinux = true },
+                                    host = app.settingsHost,
+                                    platform = rememberPhoneSettingsPlatform(
+                                        graph,
+                                        app.connectionsHost,
+                                        onBrowseConnections = { showingSettings = false; showingConnectionLibrary = true },
+                                        onConnectionTools = { id -> showingSettings = false; toolsOf = id },
+                                    ),
+                                    navigation = SettingsNavigation(
+                                        back = { showingSettings = false },
+                                        changeModel = { showingSettings = false; pickerOpenings += 1; showingModelPicker = true },
+                                        linux = { showingSettings = false; showingLinux = true },
+                                        memory = { showingSettings = false; showingMemory = true },
+                                        automations = { showingSettings = false; showingAutomations = true },
+                                    ),
                                 )
                             } else if (showingAllChats) {
                                 BackHandler { showingAllChats = false }
                                 AllChatsScreen(
-                                    state = state,
-                                    viewModel = chat,
+                                    state = chatHost.state.collectAsStateWithLifecycle().value,
+                                    onAction = chatHost::act,
                                     onBack = { showingAllChats = false },
-                                    onOpen = { id -> chat.openChat(id); showingAllChats = false },
+                                    onOpen = { id -> chat.openChat(ChatId(id)); showingAllChats = false },
                                 )
                             } else {
-                                ChatScreen(
-                                    state = state,
-                                    viewModel = chat,
-                                    sidebarMaxChats = graph.sidebarMaxChats,
-                                    voiceDefaults = graph.voiceDefaults,
-                                    previewHeight = graph.previewSheetHeight,
-                                    onViewAllChats = { showingAllChats = true },
-                                    onOpenSettings = { showingSettings = true },
-                                    avatarSeed = settings?.avatarSeed,
-                                    aboveComposer = { LinuxProgressStrip(graph, compact = true) },
-                                    onOpenProjects = { files = FilesOpening(FilesPlace.Folder("")) },
-                                    onOpenFiles = { files = it },
-                                    recentProjects = graph.projectDefaults.recentCount,
-                                    onChangeModel = { pickerFromChat = true; pickerOpenings += 1; showingModelPicker = true },
-                                )
+                                val navigation = remember {
+                                    ChatNavigation(
+                                        viewAllChats = { showingAllChats = true },
+                                        openSettings = { showingSettings = true },
+                                        openProjects = { files = FilesOpening(FilesPlace.Folder("")) },
+                                        openFile = { path, chatId -> files = FilesOpening(FilesPlace.Document(path), chatId) },
+                                        openFolder = { path, chatId -> files = FilesOpening(FilesPlace.Folder(path), chatId) },
+                                        changeModel = { pickerFromChat = true; pickerOpenings += 1; showingModelPicker = true },
+                                    )
+                                }
+                                // What the user and the agent wrote stays out of session recordings.
+                                CompositionLocalProvider(LocalUserContent provides Modifier.userContent()) {
+                                    ChatScreen(chatHost, rememberPhoneChatPlatform(chat, graph, navigation))
+                                }
                             }
                         }
                     }
