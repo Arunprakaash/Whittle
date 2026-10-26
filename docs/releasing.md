@@ -18,10 +18,10 @@ Don't rename it.
 
 **The Mac app**
 
-- [ ] A JDK 25 or later with `jpackage` (21's won't take a version that starts at 0). Android Studio's has none.
-  Install Temurin 25 (`brew install --cask temurin@25`) and name it in `~/.gradle/gradle.properties`:
+- [ ] A JDK 27 or later with `jpackage`: earlier ones refuse a macOS version that starts at 0, and Android Studio's
+  has none. Install Temurin 27 (`brew install --cask temurin@27`) and name it in `~/.gradle/gradle.properties`:
   ```properties
-  whittle.packageJdk=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
+  whittle.packageJdk=/Library/Java/JavaVirtualMachines/temurin-27.jdk/Contents/Home
   ```
   Homebrew's `openjdk` works too, with `compose.desktop.packaging.checkJdkVendor=false` beside it.
 - [ ] Membership in the Apple Developer Program (paid, yearly), for signing and notarizing. Without it the app is
