@@ -10,7 +10,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.ApplicationScope
 import androidx.compose.ui.window.application
+import app.whittle.companion.resources.Res
+import app.whittle.companion.resources.whittle_icon
+import org.jetbrains.compose.resources.painterResource
 import androidx.compose.ui.window.rememberWindowState
 import app.whittle.design.window.LocalWindowChrome
 import app.whittle.design.window.WindowChrome
@@ -19,7 +23,14 @@ import app.whittle.design.window.WindowChrome
  * The Mac app. It opens the tunnel to the phone itself, with this computer's ssh (WHITTLE_SSH names another);
  * WHITTLE_PHONE and WHITTLE_TOKEN, when set, connect at once to a tunnel opened by hand instead.
  */
-fun main() = application {
+fun main() {
+    // The menu bar and the Dock say Whittle, not the class it starts from, however the app is run.
+    System.setProperty(MAC_APP_NAME, TITLE)
+    application { WhittleWindow() }
+}
+
+@Composable
+private fun ApplicationScope.WhittleWindow() {
     val scope = rememberCoroutineScope()
     val link = remember { PhoneLink(scope) }
     val tunnel = remember { SshTunnel(PhoneAddress.Default, ssh = System.getenv(SSH_VARIABLE) ?: SshTunnel.SSH) }
@@ -27,7 +38,13 @@ fun main() = application {
     val token = System.getenv(TOKEN_VARIABLE).orEmpty()
     LaunchedEffect(Unit) { if (token.isNotBlank()) link.connect(address, token) }
     // The tunnel goes with the app, so nothing is left listening once it's closed.
-    Window(onCloseRequest = { tunnel.close(); exitApplication() }, title = TITLE, state = rememberWindowState(width = 1200.dp, height = 900.dp)) {
+    Window(
+        onCloseRequest = { tunnel.close(); exitApplication() },
+        title = TITLE,
+        // The bundle's own icon covers the packaged app; this one covers running it from Gradle, and other systems.
+        icon = painterResource(Res.drawable.whittle_icon),
+        state = rememberWindowState(width = 1200.dp, height = 900.dp),
+    ) {
         CompositionLocalProvider(LocalWindowChrome provides rememberMacChrome()) {
             CompanionApp(link, token = token, tunnel = tunnel.takeIf { token.isBlank() })
         }
@@ -57,6 +74,7 @@ private fun FrameWindowScope.rememberMacChrome(): WindowChrome? = remember {
 
 private const val TITLE = "Whittle"
 private const val OS_NAME = "os.name"
+private const val MAC_APP_NAME = "apple.awt.application.name"
 private const val MAC = "Mac"
 
 /** The height of a Mac window's title bar, where its close, minimise and zoom buttons sit. */

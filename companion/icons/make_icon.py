@@ -1,5 +1,6 @@
-"""Draws the Mac app's icon from Whittle's beaver sprite: the idle frame on the launcher's pine, in a rounded square
-the size macOS gives app icons, then packs every size into Whittle.icns with the Mac's own sips and iconutil.
+"""Draws the computer app's icon from Whittle's beaver sprite: the idle frame on the launcher's pine, in a rounded square
+the size macOS gives app icons. Writes every size into Whittle.icns for the Mac bundle, a PNG the window and Dock use
+when the app runs outside it, and the browser version's favicon, with the Mac's own sips and iconutil.
 
 Usage (on a Mac): python3 companion/icons/make_icon.py
 """
@@ -16,6 +17,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 SPRITE = ROOT / "docs/design/sprites/beaver.sprite.json"
 COLORS = ROOT / "app/src/main/res/values/brand_colors.xml"
 OUTPUT = pathlib.Path(__file__).resolve().parent / "Whittle.icns"
+WINDOW_ICON = ROOT / "companion/src/commonMain/composeResources/drawable/whittle_icon.png"
+FAVICON = ROOT / "companion/src/wasmJsMain/resources/favicon.png"
+WINDOW_ICON_SIZE = 512
+FAVICON_SIZE = 64
 FRAME = "idle"
 SIZE = 1024
 # macOS app icons: an 824-point rounded square, 100 points in from each edge, with corners of about 185.
@@ -90,7 +95,10 @@ def main() -> None:
                 name = iconset / f"icon_{size}x{size}{suffix}.png"
                 subprocess.run(["sips", "-z", str(pixels), str(pixels), str(master), "--out", str(name)], check=True, capture_output=True)
         subprocess.run(["iconutil", "-c", "icns", str(iconset), "-o", str(OUTPUT)], check=True)
-        print("wrote", OUTPUT)
+        for path, pixels in ((WINDOW_ICON, WINDOW_ICON_SIZE), (FAVICON, FAVICON_SIZE)):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            subprocess.run(["sips", "-z", str(pixels), str(pixels), str(master), "--out", str(path)], check=True, capture_output=True)
+        print("wrote", OUTPUT, WINDOW_ICON, FAVICON)
     finally:
         shutil.rmtree(work)
 

@@ -1,4 +1,4 @@
-# Runs what CONTRIBUTING.md asks before review: every test, release lint and a debug build.
+# Runs what CONTRIBUTING.md asks before review: every test, release lint and a debug build, and the Mac app's .dmg.
 name: CI
 
 on:
@@ -89,6 +89,31 @@ jobs:
           path: |
             **/build/reports/
             **/build/test-results/
+          retention-days: 7
+
+  # The Mac app, packaged as the release .dmg for Apple silicon. It's unsigned here (signing needs the Developer ID
+  # certificate, which stays on the machine that makes releases); the .dmg is kept so a change can be tried on a Mac.
+  mac:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Package
+        run: ./gradlew :companion:releaseDmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-dmg
+          path: dist/*.dmg
+          if-no-files-found: error
           retention-days: 7
 
   # Puts the pinned .debs on the lock file's mirror release, which the build falls back to (termux-runtimes.json).
