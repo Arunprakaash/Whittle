@@ -17,13 +17,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
 
 /**
  * One step of a setup, numbered: what to do and where, segmented with the steps beside it by [shape]. [content] is
- * what the step needs here (a field, a command to copy) under its words. Once [done], a tick takes the number's place.
+ * what the step needs here (a field, a command to copy) under its words; [trailing], a button at the row's end. Once
+ * [done], a tick takes the number's place.
  */
 @Composable
 fun NumberedStep(
@@ -33,6 +35,20 @@ fun NumberedStep(
     shape: Shape,
     modifier: Modifier = Modifier,
     done: Boolean = false,
+    trailing: (@Composable () -> Unit)? = null,
+    content: (@Composable ColumnScope.() -> Unit)? = null,
+) = NumberedStep(number, title, AnnotatedString(detail), shape, modifier, done, trailing, content)
+
+/** A [NumberedStep] whose detail has styled parts, such as a key in the code font. */
+@Composable
+fun NumberedStep(
+    number: Int,
+    title: String,
+    detail: AnnotatedString,
+    shape: Shape,
+    modifier: Modifier = Modifier,
+    done: Boolean = false,
+    trailing: (@Composable () -> Unit)? = null,
     content: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -59,5 +75,6 @@ fun NumberedStep(
             }
             content?.invoke(this)
         }
+        trailing?.invoke()
     }
 }

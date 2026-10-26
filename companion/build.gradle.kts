@@ -57,6 +57,9 @@ compose.desktop {
         mainClass = "app.whittle.companion.MainKt"
         // Packaging needs a JDK with jpackage, which Android Studio's doesn't have: -Pwhittle.packageJdk=<its home>.
         providers.gradleProperty("whittle.packageJdk").orNull?.let { javaHome = it }
+        // The window draws what the phone sends; its Java heap stays well under this. The cap keeps a long session
+        // from growing the heap toward a quarter of the Mac's memory, and the serial collector is the lightest.
+        jvmArgs("-Xmx512m", "-XX:+UseSerialGC")
         // The Mac app, as a .dmg: Whittle with its beaver, the same version as the phone's.
         nativeDistributions {
             targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg)

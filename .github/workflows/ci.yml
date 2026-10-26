@@ -99,6 +99,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Gradle runs on 21; the app is packaged with 25's jpackage, since 21's won't take a version that starts at 0.
+      - id: package-jdk
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -107,7 +114,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Package
-        run: ./gradlew :companion:releaseDmg
+        run: ./gradlew :companion:releaseDmg -Pwhittle.packageJdk="${{ steps.package-jdk.outputs.path }}"
+
+      - name: Show jpackage's logs
+        if: failure()
+        run: cat companion/build/compose/logs/*/*.txt || true
 
       - uses: actions/upload-artifact@v4
         with:
