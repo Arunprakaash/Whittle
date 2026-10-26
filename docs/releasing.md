@@ -24,8 +24,10 @@ Don't rename it.
   whittle.packageJdk=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home
   ```
   Homebrew's `openjdk` works too, with `compose.desktop.packaging.checkJdkVendor=false` beside it.
-- [ ] Membership in the Apple Developer Program (paid, yearly). Without it the app can't be signed or notarized,
-  and every Mac that downloads it shows "Apple could not verify Whittle is free of malware".
+- [ ] Membership in the Apple Developer Program (paid, yearly), for signing and notarizing. Without it the app is
+  signed ad hoc: it runs, but every Mac that downloads it says "Apple could not verify Whittle is free of malware"
+  until the user allows it once (see [Without a Developer ID](#without-a-developer-id)). The steps below up to
+  `mac-signing.properties` need the membership.
 - [ ] A **Developer ID Application** certificate in the login keychain. Create it in Xcode › Settings › Accounts ›
   Manage Certificates; only the team's Account Holder can. Check it's there:
   ```bash
@@ -92,6 +94,8 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
   spctl --assess --type open --context context:primary-signature -vv dist/Whittle-X.Y.Z-arm64.dmg
   ```
   `spctl` must say `accepted` and `source=Notarized Developer ID`.
+- [ ] Without a Developer ID, check the ad hoc signature instead (the `codesign` line above must still pass) and
+  skip `stapler` and `spctl`, which reject it.
 - [ ] If notarizing failed, read Apple's log for the submission it names:
   ```bash
   xcrun notarytool log <submission-id> --apple-id <appleId> --team-id <teamId>
@@ -104,7 +108,8 @@ On a phone or emulator that has the last release installed, and a Mac that has n
 - [ ] The APK installs over the last release (`adb install -r dist/Whittle-X.Y.Z.apk`) and keeps its chats and
   settings.
 - [ ] Open the `.dmg` from a browser download (so it's quarantined, as a user's would be), drag Whittle to
-  Applications and open it. No Gatekeeper warning; the Dock and the menu bar say Whittle, with the beaver.
+  Applications and open it. Notarized, it opens with no warning; signed ad hoc, it opens after the steps in the
+  notes. The Dock and the menu bar say Whittle, with the beaver.
 - [ ] On the phone, turn on Settings › Linux workspace › Use from your computer and add the Mac's key. In the Mac app,
   connect by the phone's address: macOS asks once to use the local network, then the chats show. Send a message,
   open a file, change a setting, and check the phone shows the same.
@@ -141,6 +146,20 @@ On a phone or emulator that has the last release installed, and a Mac that has n
   ```
 - [ ] On a phone with the last release, Settings › About › Check for updates finds X.Y.Z and installs it.
 - [ ] The landing page rebuilds from the release (the `site` workflow); its download button gets the new APK.
+
+## Without a Developer ID
+
+macOS blocks an app that isn't notarized the first time it's opened from a download, and since macOS 15 there's no
+right-click way past it. The user allows it once, then it opens like any other app. Put this in the notes' Mac
+install steps:
+
+```markdown
+Whittle for Mac isn't notarized by Apple yet, so the first time macOS stops it:
+
+1. Open Whittle, and choose **Done** when macOS says it could not verify it.
+2. Open System Settings › Privacy & Security, scroll to Security, and choose **Open Anyway** beside Whittle.
+3. Open Whittle again and choose **Open Anyway**.
+```
 
 ## If something's wrong after publishing
 
