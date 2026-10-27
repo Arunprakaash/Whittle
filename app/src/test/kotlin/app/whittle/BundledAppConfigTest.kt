@@ -93,7 +93,7 @@ class BundledAppConfigTest {
         assertFalse(buttons("remember", tainted = true))
         assertTrue(buttons("remember"))
         // Hand-offs open another app, which Android may block from the background while the tool reports success.
-        listOf("open_app", "open_link", "open_map", "share", "set_alarm", "set_timer").forEach { assertFalse(buttons(it), "$it got buttons") }
+        listOf("open_app", "open_app_storage", "open_link", "open_map", "share", "set_alarm", "set_timer").forEach { assertFalse(buttons(it), "$it got buttons") }
         // A run that read untrusted content keeps every approval in the app.
         assertTrue(buttons("write_file"))
         assertFalse(buttons("write_file", tainted = true))
