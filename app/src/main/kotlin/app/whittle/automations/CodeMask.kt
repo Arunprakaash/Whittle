@@ -3,13 +3,16 @@ package app.whittle.automations
 import java.util.regex.Pattern
 
 /**
- * Hides one-time codes in a text before it is stored or shown to a model. A number that looks like a code
- * ([CodeMaskConfig.codePattern]) is replaced when a keyword such as "OTP" is within [CodeMaskConfig.nearChars]
- * of it. Amounts and dates are never hidden. When unsure it hides: a lone 6-digit number in a short message goes
- * even with no keyword.
+ * Keeps one-time codes from the model: [looksLikeCode] says when an event seems to carry one, and such an event is
+ * dropped whole, never stored. (Hiding the code and keeping the rest missed codes of letters and digits.) A number that
+ * looks like a code ([CodeMaskConfig.codePattern]) counts when a keyword such as "OTP" is within
+ * [CodeMaskConfig.nearChars] of it, and so does a code of letters and digits ([CodeMaskConfig.mixedCodePattern]).
+ * Amounts and dates never count. When unsure it counts: a lone 6-digit number in a short message does even with no
+ * keyword.
  */
 class CodeMask(private val config: CodeMaskConfig) {
     private val code = Pattern.compile(config.codePattern, Pattern.CASE_INSENSITIVE)
+    private val mixedCode = Pattern.compile(config.mixedCodePattern, Pattern.CASE_INSENSITIVE)
     private val amount = Pattern.compile(config.amountPattern)
     private val date = Pattern.compile(config.datePattern)
     private val currencyBefore = Pattern.compile(config.currencyBeforePattern, Pattern.CASE_INSENSITIVE)
@@ -19,22 +22,33 @@ class CodeMask(private val config: CodeMaskConfig) {
         Pattern.CASE_INSENSITIVE,
     )
 
-    fun mask(text: String): String {
+    /**
+     * Whether [text] seems to hold a one-time code: a number or a letters-and-digits code beside a keyword, a lone
+     * six-digit number in a short message, or, in a notification from one of [CodeMaskConfig.messagingApps] ([app]),
+     * any keyword at all, since codes are forwarded and sent through those too.
+     */
+    fun looksLikeCode(text: String, app: String? = null): Boolean =
+        hasNumericCode(text) || hasMixedCode(text) || (app != null && app in config.messagingApps && keyword.matcher(text).find())
+
+    private fun hasNumericCode(text: String): Boolean {
         val found = code.matcher(text)
         val candidates = buildList {
             while (found.find()) if (!isAmountOrDate(text, found.start(), found.end())) add(found.start() to found.end())
         }
-        if (candidates.isEmpty()) return text
+        if (candidates.isEmpty()) return false
         val loneSixDigits = candidates.size == 1 && wordCount(text) <= config.shortMessageWords && isSixDigits(text, candidates.single())
-        val hidden = candidates.filter { (start, end) -> loneSixDigits || keywordNear(text, start, end) }
-        if (hidden.isEmpty()) return text
-        val out = StringBuilder()
-        var from = 0
-        for ((start, end) in hidden) {
-            out.append(text, from, start).append(config.replacement)
-            from = end
+        return loneSixDigits || candidates.any { (start, end) -> keywordNear(text, start, end) }
+    }
+
+    /** A code like "A7K29Q" beside a keyword; a currency and its amount run together ("INR500") isn't one. */
+    private fun hasMixedCode(text: String): Boolean {
+        val found = mixedCode.matcher(text)
+        while (found.find()) {
+            val letters = found.group().takeWhile { !it.isDigit() }
+            if (letters.isNotEmpty() && currencyBefore.matcher(letters).find()) continue
+            if (!isAmountOrDate(text, found.start(), found.end()) && keywordNear(text, found.start(), found.end())) return true
         }
-        return out.append(text, from, text.length).toString()
+        return false
     }
 
     private fun keywordNear(text: String, start: Int, end: Int): Boolean {

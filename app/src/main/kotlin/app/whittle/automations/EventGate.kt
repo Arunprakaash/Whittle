@@ -42,12 +42,15 @@ sealed interface GateDecision {
 
     /** Not kept: the automation has run as often as it may today. */
     data object Dropped : GateDecision
+
+    /** Not kept, and not counted: it seems to hold a one-time code, which no run may see. */
+    data object HeldBack : GateDecision
 }
 
 /**
  * The queue between an event arriving and its automation's run. An automation runs for events at most once per
- * cooldown and [EventsConfig.maxRunsPerDay] times a day; events in between wait and go to one run together. Text is
- * cut and has its one-time codes hidden before it is kept, so neither disk nor model ever sees one.
+ * cooldown and [EventsConfig.maxRunsPerDay] times a day; events in between wait and go to one run together. An event
+ * that seems to hold a one-time code is never kept, so neither disk nor model sees one; any other is cut to length.
  */
 class EventGate(
     private val backend: EventQueueBackend,
@@ -73,8 +76,10 @@ class EventGate(
     val saveError: StateFlow<HarnessError?> = _saveError.asStateFlow()
 
     suspend fun offer(automationId: String, event: PhoneEvent): GateDecision = changes.withLock {
-        // Masked with room past the cut, so a code just inside it still finds its keyword; the first cut bounds the work.
-        val kept = event.copy(text = mask.mask(event.text.take(config.maxEventChars + config.codeMask.nearChars)).take(config.maxEventChars))
+        // Judged with room past the cut, so a code just inside it still finds its keyword; the first cut bounds the work.
+        val app = event.source.takeIf { event.kind == EventKind.NOTIFICATION }
+        if (mask.looksLikeCode(event.text.take(config.maxEventChars + config.codeMask.nearChars), app)) return@withLock GateDecision.HeldBack
+        val kept = event.copy(text = event.text.take(config.maxEventChars))
         val queue = today(automationId)
         val decision = if (queue.runsToday >= config.maxRunsPerDay) {
             put(queue.copy(events = emptyList(), droppedToday = queue.droppedToday + 1))

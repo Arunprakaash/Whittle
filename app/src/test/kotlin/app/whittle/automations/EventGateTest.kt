@@ -24,14 +24,12 @@ class EventGateTest {
     private fun event(text: String, at: Long = now) = PhoneEvent(EventKind.SMS, "HDFCBK", text, at)
 
     @Test
-    fun aCodeThatStraddlesTheCutIsHiddenWholeNotLeftInPart() = runTest {
+    fun aCodeThatStraddlesTheCutStillHoldsTheEventBack() = runTest {
         val gate = gate()
         // The keyword is well inside the cut, the code starts just before it and ends after it.
         val text = "x".repeat(config.maxEventChars - 12) + " OTP: " + "   " + "987654"
-        gate.offer("a", event(text))
-        val kept = gate.take("a").single().text
-        assertTrue(kept.length <= config.maxEventChars)
-        assertFalse("987" in kept, kept)
+        assertEquals(GateDecision.HeldBack, gate.offer("a", event(text)))
+        assertTrue(gate.take("a").isEmpty())
     }
 
     @Test
@@ -105,11 +103,22 @@ class EventGateTest {
     }
 
     @Test
-    fun textIsMaskedBeforeStoring() = runTest {
+    fun anEventWithACodeIsNeverStoredOrCounted() = runTest {
         val gate = gate()
-        gate.offer("a", event("Your OTP is 482913. Do not share."))
+        assertEquals(GateDecision.HeldBack, gate.offer("a", event("Your OTP is 482913. Do not share.")))
+        assertEquals(GateDecision.HeldBack, gate.offer("a", event("Your login code is A7K29Q")))
         assertFalse(backend.stored.toString().contains("482913"))
-        assertTrue(gate.take("a").single().text.contains("[code hidden]"))
+        assertFalse(backend.stored.toString().contains("A7K29Q"))
+        assertTrue(gate.take("a").isEmpty())
+        assertTrue(gate.dropped.value.isEmpty())
+    }
+
+    @Test
+    fun aMessagingAppsNotificationWithACodeWordIsHeldBack() = runTest {
+        val gate = gate()
+        val chat = PhoneEvent(EventKind.NOTIFICATION, "com.whatsapp", "Ravi: the password is on the fridge", now)
+        assertEquals(GateDecision.HeldBack, gate.offer("a", chat))
+        assertTrue(gate.offer("a", chat.copy(text = "Ravi: dinner at 8?")) is GateDecision.RunAt)
     }
 
     @Test

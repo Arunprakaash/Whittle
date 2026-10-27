@@ -1,7 +1,6 @@
 package app.whittle.automations
 
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -10,65 +9,71 @@ class CodeMaskTest {
     private val mask = CodeMask(testCodeMaskConfig)
 
     @Test
-    fun masksOtpFormats() {
+    fun findsOtpFormats() {
         listOf(
-            "123456 is your OTP for txn of Rs 500.00" to "123456",
-            "Your verification code is 4821" to "4821",
-            "G-123456 is your Google verification code" to "123456",
-            "Use 908712 to log in to Swiggy" to "908712",
-            "OTP: 7781. Do not share" to "7781",
-            "Your WhatsApp code: 123-456. Don't share it" to "123-456",
-            "123 456 is your verification code" to "123 456",
-        ).forEach { (message, digits) ->
-            val masked = mask.mask(message)
-            assertFalse(digits in masked, masked)
-            assertTrue("[code hidden]" in masked, masked)
-        }
+            "123456 is your OTP for txn of Rs 500.00",
+            "Your verification code is 4821",
+            "G-123456 is your Google verification code",
+            "Use 908712 to log in to Swiggy",
+            "OTP: 7781. Do not share",
+            "Your WhatsApp code: 123-456. Don't share it",
+            "123 456 is your verification code",
+        ).forEach { assertTrue(mask.looksLikeCode(it), it) }
     }
 
     @Test
-    fun amountsAndDatesSurviveMasking() {
-        val message = "Rs 1,250.00 debited from A/c XX1234 on 24-10-26 to VPA x@ybl. Not you? Call 18002586161"
-        val masked = mask.mask(message)
-        assertTrue("1,250.00" in masked && "24-10-26" in masked, masked)
+    fun findsCodesOfLettersAndDigits() {
+        assertTrue(mask.looksLikeCode("Your login code is A7K29Q"))
+        assertTrue(mask.looksLikeCode("Verification code: 4XK-29QB, valid 10 minutes"))
+        // Without a keyword a mixed token is a reference, not a code.
+        assertFalse(mask.looksLikeCode("Your parcel AB12CD is out for delivery"))
+        // A currency and its amount run together aren't a code, even beside a keyword.
+        assertFalse(mask.looksLikeCode("INR500 debited, verify it in the app if this wasn't you"))
+    }
+
+    @Test
+    fun amountsAndDatesAreNotCodes() {
+        assertFalse(mask.looksLikeCode("Rs 1,250.00 debited from A/c XX1234 on 24-10-26 to VPA x@ybl. Not you? Call 18002586161"))
         // Even beside a keyword, an amount is not a code.
-        assertEquals("Rs 12500.00 paid, ref code abc", mask.mask("Rs 12500.00 paid, ref code abc"))
-        assertEquals("Rs. 4500 debited, verify it", mask.mask("Rs. 4500 debited, verify it"))
+        assertFalse(mask.looksLikeCode("Rs 12500.00 paid, ref code abc"))
+        assertFalse(mask.looksLikeCode("Rs. 4500 debited, verify it"))
     }
 
     @Test
-    fun deliveryKeepsOrderNumber() {
-        val message = "Your order 40781234 is out for delivery"
-        assertEquals(message, mask.mask(message))
+    fun deliveryWithAnOrderNumberIsKept() {
+        assertFalse(mask.looksLikeCode("Your order 40781234 is out for delivery"))
     }
 
     @Test
-    fun aKeywordFarAwayDoesNotMask() {
-        val message = "Your OTP is below. " + "x".repeat(60) + " ticket 55512 ends"
-        assertTrue("55512" in mask.mask(message))
+    fun aKeywordFarAwayDoesNotCount() {
+        assertFalse(mask.looksLikeCode("Your OTP is below. " + "x".repeat(60) + " ticket 55512 ends"))
     }
 
     @Test
-    fun aLongMessageWithASixDigitNumberAndNoKeywordIsLeftAlone() {
-        val message = "The invoice 123456 for the quarterly report was sent to the whole team this morning and they all read it"
-        assertEquals(message, mask.mask(message))
+    fun aLongMessageWithASixDigitNumberAndNoKeywordIsKept() {
+        assertFalse(mask.looksLikeCode("The invoice 123456 for the quarterly report was sent to the whole team this morning and they all read it"))
+        // A short one is taken for a code, keyword or not.
+        assertTrue(mask.looksLikeCode("482913 is yours"))
     }
 
     @Test
-    fun everyCodeNearAKeywordIsMasked() {
-        val masked = mask.mask("OTP 1111 or backup code 2222")
-        assertEquals("OTP [code hidden] or backup code [code hidden]", masked)
+    fun aSplitNumberWithoutAKeywordIsKept() {
+        assertFalse(mask.looksLikeCode("Call me on 555 123 or 555-123 after the long meeting about the roadmap and then the budget review"))
     }
 
     @Test
-    fun aSplitNumberWithoutAKeywordIsLeftAlone() {
-        val message = "Call me on 555 123 or 555-123 after the long meeting about the roadmap and then the budget review"
-        assertEquals(message, mask.mask(message))
+    fun aMessagingAppsNotificationWithAnyKeywordCounts() {
+        val text = "Mum: here's the login for the bank, use the one I sent"
+        assertTrue(mask.looksLikeCode(text, app = "com.whatsapp"))
+        assertFalse(mask.looksLikeCode(text, app = "com.bank"))
+        assertFalse(mask.looksLikeCode(text))
+        assertFalse(mask.looksLikeCode("Mum: see you at 7", app = "com.whatsapp"))
     }
 
     @Test
     fun badPatternIsRejected() {
         assertFailsWith<IllegalArgumentException> { testCodeMaskConfig.copy(codePattern = "(") }
+        assertFailsWith<IllegalArgumentException> { testCodeMaskConfig.copy(mixedCodePattern = "(") }
         assertFailsWith<IllegalArgumentException> { testCodeMaskConfig.copy(amountPattern = "(") }
         assertFailsWith<IllegalArgumentException> { testCodeMaskConfig.copy(datePattern = "(") }
         assertFailsWith<IllegalArgumentException> { testCodeMaskConfig.copy(currencyBeforePattern = "(") }
