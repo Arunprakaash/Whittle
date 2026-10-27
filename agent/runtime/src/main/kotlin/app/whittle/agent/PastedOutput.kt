@@ -20,7 +20,13 @@ fun pastedOutput(messages: AgentMessages, kind: PastedKind, name: String, text: 
         PastedKind.SCREEN -> messages.diagnosticsFromScreen(name)
         PastedKind.PHONE_EVENT -> messages.diagnosticsFromEvent(name)
     }
-    return ContentBlock.Text(messages.diagnosticsUntrusted(source, text.takeLast(maxChars)), provenance = Provenance.Untrusted(source))
+    // The phone's events are other people's texts and notifications: personal data, so a run that holds them can't
+    // read the web unasked once something has steered it.
+    return ContentBlock.Text(
+        messages.diagnosticsUntrusted(source, text.takeLast(maxChars)),
+        provenance = Provenance.Untrusted(source),
+        personalData = kind == PastedKind.PHONE_EVENT,
+    )
 }
 
 /**
