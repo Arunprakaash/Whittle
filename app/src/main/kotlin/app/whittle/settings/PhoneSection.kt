@@ -75,7 +75,7 @@ fun PhoneSection(graph: AppGraph, settings: UserSettings?) {
                 title = switch.title,
                 // The title says what each is; a line only when there's state to show.
                 subtitle = if (switch.id == REMINDERS && waiting > 0) pluralStringResource(R.plurals.phone_reminders_waiting, waiting, waiting) else null,
-                checked = switch.id in granted && switch.id !in settings?.phoneOff.orEmpty(),
+                checked = switch.id in granted && graph.phoneActions.isOn(switch.id, settings?.phoneOff.orEmpty(), settings?.phoneOn.orEmpty()),
                 onCheckedChange = { on ->
                     graph.appScope.launch { graph.settings.setPhoneFeature(switch.id, on) }
                     if (on) request(capabilities)

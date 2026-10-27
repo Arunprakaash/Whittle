@@ -116,6 +116,12 @@ proot -r <rootfs> -b /dev -b /proc -b /sys -b <workspace>:/workspace -w /workspa
   `/storage/emulated/0`, `/proc/self/root/storage/emulated/0` and `/proc/1/root/sdcard` from `run_command` all fail
   with "No such file or directory". Shared storage isn't reachable from the guest, so the storage tools'
   `delete_files` card (which always asks) is the only way Whittle deletes the user's files.
+- **Storage access covers the guest too.** Android grants storage to the whole app, and proot runs in the app's
+  process, so once the user allows it the guest's processes hold it as well. All that keeps them away from
+  `/sdcard` is that nothing of shared storage is bound in, and proot's path translation isn't a security boundary.
+  That's why the Storage switch starts off until the user turns it on, and why `BundledAppConfigTest` fails if a
+  device mount or proot option reaches shared storage. Whether a guest can get there some other way (such as
+  `/proc/<pid>/root`) can only be checked on a phone, as above; check it again when proot or the mounts change.
 - The guest runs as fake root (`proot -0`), so apt works. That gives no extra power outside the guest.
 
 ## Shared workspace and projects

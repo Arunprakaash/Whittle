@@ -68,4 +68,19 @@ class SwitchedToolTest {
         on = true
         assertEquals(alarm.preview(JsonObject(emptyMap())), tool.preview(JsonObject(emptyMap())))
     }
+
+    @Test
+    fun `a switch that starts off stays off until the user turns it on`() {
+        val storage = PhoneActionsConfig.Switch("storage", "folder", "Storage", listOf("storage"), listOf("find_files"), startsOff = true)
+        val both = config.copy(switches = config.switches + storage)
+
+        // Nothing chosen yet: the usual switch is on, the one that starts off is off.
+        assertTrue(both.isOn("alarms", off = emptySet(), on = emptySet()))
+        assertFalse(both.isOn("storage", off = emptySet(), on = emptySet()))
+        assertEquals(setOf("storage"), both.offIds(emptySet(), emptySet()))
+        // Turned on, then off again.
+        assertTrue(both.isOn("storage", off = emptySet(), on = setOf("storage")))
+        assertFalse(both.isOn("storage", off = setOf("storage"), on = emptySet()))
+        assertEquals(setOf("alarms"), both.offIds(off = setOf("alarms"), on = setOf("storage")))
+    }
 }

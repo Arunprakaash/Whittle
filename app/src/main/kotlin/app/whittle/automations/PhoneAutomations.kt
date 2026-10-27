@@ -128,7 +128,15 @@ fun rememberPhoneAutomationsPlatform(graph: AppGraph): AutomationsPlatform {
     val requestNotifications = rememberNotificationPermissionRequest()
     return remember(context, capabilityRequest, requestNotifications) {
         AutomationsPlatform(
-            requestCapabilities = { capabilities, onDone -> answer = onDone; capabilityRequest(capabilities.map(::CapabilityId)) },
+            requestCapabilities = { capabilities, onDone ->
+                answer = { granted ->
+                    // Picking a tool whose feature starts off, and allowing what it needs, is the user turning it on.
+                    if (granted) graph.phoneActions.switches.filter { it.startsOff && capabilities.containsAll(it.capabilities) && it.capabilities.isNotEmpty() }
+                        .forEach { switch -> graph.appScope.launch { graph.settings.setPhoneFeature(switch.id, true) } }
+                    onDone(granted)
+                }
+                capabilityRequest(capabilities.map(::CapabilityId))
+            },
             requestNotifications = requestNotifications,
             toast = { message -> Toast.makeText(context, message, Toast.LENGTH_SHORT).show() },
         )

@@ -29,10 +29,27 @@ data class PhoneActionsConfig(
 ) : VersionedConfig {
     /**
      * A phone feature the user can switch off. [capabilities] are what Android must grant before it works, asked when
-     * it's switched on; [tools] are refused while it's off.
+     * it's switched on; [tools] are refused while it's off. One that [startsOff] stays off until the user turns it on.
      */
     @Serializable
-    data class Switch(val id: String, val icon: String, val title: String, val capabilities: List<String>, val tools: List<String>)
+    data class Switch(
+        val id: String,
+        val icon: String,
+        val title: String,
+        val capabilities: List<String>,
+        val tools: List<String>,
+        val startsOff: Boolean = false,
+    )
+
+    /**
+     * Whether the switch [id] is on, given the features the user switched [off] and [on]: a switch that [Switch.startsOff]
+     * only once they turned it on, any other until they turn it off.
+     */
+    fun isOn(id: String, off: Set<String>, on: Set<String>): Boolean =
+        if (switches.any { it.id == id && it.startsOff }) id in on else id !in off
+
+    /** The ids of the switches that are off, given what the user switched [off] and [on]. */
+    fun offIds(off: Set<String>, on: Set<String>): Set<String> = switches.filterNot { isOn(it.id, off, on) }.mapTo(mutableSetOf()) { it.id }
 
     /** [searchUri] takes `{{query}}`; [directionsUri] takes `{{destination}}` and `{{mode}}`. */
     @Serializable

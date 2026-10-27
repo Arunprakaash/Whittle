@@ -110,6 +110,7 @@
       "id": "storage",
       "icon": "folder",
       "title": "Storage",
+      "startsOff": true,
       "capabilities": [
         "storage"
       ],
@@ -121,5 +122,5 @@
       ]
     }
   ],
-  "offMessage": "The user turned {{feature}} off in Settings › On this phone, so Whittle can't use it. Tell them, and that they can turn it back on there."
+  "offMessage": "{{feature}} is off in Settings › On this phone, so Whittle can't use it. Tell the user, and that they can turn it on there."
 }

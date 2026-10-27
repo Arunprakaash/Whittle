@@ -33,6 +33,8 @@ data class UserSettings(
     val linuxOffered: Boolean = false,
     /** The phone features (ids from phone-actions.json) the user switched off; Whittle doesn't use them. */
     val phoneOff: Set<String> = emptySet(),
+    /** The phone features the user switched on, which matters for those that start off. */
+    val phoneOn: Set<String> = emptySet(),
 )
 
 /** Settings saved on the phone. Only choices the user made are stored, so changed defaults still reach them. */
@@ -51,6 +53,7 @@ class SettingsStore(context: Context, name: String, private val defaults: UserSe
             avatarSeed = stored[AVATAR_SEED],
             linuxOffered = stored[LINUX_OFFERED] ?: false,
             phoneOff = stored[PHONE_OFF].orEmpty(),
+            phoneOn = stored[PHONE_ON].orEmpty(),
         )
     }
 
@@ -68,9 +71,12 @@ class SettingsStore(context: Context, name: String, private val defaults: UserSe
 
     suspend fun setCheckForUpdates(on: Boolean) = set(CHECK_FOR_UPDATES, on)
 
-    /** Lets Whittle use the phone feature [id] again, or stops it. */
+    /** Lets Whittle use the phone feature [id], or stops it. */
     suspend fun setPhoneFeature(id: String, on: Boolean) {
-        dataStore.edit { it[PHONE_OFF] = if (on) it[PHONE_OFF].orEmpty() - id else it[PHONE_OFF].orEmpty() + id }
+        dataStore.edit {
+            it[PHONE_OFF] = if (on) it[PHONE_OFF].orEmpty() - id else it[PHONE_OFF].orEmpty() + id
+            it[PHONE_ON] = if (on) it[PHONE_ON].orEmpty() + id else it[PHONE_ON].orEmpty() - id
+        }
     }
 
     /** Gives this phone its avatar the first time; it stays the same after that. */
@@ -96,6 +102,7 @@ class SettingsStore(context: Context, name: String, private val defaults: UserSe
         val AVATAR_SEED = longPreferencesKey("avatar_seed")
         val LINUX_OFFERED = booleanPreferencesKey("linux_offered")
         val PHONE_OFF = stringSetPreferencesKey("phone_off")
+        val PHONE_ON = stringSetPreferencesKey("phone_on")
         val CHECK_FOR_UPDATES = booleanPreferencesKey("check_for_updates")
     }
 }

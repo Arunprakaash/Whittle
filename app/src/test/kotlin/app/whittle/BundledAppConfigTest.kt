@@ -168,8 +168,10 @@ class BundledAppConfigTest {
         assertTrue(unknownTools.isEmpty(), "phone-actions.json switches name tools that don't exist: $unknownTools")
         val unknownCapabilities = phone.switches.flatMap { it.capabilities }.filterNot { AndroidCapabilities.isKnown(CapabilityId(it)) }
         assertTrue(unknownCapabilities.isEmpty(), "Capabilities Android and Health Connect can't grant: $unknownCapabilities")
-        // Storage's switch stops deleting too.
+        // Storage's switch stops deleting too. All-files access reaches the app's Linux workspace as well, so it starts off.
         val storage = assertNotNull(phone.switches.firstOrNull { it.id == "storage" })
+        assertTrue(storage.startsOff)
+        assertFalse(phone.isOn("storage", off = emptySet(), on = emptySet()))
         assertEquals(listOf("storage"), storage.capabilities)
         assertTrue(storage.tools.containsAll(listOf("storage_overview", "find_files", "delete_files", "open_app_storage")))
         val missingIcons = phone.switches.map { it.icon }.toSet() - WhittleIcons.names
@@ -183,6 +185,20 @@ class BundledAppConfigTest {
         assertTrue(Regex("^[0-9a-f]{64}$").matches(image.sha256), "the image must be pinned by its SHA-256")
         assertTrue(image.url.startsWith("https://"))
         assertTrue(linux.workspaceMount !in linux.deviceMounts)
+    }
+
+    @Test
+    fun `Linux binds nothing of shared storage into the guest`() {
+        // All-files access covers the whole app, proot included, and proot's path translation isn't a security boundary:
+        // what keeps run_command away from the user's files is that nothing of shared storage is bound in. The device check
+        // (docs/linux-workspace.md) covers what a JVM test can't, such as /proc/<pid>/root inside a real guest.
+        val linux = assertIs<Outcome.Success<LinuxConfig>>(loader.load(LinuxConfig.FILE, LinuxConfig.serializer(), LinuxConfig.SCHEMA_VERSION)).value
+        val shared = listOf("/sdcard", "/storage", "/mnt", "/data/media", "/data/user", "/data/data")
+        val hosts = linux.deviceMounts.map { it.substringBefore(':') } + linux.prootOptions.filter { it.startsWith("/") }
+        val reaching = hosts.filter { host -> shared.any { host == it || host.startsWith("$it/") || it.startsWith("$host/") || host == "/" } }
+        assertTrue(reaching.isEmpty(), "Linux must not bind shared storage into the guest: $reaching")
+        // Binds are only ever the device mounts, the sandbox and the workspace, which the app adds itself.
+        assertTrue(linux.prootOptions.none { it == "-b" || it.startsWith("--bind") || it.startsWith("-b") }, "${linux.prootOptions}")
     }
 
     @Test
