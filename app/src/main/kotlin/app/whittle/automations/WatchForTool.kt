@@ -26,9 +26,10 @@ fun interface LaunchableApps {
 
 /**
  * Sets up an automation that starts on something that happens on the phone instead of at a time of day: a text, a
- * notification, plugging in, joining a Wi-Fi network, or every few minutes. Like [ScheduleTaskTool] it always asks,
- * gives the new automation the default tools and takes the chat's project. Places aren't offered from chat: the
- * model has no way to pick a spot on a map, so it sends the user to Settings.
+ * notification, plugging in, joining a Wi-Fi network, or every few minutes. Like [ScheduleTaskTool] it always asks and
+ * takes the chat's project. It gives the new automation the default tools, except that one on a text or a notification
+ * gets only [EventsConfig.messageDefaultTools]: no web, since what a stranger wrote could steer it. Places aren't
+ * offered from chat: the model has no way to pick a spot on a map, so it sends the user to Settings.
  */
 class WatchForTool(
     private val automations: Automations,
@@ -44,7 +45,7 @@ class WatchForTool(
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
         val request = parse(arguments)
         val event = request.event
-        if (event in PLACE_EVENTS) return support.reply(messages.automationPlaceInSettings, error = true)
+        if (event in automations.config.events.placeEventWords) return support.reply(messages.automationPlaceInSettings, error = true)
         val trigger = when (val made = trigger(event, request)) {
             is Made.Chosen -> made.trigger
             is Made.Refused -> return support.reply(made.text, error = true)
@@ -53,7 +54,8 @@ class WatchForTool(
             is AutomationToolSupport.Project.Chosen -> chosen.name
             is AutomationToolSupport.Project.Refused -> return support.reply(chosen.text, error = true)
         }
-        val draft = automations.draft(request.name, request.prompt).copy(schedule = null, trigger = trigger, project = project)
+        val tools = if (trigger.readsMessages) automations.config.messageDefaultToolIds else automations.config.defaultToolIds
+        val draft = automations.draft(request.name, request.prompt).copy(schedule = null, trigger = trigger, tools = tools, project = project)
         return when (val saved = automations.save(draft)) {
             is SaveResult.Saved -> support.reply(describe(saved.automation, trigger, event))
             is SaveResult.Refused -> support.reply(support.refusal(saved.problem, project), error = true)
@@ -63,12 +65,12 @@ class WatchForTool(
 
     private fun describe(automation: Automation, trigger: Trigger, event: String): String {
         val saved = messages.automationWatching(automation.name, event, support.place(automation.project), support.toolsOf(automation))
-        val needed = TriggerPermission.needed(trigger)
-        return if (needed.isEmpty()) saved else "$saved ${messages.automationNeedsPermission(needed.map { it.name })}"
+        val needed = trigger.capabilities(automations.config.events.capabilities)
+        return if (needed.isEmpty()) saved else "$saved ${messages.automationNeedsPermission(needed)}"
     }
 
     private sealed interface Made {
-        data class Chosen(val trigger: app.whittle.automations.Trigger) : Made
+        data class Chosen(val trigger: Trigger) : Made
 
         data class Refused(val text: String) : Made
     }
@@ -115,9 +117,6 @@ class WatchForTool(
         private const val WORDS = "words"
         private const val PROJECT = "project"
 
-        /** What a model may say for a place; these go to Settings, whatever else they say. */
-        private val PLACE_EVENTS = setOf("place", "arrive", "leave", "place_arrive", "place_leave", "arrive_place", "leave_place", "home")
-
         private val EVENTS = listOf("every", "text", "notification", "charging_start", "charging_stop", "wifi_join", "wifi_leave")
 
         private fun parse(arguments: JsonObject) = Request(
@@ -151,7 +150,7 @@ class WatchForTool(
                     """"event":{"type":"string","enum":[${EVENTS.joinToString(",") { "\"$it\"" }}],""" +
                     """"description":"What starts it: every (needs minutes), text, notification (needs from), charging_start, charging_stop, wifi_join, wifi_leave"},""" +
                     """"minutes":{"type":"integer","description":"For every: minutes between runs"},""" +
-                    """"from":{"type":"string","description":"For text: senders, comma separated, part of a name is enough. For notification: the app's name as the user sees it. For wifi_join and wifi_leave: the network's name; leave out for any network"},""" +
+                    """"from":{"type":"string","description":"For text: senders, comma separated, each a number or a sender ID exactly as the phone shows it (e.g. HDFCBK). For notification: the app's name as the user sees it. For wifi_join and wifi_leave: the network's name; leave out for any network"},""" +
                     """"words":{"type":"string","description":"For text and notification: comma separated words; it runs only when one of them is in the message. Leave out for any"},""" +
                     """"project":{"type":"string","description":"Project folder each run works in; leave out for this chat's project, or give an empty string for the whole workspace"}},""" +
                     """"required":["name","prompt","event"]}""",

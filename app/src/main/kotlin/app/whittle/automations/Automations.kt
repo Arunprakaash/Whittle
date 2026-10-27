@@ -34,7 +34,18 @@ interface AutomationAlarms {
 }
 
 /** Why an automation wasn't saved. */
-enum class AutomationProblem { NAME_EMPTY, NAME_TOO_LONG, PROMPT_EMPTY, PROMPT_TOO_LONG, TOO_MANY, TOOL_NOT_ALLOWED, PROJECT_INVALID, INTERVAL_TOO_SHORT }
+enum class AutomationProblem {
+    NAME_EMPTY,
+    NAME_TOO_LONG,
+    PROMPT_EMPTY,
+    PROMPT_TOO_LONG,
+    TOO_MANY,
+    TOOL_NOT_ALLOWED,
+    PROJECT_INVALID,
+    INTERVAL_TOO_SHORT,
+    /** A text trigger from a recipe that acts on what a text says, with nobody named in From. */
+    SENDER_REQUIRED,
+}
 
 sealed interface SaveResult {
     data class Saved(val automation: Automation, val nextRunMillis: Long?) : SaveResult
@@ -196,9 +207,15 @@ class Automations(
         }
     }
 
-    /** What a run of [automation] may use without asking. Only tools automations.json lets the user choose count. */
-    fun preApprovedTools(automation: Automation): Set<ToolId> =
-        (automation.tools.intersect(config.choosableToolIds) + config.alwaysPreApproved).map(::ToolId).toSet()
+    /**
+     * What a run of [automation] may use without asking. Only tools automations.json lets the user choose count, and
+     * one started by a message never changes anything unasked, whatever was stored before that rule.
+     */
+    fun preApprovedTools(automation: Automation): Set<ToolId> {
+        val chosen = automation.tools.intersect(config.choosableToolIds)
+        val allowed = if (automation.trigger?.readsMessages == true) chosen - config.writingToolIds else chosen
+        return (allowed + config.alwaysPreApproved).map(::ToolId).toSet()
+    }
 
     private suspend fun current(): List<Automation> {
         loaded.await()
@@ -225,6 +242,10 @@ class Automations(
         automation.prompt.isEmpty() -> AutomationProblem.PROMPT_EMPTY
         automation.prompt.length > config.maxPromptChars -> AutomationProblem.PROMPT_TOO_LONG
         !config.choosableToolIds.containsAll(automation.tools) -> AutomationProblem.TOOL_NOT_ALLOWED
+        // What a stranger texts mustn't change the workspace: a run on a message only reads.
+        automation.trigger?.readsMessages == true && automation.tools.any { it in config.writingToolIds } -> AutomationProblem.TOOL_NOT_ALLOWED
+        automation.trigger is Trigger.Sms && automation.trigger.senderRequired && automation.trigger.senders.none { it.isNotBlank() } ->
+            AutomationProblem.SENDER_REQUIRED
         automation.project != null && !ChatProjects.isValidName(automation.project) -> AutomationProblem.PROJECT_INVALID
         automation.trigger is Trigger.Every && automation.trigger.minutes < config.events.minIntervalMinutes -> AutomationProblem.INTERVAL_TOO_SHORT
         isNew && count >= config.maxAutomations -> AutomationProblem.TOO_MANY

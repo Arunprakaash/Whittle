@@ -223,4 +223,28 @@ class AutomationsTest {
     }
 
     private fun refusal(result: SaveResult) = assertIs<SaveResult.Refused>(result).problem
+
+    @Test
+    fun `an automation on a text or a notification may only read`() = runTest {
+        val automations = automations()
+        val writes = setOf("write_file")
+        val sms = automations.draft("Bank", "Log it").copy(schedule = null, trigger = Trigger.Sms(listOf("HDFCBK")), tools = writes)
+        assertEquals(AutomationProblem.TOOL_NOT_ALLOWED, refusal(automations.save(sms)))
+        val notification = sms.copy(trigger = Trigger.Notification("com.bank", "Bank"))
+        assertEquals(AutomationProblem.TOOL_NOT_ALLOWED, refusal(automations.save(notification)))
+        // Plugging in carries nothing anyone else wrote, so the user's choice stands.
+        assertIs<SaveResult.Saved>(automations.save(sms.copy(trigger = Trigger.Charging(Edge.START))))
+        assertEquals(setOf(ToolId("calendar_events"), ToolId("update_plan")), automations.preApprovedTools(sms.copy(tools = writes + "calendar_events")))
+    }
+
+    @Test
+    fun `a recipe that acts on bank texts needs a sender`() = runTest {
+        val automations = automations()
+        val bank = automations.draft("Bank", "Log it").copy(schedule = null, trigger = Trigger.Sms(words = listOf("debited"), senderRequired = true))
+        assertEquals(AutomationProblem.SENDER_REQUIRED, refusal(automations.save(bank)))
+        assertEquals(AutomationProblem.SENDER_REQUIRED, refusal(automations.save(bank.copy(trigger = Trigger.Sms(listOf(" "), senderRequired = true)))))
+        assertIs<SaveResult.Saved>(automations.save(bank.copy(trigger = Trigger.Sms(listOf("HDFCBK"), listOf("debited"), senderRequired = true))))
+        // Any other text trigger may leave From empty; the editor only warns.
+        assertIs<SaveResult.Saved>(automations.save(bank.copy(id = "other", trigger = Trigger.Sms(words = listOf("delivered")))))
+    }
 }

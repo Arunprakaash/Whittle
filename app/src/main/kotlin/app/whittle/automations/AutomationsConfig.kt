@@ -25,7 +25,7 @@ data class AutomationsConfig(
     val tools: List<AutomationToolChoice>,
     /** Automations to start from; each opens the editor filled in. Ones the user already has aren't offered again. */
     val ideas: List<AutomationIdea> = emptyList(),
-    /** Limits and masking for automations that run when something happens on the phone. */
+    /** Limits for automations that run when something happens on the phone, and how one-time codes are kept from them. */
     val events: EventsConfig,
 ) : VersionedConfig {
     init {
@@ -34,11 +34,21 @@ data class AutomationsConfig(
         require(retryAfterMillis > 0 && giveUpAfterMillis >= retryAfterMillis && startTimeoutMillis > 0) { "retry times must be positive" }
         require(tools.map { it.key }.distinct().size == tools.size) { "tool choice keys must be unique" }
         val keys = tools.map { it.key }.toSet()
+        val writing = tools.filter { it.writes }.map { it.key }.toSet()
         ideas.forEach { idea ->
             require(idea.name.length <= maxNameChars && idea.prompt.length <= maxPromptChars) { "idea ${idea.name} is too long" }
             require(keys.containsAll(idea.tools)) { "idea ${idea.name} names tool choices that don't exist" }
+            require(idea.trigger?.readsMessages != true || idea.tools.none { it in writing }) { "idea ${idea.name} starts on a message, so it may only read" }
         }
+        require(keys.containsAll(events.messageDefaultTools)) { "events.messageDefaultTools names tool choices that don't exist" }
+        require(events.messageDefaultTools.none { it in writing }) { "events.messageDefaultTools may only read" }
     }
+
+    /** The tool ids of the choices that let a run change things; refused for automations that start on a message. */
+    val writingToolIds: Set<String> get() = tools.filter { it.writes }.flatMap { it.toolIds }.toSet()
+
+    /** What a new automation on a text or a notification may use without asking, when the model sets it up (watch_for). */
+    val messageDefaultToolIds: Set<String> get() = tools.filter { it.key in events.messageDefaultTools }.flatMap { it.toolIds }.toSet()
 
     /** The tool ids an idea's choices stand for. */
     fun toolIdsFor(idea: AutomationIdea): Set<String> = tools.filter { it.key in idea.tools }.flatMap { it.toolIds }.toSet()
@@ -54,7 +64,7 @@ data class AutomationsConfig(
     }
 }
 
-/** Limits for event-triggered automations, and how one-time codes are hidden from them. */
+/** Limits for event-triggered automations, what they need from the phone, and how one-time codes are kept from them. */
 @Serializable
 data class EventsConfig(
     /** After an automation runs for an event, the next event for it waits this long. */
@@ -64,11 +74,32 @@ data class EventsConfig(
     val maxQueued: Int,
     /** The shortest "every" interval an automation may ask for, so none polls the phone awake. */
     val minIntervalMinutes: Int,
+    /** What the editor's "every" starts at. */
+    val defaultEveryMinutes: Int,
+    /** How often the phone is looked at while a trigger needs it (unplugging, leaving Wi-Fi, polled places). */
     val placeCheckMinutes: Int,
     val placePolling: Boolean,
     /** What a new place starts with, and the smallest radius Android's proximity alerts hold up at. */
-    val defaultPlaceRadiusMeters: Int = 200,
-    val minPlaceRadiusMeters: Int = 100,
+    val defaultPlaceRadiusMeters: Int,
+    val minPlaceRadiusMeters: Int,
+    val maxPlaceNameChars: Int,
+    /** The most digits the editor's number fields (minutes, metres) take. */
+    val maxNumberDigits: Int,
+    /** How long "Use where I am" waits for a location fix. */
+    val locationTimeoutMillis: Long,
+    /** How many notifications' last text the listener remembers, to tell a re-post from a new one. */
+    val maxNotificationKeys: Int,
+    /** A sender number with at least this many digits may leave out the country code; a shorter one must be whole. */
+    val senderSuffixDigits: Int,
+    /** What the model may call a place in watch_for; places are set up in Settings, so these are sent there. */
+    val placeEventWords: List<String>,
+    /** What the phone must grant for each kind of trigger, by its type ("sms", "place"): ids of AndroidCapabilities. */
+    val capabilities: Map<String, List<String>>,
+    /**
+     * Tool choice keys a text or notification automation gets when the model sets one up. No web: what a stranger
+     * wrote could otherwise steer the run into sending what it read somewhere.
+     */
+    val messageDefaultTools: List<String>,
     /** Text of one event kept past this length is cut. */
     val maxEventChars: Int,
     val codeMask: CodeMaskConfig,
@@ -76,33 +107,48 @@ data class EventsConfig(
     init {
         require(cooldownMillis > 0 && maxRunsPerDay > 0 && maxQueued > 0) { "event limits must be positive" }
         require(minIntervalMinutes > 0 && placeCheckMinutes > 0 && maxEventChars > 0) { "event limits must be positive" }
+        require(defaultEveryMinutes >= minIntervalMinutes) { "defaultEveryMinutes must be at least minIntervalMinutes" }
+        require(minPlaceRadiusMeters > 0 && minPlaceRadiusMeters <= defaultPlaceRadiusMeters) { "minPlaceRadiusMeters must be positive and at most the default" }
+        require(maxPlaceNameChars > 0 && maxNumberDigits > 0 && locationTimeoutMillis > 0 && maxNotificationKeys > 0) { "event limits must be positive" }
+        require(defaultEveryMinutes.toString().length <= maxNumberDigits && defaultPlaceRadiusMeters.toString().length <= maxNumberDigits) {
+            "the defaults must fit in maxNumberDigits"
+        }
+        require(senderSuffixDigits > 0) { "senderSuffixDigits must be positive" }
+        require(placeEventWords.all { it.isNotBlank() && it == it.lowercase() }) { "placeEventWords are lower case words" }
+        require(capabilities.keys.all { it in TRIGGER_TYPES }) { "events.capabilities is keyed by trigger type: $TRIGGER_TYPES" }
+    }
+
+    private companion object {
+        val TRIGGER_TYPES = setOf(Trigger.EVERY, Trigger.SMS, Trigger.NOTIFICATION, Trigger.PLACE, Trigger.CHARGING, Trigger.WIFI)
     }
 }
 
-/** What counts as a one-time code and where it's hidden: a [codePattern] match with a keyword within [nearChars]. */
+/** What counts as a one-time code: a [codePattern] or [mixedCodePattern] match with a keyword within [nearChars]. */
 @Serializable
 data class CodeMaskConfig(
     /** Words that say a number is a code (case-insensitive). */
     val keywords: List<String>,
     /** A regular expression for the numbers that might be codes; compiled ignoring case. */
     val codePattern: String,
+    /** Codes of letters and digits together ("G-482913", "A7K29Q"); compiled ignoring case. */
+    val mixedCodePattern: String,
+    /** Messaging apps' packages: their notifications are dropped on any keyword at all, codes being sent through them too. */
+    val messagingApps: List<String>,
     val nearChars: Int,
-    /** What a hidden code is replaced with; says a code was there. */
-    val replacement: String,
-    /** Numbers that are money or dates, never hidden, even beside a keyword; each compiled as given. */
+    /** Numbers that are money or dates, never codes, even beside a keyword; each compiled as given. */
     val amountPattern: String,
     val datePattern: String,
     /** What may stand just before a number to make it an amount (a currency sign or word); anchored at its end. */
     val currencyBeforePattern: String,
-    /** A lone number with this many digits is hidden with no keyword, in a message of at most [shortMessageWords] words. */
+    /** A lone number with this many digits is a code with no keyword, in a message of at most [shortMessageWords] words. */
     val loneCodeDigits: Int,
     val shortMessageWords: Int,
 ) {
     init {
         require(keywords.isNotEmpty() && keywords.all { it.isNotBlank() }) { "code keywords can't be empty" }
-        require(nearChars > 0 && replacement.isNotEmpty()) { "code mask needs a distance and a replacement" }
+        require(nearChars > 0) { "code mask needs a distance" }
         require(loneCodeDigits > 0 && shortMessageWords > 0) { "code mask needs a digit count and a word count" }
-        mapOf("codePattern" to codePattern, "amountPattern" to amountPattern, "datePattern" to datePattern, "currencyBeforePattern" to currencyBeforePattern)
+        mapOf("codePattern" to codePattern, "mixedCodePattern" to mixedCodePattern, "amountPattern" to amountPattern, "datePattern" to datePattern, "currencyBeforePattern" to currencyBeforePattern)
             .forEach { (name, pattern) -> require(runCatching { Regex(pattern) }.isSuccess) { "$name isn't a valid regular expression" } }
     }
 }
@@ -148,6 +194,8 @@ data class AutomationToolChoice(
     val capabilities: List<String> = emptyList(),
     /** On for a new automation. */
     val default: Boolean,
+    /** Lets a run change things (files); never for an automation that starts on a message. A test keeps it true to the tools. */
+    val writes: Boolean = false,
 ) {
     fun labelFor(project: String?): String = if (project != null) labelInProject ?: label else label
 

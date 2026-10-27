@@ -13,16 +13,31 @@
     "maxRunsPerDay": 30,
     "maxQueued": 20,
     "minIntervalMinutes": 15,
+    "defaultEveryMinutes": 60,
     "placeCheckMinutes": 15,
     "placePolling": false,
     "defaultPlaceRadiusMeters": 200,
     "minPlaceRadiusMeters": 100,
+    "maxPlaceNameChars": 40,
+    "maxNumberDigits": 6,
+    "locationTimeoutMillis": 30000,
+    "maxNotificationKeys": 200,
+    "senderSuffixDigits": 8,
+    "placeEventWords": ["place", "arrive", "leave", "place_arrive", "place_leave", "arrive_place", "leave_place", "home"],
+    "capabilities": {
+      "sms": ["sms"],
+      "notification": ["notification_access"],
+      "place": ["location", "location_background"],
+      "wifi": ["location"]
+    },
+    "messageDefaultTools": ["clock"],
     "maxEventChars": 2000,
     "codeMask": {
       "keywords": ["otp", "code", "verification", "verify", "pin", "password", "passcode", "one time", "one-time", "2fa", "login"],
       "codePattern": "\\b(?:[A-Z]-)?(?:\\d{4,8}|\\d{3}[- ]\\d{3})\\b",
+      "mixedCodePattern": "\\b(?:[A-Z]{1,3}-)?(?=[A-Z0-9]{4,10}\\b)(?=[A-Z0-9]*\\d)(?=[A-Z0-9]*[A-Z])[A-Z0-9]+\\b",
+      "messagingApps": ["com.whatsapp", "com.whatsapp.w4b", "org.telegram.messenger", "com.google.android.apps.messaging", "com.samsung.android.messaging", "com.android.mms", "com.facebook.orca", "org.thoughtcrime.securesms"],
       "nearChars": 40,
-      "replacement": "[code hidden]",
       "amountPattern": "[\\d,]+\\.\\d{2}",
       "datePattern": "\\d{2}[-/]\\d{2}[-/]\\d{2,4}",
       "currencyBeforePattern": "(?<!\\p{L})(?:rs\\.?|₹|inr)\\s*$",
@@ -81,7 +96,8 @@
       "label": "Change files anywhere in the workspace, every project",
       "labelInProject": "Change files in its project",
       "toolIds": ["write_file", "edit_file"],
-      "default": false
+      "default": false,
+      "writes": true
     }
   ],
   "ideas": [
@@ -137,8 +153,8 @@
       "icon": "payments",
       "name": "Log bank texts",
       "prompt": "A bank text just arrived. From it, take the date, the amount, the merchant and whether it was a debit or a credit, and append them as one CSV line (date,amount,merchant,debit or credit) to expenses.csv. If expenses.csv doesn't exist, create it first with the header date,amount,merchant,type. Never mention or log any code or one-time password.",
-      "trigger": {"type": "sms", "senders": [], "words": ["debited", "credited", "spent"]},
-      "tools": ["readFiles", "changeFiles"]
+      "trigger": {"type": "sms", "senders": [], "words": ["debited", "credited", "spent"], "senderRequired": true},
+      "tools": ["readFiles"]
     },
     {
       "icon": "package_2",

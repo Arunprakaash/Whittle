@@ -5,6 +5,7 @@ import app.whittle.apps.PowerfulKind
 import app.whittle.automations.AutomationsConfig
 import app.whittle.linux.ComputerAccessConfig
 import app.whittle.automations.Trigger
+import app.whittle.automations.readsMessages
 import app.whittle.claudecode.ClaudeCodeConfig
 import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.llm.api.HostedTool
@@ -251,26 +252,58 @@ class BundledAppConfigTest {
     }
 
     @Test
-    fun `automation ideas only read, bar the bank recipe writing a file, and their icons are bundled`() {
+    fun `automation ideas only read, and their icons are bundled`() {
         val config = assertIs<Outcome.Success<AutomationsConfig>>(
             loader.load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
         ).value
         assertTrue(config.ideas.isNotEmpty())
         val tiers = ToolCatalog.definitions.associate { it.id.value to it.riskTier } + (HostedTool.WEB_SEARCH.toolName to RiskTier.WEB_READ)
         val readOnly = setOf(RiskTier.READ, RiskTier.WEB_READ)
-        // An idea is one tap from saved, so like a new automation it never starts able to change anything, whatever
-        // starts it: an event recipe runs on untrusted texts. The one exception is spec'd: the bank-text recipe appends
-        // to expenses.csv, so it may have the workspace file choice, and nothing stronger than that.
-        val allowedChoices = mapOf("Log bank texts" to setOf("changeFiles"))
-        val changing = config.ideas.associate { idea ->
-            val allowedIds = config.tools.filter { it.key in allowedChoices[idea.name].orEmpty() }.flatMap { it.toolIds }.toSet()
-            idea.name to config.toolIdsFor(idea).filter { id -> tiers.getValue(id) !in readOnly && id !in allowedIds }
-        }.filterValues { it.isNotEmpty() }
+        // An idea is one tap from saved, so like a new automation it never starts able to change anything.
+        val changing = config.ideas.associate { it.name to config.toolIdsFor(it).filter { id -> tiers.getValue(id) !in readOnly } }.filterValues { it.isNotEmpty() }
         assertTrue(changing.isEmpty(), "These ideas would change things without asking: $changing")
-        val beyondWorkspace = config.ideas.associate { it.name to config.toolIdsFor(it).filter { id -> tiers.getValue(id) !in readOnly + RiskTier.WORKSPACE } }.filterValues { it.isNotEmpty() }
-        assertTrue(beyondWorkspace.isEmpty(), "No idea may delete, send or share: $beyondWorkspace")
         val missingIcons = config.ideas.map { it.icon }.toSet() - WhittleIcons.names
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
+    }
+
+    @Test
+    fun `automations on texts and notifications only read, and start without the web`() {
+        val config = assertIs<Outcome.Success<AutomationsConfig>>(
+            loader.load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
+        ).value
+        val tiers = ToolCatalog.definitions.associate { it.id.value to it.riskTier } + (HostedTool.WEB_SEARCH.toolName to RiskTier.WEB_READ)
+        val readOnly = setOf(RiskTier.READ, RiskTier.WEB_READ)
+        // A choice says whether it writes, and Automations refuses those for a message trigger: the flag must be true to the tools.
+        val wrong = config.tools.filter { choice -> choice.writes != choice.toolIds.any { tiers.getValue(it) !in readOnly } }.map { it.key }
+        assertTrue(wrong.isEmpty(), "Set writes to whether these choices change anything: $wrong")
+        val messageIdeas = config.ideas.filter { it.trigger?.readsMessages == true }
+        assertTrue(messageIdeas.isNotEmpty())
+        val writing = messageIdeas.associate { it.name to config.toolIdsFor(it).filter { id -> tiers.getValue(id) !in readOnly } }.filterValues { it.isNotEmpty() }
+        assertTrue(writing.isEmpty(), "A stranger's text would make these change things: $writing")
+        // What a stranger wrote can steer the run, so the model's own text automations start without reading the web.
+        val webDefaults = config.messageDefaultToolIds.filter { tiers.getValue(it) == RiskTier.WEB_READ }
+        assertTrue(webDefaults.isEmpty(), "events.messageDefaultTools must not read the web: $webDefaults")
+        // A recipe that acts on what a bank's text says can't be started by anyone who sends the words.
+        val bank = config.ideas.single { it.name == "Log bank texts" }.trigger
+        assertTrue(bank is Trigger.Sms && bank.senderRequired, "the bank recipe must need a sender")
+        // Every capability a trigger needs is one Android can grant, and a switch in Settings › On this phone covers it.
+        val phone = assertIs<Outcome.Success<PhoneActionsConfig>>(loader.load(PhoneActionsConfig.FILE, PhoneActionsConfig.serializer(), PhoneActionsConfig.SCHEMA_VERSION)).value
+        val needed = config.events.capabilities.values.flatten().toSet()
+        assertTrue(needed.all { AndroidCapabilities.isKnown(CapabilityId(it)) }, "events.capabilities names what nothing can grant: $needed")
+        val uncovered = needed - phone.switches.flatMap { it.capabilities }.toSet()
+        assertTrue(uncovered.isEmpty(), "Give these a switch in phone-actions.json: $uncovered")
+    }
+
+    @Test
+    fun `event limits hold together`() {
+        val events = assertIs<Outcome.Success<AutomationsConfig>>(
+            loader.load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
+        ).value.events
+        assertTrue(events.minPlaceRadiusMeters <= events.defaultPlaceRadiusMeters)
+        assertTrue(events.defaultEveryMinutes >= events.minIntervalMinutes)
+        assertFailsWith<IllegalArgumentException> { events.copy(minPlaceRadiusMeters = events.defaultPlaceRadiusMeters + 1) }
+        assertFailsWith<IllegalArgumentException> { events.copy(defaultEveryMinutes = events.minIntervalMinutes - 1) }
+        assertFailsWith<IllegalArgumentException> { events.copy(capabilities = mapOf("bus" to listOf("location"))) }
     }
 
     @Test

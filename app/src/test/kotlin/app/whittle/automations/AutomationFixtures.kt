@@ -17,8 +17,19 @@ internal val testEventsConfig = EventsConfig(
     maxRunsPerDay = 30,
     maxQueued = 20,
     minIntervalMinutes = 15,
+    defaultEveryMinutes = 60,
     placeCheckMinutes = 15,
     placePolling = false,
+    defaultPlaceRadiusMeters = 200,
+    minPlaceRadiusMeters = 100,
+    maxPlaceNameChars = 40,
+    maxNumberDigits = 6,
+    locationTimeoutMillis = 30_000,
+    maxNotificationKeys = 200,
+    senderSuffixDigits = 8,
+    placeEventWords = listOf("place", "arrive", "leave", "place_arrive", "place_leave", "home"),
+    capabilities = mapOf("sms" to listOf("sms"), "notification" to listOf("notification_access"), "place" to listOf("location", "location_background"), "wifi" to listOf("location")),
+    messageDefaultTools = listOf("calendar"),
     maxEventChars = 2000,
     codeMask = testCodeMaskConfig,
 )
@@ -36,6 +47,7 @@ internal val testAutomationsConfig = AutomationsConfig(
     tools = listOf(
         AutomationToolChoice(key = "web", icon = "travel_explore", label = "Web", toolIds = listOf("web_search", "web_fetch"), default = true),
         AutomationToolChoice(key = "calendar", icon = "calendar_month", label = "Calendar", toolIds = listOf("calendar_events"), default = false),
+        AutomationToolChoice(key = "changeFiles", icon = "edit_document", label = "Change files", toolIds = listOf("write_file"), default = false, writes = true),
     ),
     events = testEventsConfig,
 )

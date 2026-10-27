@@ -68,6 +68,7 @@ data class AgentMessages(
     val automationToolNotAllowed: String,
     val automationProjectInvalid: String,
     val automationIntervalTooShort: String,
+    val automationSenderRequired: String,
     val automationProjectMissing: String,
     val automationTimeInvalid: String,
     val automationDaysInvalid: String,
@@ -143,8 +144,10 @@ data class AgentMessages(
     val automationWatching: String,
     /** Added when the trigger needs Android permissions; [PERMISSIONS] lists them from [automationPermissions]. */
     val automationNeedsPermission: String,
-    /** The plain words for each permission a trigger may need, by the permission's name. */
+    /** The plain words for each capability a trigger may need, by its id ("sms", "location"). */
     val automationPermissions: Map<String, String>,
+    /** Joins the permissions in [automationNeedsPermission]: " and ". */
+    val automationPermissionsAnd: String,
     val automationPlaceInSettings: String,
     val automationAppNotFound: String,
     val automationAppAmbiguous: String,
@@ -199,6 +202,7 @@ data class AgentMessages(
         requirePlaceholders(automationToolNotAllowed)
         requirePlaceholders(automationProjectInvalid, PROJECT)
         requirePlaceholders(automationIntervalTooShort, LIMIT)
+        requirePlaceholders(automationSenderRequired)
         requirePlaceholders(automationProjectMissing, PROJECT)
         requirePlaceholders(automationTimeInvalid)
         requirePlaceholders(automationDaysInvalid)
@@ -314,9 +318,9 @@ data class AgentMessages(
     fun automationWatching(name: String, event: String, place: String, tools: String): String =
         render(automationWatching, NAME to name, EVENT to event, PLACE to place, TOOLS to tools)
 
-    /** [permissions] are [TriggerPermission] names; one with no words in config is named as it is. */
+    /** [permissions] are capability ids; one with no words in config is named as it is. */
     fun automationNeedsPermission(permissions: List<String>): String =
-        render(automationNeedsPermission, PERMISSIONS to permissions.joinToString(" and ") { automationPermissions[it] ?: it })
+        render(automationNeedsPermission, PERMISSIONS to permissions.joinToString(automationPermissionsAnd) { automationPermissions[it] ?: it })
 
     fun automationAppNotFound(name: String): String = render(automationAppNotFound, NAME to name)
 

@@ -337,4 +337,38 @@ class AutomationRunnerTest {
         val at = now + testEventsConfig.cooldownMillis
         assertEquals(Alarm(automation.id, at, at, retry = true), alarms.set.last())
     }
+
+    @Test
+    fun `an event run can't pre-approve a tool that writes, even one stored before that rule`() = runTest {
+        val (automations, runner) = setUp()
+        // Stored straight to the backend, as an automation saved before the rule would be; a save now refuses it.
+        val stored = automations.draft("Bank", "Log it").copy(
+            id = "bank", schedule = null, trigger = Trigger.Sms(senders = listOf("HDFCBK")), tools = setOf("calendar_events", "write_file"),
+        )
+        backend.stored = listOf(stored)
+        assertEquals(AutomationProblem.TOOL_NOT_ALLOWED, assertIs<SaveResult.Refused>(automations.save(stored)).problem)
+        gate.offer("bank", sms("Spent 10"))
+        runner.due("bank", now)
+        val (_, tools) = chat.started.single()
+        assertEquals(setOf(ToolId("calendar_events"), ToolId("update_plan")), tools)
+    }
+
+    @Test
+    fun `a time automation may still pre-approve the writing tool the user chose`() = runTest {
+        val (automations, runner) = setUp()
+        val saved = assertIs<SaveResult.Saved>(automations.save(automations.draft("Notes", "Tidy notes").copy(tools = setOf("write_file")))).automation
+        runner.due(saved.id, due)
+        assertTrue(ToolId("write_file") in chat.started.single().second)
+    }
+
+    @Test
+    fun `an event run's events are untrusted personal data`() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.savedEvent()
+        gate.offer(automation.id, sms("Spent 10"))
+        runner.due(automation.id, now)
+        val block = chat.pasted.single().single()
+        assertIs<Provenance.Untrusted>(block.provenance)
+        assertTrue(block.personalData)
+    }
 }

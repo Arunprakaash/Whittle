@@ -44,18 +44,19 @@ class WatchForToolTest {
     private suspend fun WatchForTool.call(json: String) = execute(Json.parseToJsonElement(json).jsonObject, context)
 
     @Test
-    fun `a text event saves an SMS trigger with the default tools`() = runTest {
+    fun `a text event saves an SMS trigger that can't read the web unasked`() = runTest {
         val (automations, tool) = tool()
         val reply = tool.call("""{"name":"Bank","prompt":"Log it","event":"text","from":"HDFCBK, ICICI","words":"debited,credited"}""")
         assertFalse(reply.isError, reply.content)
         val saved = automations.all.value.single()
         assertNull(saved.schedule)
         assertEquals(Trigger.Sms(listOf("HDFCBK", "ICICI"), listOf("debited", "credited")), saved.trigger)
-        assertEquals(setOf("web_search", "web_fetch"), saved.tools)
+        // What a stranger texts could steer the run, so it starts without the web, unlike a time or an interval.
+        assertEquals(setOf("calendar_events"), saved.tools)
         // It says what runs on its own, where to allow more, and which permission is still needed.
-        assertTrue("web" in reply.content, reply.content)
+        assertTrue("calendar" in reply.content, reply.content)
         assertTrue("Settings › Automations" in reply.content, reply.content)
-        assertTrue(messages.automationPermissions.getValue("SMS") in reply.content, reply.content)
+        assertTrue(messages.automationPermissions.getValue("sms") in reply.content, reply.content)
     }
 
     @Test

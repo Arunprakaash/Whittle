@@ -54,6 +54,7 @@ internal class AutomationToolSupport(
         AutomationProblem.TOOL_NOT_ALLOWED -> messages.automationToolNotAllowed
         AutomationProblem.PROJECT_INVALID -> messages.automationProjectInvalid(project.orEmpty())
         AutomationProblem.INTERVAL_TOO_SHORT -> messages.automationIntervalTooShort(automations.config.events.minIntervalMinutes)
+        AutomationProblem.SENDER_REQUIRED -> messages.automationSenderRequired
     }
 
     fun reply(text: String, error: Boolean = false) = ToolOutput(text, isError = error, provenance = Provenance.Trusted)
