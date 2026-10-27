@@ -64,7 +64,8 @@ Code is written only where the model can't or mustn't be trusted to do it:
 
 ## Anti-goals (a failure even if it works)
 
-- **One-time codes reaching the model.** The user allowed any message to fire a trigger, but codes are masked first.
+- **One-time codes reaching the model.** The user allowed any message to fire a trigger, but a message that looks like
+  it holds a code is dropped first.
 - **A chatty sender or app burning the user's API budget.** Every trigger has a cooldown and a daily cap.
 - **A file deleted without the user seeing it listed.** No pre-approval, automation or prompt can get around this.
 - **Memories the user didn't agree to.** Nothing the review proposes is used until the user keeps it.
@@ -112,6 +113,14 @@ manifest receiver at targetSdk 28, so a job constraint, or a receiver registered
 keeps alive (the notification listener, when granted), are the options to weigh. Permissions are asked only when
 the user saves an automation that needs them, never up front.
 
+*Built:* texts, notifications and location are capabilities (`sms`, `notification_access`, `location`,
+`location_background` in `AndroidCapabilities`) with switches in Settings › On this phone (phone-actions.json), and
+the editor asks for them through the shared `rememberCapabilityRequest`; automations.json `events.capabilities` says
+which each trigger needs. `EventSources` turns each source on only while an enabled trigger that's allowed (granted,
+switch on) needs it: the SMS receiver is a disabled component until then, the notification listener unbinds itself
+while it watches no app, and the periodic job runs only for an edge nothing else wakes Whittle for (unplugging,
+leaving Wi-Fi, a plug-in while already plugged in, polled places).
+
 **Places, if proximity alerts aren't reliable** *(the user's choice)*: build place triggers on the platform's
 proximity alerts first and check them on the test phone early, before the rest. If vivo's battery management keeps
 them from firing, fall back to a coarse location check every 15 minutes (interval in config) against the saved
@@ -123,15 +132,15 @@ limited to that.
 
 - Matching automations start like a scheduled one, through `AutomationRunner`: unattended, with their pre-approved
   tools, retried if a task is running or the user is in the app, given up after the configured time.
-- The event's details go into the run as untrusted content, named for what it is ("a text from HDFC-BK"), with
-  one-time codes masked.
-- **Code masking:** patterns in config (a 4–8 digit number near words like OTP, code, verification, PIN, and so
-  on); the masked text says a code was there. Applied to SMS and notification text before anything is stored or
-  sent to a model. When unsure, mask.
+- The event's details go into the run as untrusted content, named for what it is ("a text from HDFC-BK"), and as
+  personal data, so a run that has them asks before reading the web once anything has steered it.
+- **One-time codes:** patterns in config (a 4–8 digit number, or a code of letters and digits, near words like OTP,
+  code, verification, PIN, and so on). A text or notification that looks like it holds one is dropped before
+  anything is stored or sent to a model; from a messaging app, any of those words is enough. When unsure, drop.
 - **Limits per automation:** a cooldown between runs and a daily cap on runs, both in config with defaults (for
   example 2 minutes and 30 a day).
 - **Events during the cooldown wait, they aren't lost** (a bank text 30 seconds after another still gets logged).
-  They're kept, masked, in a small queue that survives the app being killed, and go together into the next run when
+  They're kept, encrypted, in a small queue that survives the app being killed, and go together into the next run when
   the cooldown ends, so three texts in a minute make one run. The queue has a cap in config (for example 20 events
   per automation); past it the oldest are dropped. *Decided by the designer.*
 - **Past the daily cap, events are dropped**, including any still queued, and the automation's row says how many
@@ -141,21 +150,25 @@ limited to that.
 with its filters. It always asks, like today; the approval card says the event in words ("When you get a text from
 HDFC-BK") and what it will do. The model never picks pre-approved tools, as today.
 
-**What an event automation may do on its own.** The same as a scheduled one today *(decided by the designer, to keep
-one model)*:
+**What an event automation may do on its own.** The same as a scheduled one, except that one started by a text or a
+notification only reads, since a stranger writes what it reads *(changed in review)*:
 
 - An automation the agent creates gets the default tools from `automations.json` (`default: true`), as
-  `schedule_task` does now.
-- A recipe brings its own tool list, since the user chose the recipe (the bank-text recipe includes `changeFiles`
-  so it can append to `expenses.csv`).
+  `schedule_task` does now; one on a text or a notification gets `events.messageDefaultTools` instead, without the web.
+- A recipe brings its own tool list, since the user chose the recipe. No recipe on a message may write: the bank-text
+  recipe asks before appending to `expenses.csv`. Choices marked `writes` are refused for message triggers when saved,
+  and never pre-approved for their runs.
+- A recipe that acts on what a text says (the bank one) needs a sender (`senderRequired`), and the editor warns
+  whenever From is empty. A sender matches whole: a number by its digits (one of 8 or more may leave out the country
+  code), a sender ID as itself or as one dash-separated part ("HDFCBK" is "VM-HDFCBK"), never as a substring.
 - Anything else asks through the approval notification (A3), with Approve and Decline where its tier allows.
 - The user can tick more tools in the editor at any time; the approval card for an agent-created event automation
   says which tools it may use on its own and that more can be allowed in Settings.
 
 **The user's side.** The automation editor's When section offers Time, Every, and the events. Each event has its
-filter fields and, where needed, a line explaining the permission with a button to grant it. The list row shows the
-trigger in words and when it last fired. A trigger whose permission was later revoked shows that, with a fix button,
-like the connection health rows (C2).
+filter fields, and asks for what it needs when saved. The list row shows the trigger in words and when it last
+fired. A trigger whose permission was later revoked, or whose switch is off, says Needs access; in the editor a row
+of the same name asks again.
 
 **Recipes** (config, in `automations.json` `ideas`, with their trigger):
 

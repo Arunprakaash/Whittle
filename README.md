@@ -174,11 +174,12 @@ event or an interval).
   calendar, contacts and the workspace's files, never anything that sends data out. A new automation may only
   read; changing files is a separate choice, off by default. A test keeps both rules.
 - **Events.** An automation can start on a text, an app's notification, arriving at or leaving a place, plugging in or
-  out, joining or leaving Wi-Fi, or every N minutes (15 at least). One-time codes are hidden (`[code hidden]`) before any
-  model sees a message, and a cooldown and daily limit apply (`events` in automations.json). After saving, the editor
-  lists missing permissions with Grant buttons; an automation made from chat shows Needs permission, with Fix, in
-  Settings › Automations. Some edges can fire up to 15 minutes late. A `watch_for` card always asks first and is only
-  approved inside the app. Details in `docs/phone-events.md`.
+  out, joining or leaving Wi-Fi, or every N minutes (15 at least). A message that looks like it holds a one-time code
+  is dropped before any model sees it, and a cooldown and daily limit apply (`events` in automations.json). One started
+  by a text or a notification only reads. Texts, notifications and location are switches in Settings › On this phone,
+  asked for when an automation needs them; each source runs only while a trigger needs it. Some edges can fire up to
+  15 minutes late. A `watch_for` card always asks first and is only approved inside the app. Details in
+  `docs/phone-events.md`.
 - **Projects.** An automation can have a project. Its chat is then confined to that folder: the file tools
   refuse paths outside it, and the agent can't move the chat to another project, until the user picks one
   (`ChatProjects.isConfined`). Without a project it works on the whole shared workspace.
