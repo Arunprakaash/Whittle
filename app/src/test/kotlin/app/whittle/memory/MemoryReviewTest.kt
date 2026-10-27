@@ -312,6 +312,14 @@ class MemoryReviewTest {
     }
 
     @Test
+    fun `a reply with a stray brace after the JSON adds nothing`() = runTest {
+        val adapter = Adapter { reply("""{"facts":[{"text":"Likes tea"}]} and a } later""") }
+        val (review, suggestions) = review(adapter)
+        review.review("chat", listOf(user("I like tea")), model, automation = false)
+        assertTrue(suggestions.pending.value.isEmpty())
+    }
+
+    @Test
     fun atMostMaxSuggestions() = runTest {
         val adapter = Adapter { reply("""{"facts":[{"text":"A one"},{"text":" "},{"text":"B two"},{"text":"C three"}]}""") }
         val (review, suggestions) = review(adapter)

@@ -91,18 +91,12 @@ class MemoryReview(
         return (inputPrompt.render(variables) as? Outcome.Success)?.value?.trimEnd()
     }
 
-    /** The first `{...}` block that reads as proposals; anything else, such as prose around it or bad JSON, is no facts. */
+    /** The reply from its first `{` to its last `}`, read once, so prose around the JSON is fine; bad JSON is no facts. */
     private fun parse(text: String): List<Proposal> {
-        var start = text.indexOf('{')
-        while (start >= 0) {
-            var end = text.lastIndexOf('}')
-            while (end > start) {
-                runCatching { json.decodeFromString<Proposals>(text.substring(start, end + 1)) }.getOrNull()?.let { return it.facts }
-                end = text.lastIndexOf('}', end - 1)
-            }
-            start = text.indexOf('{', start + 1)
-        }
-        return emptyList()
+        val start = text.indexOf('{')
+        val end = text.lastIndexOf('}')
+        if (start < 0 || end <= start) return emptyList()
+        return runCatching { json.decodeFromString<Proposals>(text.substring(start, end + 1)) }.getOrNull()?.facts.orEmpty()
     }
 
     private companion object {
