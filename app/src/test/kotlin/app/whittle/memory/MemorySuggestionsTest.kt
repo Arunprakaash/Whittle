@@ -172,7 +172,7 @@ class MemorySuggestionsTest {
         memory.remember("Has a dog")
         val s = suggestions(this, memory)
         s.add("chat", listOf("Likes tea" to null))
-        assertIs<Outcome.Failure>(s.keep(s.pending.value.single().id, "Likes tea"))
+        assertIs<HarnessError.Full>(assertIs<Outcome.Failure>(s.keep(s.pending.value.single().id, "Likes tea")).error)
         assertEquals(1, s.pending.value.size)
         assertIs<HarnessError.NotFound>(assertIs<Outcome.Failure>(s.keep("nope", "x")).error)
     }

@@ -67,6 +67,7 @@ class MemoryStore(
         return _all.value
     }
 
+    /** Saves [text] as a new fact; [HarnessError.Full] when there's no room, [HarnessError.Configuration] when it's empty or too long. */
     suspend fun remember(text: String): Outcome<Memory> = changes.withLock {
         val fact = when (val checked = checked(text)) {
             is Outcome.Failure -> return@withLock checked
@@ -74,7 +75,7 @@ class MemoryStore(
         }
         val current = current()
         current.firstOrNull { it.text.equals(fact, ignoreCase = true) }?.let { return@withLock Outcome.Success(it) }
-        if (current.size >= policy.maxItems) return@withLock refused(messages.memoryFull(policy.maxItems))
+        if (current.size >= policy.maxItems) return@withLock Outcome.Failure(HarnessError.Full(messages.memoryFull(policy.maxItems)))
         val memory = Memory(ids.newId().take(policy.idChars), fact, clock.nowMillis())
         save(current + memory).map { memory }
     }

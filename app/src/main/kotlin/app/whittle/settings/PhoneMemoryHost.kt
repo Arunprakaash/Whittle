@@ -48,7 +48,7 @@ class PhoneMemoryHost(private val graph: AppGraph) : MemoryHost {
         if (suggestion != null) {
             return when (val kept = graph.memorySuggestions.keep(suggestion, text)) {
                 is Outcome.Success -> null
-                is Outcome.Failure -> when (keepProblem(kept.error, text, graph.memory.current().size, policy.maxItems, policy.maxItemChars)) {
+                is Outcome.Failure -> when (keepProblem(kept.error, text, policy.maxItemChars)) {
                     KeepProblem.Gone -> MemoryIssue.Gone
                     KeepProblem.Full -> MemoryIssue.Full
                     KeepProblem.TooLong -> MemoryIssue.TooLong

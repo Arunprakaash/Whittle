@@ -1,6 +1,7 @@
 package app.whittle.agent
 
 import app.whittle.core.common.EpochClock
+import app.whittle.core.common.HarnessError
 import app.whittle.core.common.IdGenerator
 import app.whittle.core.common.Outcome
 import app.whittle.core.model.RunId
@@ -51,7 +52,7 @@ class MemoryStoreTest {
         assertEquals(first, assertIs<Outcome.Success<Memory>>(memory.remember("lives in chennai")).value)
         memory.remember("Has a dog")
 
-        assertEquals("full at 2", assertIs<Outcome.Failure>(memory.remember("Likes tea")).error.message)
+        assertEquals(HarnessError.Full("full at 2"), assertIs<Outcome.Failure>(memory.remember("Likes tea")).error)
         assertEquals("too long, limit 40", assertIs<Outcome.Failure>(memory.remember("x".repeat(41))).error.message)
         assertEquals("empty", assertIs<Outcome.Failure>(memory.remember("  ")).error.message)
         assertEquals(2, memory.current().size)

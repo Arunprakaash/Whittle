@@ -19,4 +19,7 @@ sealed interface HarnessError {
     data class Storage(override val message: String) : HarnessError
 
     data class Cancelled(override val message: String) : HarnessError
+
+    /** A store is full: nothing more fits until something is removed, as when memory holds as many facts as it may. */
+    data class Full(override val message: String) : HarnessError
 }

@@ -6,12 +6,12 @@ import app.whittle.core.common.HarnessError
 enum class KeepProblem { Gone, Full, TooLong, Failed }
 
 /**
- * Which problem a failed keep was. The store's messages are written for the model, so the screen picks its own words
- * from the reason: the suggestion is gone, the text is over the limit, memory is full, or it just didn't save.
+ * Which problem a failed keep was, from the store's typed error; its message is written for the model, so the screen
+ * picks its own words. Memory refuses words over [maxItemChars] as [HarnessError.Configuration].
  */
-fun keepProblem(error: HarnessError, text: String, remembered: Int, maxItems: Int, maxItemChars: Int): KeepProblem = when {
+fun keepProblem(error: HarnessError, text: String, maxItemChars: Int): KeepProblem = when {
     error is HarnessError.NotFound -> KeepProblem.Gone
-    text.trim().length > maxItemChars -> KeepProblem.TooLong
-    error is HarnessError.Configuration && remembered >= maxItems -> KeepProblem.Full
+    error is HarnessError.Full -> KeepProblem.Full
+    error is HarnessError.Configuration && text.trim().length > maxItemChars -> KeepProblem.TooLong
     else -> KeepProblem.Failed
 }
