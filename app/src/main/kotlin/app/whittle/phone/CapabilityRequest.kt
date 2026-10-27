@@ -4,9 +4,11 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -47,7 +49,7 @@ fun rememberCapabilityRequest(health: HealthConnect, onDone: (granted: Boolean) 
             if (permissions.isNotEmpty()) {
                 CompletableDeferred<Unit>().also { answers.runtime = it; runtime.launch(permissions.toTypedArray()) }.await()
             }
-            if (missing.any { AndroidCapabilities.needsSettingsPage(it) }) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && missing.any { AndroidCapabilities.needsSettingsPage(it) }) {
                 CompletableDeferred<Unit>().also { answers.settings = it; settingsPage.launch(allFilesAccessIntent(context)) }.await()
             }
             val healthMissing = missing.filter { it in AndroidCapabilities.HEALTH_CAPABILITIES }
@@ -71,6 +73,7 @@ fun rememberCapabilityRequest(health: HealthConnect, onDone: (granted: Boolean) 
 }
 
 /** The page for this app's all files access, or the list of every app's when this phone has no per-app page. */
+@RequiresApi(Build.VERSION_CODES.R)
 private fun allFilesAccessIntent(context: Context): Intent {
     val perApp = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
     return if (perApp.resolveActivity(context.packageManager) != null) perApp else Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)

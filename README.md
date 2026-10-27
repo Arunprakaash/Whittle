@@ -159,8 +159,12 @@ deleted, the shortcut stays greyed out instead of opening an empty Whittle.
 `storage_overview` reports what is using the phone's storage and `find_files` lists the biggest, oldest or duplicate
 files in shared storage (limits in `storage` in phone-actions.json). `delete_files` is the only way Whittle deletes,
 and it always shows a card listing each file and the total first; it deletes only what that card showed, for good.
-Access is the all files page in Android's settings from Android 11 (a prompt before), asked for on a card or by the
-Storage switch in Settings › On this phone. That switch starts off until the user turns it on (or picks the storage
+Access is Android's ordinary storage prompt, asked for on a card or by the Storage switch in Settings › On this phone.
+That's a deliberate choice: Whittle targets SDK 28 for its Linux workspace, so Android keeps it on legacy storage, where
+the READ and WRITE_EXTERNAL_STORAGE prompt still gives file access to `/sdcard` on Android 11 and newer. It reads as
+less than the all files access page, which takes the user to settings and grants more than Whittle needs. Only if
+Android stops keeping Whittle on legacy storage (`Environment.isExternalStorageLegacy()`, say after a target SDK change)
+does Allow open the all files access page instead (`AndroidCapabilities.storageGrant`). That switch starts off until the user turns it on (or picks the storage
 check for an automation), because access covers the whole app, its Linux workspace included (see
 [docs/linux-workspace.md](docs/linux-workspace.md)). `open_app_storage` opens an app's own settings page, where the user clears
 its cache. The "Weekly storage check" idea reports where storage stands and proposes what to delete; no automation can be

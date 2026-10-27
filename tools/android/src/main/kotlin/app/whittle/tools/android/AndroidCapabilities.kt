@@ -24,10 +24,12 @@ object AndroidCapabilities {
     /** Capabilities Health Connect grants, which [isGranted] can't answer. */
     val HEALTH_CAPABILITIES = setOf(HEALTH, HEALTH_BACKGROUND)
 
-    /** Files in shared storage (Downloads, photos, documents). From Android 11 it is "all files access", a settings page, not a prompt. */
+    /**
+     * Files in shared storage (Downloads, photos, documents). Whittle targets SDK 28, so Android keeps it on legacy
+     * storage, where the ordinary READ and WRITE prompt gives file access to /sdcard on every version; only when it
+     * isn't on legacy storage is access the all files access page in settings ([StorageGrant]).
+     */
     val STORAGE = CapabilityId("storage")
-
-    private const val ALL_FILES_API = Build.VERSION_CODES.R
 
     private val permissions = mapOf(
         CONTACTS to Manifest.permission.READ_CONTACTS,
@@ -41,18 +43,34 @@ object AndroidCapabilities {
     /** The Android permission to request for [capability], or null when it needs none. */
     fun permissionFor(capability: CapabilityId): String? = permissions[capability]
 
-    /** Every runtime permission to request for [capability] on [sdk]; empty when none, or when it is granted in settings instead. */
-    fun permissionsFor(capability: CapabilityId, sdk: Int = Build.VERSION.SDK_INT): List<String> = when {
-        capability == STORAGE -> if (sdk >= ALL_FILES_API) emptyList() else listOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-        else -> listOfNotNull(permissionFor(capability))
+    /** Every runtime permission to request for [capability]; empty when none, or when it is granted on a settings page instead. */
+    fun permissionsFor(capability: CapabilityId, grant: StorageGrant = storageGrant()): List<String> = when {
+        capability != STORAGE -> listOfNotNull(permissionFor(capability))
+        grant == StorageGrant.PROMPT -> listOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        else -> emptyList()
     }
 
     /** True when [capability] is granted on a settings page ("all files access") rather than by a prompt. */
-    fun needsSettingsPage(capability: CapabilityId, sdk: Int = Build.VERSION.SDK_INT): Boolean = capability == STORAGE && sdk >= ALL_FILES_API
+    fun needsSettingsPage(capability: CapabilityId, grant: StorageGrant = storageGrant()): Boolean =
+        capability == STORAGE && grant == StorageGrant.ALL_FILES_PAGE
 
-    /** Whether Android granted [capability]; true when it needs nothing. Not for [HEALTH_CAPABILITIES]. */
+    /** How storage is granted on Android [sdk], for an app [legacy] storage applies to or not. */
+    fun storageGrant(sdk: Int = Build.VERSION.SDK_INT, legacy: Boolean = isLegacyStorage()): StorageGrant =
+        if (legacy || sdk < Build.VERSION_CODES.R) StorageGrant.PROMPT else StorageGrant.ALL_FILES_PAGE
+
+    /** Whether Android keeps Whittle on legacy storage: always before Android 10, and after it for apps targeting SDK 28. */
+    private fun isLegacyStorage(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || Environment.isExternalStorageLegacy()
+
+    /**
+     * Whether Android granted [capability]; true when it needs nothing. Not for [HEALTH_CAPABILITIES]. Storage by the
+     * prompt counts as granted once reading is: deleting needs writing too, which the prompt asks for alongside.
+     */
     fun isGranted(context: Context, capability: CapabilityId): Boolean = when {
-        needsSettingsPage(capability) -> Environment.isExternalStorageManager()
-        else -> permissionsFor(capability).all { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
+        capability != STORAGE -> permissionsFor(capability).all { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
+        storageGrant() == StorageGrant.PROMPT -> context.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+        else -> Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()
     }
 }
+
+/** How Android grants storage to Whittle: its ordinary prompt, or the all files access page in settings. */
+enum class StorageGrant { PROMPT, ALL_FILES_PAGE }
