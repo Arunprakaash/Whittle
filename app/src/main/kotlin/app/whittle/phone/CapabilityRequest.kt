@@ -23,7 +23,8 @@ suspend fun isGranted(context: Context, health: HealthConnect, capability: Capab
 
 /**
  * Asks for whichever of the given capabilities aren't granted yet: Android's prompt for runtime permissions, then Health
- * Connect's own screen for health data, or Play where Health Connect still has to be installed (Android 9 to 13).
+ * Connect's own screen for health data, or Play where Health Connect still has to be installed (Android 9 to 13), then
+ * Android's settings screen for what no prompt grants (notification access, location all the time from Android 11).
  * [onDone] gets whether all of them are granted afterwards.
  */
 @Composable
@@ -35,6 +36,7 @@ fun rememberCapabilityRequest(health: HealthConnect, onDone: (granted: Boolean) 
     val answers = remember { Answers() }
     val runtime = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { answers.runtime?.complete(Unit) }
     val healthScreen = rememberLauncherForActivityResult(health.requestContract()) { answers.health?.complete(Unit) }
+    val settingsScreen = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { answers.settings?.complete(Unit) }
     return { capabilities ->
         scope.launch {
             val missing = capabilities.filterNot { isGranted(context, health, it) }
@@ -57,6 +59,15 @@ fun rememberCapabilityRequest(health: HealthConnect, onDone: (granted: Boolean) 
                     HealthAvailability.UNSUPPORTED -> Unit
                 }
             }
+            // One screen at a time, each only if the prompts above left it missing; the user comes back from each.
+            for (capability in missing.filterNot { isGranted(context, health, it) }) {
+                val intent = AndroidCapabilities.settingsIntentFor(context, capability) ?: continue
+                try {
+                    CompletableDeferred<Unit>().also { answers.settings = it; settingsScreen.launch(intent) }.await()
+                } catch (_: ActivityNotFoundException) {
+                    // A phone without that screen; the capability stays missing and its row says so.
+                }
+            }
             done(capabilities.all { isGranted(context, health, it) })
         }
     }
@@ -65,4 +76,5 @@ fun rememberCapabilityRequest(health: HealthConnect, onDone: (granted: Boolean) 
 private class Answers {
     var runtime: CompletableDeferred<Unit>? = null
     var health: CompletableDeferred<Unit>? = null
+    var settings: CompletableDeferred<Unit>? = null
 }

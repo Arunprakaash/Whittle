@@ -589,7 +589,6 @@
           }
         },
         "approve": "Watch",
-        "approveIcon": "check",
         "decline": "Not now",
         "approvedOutcome": "Watching for {{name}}",
         "declinedOutcome": "Not set up"

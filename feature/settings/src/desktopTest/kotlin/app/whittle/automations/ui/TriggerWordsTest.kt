@@ -1,7 +1,13 @@
-package app.whittle.automations
+package app.whittle.automations.ui
 
+import app.whittle.automations.Edge
+import app.whittle.automations.Trigger
+import app.whittle.automations.capabilities
+import app.whittle.automations.readsMessages
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class TriggerWordsTest {
     private val words = TriggerStrings(
@@ -56,22 +62,20 @@ class TriggerWordsTest {
     }
 
     @Test
-    fun permissionsEachTriggerNeeds() {
-        val needed = { trigger: Trigger -> TriggerPermission.needed(trigger) }
-        assertEquals(listOf(TriggerPermission.SMS), needed(Trigger.Sms()))
-        assertEquals(listOf(TriggerPermission.NOTIFICATION_ACCESS), needed(Trigger.Notification("a", "A")))
-        assertEquals(listOf(TriggerPermission.LOCATION, TriggerPermission.BACKGROUND_LOCATION), needed(Trigger.Place("p", 0.0, 0.0, 100, Edge.START)))
-        assertEquals(listOf(TriggerPermission.LOCATION), needed(Trigger.Wifi("Home", Edge.START)))
-        assertEquals(emptyList(), needed(Trigger.Wifi(null, Edge.END)))
-        assertEquals(emptyList(), needed(Trigger.Charging(Edge.START)))
-        assertEquals(emptyList(), needed(Trigger.Every(60)))
+    fun whatEachTriggerNeedsComesFromConfigAndAnyNetworkNeedsNothing() {
+        val byType = mapOf("sms" to listOf("sms"), "notification" to listOf("notification_access"), "place" to listOf("location", "location_background"), "wifi" to listOf("location"))
+        assertEquals(listOf("sms"), Trigger.Sms().capabilities(byType))
+        assertEquals(listOf("notification_access"), Trigger.Notification("a", "A").capabilities(byType))
+        assertEquals(listOf("location", "location_background"), Trigger.Place("p", 0.0, 0.0, 100, Edge.START).capabilities(byType))
+        assertEquals(listOf("location"), Trigger.Wifi("Home", Edge.START).capabilities(byType))
+        assertEquals(emptyList(), Trigger.Wifi(null, Edge.END).capabilities(byType))
+        assertEquals(emptyList(), Trigger.Charging(Edge.START).capabilities(byType))
+        assertEquals(emptyList(), Trigger.Every(60).capabilities(byType))
     }
 
     @Test
-    fun whatIsMissingAfterSaveComesFromTheSavedTrigger() {
-        val sms = Trigger.Sms()
-        val lookup = { trigger: Trigger -> TriggerPermission.needed(trigger) }
-        assertEquals(listOf(TriggerPermission.SMS), missingAfterSave(sms, lookup))
-        assertEquals(emptyList(), missingAfterSave(null, lookup))
+    fun onlyTextsAndNotificationsReadWhatOthersWrote() {
+        assertTrue(Trigger.Sms().readsMessages && Trigger.Notification("a", "A").readsMessages)
+        assertFalse(Trigger.Charging(Edge.START).readsMessages || Trigger.Every(15).readsMessages || Trigger.Wifi(null, Edge.START).readsMessages)
     }
 }

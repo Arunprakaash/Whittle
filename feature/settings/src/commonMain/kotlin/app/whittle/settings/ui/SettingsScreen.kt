@@ -3,7 +3,6 @@ package app.whittle.settings.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,15 +12,11 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.ToggleButton
-import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,9 +26,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import app.whittle.design.components.ReadingWidth
 import app.whittle.design.components.SettingsChoiceRow
 import app.whittle.design.components.SettingsRow
@@ -43,8 +35,6 @@ import app.whittle.design.components.TopBarButton
 import app.whittle.design.components.WhittleIcon
 import app.whittle.design.components.segmentedShape
 import app.whittle.design.theme.ThemeMode
-import app.whittle.design.theme.WhittleTheme
-import app.whittle.design.tokens.WhittleHaptic
 import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
 import app.whittle.design.window.BackHandler
@@ -322,38 +312,15 @@ private fun lastChecked(answeredAtMillis: Long?, lastFailed: Boolean): String {
 }
 
 /** System, Light or Dark as one connected button group (M3 Expressive); the choice applies at once. */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ThemeChoice(selected: ThemeMode, enabled: Boolean, onSelect: (ThemeMode) -> Unit) {
-    val haptics = WhittleTheme.haptics
+    val modes = listOf(ThemeMode.System, ThemeMode.Light, ThemeMode.Dark)
     val choices = listOf(
-        Triple(ThemeMode.System, "brightness_auto", stringResource(Res.string.settings_theme_system)),
-        Triple(ThemeMode.Light, "light_mode", stringResource(Res.string.settings_theme_light)),
-        Triple(ThemeMode.Dark, "dark_mode", stringResource(Res.string.settings_theme_dark)),
+        ButtonChoice(stringResource(Res.string.settings_theme_system), "brightness_auto"),
+        ButtonChoice(stringResource(Res.string.settings_theme_light), "light_mode"),
+        ButtonChoice(stringResource(Res.string.settings_theme_dark), "dark_mode"),
     )
-    Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
-    ) {
-        choices.forEachIndexed { index, (mode, icon, label) ->
-            val checked = mode == selected
-            ToggleButton(
-                checked = checked,
-                onCheckedChange = { haptics.perform(WhittleHaptic.Select); onSelect(mode) },
-                enabled = enabled,
-                shapes = when (index) {
-                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                    choices.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                },
-                modifier = Modifier.weight(1f).semantics { role = Role.RadioButton },
-            ) {
-                WhittleIcon(icon, fill = checked, size = WhittleSize.Icon.m)
-                Spacer(Modifier.size(ToggleButtonDefaults.IconSpacing))
-                Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1)
-            }
-        }
-    }
+    ChoiceButtons(choices, modes.indexOf(selected), enabled) { onSelect(modes[it]) }
 }
 
 private const val MILLIS_PER_MINUTE = 60_000L

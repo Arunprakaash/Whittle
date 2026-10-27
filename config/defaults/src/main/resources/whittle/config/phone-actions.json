@@ -87,6 +87,34 @@
         "list_reminders",
         "cancel_reminder"
       ]
+    },
+    {
+      "id": "texts",
+      "icon": "sms",
+      "title": "Texts",
+      "capabilities": [
+        "sms"
+      ],
+      "tools": []
+    },
+    {
+      "id": "notifications",
+      "icon": "notifications",
+      "title": "Notifications",
+      "capabilities": [
+        "notification_access"
+      ],
+      "tools": []
+    },
+    {
+      "id": "location",
+      "icon": "location_on",
+      "title": "Location",
+      "capabilities": [
+        "location",
+        "location_background"
+      ],
+      "tools": []
     }
   ],
   "offMessage": "The user turned {{feature}} off in Settings › On this phone, so Whittle can't use it. Tell them, and that they can turn it back on there."

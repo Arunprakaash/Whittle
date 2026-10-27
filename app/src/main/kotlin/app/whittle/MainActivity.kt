@@ -321,7 +321,7 @@ class MainActivity : ComponentActivity() {
                                 LaunchedEffect(Unit) { chat.refreshProjects() }
                                 AutomationsScreen(
                                     host = (application as WhittleApplication).automationsHost,
-                                    platform = rememberPhoneAutomationsPlatform(graph),
+                                    platform = rememberPhoneAutomationsPlatform(graph, (application as WhittleApplication).eventSources),
                                     navigation = AutomationsNavigation(
                                         back = { showingAutomations = false; showingSettings = true },
                                         openChat = { id -> chat.openChat(ChatId(id)); showingAutomations = false; showingSettings = false },

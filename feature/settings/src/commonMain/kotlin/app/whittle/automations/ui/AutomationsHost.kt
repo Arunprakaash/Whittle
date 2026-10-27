@@ -1,5 +1,6 @@
 package app.whittle.automations.ui
 
+import app.whittle.automations.Trigger
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -33,9 +34,32 @@ data class AutomationsState(
     val maxPromptChars: Int = 0,
     /** The phone's time zone, as an IANA id: when "07:30" is. */
     val zone: String = "UTC",
+    /** What the editor needs to set up a trigger. */
+    val events: EventLimits = EventLimits(),
+    /** The phone couldn't store waiting events, so a restart now would lose them. */
+    val eventsNotSaved: Boolean = false,
 )
 
-/** One automation; [days] are ISO weekdays (Monday is 1); [nextRunMillis] is null while it's off. */
+/** automations.json's limits for triggers, as the editor uses them. */
+@Serializable
+data class EventLimits(
+    val minIntervalMinutes: Int = 1,
+    val defaultEveryMinutes: Int = 1,
+    val defaultPlaceRadiusMeters: Int = 1,
+    val minPlaceRadiusMeters: Int = 1,
+    val maxPlaceNameChars: Int = 1,
+    val maxNumberDigits: Int = 1,
+    /** How late a change only a periodic look catches can be (leaving Wi-Fi, unplugging). */
+    val placeCheckMinutes: Int = 1,
+    val placePolling: Boolean = false,
+    /** What the phone must grant for each kind of trigger, by its type: see [app.whittle.automations.capabilities]. */
+    val capabilities: Map<String, List<String>> = emptyMap(),
+)
+
+/**
+ * One automation; [days] are ISO weekdays (Monday is 1); [nextRunMillis] is null while it's off. With a [trigger] it
+ * starts on that instead of [minuteOfDay] and [days], which stay as what the editor shows for a time.
+ */
 @Serializable
 data class AutomationEntry(
     val id: String,
@@ -50,12 +74,20 @@ data class AutomationEntry(
     val lastChatId: String? = null,
     val missedAtMillis: Long? = null,
     val nextRunMillis: Long? = null,
+    val trigger: Trigger? = null,
+    /** Events dropped today because it had run as often as it may. */
+    val skippedToday: Int = 0,
+    /** What its trigger needs that the phone hasn't granted (or that is switched off in Settings); it waits until then. */
+    val missing: List<String> = emptyList(),
 )
 
 @Serializable
 data class AutomationIdea(val icon: String, val name: String, val draft: AutomationEntry)
 
-/** A switch in the editor: the tools it covers, and what the phone must grant first (health data while closed, say). */
+/**
+ * A switch in the editor: the tools it covers, and what the phone must grant first (health data while closed, say).
+ * One that [writes] can't be on for an automation that starts on a message.
+ */
 @Serializable
 data class ToolChoice(
     val key: String,
@@ -64,12 +96,13 @@ data class ToolChoice(
     val labelInProject: String? = null,
     val toolIds: List<String>,
     val capabilities: List<String> = emptyList(),
+    val writes: Boolean = false,
 ) {
     fun labelFor(project: String?): String = if (project != null) labelInProject ?: label else label
 }
 
 @Serializable
-enum class AutomationIssue { NameEmpty, NameTooLong, PromptEmpty, PromptTooLong, TooMany, ToolNotAllowed, ProjectInvalid }
+enum class AutomationIssue { NameEmpty, NameTooLong, PromptEmpty, PromptTooLong, TooMany, ToolNotAllowed, ProjectInvalid, IntervalTooShort, SenderRequired }
 
 @Serializable
 sealed interface AutomationSave {
@@ -103,13 +136,28 @@ sealed interface AutomationAction {
 
 /**
  * What only the device does for Automations: Android's permission prompts (none on a computer, where switches that
- * need one stay as they are) and its notification prompt, and short messages.
+ * need one stay as they are) and its notification prompt, short messages, and the phone's own readings for a
+ * trigger ([phone], none on a computer).
  */
 class AutomationsPlatform(
     val requestCapabilities: ((capabilities: List<String>, onDone: (granted: Boolean) -> Unit) -> Unit)?,
     val requestNotifications: () -> Unit,
     val toast: (String) -> Unit,
+    val phone: PhoneReadings? = null,
 )
+
+/** What the trigger editor reads from the phone it runs on. */
+class PhoneReadings(
+    /** The apps with a launcher icon, by name, for a notification trigger. */
+    val apps: suspend () -> List<AppChoice>,
+    /** Where the phone is, latitude then longitude; null without location or a fix. */
+    val location: suspend () -> Pair<Double, Double>?,
+    /** The Wi-Fi network the phone is on: null when on none, empty when Android hides its name. */
+    val wifi: () -> String?,
+)
+
+/** An app a notification trigger can watch: its package, and its name as the user sees it. */
+data class AppChoice(val packageName: String, val label: String)
 
 /** Where the Automations pages lead: back, to a chat, and to the chat a run just started. */
 class AutomationsNavigation(
