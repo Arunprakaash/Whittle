@@ -48,6 +48,7 @@ class MemorySuggestionsTest {
     ).value
     private val memoryBackend = MemoryList()
     private val box = StateBox()
+    private val deleted = mutableSetOf<String>()
     private var next = 0
     private val ids = IdGenerator { "id-${next++}-padding" }
     private val review = MemoryReviewDefaults(
@@ -59,7 +60,7 @@ class MemorySuggestionsTest {
         MemoryStore(memoryBackend, MemoryPolicy(items, chars, 8), messages, EpochClock { 7L }, ids, scope)
 
     private fun suggestions(scope: CoroutineScope, memory: MemoryStore = memory(scope)) =
-        MemorySuggestions(box, memory, review, EpochClock { 9L }, ids, scope)
+        MemorySuggestions(box, memory, review, EpochClock { 9L }, ids, scope) { it !in deleted }
 
     @Test
     fun `an edited keep also dismisses the original wording`() = runTest {
@@ -91,7 +92,7 @@ class MemorySuggestionsTest {
 
     @Test
     fun `rewording of a one-word fact matches, a long different fact sharing the word does not`() = runTest {
-        val s = MemorySuggestions(box, memory(this), review.copy(maxDismissed = 5), EpochClock { 9L }, ids, this)
+        val s = MemorySuggestions(box, memory(this), review.copy(maxDismissed = 5), EpochClock { 9L }, ids, this) { true }
         s.add("chat", listOf("works at markdrop" to null, "Likes tea" to null))
         s.pending.value.forEach { s.dismiss(it.id) }
         assertTrue(s.wasDismissed("works at markdrop"))

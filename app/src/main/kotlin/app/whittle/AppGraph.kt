@@ -17,6 +17,7 @@ import app.whittle.memory.EncryptedFileMemory
 import app.whittle.memory.EncryptedFileSuggestions
 import app.whittle.memory.MemoryReview
 import app.whittle.memory.MemorySuggestions
+import app.whittle.storage.chats.ChatId
 import app.whittle.tools.workspace.WorkspaceOutputs
 import app.whittle.settings.MemoryIdea
 import app.whittle.settings.Starter
@@ -384,6 +385,7 @@ class AppGraph(context: Context) {
         clock,
         idGenerator,
         appScope,
+        chatExists = { id -> chats.load(ChatId(id)).getOrNull() != null },
     )
 
     /** Tasks Whittle runs by itself on a schedule, each with an alarm for its next run. */

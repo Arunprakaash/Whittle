@@ -43,7 +43,8 @@ interface SuggestionsBackend {
  * Facts the memory review proposed, which become memories only when the user keeps them. Texts that are already
  * remembered, already waiting or dismissed before are never proposed again; [seen] lets the review tell the model, so
  * it doesn't propose them in other words either. Dismissed texts and reviewed chats are capped by [limits], oldest
- * dropped first.
+ * dropped first. A review that ends after its chat was deleted adds nothing: [add] and [markReviewed] ask [chatExists]
+ * under the same lock [forgetChat] takes, and a chat is forgotten only after it's deleted.
  */
 class MemorySuggestions(
     private val backend: SuggestionsBackend,
@@ -52,6 +53,7 @@ class MemorySuggestions(
     private val clock: EpochClock,
     private val ids: IdGenerator,
     scope: CoroutineScope,
+    private val chatExists: suspend (chatId: String) -> Boolean,
 ) {
     private val changes = Mutex()
     private val state = MutableStateFlow(SuggestionsState(emptyList(), emptyList(), emptyMap()))
@@ -71,6 +73,7 @@ class MemorySuggestions(
      * skipped: keeping them would fail anyway.
      */
     suspend fun add(chatId: String, facts: List<Pair<String, String?>>): Outcome<Unit> = changes.withLock {
+        if (!chatExists(chatId)) return@withLock Outcome.Success(Unit)
         val current = load()
         val known = (memory.current().map { it.text } + current.pending.map { it.text }).map(::normal).toMutableSet()
         known += current.dismissed
@@ -154,6 +157,7 @@ class MemorySuggestions(
     suspend fun reviewedCount(chatId: String): Int = load().reviewedUserWords[chatId] ?: 0
 
     suspend fun markReviewed(chatId: String, userWords: Int): Outcome<Unit> = changes.withLock {
+        if (!chatExists(chatId)) return@withLock Outcome.Success(Unit)
         val current = load()
         val reviewed = (current.reviewedUserWords - chatId + (chatId to userWords)).entries.toList()
             .takeLast(limits.maxReviewedChats).associate { it.key to it.value }

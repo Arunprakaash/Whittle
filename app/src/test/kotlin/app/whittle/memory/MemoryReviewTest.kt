@@ -99,6 +99,7 @@ class MemoryReviewTest {
     private val prompt = assertIs<Outcome.Success<PromptTemplate>>(PromptTemplate.load(BundledConfigSource(), ConfigFiles.memoryReviewPrompt)).value
     private val inputPrompt = assertIs<Outcome.Success<PromptTemplate>>(PromptTemplate.load(BundledConfigSource(), ConfigFiles.memoryReviewInput)).value
     private val box = StateBox()
+    private val deleted = mutableSetOf<String>()
     private val memoryBackend = MemoryList()
     private var next = 0
     private val ids = IdGenerator { "id-${next++}-padding" }
@@ -111,7 +112,7 @@ class MemoryReviewTest {
     private fun reply(text: String) = listOf(ModelEvent.TextDelta(text))
 
     private fun TestScope.review(adapter: Adapter, memory: MemoryStore = memory(this)): Pair<MemoryReview, MemorySuggestions> {
-        val suggestions = MemorySuggestions(box, memory, limits, EpochClock { 9L }, ids, this)
+        val suggestions = MemorySuggestions(box, memory, limits, EpochClock { 9L }, ids, this) { it !in deleted }
         val oneShot = OneShot(ModelAdapterRegistry(setOf(adapter)), ProviderCatalog(ProviderCatalog.SCHEMA_VERSION, listOf(provider)), CredentialsProvider { Outcome.Success(Secret("key")) })
         return MemoryReview(oneShot, suggestions, memory, prompt, inputPrompt, limits) { enabled } to suggestions
     }
@@ -255,6 +256,21 @@ class MemoryReviewTest {
         val (review, _) = review(adapter)
         review.review("chat", listOf(user("hi")), model.copy(providerId = ProviderId("claude-code")), automation = false)
         assertTrue(adapter.requests.isEmpty())
+    }
+
+    @Test
+    fun `a chat deleted while its review talks to the model gets no suggestions`() = runTest {
+        val adapter = Adapter {
+            // The user deletes the chat while the model is answering.
+            deleted += "chat"
+            reply("""{"facts":[{"text":"Likes tea"}]}""")
+        }
+        val (review, suggestions) = review(adapter)
+
+        review.review("chat", listOf(user("I like tea")), model, automation = false)
+
+        assertTrue(suggestions.pending.value.isEmpty())
+        assertEquals(0, suggestions.reviewedCount("chat"))
     }
 
     @Test

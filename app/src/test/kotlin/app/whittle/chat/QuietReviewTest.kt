@@ -2,6 +2,7 @@ package app.whittle.chat
 
 import app.whittle.llm.api.ModelDescriptor
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.advanceTimeBy
@@ -68,6 +69,40 @@ class QuietReviewTest {
         advanceTimeBy(5_000)
         runCurrent()
         assertTrue(ran.isEmpty())
+    }
+
+    @Test
+    fun `deleting a chat stops a review already talking to the model`() = runTest {
+        val answered = mutableListOf<String>()
+        val reviews = QuietReviews(backgroundScope, quietMillis = 1_000) { id ->
+            ran += id
+            delay(5_000) // The model call.
+            answered += id
+        }
+        reviews.left("a")
+        reviews.left("b")
+        advanceTimeBy(2_000)
+        runCurrent()
+        assertEquals(listOf("a", "b"), ran)
+
+        reviews.returned("a") // As deleting the chat does.
+        reviews.cancelAll() // As deleting every chat does.
+        advanceTimeBy(10_000)
+        runCurrent()
+        assertTrue(answered.isEmpty())
+    }
+
+    @Test
+    fun `a finished review lets the chat be reviewed again after the next leave`() = runTest {
+        val reviews = reviews()
+        reviews.left("a")
+        advanceTimeBy(1_000)
+        runCurrent()
+        reviews.returned("a") // Nothing left to cancel.
+        reviews.left("a")
+        advanceTimeBy(1_000)
+        runCurrent()
+        assertEquals(listOf("a", "a"), ran)
     }
 
     @Test
