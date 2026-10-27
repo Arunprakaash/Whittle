@@ -120,7 +120,18 @@ tasks.register<Copy>("releaseDmg") {
     if (macSigning != null) dependsOn("notarizeReleaseDmg")
     include("*.dmg")
     into(rootProject.layout.projectDirectory.dir("dist"))
-    rename { "Whittle-${libs.versions.whittle.get()}-$macArchitecture.dmg" }
+    // Named up front so the rename keeps a string, not the build script, and the task fits in the configuration cache.
+    val releaseName = "Whittle-${libs.versions.whittle.get()}-$macArchitecture.dmg"
+    rename { releaseName }
+    finalizedBy("removeReleaseApp")
+}
+
+// The .dmg is packed from an unpacked Whittle.app, which Spotlight and Launchpad would list beside the installed one.
+// Once the .dmg is in dist/ nothing needs it, so it goes, even when the copy itself was already up to date.
+tasks.register<Delete>("removeReleaseApp") {
+    group = "distribution"
+    description = "Deletes the unpacked Whittle.app the release .dmg was packed from."
+    delete(tasks.named<org.jetbrains.compose.desktop.application.tasks.AbstractCreateDistributableTask>("createReleaseDistributable").flatMap { it.destinationDir })
 }
 
 compose.resources {
