@@ -270,7 +270,7 @@ class BundledAppConfigTest {
         // No count in the words, so one file reads as right as many.
         assertEquals("Delete these files for good?", card.title)
         assertEquals(listing, card.payload)
-        assertTrue(card.body.startsWith("1.5 KB in all") && "for good" in card.body)
+        assertTrue(card.body.startsWith("1.5 KB in all"))
         assertEquals("Delete", card.approve)
         assertEquals("Keep", card.decline)
 

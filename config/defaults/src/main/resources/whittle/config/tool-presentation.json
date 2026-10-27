@@ -100,10 +100,9 @@
       "decision": {
         "icon": "delete",
         "title": "Delete these files for good?",
-        "body": "{{total}} in all, deleted for good with no trash to get them back from. Nothing else is touched.",
+        "body": "{{total}} in all. There's no trash.",
         "payloadArgument": "listing",
         "approve": "Delete",
-        "approveIcon": "delete",
         "decline": "Keep",
         "approvedOutcome": "Deleted",
         "declinedOutcome": "Kept"
@@ -116,11 +115,10 @@
       "previewed": ["listing", "count", "total"],
       "decision": {
         "icon": "delete",
-        "title": "Whittle couldn't check these files",
-        "body": "Nothing will be deleted. Ask again to see each file and its size.",
+        "title": "Couldn't check these files",
+        "body": "Nothing will be deleted.",
         "payloadArgument": "listing",
         "approve": "OK",
-        "approveIcon": "check",
         "decline": "Dismiss",
         "approvedOutcome": "Nothing deleted",
         "declinedOutcome": "Nothing deleted"
@@ -134,10 +132,9 @@
       "decision": {
         "icon": "delete",
         "title": "Nothing here can be deleted",
-        "body": "None of these files can go, and each says why. Nothing will be deleted.",
+        "body": "Each file says why.",
         "payloadArgument": "listing",
         "approve": "OK",
-        "approveIcon": "check",
         "decline": "Dismiss",
         "approvedOutcome": "Nothing deleted",
         "declinedOutcome": "Nothing deleted"
@@ -304,9 +301,8 @@
       "decision": {
         "icon": "folder",
         "title": "Open {{app}}'s storage page?",
-        "body": "Opens its settings page on your phone. Nothing is cleared until you do it there.",
+        "body": "",
         "approve": "Open",
-        "approveIcon": "open_in_new",
         "decline": "Not now",
         "approvedOutcome": "Opened {{app}}'s storage",
         "declinedOutcome": "Not opened"
@@ -803,7 +799,7 @@
     "storage": {
       "icon": "folder",
       "title": "Let Whittle see your files?",
-      "body": "So it can see what's using space and find big, old or duplicate files. Names, folders and sizes go to your AI provider; what's inside your files doesn't.",
+      "body": "Names and sizes are shared, not what's in them.",
       "approve": "Allow",
       "decline": "Not now",
       "grantedOutcome": "Files allowed",
