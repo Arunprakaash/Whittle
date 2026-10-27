@@ -106,7 +106,7 @@ class DeleteFilesTool(
             is Request.Paths -> request.paths
         }
         val root = storage.root() ?: return@withContext card(paths.map { refusedLine(it, words.noAccess) }, emptyList())
-        val seen = mutableSetOf<File>()
+        val seen = mutableSetOf<String>()
         val checks = paths.map { path -> path to check(root, path, seen) }
         val lines = checks.map { (path, check) ->
             when (check) {
@@ -137,7 +137,7 @@ class DeleteFilesTool(
             ?: return ToolJson.error(words.noApprovedList)
 
         val body = withContext(Dispatchers.IO) {
-            val seen = mutableSetOf<File>()
+            val seen = mutableSetOf<String>()
             val results = paths.map { path ->
                 when (val check = check(root, path, seen)) {
                     is Check.Refused -> Result(path, REFUSED, check.reason)
@@ -200,8 +200,11 @@ class DeleteFilesTool(
 
     private class Result(val path: String, val status: String, val reason: String? = null, val file: File? = null, val bytes: Long = 0)
 
-    /** Whether [path] names a file that may be deleted; [seen] collects the files already taken in this call. */
-    private fun check(root: File, path: String, seen: MutableSet<File>): Check {
+    /**
+     * Whether [path] names a file that may be deleted; [seen] collects the files already taken in this call, by their
+     * path in lower case, since /sdcard matches names without regard to case and A.jpg and a.jpg are one file there.
+     */
+    private fun check(root: File, path: String, seen: MutableSet<String>): Check {
         // A line break would make one name read as two files on the card.
         if (path.any(Char::isISOControl)) return Check.Refused(words.controlCharacter)
         val literal = storagePath(root, path) ?: return Check.Refused(words.outsideStorage)
@@ -228,7 +231,7 @@ class DeleteFilesTool(
         }
         if (!isInside(root, file) || file.toPath() != literal.toPath().normalize()) return Check.Refused(words.throughLink)
         if (limits.isProtected(relativePath(root, file))) return Check.Refused(words.protectedFolder)
-        if (!seen.add(file)) return Check.Refused(words.listedTwice)
+        if (!seen.add(file.path.lowercase(Locale.ROOT))) return Check.Refused(words.listedTwice)
         return Check.Ready(file, attributes.size(), attributes.lastModifiedTime().toMillis())
     }
 

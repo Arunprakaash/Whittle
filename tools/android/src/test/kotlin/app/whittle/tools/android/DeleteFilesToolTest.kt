@@ -205,6 +205,20 @@ class DeleteFilesToolTest {
     }
 
     @Test
+    fun aFileListedTwiceInAnotherCaseIsCountedOnce() {
+        val upper = file(root, "Download/A.jpg", bytes = 1_000)
+        // On the phone, /sdcard names A.jpg and a.jpg the same file; a case-sensitive test disk needs both to exist.
+        if (!File(root, "download/a.jpg").exists()) file(root, "download/a.jpg", bytes = 1_000)
+
+        val card = preview("/sdcard/Download/A.jpg", "/sdcard/download/a.jpg")
+
+        assertEquals("1", card.getValue(DeleteFilesTool.COUNT))
+        assertEquals("1.0 KB", card.getValue(DeleteFilesTool.TOTAL))
+        assertTrue(card.getValue(DeleteFilesTool.LISTING).lines()[1].startsWith("/sdcard/download/a.jpg  ·  $NOT_DELETED"))
+        assertTrue(upper.exists())
+    }
+
+    @Test
     fun refusesMorePathsThanTheLimitAndDeletesNothing() {
         val files = (1..3).map { file(root, "f$it.bin") }
 
