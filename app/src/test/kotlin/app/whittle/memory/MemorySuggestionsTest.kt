@@ -52,8 +52,7 @@ class MemorySuggestionsTest {
     private var next = 0
     private val ids = IdGenerator { "id-${next++}-padding" }
     private val review = MemoryReviewDefaults(
-        fileName = "x.bin", suggest = false, models = emptyMap(), quietMillis = 1, maxSuggestions = 3, maxInputChars = 10, contextChars = 5, maxOutputTokens = 10, maxDismissed = 2, maxDeclinedInInput = 1, maxReviewedChats = 2, declinedContainment = 0.6, declinedShare = 0.5,
-        declinedFillerWords = listOf("the", "an", "user", "users", "my", "me", "is", "are", "was", "am", "at", "as", "of", "to", "and", "in", "on", "for", "with", "has", "have", "work", "works", "working", "he", "she", "they", "their", "his", "her", "this", "that"),
+        fileName = "x.bin", suggest = false, models = emptyMap(), quietMillis = 1, maxSuggestions = 3, maxInputChars = 10, contextChars = 5, maxOutputTokens = 10, maxDismissed = 2, maxDeclinedInInput = 1, maxReviewedChats = 2,
     )
 
     private fun memory(scope: CoroutineScope, items: Int = 5, chars: Int = 40) =
@@ -76,33 +75,20 @@ class MemorySuggestionsTest {
     }
 
     @Test
-    fun `a dismissed fact is recognised in other words, and only then`() = runTest {
+    fun `only the exact dismissed fact is refused, ignoring case and spacing`() = runTest {
         val s = suggestions(this)
         s.add("chat", listOf("works at markdrop" to null, "Likes tea" to null, "Lives in Chennai" to null))
         s.pending.value.forEach { s.dismiss(it.id) }
         // maxDismissed is 2 in this fixture: only the last two remain.
         assertTrue(s.wasDismissed("Likes tea"))
         assertTrue(s.wasDismissed("  LIKES   Tea "))
-        assertTrue(s.wasDismissed("The user likes tea in the morning"))
-        assertTrue(s.wasDismissed("Lives in Chennai, India"))
-        assertFalse(s.wasDismissed("Likes coffee"))
         assertTrue(s.wasDismissed("Lives in Chennai"))
         assertFalse(s.wasDismissed("Works at Markdrop"), "the oldest was capped away")
-    }
-
-    @Test
-    fun `rewording of a one-word fact matches, a long different fact sharing the word does not`() = runTest {
-        val s = MemorySuggestions(box, memory(this), review.copy(maxDismissed = 5), EpochClock { 9L }, ids, this) { true }
-        s.add("chat", listOf("works at markdrop" to null, "Likes tea" to null))
-        s.pending.value.forEach { s.dismiss(it.id) }
-        assertTrue(s.wasDismissed("works at markdrop"))
-        assertTrue(s.wasDismissed("The user works at Markdrop as a founder"))
-        assertTrue(s.wasDismissed("User's employer: Markdrop"))
-        assertFalse(s.wasDismissed("Markdrop's office is near the airport in Chennai"))
-        assertFalse(s.wasDismissed("Likes coffee"))
+        // Other wordings may be what the user asked for now; the review prompt's declined list handles rewording.
+        assertFalse(s.wasDismissed("Doesn't like tea anymore"))
+        assertFalse(s.wasDismissed("Likes green tea"))
         assertFalse(s.wasDismissed("   "))
         assertFalse(s.wasDismissed(""))
-        assertFalse(s.wasDismissed("The user"), "only filler words")
     }
 
     @Test

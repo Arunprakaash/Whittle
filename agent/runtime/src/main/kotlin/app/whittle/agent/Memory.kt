@@ -132,8 +132,8 @@ class MemoryStore(
 /**
  * Saves a lasting fact about the user for future chats. It changes only the agent's own data; once a task has
  * read outside content, policy asks the user first (memory-after-outside-content-confirms), so a web page can't
- * plant a memory. [declined] says whether the user already turned this fact down (a dismissed suggestion, possibly in
- * other words); then nothing is saved and the model is told so. Only this tool asks: the user's own additions aren't blocked.
+ * plant a memory. [declined] says whether the user already turned this exact fact down (a dismissed suggestion); then
+ * nothing is saved and the model is told so. Only this tool asks: the user's own additions aren't blocked.
  */
 class RememberTool(
     private val memory: MemoryStore,

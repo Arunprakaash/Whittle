@@ -104,8 +104,7 @@ class MemoryReviewTest {
     private var next = 0
     private val ids = IdGenerator { "id-${next++}-padding" }
     private val limits = MemoryReviewDefaults(
-        fileName = "x.bin", suggest = true, models = mapOf("test" to "small-model"), quietMillis = 1, maxSuggestions = 2, maxInputChars = 60, contextChars = 12, maxOutputTokens = 77, maxDismissed = 5, maxDeclinedInInput = 2, maxReviewedChats = 5, declinedContainment = 0.6, declinedShare = 0.5,
-        declinedFillerWords = listOf("the", "an", "user", "users", "my", "me", "is", "are", "was", "am", "at", "as", "of", "to", "and", "in", "on", "for", "with", "has", "have", "work", "works", "working", "he", "she", "they", "their", "his", "her", "this", "that"),
+        fileName = "x.bin", suggest = true, models = mapOf("test" to "small-model"), quietMillis = 1, maxSuggestions = 2, maxInputChars = 60, contextChars = 12, maxOutputTokens = 77, maxDismissed = 5, maxDeclinedInInput = 2, maxReviewedChats = 5,
     )
     private var enabled = true
 
