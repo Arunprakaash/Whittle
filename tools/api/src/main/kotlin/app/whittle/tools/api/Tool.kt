@@ -61,8 +61,9 @@ data class CallPreview(
 
 /**
  * One thing an approved card covers: [id] (for a file, its path) and, when the tool records them, its size in [bytes]
- * and [modifiedMillis] when the card was made, so the tool can refuse it if it changed while the card waited.
+ * and [modifiedMillis] when the card was made, so the tool can refuse it if it changed while the card waited. A file
+ * the card showed as a copy of another it keeps names that one in [keptCopy], so it stays if that one is gone.
  */
 @Serializable
-data class ApprovedItem(val id: String, val bytes: Long? = null, val modifiedMillis: Long? = null)
+data class ApprovedItem(val id: String, val bytes: Long? = null, val modifiedMillis: Long? = null, val keptCopy: String? = null)
 

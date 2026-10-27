@@ -139,6 +139,9 @@ data class AgentMessages(
     val deleteThroughLink: String,
     val deleteListedTwice: String,
     val deleteProtectedFolder: String,
+    val deleteLastCopy: String,
+    val deleteMaybeLastCopy: String,
+    val deleteKeptCopyGone: String,
     val deleteNotOnCard: String,
     val deleteChanged: String,
     val deleteRefusedByAndroid: String,
@@ -237,6 +240,9 @@ data class AgentMessages(
         requirePlaceholders(deleteThroughLink)
         requirePlaceholders(deleteListedTwice)
         requirePlaceholders(deleteProtectedFolder)
+        requirePlaceholders(deleteLastCopy)
+        requirePlaceholders(deleteMaybeLastCopy)
+        requirePlaceholders(deleteKeptCopyGone)
         requirePlaceholders(deleteNotOnCard)
         requirePlaceholders(deleteChanged)
         requirePlaceholders(deleteRefusedByAndroid)

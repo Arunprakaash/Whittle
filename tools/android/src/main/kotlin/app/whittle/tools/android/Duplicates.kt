@@ -38,6 +38,39 @@ fun findDuplicates(files: List<File>, deadlineMillis: Long, now: () -> Long, max
     return Duplicates(groups, budget.stopped)
 }
 
+/**
+ * Files among [files] (each with its size in bytes) that may hold the same content, for keeping one of each: [identical]
+ * groups are confirmed by hash, and [untold] groups share a size but couldn't be told apart, because time or the hashing
+ * budget ran out or a file couldn't be read. Empty files are left out: deleting every copy of nothing loses nothing.
+ */
+data class PossibleCopies(val identical: List<List<File>>, val untold: List<List<File>>)
+
+/** [PossibleCopies] among [files], hashing them as [findDuplicates] does, within the same kind of budget. */
+fun possibleCopies(files: List<Pair<File, Long>>, deadlineMillis: Long, now: () -> Long, maxHashBytes: Long): PossibleCopies {
+    val budget = HashBudget(deadlineMillis, now, maxHashBytes)
+    val identical = mutableListOf<List<File>>()
+    val untold = mutableListOf<List<File>>()
+    val bySize = files.filter { it.second > 0 }.groupBy({ it.second }, { it.first })
+    for ((size, sameSize) in bySize) {
+        if (sameSize.size < 2) continue
+        val edges = sameSize.map { it to edgesHash(it, size, budget) }
+        if (edges.any { it.second == null }) {
+            untold += sameSize
+            continue
+        }
+        for (collided in edges.groupBy({ it.second }, { it.first }).values.filter { it.size > 1 }) {
+            // Up to two edges' worth the edge hash has already read the whole file, so it is conclusive.
+            if (size <= EDGE_BYTES * 2) {
+                identical += collided
+                continue
+            }
+            val full = collided.map { it to fullHash(it, budget) }
+            if (full.any { it.second == null }) untold += collided else identical += full.groupBy({ it.second }, { it.first }).values.filter { it.size > 1 }
+        }
+    }
+    return PossibleCopies(identical, untold)
+}
+
 private const val EDGE_BYTES = 64 * 1024
 private const val CHUNK_BYTES = 1024 * 1024
 

@@ -2,6 +2,7 @@ package app.whittle.tools.android
 
 import android.content.Context
 import android.media.MediaScannerConnection
+import app.whittle.core.common.EpochClock
 import app.whittle.core.model.Provenance
 import app.whittle.tools.api.ApprovedItem
 import app.whittle.tools.api.CallPreview
@@ -43,9 +44,10 @@ class DeviceMediaScan(private val context: Context) : MediaScan {
 
 /**
  * What one delete_files call may take: at most [maxPaths] paths, and nothing under [protectedFolders] (relative to
- * shared storage, matched without regard to case), where other apps keep their own files.
+ * shared storage, matched without regard to case), where other apps keep their own files. Telling identical files apart
+ * for the card stops after [scanMillis] or [maxHashBytes] read.
  */
-data class DeleteFilesLimits(val maxPaths: Int, val protectedFolders: List<String>) {
+data class DeleteFilesLimits(val maxPaths: Int, val protectedFolders: List<String>, val scanMillis: Long, val maxHashBytes: Long) {
     private val protectedPrefixes = protectedFolders.map { it.trim('/').lowercase(Locale.ROOT) }
 
     /** Whether [relative] (a path under shared storage, `/`-separated) is or lies under a protected folder. */
@@ -79,6 +81,9 @@ data class DeleteFilesWords(
     val throughLink: String,
     val listedTwice: String,
     val protectedFolder: String,
+    val lastCopy: String,
+    val maybeLastCopy: String,
+    val keptCopyGone: String,
     val notOnCard: String,
     val changed: String,
     val refusedByAndroid: String,
@@ -88,7 +93,8 @@ data class DeleteFilesWords(
  * Deletes files in shared storage for good. The policy engine asks before every call, and the card lists what [check]
  * finds for each path the model sent: the file's real `/sdcard/...` path and size, or why it won't be deleted. Only
  * those may go: each must name a regular file inside shared storage by its own path. Folders, links, paths through a
- * linked folder, `..`, anything outside and anything in a protected folder (other apps' files) are refused, one by one. [execute] checks again and deletes only files the
+ * linked folder, `..`, anything outside and anything in a protected folder (other apps' files) are refused, one by one.
+ * Identical files in one call never all go: the first listed is kept, and the card says so ([keepOneCopy]). [execute] checks again and deletes only files the
  * approved card listed as going ([ToolExecutionContext.approved]), and only while each has the size and modified time
  * the card saw: a file that appears after the card stays, and so does one replaced or changed while the card waited.
  */
@@ -96,6 +102,7 @@ class DeleteFilesTool(
     private val storage: SharedStorage,
     private val limits: DeleteFilesLimits,
     private val words: DeleteFilesWords,
+    private val clock: EpochClock,
     private val mediaScan: MediaScan,
 ) : Tool {
     override val definition = DEFINITION
@@ -107,7 +114,7 @@ class DeleteFilesTool(
         }
         val root = storage.root() ?: return@withContext card(paths.map { refusedLine(it, words.noAccess) }, emptyList())
         val seen = mutableSetOf<String>()
-        val checks = paths.map { path -> path to check(root, path, seen) }
+        val checks = keepOneCopy(paths.map { path -> path to check(root, path, seen) })
         val lines = checks.map { (path, check) ->
             when (check) {
                 is Check.Ready -> shown("${displayPath(root, check.file)}${words.gap}${readableSize(check.bytes)}")
@@ -117,12 +124,32 @@ class DeleteFilesTool(
         card(lines, checks.mapNotNull { it.second as? Check.Ready })
     }
 
+    /**
+     * [checks] with one file of each set of identical files kept, so a call can't remove the last copy, say every path
+     * find_files gave for one group. The first listed is kept; files that share a size but couldn't be told apart in
+     * time are treated as identical. The others record the kept copy, so they stay if it's gone by the time they'd go.
+     */
+    private fun keepOneCopy(checks: List<Pair<String, Check>>): List<Pair<String, Check>> {
+        val ready = checks.mapNotNull { it.second as? Check.Ready }
+        val copies = possibleCopies(ready.map { it.file to it.bytes }, clock.nowMillis() + limits.scanMillis, clock::nowMillis, limits.maxHashBytes)
+        val byFile = ready.associateBy { it.file }
+        val replaced = mutableMapOf<File, Check>()
+        listOf(copies.identical to words.lastCopy, copies.untold to words.maybeLastCopy).forEach { (groups, reason) ->
+            groups.forEach { group ->
+                val kept = group.first()
+                replaced[kept] = Check.Refused(reason)
+                group.drop(1).forEach { copy -> replaced[copy] = byFile.getValue(copy).copy(keptCopy = kept) }
+            }
+        }
+        return checks.map { (path, check) -> path to ((check as? Check.Ready)?.let { replaced[it.file] } ?: check) }
+    }
+
     private fun refusedLine(path: String, reason: String) = shown("$path${words.gap}${words.notDeleted}: $reason")
 
     /** The card's values, and the files an approval of it covers. With none, the card says nothing will be deleted. */
     private fun card(lines: List<String>, ready: List<Check.Ready>) = CallPreview(
         card = mapOf(LISTING to lines.joinToString("\n"), COUNT to ready.size.toString(), TOTAL to readableSize(ready.sumOf { it.bytes })),
-        approved = ready.map { ApprovedItem(it.file.path, it.bytes, it.modified) },
+        approved = ready.map { ApprovedItem(it.file.path, it.bytes, it.modified, it.keptCopy?.path) },
         variant = NOTHING.takeIf { ready.isEmpty() },
     )
 
@@ -147,6 +174,8 @@ class DeleteFilesTool(
                             listed == null -> Result(path, REFUSED, words.notOnCard)
                             // A different file under the same name, or this one changed, isn't what the user saw on the card.
                             !check.matches(listed) -> Result(path, REFUSED, words.changed)
+                            // The copy the card kept went meanwhile (another call, another app): this would be the last.
+                            listed.keptCopy?.let { !isStill(File(it), listed.bytes) } == true -> Result(path, REFUSED, words.keptCopyGone)
                             check.file.delete() -> Result(path, DELETED, file = check.file, bytes = check.bytes)
                             else -> Result(path, FAILED, words.refusedByAndroid)
                         }
@@ -190,12 +219,20 @@ class DeleteFilesTool(
     }
 
     private sealed interface Check {
-        data class Ready(val file: File, val bytes: Long, val modified: Long) : Check {
+        /** [keptCopy] is an identical file this call keeps, so this one may go. */
+        data class Ready(val file: File, val bytes: Long, val modified: Long, val keptCopy: File? = null) : Check {
             /** Whether the card's [item] saw this file as it is now: the same size, modified at the same time. */
             fun matches(item: ApprovedItem): Boolean = item.bytes == bytes && item.modifiedMillis == modified
         }
 
         data class Refused(val reason: String) : Check
+    }
+
+    /** Whether [file] is still a regular file of [bytes] bytes, links not followed. */
+    private fun isStill(file: File, bytes: Long?): Boolean = try {
+        Files.readAttributes(file.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS).let { it.isRegularFile && it.size() == bytes }
+    } catch (gone: IOException) {
+        false
     }
 
     private class Result(val path: String, val status: String, val reason: String? = null, val file: File? = null, val bytes: Long = 0)
@@ -260,7 +297,9 @@ class DeleteFilesTool(
             id = ToolId("delete_files"),
             description = "Deletes files in shared storage for good; there is no trash to restore them from. Give paths as " +
                 "find_files returns them (/sdcard/...). The user sees every path on a card and approves each call, so list " +
-                "only files they chose to remove. Folders, links and anything outside shared storage are refused. Each path " +
+                "only files they chose to remove. Folders, links, folders where other apps keep their own files and anything " +
+                "outside shared storage are refused. Of identical files in one call the first listed is always kept, so list " +
+                "the copies to remove, not every copy: a call never removes the last one. Each path " +
                 "comes back deleted, refused (with a reason) or failed; deleted is how many went and freedBytes the space freed.",
             inputSchema = Json.parseToJsonElement(
                 """{"type":"object","properties":{""" +

@@ -1,5 +1,6 @@
 package app.whittle.tools.android
 
+import app.whittle.core.common.EpochClock
 import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.tools.api.RiskTier
@@ -56,16 +57,21 @@ class DeleteFilesToolTest {
             throughLink = "goes through a link",
             listedTwice = "is listed twice",
             protectedFolder = "is in a folder where other apps keep their own files",
+            lastCopy = "is kept: the other files listed with it are identical",
+            maybeLastCopy = "is kept: it couldn't be told apart from others in time",
+            keptCopyGone = "the identical copy the card kept is gone now",
             notOnCard = "wasn't on the list the user approved",
             changed = "changed since the user saw it on the card",
             refusedByAndroid = "Android didn't let it be deleted",
         )
     }
 
-    private fun file(dir: File, path: String, bytes: Int = 10): File =
-        File(dir, path).also { it.parentFile.mkdirs() }.apply { writeBytes(ByteArray(bytes)) }
+    /** A file of [bytes] bytes whose content differs by [path], so files aren't copies of each other unless a test says. */
+    private fun file(dir: File, path: String, bytes: Int = 10, content: ByteArray = ByteArray(bytes) { (path.hashCode() + it).toByte() }): File =
+        File(dir, path).also { it.parentFile.mkdirs() }.apply { writeBytes(content) }
 
-    private fun tool(maxPaths: Int = 10) = DeleteFilesTool(storage, DeleteFilesLimits(maxPaths, PROTECTED), WORDS) { scanned += it }
+    private fun tool(maxPaths: Int = 10, maxHashBytes: Long = Long.MAX_VALUE) =
+        DeleteFilesTool(storage, DeleteFilesLimits(maxPaths, PROTECTED, scanMillis = 60_000, maxHashBytes), WORDS, EpochClock { 0L }) { scanned += it }
 
     private fun args(vararg paths: String) = JsonObject(mapOf("paths" to JsonArray(paths.map { JsonPrimitive(it) })))
 
@@ -130,7 +136,7 @@ class DeleteFilesToolTest {
     @Test
     fun protectedFoldersMatchWithoutRegardToCase() {
         // /sdcard matches names without regard to case, so android/OBB is obb's folder there.
-        val limits = DeleteFilesLimits(1, PROTECTED)
+        val limits = DeleteFilesLimits(1, PROTECTED, 1, 1)
         assertTrue(limits.isProtected("android/OBB/com.example/main.obb"))
         assertTrue(limits.isProtected("ANDROID/MEDIA"))
         assertFalse(limits.isProtected("Android"))
@@ -235,7 +241,7 @@ class DeleteFilesToolTest {
         val notAList = JsonObject(mapOf("paths" to JsonPrimitive("a.jpg")))
 
         listOf(notStrings, notAList, JsonObject(emptyMap())).forEach { args ->
-            assertTrue(runBlocking { DeleteFilesTool(storage, DeleteFilesLimits(10, PROTECTED), WORDS) {}.execute(args, ctx.copy(approved = emptyList())) }.isError)
+            assertTrue(runBlocking { tool().execute(args, ctx.copy(approved = emptyList())) }.isError)
         }
         assertTrue(File(root, "a.jpg").exists())
     }
@@ -255,7 +261,7 @@ class DeleteFilesToolTest {
         val none = object : SharedStorage {
             override fun root(): File? = null
         }
-        val out = runBlocking { DeleteFilesTool(none, DeleteFilesLimits(10, PROTECTED), WORDS) {}.execute(JsonObject(mapOf("paths" to JsonArray(listOf(JsonPrimitive("a.jpg"))))), ctx) }
+        val out = runBlocking { DeleteFilesTool(none, DeleteFilesLimits(10, PROTECTED, 1, 1), WORDS, EpochClock { 0L }) {}.execute(JsonObject(mapOf("paths" to JsonArray(listOf(JsonPrimitive("a.jpg"))))), ctx) }
         assertEquals(AndroidCapabilities.STORAGE, out.missingCapability)
     }
 
@@ -304,6 +310,63 @@ class DeleteFilesToolTest {
         assertEquals(target.path, approved.id)
         assertEquals(42L, approved.bytes)
         assertEquals(target.lastModified(), approved.modifiedMillis)
+    }
+
+    @Test
+    fun sendingEveryCopyOfIdenticalFilesKeepsTheFirst() {
+        val photo = ByteArray(300_000) { (it % 251).toByte() }
+        val original = file(root, "DCIM/a.jpg", content = photo)
+        val copies = listOf(file(root, "Download/a.jpg", content = photo), file(root, "Download/a (1).jpg", content = photo))
+        val other = file(root, "Download/b.jpg", bytes = 300_000)
+
+        val card = preview("/sdcard/DCIM/a.jpg", "/sdcard/Download/a.jpg", "/sdcard/Download/a (1).jpg", "/sdcard/Download/b.jpg")
+        val results = results("/sdcard/DCIM/a.jpg", "/sdcard/Download/a.jpg", "/sdcard/Download/a (1).jpg", "/sdcard/Download/b.jpg")
+
+        // The card marks the copy that stays; only the others and the unrelated file go.
+        assertTrue(card.getValue(DeleteFilesTool.LISTING).lines()[0].startsWith("/sdcard/DCIM/a.jpg  ·  $NOT_DELETED: is kept"))
+        assertEquals("3", card.getValue(DeleteFilesTool.COUNT))
+        assertEquals(listOf("refused", "deleted", "deleted", "deleted"), results.keys.map { results.status(it) })
+        assertTrue(original.exists())
+        assertFalse(copies.any { it.exists() } || other.exists())
+    }
+
+    @Test
+    fun aCopyStaysIfTheOneTheCardKeptIsGoneByThen() {
+        val photo = ByteArray(1_000) { 3 }
+        val kept = file(root, "a.jpg", content = photo)
+        val copy = file(root, "b.jpg", content = photo)
+        val approved = runBlocking { tool().preview(args("a.jpg", "b.jpg")) }.approved
+        assertEquals(listOf(copy.path), approved.map { it.id })
+        // Another app (or an earlier card) removes the kept copy while this card waits.
+        assertTrue(kept.delete())
+
+        val out = runBlocking { tool().execute(args("a.jpg", "b.jpg"), ctx.copy(approved = approved)) }
+
+        val statuses = Json.parseToJsonElement(out.content).jsonObject.getValue("files").jsonArray.map { it.jsonObject.getValue("status").jsonPrimitive.content }
+        assertEquals(listOf("refused", "refused"), statuses)
+        assertTrue(copy.exists())
+    }
+
+    @Test
+    fun filesThatCouldntBeToldApartInTimeKeepOne() {
+        file(root, "a.bin", bytes = 500)
+        file(root, "b.bin", bytes = 500)
+
+        // No hashing budget: same-size files might be copies, so one stays.
+        val preview = runBlocking { tool(maxHashBytes = 1).preview(args("a.bin", "b.bin")) }
+
+        assertTrue(preview.card.getValue(DeleteFilesTool.LISTING).lines()[0].endsWith("couldn't be told apart from others in time"))
+        assertEquals(listOf(File(root, "b.bin").path), preview.approved.map { it.id })
+    }
+
+    @Test
+    fun aCopyWhoseTwinIsntListedMayGo() {
+        val photo = ByteArray(1_000) { 5 }
+        val twin = file(root, "a.jpg", content = photo)
+        file(root, "b.jpg", content = photo)
+
+        assertEquals("deleted", results("b.jpg").status("b.jpg"))
+        assertTrue(twin.exists())
     }
 
     @Test

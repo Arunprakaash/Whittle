@@ -94,6 +94,9 @@
   "deleteThroughLink": "goes through a link",
   "deleteListedTwice": "is listed twice",
   "deleteProtectedFolder": "is in a folder where other apps keep their own files, which Whittle never deletes",
+  "deleteLastCopy": "is kept: the other files listed with it are identical, and one copy always stays",
+  "deleteMaybeLastCopy": "is kept: it's the same size as other files listed with it and couldn't be told apart from them in time, so it may be the last copy",
+  "deleteKeptCopyGone": "the identical copy the card kept is gone now, so this would be the last copy; it was kept",
   "deleteNotOnCard": "wasn't on the list the user approved",
   "deleteChanged": "changed since the user saw it on the card (a different size or modified time), so it was kept; list it again so they see it as it is now",
   "deleteRefusedByAndroid": "Android didn't let it be deleted"

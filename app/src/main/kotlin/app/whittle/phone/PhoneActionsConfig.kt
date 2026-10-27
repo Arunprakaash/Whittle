@@ -89,7 +89,7 @@ data class PhoneActionsConfig(
         val types: Map<String, List<String>>,
     ) {
         val limits: StorageLimits get() = StorageLimits(maxFolders, scanMillis, oldDays)
-        val deleteLimits: DeleteFilesLimits get() = DeleteFilesLimits(maxDeletePerCall, protectedFolders)
+        val deleteLimits: DeleteFilesLimits get() = DeleteFilesLimits(maxDeletePerCall, protectedFolders, scanMillis, maxHashBytes)
         val findLimits: FindFilesLimits get() = FindFilesLimits(maxResults, scanMillis, maxHashBytes)
         val fileTypes: FileTypes get() = FileTypes(types)
     }

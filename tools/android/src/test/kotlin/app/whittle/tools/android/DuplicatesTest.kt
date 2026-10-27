@@ -87,4 +87,21 @@ class DuplicatesTest {
         assertFalse(roomy.partial)
         assertEquals(1, roomy.groups.size)
     }
+
+    @Test
+    fun possibleCopiesTellsConfirmedFromUntold() {
+        val a = file("a.bin", bytes(300_000))
+        val b = file("b.bin", bytes(300_000))
+        val c = file("c.bin", bytes(300_000, seed = 2))
+        val sized = listOf(a, b, c).map { it to it.length() }
+
+        val told = possibleCopies(sized, Long.MAX_VALUE, { 0L }, Long.MAX_VALUE)
+        assertEquals(listOf(listOf(a, b)), told.identical)
+        assertTrue(told.untold.isEmpty())
+
+        // Out of budget, every same-size file counts as a possible copy, so a caller keeps one.
+        val untold = possibleCopies(sized, Long.MAX_VALUE, { 0L }, maxHashBytes = 10)
+        assertTrue(untold.identical.isEmpty())
+        assertEquals(listOf(listOf(a, b, c)), untold.untold)
+    }
 }
