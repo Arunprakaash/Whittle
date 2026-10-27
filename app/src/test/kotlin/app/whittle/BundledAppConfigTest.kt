@@ -159,6 +159,9 @@ class BundledAppConfigTest {
         assertTrue(phone.storage.maxDeletePerCall in 1..50, "A delete card must stay short enough to read through")
         // Other apps' own files: on Android 10 and older all-files access reaches them, and nothing there is the user's to tidy.
         assertTrue(phone.storage.protectedFolders.containsAll(listOf("Android/data", "Android/obb", "Android/media")))
+        // find_files' kinds come only from storage.types, so a kind named like the catch-all, or an extension in two kinds, is refused.
+        assertFailsWith<IllegalArgumentException> { phone.copy(storage = phone.storage.copy(types = phone.storage.types + ("other" to listOf("bin")))) }
+        assertFailsWith<IllegalArgumentException> { phone.copy(storage = phone.storage.copy(types = phone.storage.types + ("photo" to listOf("jpg")))) }
         // Every switch stops tools that exist, asks for capabilities Android knows, and has a bundled icon.
         val toolIds = ToolCatalog.definitions.map { it.id.value }.toSet()
         val unknownTools = phone.switches.flatMap { it.tools } - toolIds

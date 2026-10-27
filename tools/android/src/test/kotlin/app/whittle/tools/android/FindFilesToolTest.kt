@@ -13,6 +13,8 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.put
 import java.io.File
 import java.nio.file.Files
@@ -136,5 +138,20 @@ class FindFilesToolTest {
         assertEquals(listOf(2), body["groups"]!!.jsonArray.map { it.jsonObject["copies"]!!.jsonPrimitive.int })
         assertEquals(500L, body["wastedBytes"]!!.jsonPrimitive.content.toLong())
         assertEquals(JsonPrimitive(true), body["partial"])
+    }
+
+    @Test
+    fun kindsComeFromConfigAndAnUnknownOneIsRefusedWithTheList() {
+        file("a.jpg", ByteArray(10))
+        val args = buildJsonObject { putJsonArray("types") { add("image") } }
+        assertEquals(1, call(FindFilesLimits(10, 1_000, 1_000, 100), args)["matched"]!!.jsonPrimitive.int)
+
+        val out = runBlocking {
+            FindFilesTool(storage, FindFilesLimits(10, 1_000, 1_000, 100), types) { 0L }.execute(buildJsonObject { putJsonArray("types") { add("video") } }, ctx)
+        }
+        assertTrue(out.isError)
+        assertTrue("[image, other]" in out.content, out.content)
+        // The schema names no kinds itself: config is the only list.
+        assertNull(FindFilesTool.DEFINITION.inputSchema["properties"]!!.jsonObject["types"]!!.jsonObject["items"]!!.jsonObject["enum"])
     }
 }

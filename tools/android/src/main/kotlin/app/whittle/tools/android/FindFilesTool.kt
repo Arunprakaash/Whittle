@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit
  */
 data class FindFilesLimits(val maxResults: Int, val scanMillis: Long, val maxHashBytes: Long, val maxMatches: Int)
 
-/** Extensions per kind of file (keys `image`, `video`, `audio`, `document`, `apk`, `archive`); anything else is [OTHER]. */
+/** Extensions per kind of file, as `storage.types` in phone-actions.json names them; anything else is [OTHER]. */
 class FileTypes(private val extensions: Map<String, List<String>>) {
     private val byExtension: Map<String, String> =
         extensions.flatMap { (type, list) -> list.map { it.lowercase() to type } }.toMap()
@@ -257,7 +257,7 @@ class FindFilesTool(
                     """"$FOLDER":{"type":"string","description":"Folder to search, e.g. /sdcard/Download. Defaults to all of shared storage."},""" +
                     """"$MIN_BYTES":{"type":"integer","description":"Only files at least this big"},""" +
                     """"$OLDER_THAN_DAYS":{"type":"integer","description":"Only files last changed more than this many days ago"},""" +
-                    """"$TYPES":{"type":"array","items":{"type":"string","enum":["image","video","audio","document","apk","archive","other"]}},""" +
+                    """"$TYPES":{"type":"array","items":{"type":"string"},"description":"Only these kinds of file, named as each file's type in the answer; an unknown kind is refused with the list"},""" +
                     """"$DUPLICATES":{"type":"boolean","description":"List groups of identical files instead"}}}""",
             ).jsonObject,
             riskTier = RiskTier.READ,

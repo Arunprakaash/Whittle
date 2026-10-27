@@ -107,13 +107,17 @@ data class PhoneActionsConfig(
         require(storage.protectedFolders.all { folder -> folder.trim('/').isNotEmpty() && folder.split('/').none { it == ".." } }) {
             "phone-actions.json storage.protectedFolders must name folders under shared storage, with no .."
         }
-        require(storage.types.keys == STORAGE_TYPES) { "phone-actions.json storage.types must list exactly $STORAGE_TYPES" }
+        // The kinds find_files takes come from here alone, so each must be a plain name with extensions of its own.
+        require(storage.types.keys.none { it.isBlank() || it != it.lowercase() || it == FileTypes.OTHER } && storage.types.values.all { it.isNotEmpty() }) {
+            "phone-actions.json storage.types must be lower-case kinds other than ${FileTypes.OTHER}, each with extensions"
+        }
+        val extensions = storage.types.values.flatten().map { it.lowercase() }
+        require(extensions.size == extensions.toSet().size) { "phone-actions.json storage.types must give each extension one kind" }
     }
 
     companion object {
         /** A delete card lists every file, so more than this wouldn't fit on one to read. */
         private const val MAX_DELETE_PER_CALL = 50
-        private val STORAGE_TYPES = setOf("image", "video", "audio", "document", "apk", "archive")
         const val SCHEMA_VERSION = 1
         val FILE = ConfigName("phone-actions.json")
     }
