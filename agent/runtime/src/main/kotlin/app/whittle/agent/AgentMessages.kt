@@ -138,6 +138,7 @@ data class AgentMessages(
     val deleteNotRegular: String,
     val deleteThroughLink: String,
     val deleteListedTwice: String,
+    val deleteProtectedFolder: String,
     val deleteNotOnCard: String,
     val deleteChanged: String,
     val deleteRefusedByAndroid: String,
@@ -235,6 +236,7 @@ data class AgentMessages(
         requirePlaceholders(deleteNotRegular)
         requirePlaceholders(deleteThroughLink)
         requirePlaceholders(deleteListedTwice)
+        requirePlaceholders(deleteProtectedFolder)
         requirePlaceholders(deleteNotOnCard)
         requirePlaceholders(deleteChanged)
         requirePlaceholders(deleteRefusedByAndroid)

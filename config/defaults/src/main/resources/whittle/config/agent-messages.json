@@ -93,6 +93,7 @@
   "deleteNotRegular": "isn't a regular file",
   "deleteThroughLink": "goes through a link",
   "deleteListedTwice": "is listed twice",
+  "deleteProtectedFolder": "is in a folder where other apps keep their own files, which Whittle never deletes",
   "deleteNotOnCard": "wasn't on the list the user approved",
   "deleteChanged": "changed since the user saw it on the card (a different size or modified time), so it was kept; list it again so they see it as it is now",
   "deleteRefusedByAndroid": "Android didn't let it be deleted"

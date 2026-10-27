@@ -142,6 +142,7 @@ internal val testMessages = AgentMessages(
     deleteNotRegular = "deleteNotRegular",
     deleteThroughLink = "deleteThroughLink",
     deleteListedTwice = "deleteListedTwice",
+    deleteProtectedFolder = "deleteProtectedFolder",
     deleteNotOnCard = "deleteNotOnCard",
     deleteChanged = "deleteChanged",
     deleteRefusedByAndroid = "deleteRefusedByAndroid",

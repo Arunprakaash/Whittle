@@ -34,6 +34,7 @@ class DeleteFilesToolTest {
 
     private companion object {
         const val NOT_DELETED = "won't be deleted"
+        val PROTECTED = listOf("Android/data", "Android/obb", "/Android/media/")
 
         /** The words as agent-messages.json has them, so the card lines below read as they will. */
         val WORDS = DeleteFilesWords(
@@ -54,6 +55,7 @@ class DeleteFilesToolTest {
             notRegular = "isn't a regular file",
             throughLink = "goes through a link",
             listedTwice = "is listed twice",
+            protectedFolder = "is in a folder where other apps keep their own files",
             notOnCard = "wasn't on the list the user approved",
             changed = "changed since the user saw it on the card",
             refusedByAndroid = "Android didn't let it be deleted",
@@ -63,7 +65,7 @@ class DeleteFilesToolTest {
     private fun file(dir: File, path: String, bytes: Int = 10): File =
         File(dir, path).also { it.parentFile.mkdirs() }.apply { writeBytes(ByteArray(bytes)) }
 
-    private fun tool(maxPaths: Int = 10) = DeleteFilesTool(storage, DeleteFilesLimits(maxPaths), WORDS) { scanned += it }
+    private fun tool(maxPaths: Int = 10) = DeleteFilesTool(storage, DeleteFilesLimits(maxPaths, PROTECTED), WORDS) { scanned += it }
 
     private fun args(vararg paths: String) = JsonObject(mapOf("paths" to JsonArray(paths.map { JsonPrimitive(it) })))
 
@@ -101,6 +103,38 @@ class DeleteFilesToolTest {
 
         assertEquals("refused", results.status("/sdcard/Download/../Download/a.jpg"))
         assertTrue(target.exists())
+    }
+
+    @Test
+    fun neverDeletesInOtherAppsFolders() {
+        val data = file(root, "Android/data/com.example/cache/a.bin")
+        val obb = file(root, "Android/obb/com.example/main.obb")
+        val media = file(root, "Android/media/com.whatsapp/WhatsApp/Media/b.jpg")
+        val ok = file(root, "Android/notes.txt")
+        val alike = file(root, "Android/database.txt")
+
+        val results = results(
+            "/sdcard/Android/data/com.example/cache/a.bin",
+            "Android/obb/com.example/main.obb",
+            "/sdcard/Android/media/com.whatsapp/WhatsApp/Media/b.jpg",
+            "/sdcard/Android/notes.txt",
+            "Android/database.txt",
+        )
+
+        assertEquals(listOf("refused", "refused", "refused", "deleted", "deleted"), results.keys.map { results.status(it) })
+        assertTrue("other apps" in results.getValue("Android/obb/com.example/main.obb").getValue("reason").jsonPrimitive.content)
+        assertTrue(data.exists() && obb.exists() && media.exists())
+        assertFalse(ok.exists() || alike.exists())
+    }
+
+    @Test
+    fun protectedFoldersMatchWithoutRegardToCase() {
+        // /sdcard matches names without regard to case, so android/OBB is obb's folder there.
+        val limits = DeleteFilesLimits(1, PROTECTED)
+        assertTrue(limits.isProtected("android/OBB/com.example/main.obb"))
+        assertTrue(limits.isProtected("ANDROID/MEDIA"))
+        assertFalse(limits.isProtected("Android"))
+        assertFalse(limits.isProtected("Android/datum/a.bin"))
     }
 
     @Test
@@ -187,7 +221,7 @@ class DeleteFilesToolTest {
         val notAList = JsonObject(mapOf("paths" to JsonPrimitive("a.jpg")))
 
         listOf(notStrings, notAList, JsonObject(emptyMap())).forEach { args ->
-            assertTrue(runBlocking { DeleteFilesTool(storage, DeleteFilesLimits(10), WORDS) {}.execute(args, ctx.copy(approved = emptyList())) }.isError)
+            assertTrue(runBlocking { DeleteFilesTool(storage, DeleteFilesLimits(10, PROTECTED), WORDS) {}.execute(args, ctx.copy(approved = emptyList())) }.isError)
         }
         assertTrue(File(root, "a.jpg").exists())
     }
@@ -207,7 +241,7 @@ class DeleteFilesToolTest {
         val none = object : SharedStorage {
             override fun root(): File? = null
         }
-        val out = runBlocking { DeleteFilesTool(none, DeleteFilesLimits(10), WORDS) {}.execute(JsonObject(mapOf("paths" to JsonArray(listOf(JsonPrimitive("a.jpg"))))), ctx) }
+        val out = runBlocking { DeleteFilesTool(none, DeleteFilesLimits(10, PROTECTED), WORDS) {}.execute(JsonObject(mapOf("paths" to JsonArray(listOf(JsonPrimitive("a.jpg"))))), ctx) }
         assertEquals(AndroidCapabilities.STORAGE, out.missingCapability)
     }
 

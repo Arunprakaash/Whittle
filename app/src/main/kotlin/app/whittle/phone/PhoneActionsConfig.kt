@@ -74,7 +74,8 @@ data class PhoneActionsConfig(
     /**
      * The storage tools: [maxFolders] listed by the overview, scans stop after [scanMillis], lists hold [maxResults],
      * [oldDays] is "old", at most [maxHashBytes] are read looking for copies, and [types] maps each kind of file to its extensions.
-     * One delete takes at most [maxDeletePerCall] files, so its card stays short enough to read.
+     * One delete takes at most [maxDeletePerCall] files, so its card stays short enough to read, and never one under
+     * [protectedFolders] (relative to shared storage), where other apps keep their own files.
      */
     @Serializable
     data class Storage(
@@ -84,10 +85,11 @@ data class PhoneActionsConfig(
         val oldDays: Int,
         val maxHashBytes: Long,
         val maxDeletePerCall: Int,
+        val protectedFolders: List<String>,
         val types: Map<String, List<String>>,
     ) {
         val limits: StorageLimits get() = StorageLimits(maxFolders, scanMillis, oldDays)
-        val deleteLimits: DeleteFilesLimits get() = DeleteFilesLimits(maxDeletePerCall)
+        val deleteLimits: DeleteFilesLimits get() = DeleteFilesLimits(maxDeletePerCall, protectedFolders)
         val findLimits: FindFilesLimits get() = FindFilesLimits(maxResults, scanMillis, maxHashBytes)
         val fileTypes: FileTypes get() = FileTypes(types)
     }
@@ -100,6 +102,9 @@ data class PhoneActionsConfig(
         require(reminders.maxReminders > 0 && reminders.maxTextChars > 0 && share.maxFileBytes > 0) { "phone-actions.json limits must be positive" }
         require(storage.maxFolders > 0 && storage.scanMillis > 0 && storage.maxResults > 0 && storage.oldDays > 0 && storage.maxHashBytes > 0 && storage.maxDeletePerCall > 0) { "phone-actions.json storage limits must be positive" }
         require(storage.maxDeletePerCall <= MAX_DELETE_PER_CALL) { "phone-actions.json storage.maxDeletePerCall must be at most $MAX_DELETE_PER_CALL" }
+        require(storage.protectedFolders.all { folder -> folder.trim('/').isNotEmpty() && folder.split('/').none { it == ".." } }) {
+            "phone-actions.json storage.protectedFolders must name folders under shared storage, with no .."
+        }
         require(storage.types.keys == STORAGE_TYPES) { "phone-actions.json storage.types must list exactly $STORAGE_TYPES" }
     }
 

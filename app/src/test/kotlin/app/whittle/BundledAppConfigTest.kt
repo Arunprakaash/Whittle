@@ -157,6 +157,8 @@ class BundledAppConfigTest {
         assertTrue(phone.maps.directionsUri.startsWith("https://"))
         assertTrue(phone.reminders.maxReminders > 0)
         assertTrue(phone.storage.maxDeletePerCall in 1..50, "A delete card must stay short enough to read through")
+        // Other apps' own files: on Android 10 and older all-files access reaches them, and nothing there is the user's to tidy.
+        assertTrue(phone.storage.protectedFolders.containsAll(listOf("Android/data", "Android/obb", "Android/media")))
         // Every switch stops tools that exist, asks for capabilities Android knows, and has a bundled icon.
         val toolIds = ToolCatalog.definitions.map { it.id.value }.toSet()
         val unknownTools = phone.switches.flatMap { it.tools } - toolIds

@@ -152,6 +152,7 @@ private fun deleteFilesWords(messages: AgentMessages, maxPaths: Int) = DeleteFil
     notRegular = messages.deleteNotRegular,
     throughLink = messages.deleteThroughLink,
     listedTwice = messages.deleteListedTwice,
+    protectedFolder = messages.deleteProtectedFolder,
     notOnCard = messages.deleteNotOnCard,
     changed = messages.deleteChanged,
     refusedByAndroid = messages.deleteRefusedByAndroid,

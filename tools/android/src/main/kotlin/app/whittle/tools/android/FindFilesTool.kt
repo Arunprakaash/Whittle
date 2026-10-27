@@ -119,9 +119,12 @@ fun resolveFolder(root: File, folder: String?): File? {
     return target.takeIf { isInside(root, it) && it.isDirectory }
 }
 
+/** [file] relative to [root]'s real location, `/`-separated; empty for the top itself. */
+fun relativePath(root: File, file: File): String = file.relativeTo(root.canonicalFile).path.replace(File.separatorChar, '/')
+
 /** [file] as `/sdcard/...`, so the model never sees the phone's real storage path. */
 fun displayPath(root: File, file: File): String {
-    val relative = file.relativeTo(root.canonicalFile).path.replace(File.separatorChar, '/')
+    val relative = relativePath(root, file)
     return if (relative.isEmpty()) SDCARD else "$SDCARD/$relative"
 }
 

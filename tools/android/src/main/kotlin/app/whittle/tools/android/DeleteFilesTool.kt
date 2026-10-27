@@ -41,8 +41,19 @@ class DeviceMediaScan(private val context: Context) : MediaScan {
     override fun scan(paths: List<String>) = MediaScannerConnection.scanFile(context, paths.toTypedArray(), null, null)
 }
 
-/** What one delete_files call may take: at most [maxPaths] paths. */
-data class DeleteFilesLimits(val maxPaths: Int)
+/**
+ * What one delete_files call may take: at most [maxPaths] paths, and nothing under [protectedFolders] (relative to
+ * shared storage, matched without regard to case), where other apps keep their own files.
+ */
+data class DeleteFilesLimits(val maxPaths: Int, val protectedFolders: List<String>) {
+    private val protectedPrefixes = protectedFolders.map { it.trim('/').lowercase(Locale.ROOT) }
+
+    /** Whether [relative] (a path under shared storage, `/`-separated) is or lies under a protected folder. */
+    fun isProtected(relative: String): Boolean {
+        val path = relative.lowercase(Locale.ROOT)
+        return protectedPrefixes.any { path == it || path.startsWith("$it/") }
+    }
+}
 
 /**
  * What delete_files says, on its card and to the model (from agent-messages.json): [notDeleted] marks a file that won't
@@ -67,6 +78,7 @@ data class DeleteFilesWords(
     val notRegular: String,
     val throughLink: String,
     val listedTwice: String,
+    val protectedFolder: String,
     val notOnCard: String,
     val changed: String,
     val refusedByAndroid: String,
@@ -76,7 +88,7 @@ data class DeleteFilesWords(
  * Deletes files in shared storage for good. The policy engine asks before every call, and the card lists what [check]
  * finds for each path the model sent: the file's real `/sdcard/...` path and size, or why it won't be deleted. Only
  * those may go: each must name a regular file inside shared storage by its own path. Folders, links, paths through a
- * linked folder, `..` and anything outside are refused, one by one. [execute] checks again and deletes only files the
+ * linked folder, `..`, anything outside and anything in a protected folder (other apps' files) are refused, one by one. [execute] checks again and deletes only files the
  * approved card listed as going ([ToolExecutionContext.approved]), and only while each has the size and modified time
  * the card saw: a file that appears after the card stays, and so does one replaced or changed while the card waited.
  */
@@ -215,6 +227,7 @@ class DeleteFilesTool(
             return Check.Refused(words.unreadable)
         }
         if (!isInside(root, file) || file.toPath() != literal.toPath().normalize()) return Check.Refused(words.throughLink)
+        if (limits.isProtected(relativePath(root, file))) return Check.Refused(words.protectedFolder)
         if (!seen.add(file)) return Check.Refused(words.listedTwice)
         return Check.Ready(file, attributes.size(), attributes.lastModifiedTime().toMillis())
     }
