@@ -38,8 +38,13 @@
         <item quantity="one">%1$d thing</item>
         <item quantity="other">%1$d things</item>
     </plurals>
+    <string name="memory_count_and_suggested">%1$s · %2$s</string>
     <string name="memory_heading">Memory</string>
     <string name="memory_none">Empty</string>
+    <plurals name="memory_suggested_count">
+        <item quantity="one">%1$d suggested</item>
+        <item quantity="other">%1$d suggested</item>
+    </plurals>
     <string name="settings_assistant_off">Off</string>
     <string name="settings_assistant_on">On · hold power or home</string>
     <string name="settings_assistant_title">Phone assistant</string>
@@ -242,18 +247,14 @@
     <string name="memory_keep_failed">Couldn't keep it. Try again.</string>
     <string name="memory_keep_gone">That suggestion is gone.</string>
     <string name="memory_keep_too_long">That is too long to remember. Edit it to make it shorter.</string>
-    <string name="memory_suggest_note">Once a chat goes quiet, Whittle reads what you said for facts worth keeping and suggests them here. Each review is one small model call on your own key. Nothing is saved unless you keep it.</string>
+    <string name="memory_suggest_note">One small call on your key per quiet chat</string>
     <string name="memory_suggest_title">Suggest memories after chats</string>
     <string name="memory_suggested">Suggested</string>
     <string name="memory_suggested_dismiss">Dismiss</string>
     <string name="memory_suggested_edit">Edit</string>
     <string name="memory_suggested_keep">Keep</string>
-    <string name="memory_suggested_note">Facts Whittle noticed in your chats. Nothing is remembered until you keep it.</string>
+    <string name="memory_suggested_note">Not remembered until you keep them</string>
     <string name="memory_suggested_replaces">Replaces “%1$s”</string>
-    <plurals name="memory_suggested_waiting">
-        <item quantity="one">%1$d suggested memory waiting</item>
-        <item quantity="other">%1$d suggested memories waiting</item>
-    </plurals>
     <string name="memory_today">Today</string>
     <plurals name="memory_used">
         <item quantity="one">%1$d of %2$d used</item>

@@ -19,12 +19,12 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -45,6 +46,8 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.Role
 import app.whittle.design.components.ReadingWidth
 import app.whittle.design.components.BottomActionButton
+import app.whittle.design.components.DecisionCard
+import app.whittle.design.components.DecisionUi
 import app.whittle.design.components.MenuAction
 import app.whittle.design.components.ScreenHeading
 import app.whittle.design.components.SettingsRow
@@ -59,6 +62,7 @@ import app.whittle.design.components.WhittleMenu
 import app.whittle.design.components.segmentedShape
 import app.whittle.design.theme.WhittleTheme
 import app.whittle.design.tokens.WhittleHaptic
+import app.whittle.design.tokens.WhittleRadius
 import app.whittle.design.tokens.WhittleSize
 import app.whittle.design.tokens.WhittleSpace
 import app.whittle.design.window.BackHandler
@@ -168,7 +172,7 @@ private fun MemoryList(host: MemoryHost, onBack: () -> Unit, onOpen: (MemoryDraf
                     SettingsToggleRow(
                         icon = "lightbulb",
                         title = stringResource(Res.string.memory_suggest_title),
-                        subtitle = stringResource(Res.string.memory_suggest_note),
+                        subtitle = if (state.suggesting == true) stringResource(Res.string.memory_suggest_note) else null,
                         checked = state.suggesting == true,
                         onCheckedChange = { on -> host.act(MemoryAction.Suggest(on)) },
                         shape = segmentedShape(0, 1),
@@ -177,33 +181,33 @@ private fun MemoryList(host: MemoryHost, onBack: () -> Unit, onOpen: (MemoryDraf
                     )
                 }
                 if (suggested.isNotEmpty()) {
-                    item(key = "suggested-title") {
-                        Column(
-                            Modifier.padding(start = WhittleSpace.m, top = WhittleSpace.l, bottom = WhittleSpace.s),
-                            verticalArrangement = Arrangement.spacedBy(WhittleSpace.xs),
+                    item(key = "suggested") {
+                        SettingsSection(
+                            title = stringResource(Res.string.memory_suggested),
+                            description = stringResource(Res.string.memory_suggested_note),
+                            modifier = Modifier.padding(top = WhittleSpace.l, bottom = WhittleSpace.s),
                         ) {
-                            Text(stringResource(Res.string.memory_suggested), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(stringResource(Res.string.memory_suggested_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            keepIssue?.let { issue -> SupportingNote("info", stringResource(keepIssueText(issue))) }
+                            Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+                                suggested.forEach { suggestion ->
+                                    key(suggestion.id) {
+                                        Suggestion(
+                                            suggestion = suggestion,
+                                            replaced = memories.firstOrNull { it.id == suggestion.replaces },
+                                            onKeep = {
+                                                keepIssue = null
+                                                scope.launch { keepIssue = host.save(null, suggestion.text, suggestion.id) }
+                                            },
+                                            onEdit = { onOpen(MemoryDraft(null, suggestion.text, suggestion)) },
+                                            onDismiss = {
+                                                keepIssue = null
+                                                host.act(MemoryAction.Dismiss(suggestion.id))
+                                            },
+                                        )
+                                    }
+                                }
+                            }
                         }
-                    }
-                    keepIssue?.let { issue ->
-                        item(key = "suggested-error") { SupportingNote("info", stringResource(keepIssueText(issue)), Modifier.padding(bottom = WhittleSpace.s)) }
-                    }
-                    itemsIndexed(suggested, key = { _, suggestion -> "suggested-${suggestion.id}" }) { index, suggestion ->
-                        SuggestionRow(
-                            suggestion = suggestion,
-                            replaced = memories.firstOrNull { it.id == suggestion.replaces },
-                            shape = segmentedShape(index, suggested.size),
-                            onKeep = {
-                                keepIssue = null
-                                scope.launch { keepIssue = host.save(null, suggestion.text, suggestion.id) }
-                            },
-                            onEdit = { onOpen(MemoryDraft(null, suggestion.text, suggestion)) },
-                            onDismiss = {
-                                keepIssue = null
-                                host.act(MemoryAction.Dismiss(suggestion.id))
-                            },
-                        )
                     }
                 }
                 if (memories.isEmpty() && suggested.isEmpty()) {
@@ -277,34 +281,33 @@ private fun EmptyMemory(ideas: List<MemoryIdeaEntry>, onIdea: (MemoryIdeaEntry) 
     }
 }
 
-/** One suggested fact, the memory it [replaced] if that still exists, with Dismiss, Edit (opens the editor, where saving keeps it) and Keep. */
+/**
+ * One suggested fact as a decision: Keep or Dismiss, and the memory it [replaced] when that still exists. Tapping the
+ * card opens the editor, where saving keeps it in the edited words.
+ */
 @Composable
-private fun SuggestionRow(suggestion: SuggestedEntry, replaced: MemoryEntry?, shape: Shape, onKeep: () -> Unit, onEdit: () -> Unit, onDismiss: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(colors.surfaceContainerLow)
-            .padding(start = WhittleSpace.xl, end = WhittleSpace.m, top = WhittleSpace.m, bottom = WhittleSpace.s),
-        verticalArrangement = Arrangement.spacedBy(WhittleSpace.xs),
-    ) {
-        Text(suggestion.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.userContent())
+private fun Suggestion(suggestion: SuggestedEntry, replaced: MemoryEntry?, onKeep: () -> Unit, onEdit: () -> Unit, onDismiss: () -> Unit) {
+    val decision = DecisionUi(
+        id = suggestion.id,
+        icon = "lightbulb",
+        title = suggestion.text,
         // Keeping this overwrites that memory, so the user sees which one; when it's gone, keeping adds a new memory and there's nothing to say.
-        if (replaced != null) {
-            Text(
-                stringResource(Res.string.memory_suggested_replaces, replaced.text),
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.onSurfaceVariant,
-                modifier = Modifier.userContent(),
-            )
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(WhittleSpace.xs, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.memory_suggested_dismiss)) }
-            TextButton(onClick = onEdit) { Text(stringResource(Res.string.memory_suggested_edit)) }
-            FilledTonalButton(onClick = onKeep) { Text(stringResource(Res.string.memory_suggested_keep)) }
-        }
-    }
+        body = replaced?.let { stringResource(Res.string.memory_suggested_replaces, it.text) }.orEmpty(),
+        payloadLabel = null,
+        payload = null,
+        approveLabel = stringResource(Res.string.memory_suggested_keep),
+        declineLabel = stringResource(Res.string.memory_suggested_dismiss),
+    )
+    val haptics = WhittleTheme.haptics
+    DecisionCard(
+        decision = decision,
+        onApprove = onKeep,
+        onDecline = onDismiss,
+        modifier = Modifier
+            .clip(RoundedCornerShape(WhittleRadius.xl))
+            .clickable(onClickLabel = stringResource(Res.string.memory_suggested_edit), role = Role.Button) { haptics.perform(WhittleHaptic.Tap); onEdit() }
+            .userContent(),
+    )
 }
 
 /** What to tell the user when keeping a suggestion failed. */
