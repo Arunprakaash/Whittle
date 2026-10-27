@@ -156,8 +156,9 @@ deleted, the shortcut stays greyed out instead of opening an empty Whittle.
 
 ### Automations
 
-An automation is a task Whittle runs by itself at a time of day, on chosen days. The user sets one up in
-Settings › Automations, or asks in a chat and approves the `schedule_task` card.
+An automation is a task Whittle runs by itself at a time of day, on chosen days, or when something happens. The user
+sets one up in Settings › Automations, or asks in a chat and approves the `schedule_task` card (or `watch_for`, for an
+event or an interval).
 
 - **Scheduling.** Each enabled automation has an exact alarm for its next run (`setExactAndAllowWhileIdle`,
   which needs no permission at SDK 28). The alarms are set again after a reboot, an app update, a clock or
@@ -167,11 +168,18 @@ Settings › Automations, or asks in a chat and approves the `schedule_task` car
   only the tools the user pre-approved for it; anything else pauses the run with a notification. For an approval it
   shows the card's words and its own Approve and Decline buttons, which answer the card once the phone is unlocked.
   Some calls are only decided in the app: deleting and paying, hand-offs that open another app (Android may not let
-  Whittle open it from the background), whatever the policy always asks about (`schedule_task`, `add_connection`,
+  Whittle open it from the background), whatever the policy always asks about (`schedule_task`, `watch_for`, `add_connection`,
   `call`, `remember` after outside content), and anything from a run that has read untrusted content (`background.approvals` in app-defaults.json, and policy-rules.json).
 - **What runs without asking.** automations.json lists what can be pre-approved: web reads, the clock, the
   calendar, contacts and the workspace's files, never anything that sends data out. A new automation may only
   read; changing files is a separate choice, off by default. A test keeps both rules.
+- **Events.** An automation can start on a text, an app's notification, arriving at or leaving a place, plugging in or
+  out, joining or leaving Wi-Fi, or every N minutes (15 at least). A message that looks like it holds a one-time code
+  is dropped before any model sees it, and a cooldown and daily limit apply (`events` in automations.json). One started
+  by a text or a notification only reads. Texts, notifications and location are switches in Settings › On this phone,
+  asked for when an automation needs them; each source runs only while a trigger needs it. Some edges can fire up to
+  15 minutes late. A `watch_for` card always asks first and is only approved inside the app. Details in
+  `docs/phone-events.md`.
 - **Projects.** An automation can have a project. Its chat is then confined to that folder: the file tools
   refuse paths outside it, and the agent can't move the chat to another project, until the user picks one
   (`ChatProjects.isConfined`). Without a project it works on the whole shared workspace.

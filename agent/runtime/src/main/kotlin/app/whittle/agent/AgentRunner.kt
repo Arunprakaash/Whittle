@@ -108,7 +108,8 @@ class AgentRunner(
             // Earlier turns of the chat are still in front of the model, and so is what they brought in; the new message may
             // carry output the user pasted from a card, which is untrusted too.
             tainted = (request.priorMessages + request.userMessage).any(Message::carriesUntrustedContent),
-            personalDataRead = request.priorMessages.any(Message::carriesPersonalData),
+            // The new message counts too: an automation's run starts with the phone's events in it.
+            personalDataRead = (request.priorMessages + request.userMessage).any(Message::carriesPersonalData),
             preApprovedTools = request.preApprovedTools,
             approvedOnceTools = emptySet(),
             usage = TokenUsage.Zero,
@@ -450,8 +451,12 @@ class AgentRunner(
     private suspend fun steer(checkpoint: RunCheckpoint, input: RunInput.Steer): Outcome<RunCheckpoint> {
         telemetry.event(TelemetryEvent.RUN_STEERED, runAttributes(checkpoint))
         val blocks = listOf(ContentBlock.Text(input.text)) + input.pasted + input.images
-        val tainted = checkpoint.tainted || Message(Role.USER, blocks).carriesUntrustedContent()
-        return persist(checkpoint.copy(conversation = checkpoint.conversation.withUserContent(*blocks.toTypedArray()), tainted = tainted))
+        val message = Message(Role.USER, blocks)
+        val tainted = checkpoint.tainted || message.carriesUntrustedContent()
+        val personalData = checkpoint.personalDataRead || message.carriesPersonalData()
+        return persist(
+            checkpoint.copy(conversation = checkpoint.conversation.withUserContent(*blocks.toTypedArray()), tainted = tainted, personalDataRead = personalData),
+        )
     }
 
     /**

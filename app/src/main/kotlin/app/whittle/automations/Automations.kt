@@ -28,10 +28,24 @@ interface AutomationAlarms {
     fun set(id: String, atMillis: Long, scheduledForMillis: Long, retry: Boolean)
 
     fun cancel(id: String)
+
+    /** Cancels only the next-run alarm, leaving a retry or a drain alarm in place. */
+    fun cancelNext(id: String)
 }
 
 /** Why an automation wasn't saved. */
-enum class AutomationProblem { NAME_EMPTY, NAME_TOO_LONG, PROMPT_EMPTY, PROMPT_TOO_LONG, TOO_MANY, TOOL_NOT_ALLOWED, PROJECT_INVALID }
+enum class AutomationProblem {
+    NAME_EMPTY,
+    NAME_TOO_LONG,
+    PROMPT_EMPTY,
+    PROMPT_TOO_LONG,
+    TOO_MANY,
+    TOOL_NOT_ALLOWED,
+    PROJECT_INVALID,
+    INTERVAL_TOO_SHORT,
+    /** A text trigger from a recipe that acts on what a text says, with nobody named in From. */
+    SENDER_REQUIRED,
+}
 
 sealed interface SaveResult {
     data class Saved(val automation: Automation, val nextRunMillis: Long?) : SaveResult
@@ -53,6 +67,10 @@ class Automations(
     private val ids: IdGenerator,
     private val zones: () -> ZoneId,
     scope: CoroutineScope,
+    /** When each automation's waiting events may run, from the event gate; its drain alarms are set again with the rest. */
+    private val pendingDrains: suspend () -> Map<String, Long> = { emptyMap() },
+    /** Drops what the event gate holds for a deleted automation: queued texts must not outlive it. */
+    private val forgetEvents: suspend (String) -> Unit = {},
 ) {
     private val changes = Mutex()
     private val _all = MutableStateFlow<List<Automation>>(emptyList())
@@ -60,6 +78,9 @@ class Automations(
 
     /** Every automation, in the order they were made; empty until loaded. */
     val all: StateFlow<List<Automation>> = _all.asStateFlow()
+
+    /** Every automation once they are loaded: for a caller that may run in a fresh process (an event source), where [all] is still empty. */
+    suspend fun loadedAll(): List<Automation> = current()
 
     /** The time zone schedules are in: the phone's, as it is now. */
     val zone: ZoneId get() = zones()
@@ -76,8 +97,10 @@ class Automations(
     )
 
     /** A new automation filled in from one of the config's ideas. */
-    fun draft(idea: AutomationIdea): Automation =
-        draft(idea.name, idea.prompt).copy(schedule = idea.schedule, tools = config.toolIdsFor(idea))
+    fun draft(idea: AutomationIdea): Automation {
+        val (schedule, trigger) = idea.draftWhen()
+        return draft(idea.name, idea.prompt).copy(schedule = schedule, trigger = trigger, tools = config.toolIdsFor(idea))
+    }
 
     /**
      * Adds [automation], or replaces the one with its id, and sets its alarm. What its runs did is kept from the
@@ -104,12 +127,18 @@ class Automations(
 
     suspend fun setEnabled(id: String, enabled: Boolean): Outcome<Unit> = changes.withLock {
         val updated = current().map { if (it.id == id) it.copy(enabled = enabled) else it }
-        store(updated).also { if (it is Outcome.Success) updated.firstOrNull { a -> a.id == id }?.let(::schedule) }
+        store(updated).also {
+            if (it is Outcome.Success) {
+                updated.firstOrNull { a -> a.id == id }?.let(::schedule)
+                // An event automation's drain alarm outlives a save, but not being switched off.
+                if (!enabled && updated.any { a -> a.id == id && a.isEvent }) alarms.cancel(id)
+            }
+        }
     }
 
     suspend fun delete(id: String): Outcome<Unit> = changes.withLock {
         alarms.cancel(id)
-        store(current().filterNot { it.id == id })
+        store(current().filterNot { it.id == id }).also { if (it is Outcome.Success) forgetEvents(id) }
     }
 
     /** Notes that [id] ran into [chatId], for the list and for Open last run. */
@@ -122,24 +151,71 @@ class Automations(
         store(current().map { if (it.id == id) it.copy(missedAtMillis = scheduledForMillis) else it })
     }
 
-    /** Sets every alarm again: after a reboot, an update or a time zone change, and at each launch. */
-    suspend fun rescheduleAll() = changes.withLock { current().forEach(::schedule) }
+    /**
+     * Sets every alarm again: after a reboot, an update or a time zone change, and at each launch. Events still
+     * waiting get their drain alarm back, for automations that are still there and on.
+     */
+    suspend fun rescheduleAll() = changes.withLock {
+        val automations = current()
+        automations.forEach(::schedule)
+        pendingDrains().forEach { (id, at) -> if (automations.any { it.id == id && it.enabled }) setDrain(id, at) }
+    }
 
-    /** Sets [id]'s next alarm from now. A run calls it before starting, so one failed run never ends the schedule. */
-    suspend fun scheduleNext(id: String) = changes.withLock { current().firstOrNull { it.id == id }?.let(::schedule) }
+    /** Wakes [id] at [atMillis] to run the events waiting for it. Kept apart from its next run, like a retry. */
+    fun setDrain(id: String, atMillis: Long) = alarms.set(id, atMillis, atMillis, retry = true)
+
+    /**
+     * Sets [id]'s next alarm. A run calls it before starting, so one failed run never ends the schedule. [handledMillis]
+     * is the slot being run: an interval counts from it, so a run that can't start doesn't pull the next one to now.
+     */
+    suspend fun scheduleNext(id: String, handledMillis: Long = 0) = changes.withLock {
+        current().firstOrNull { it.id == id }?.let { schedule(it, handledMillis) }
+    }
 
     /** Tries [id] again shortly, keeping the time it was due so it can be given up on. */
     fun retryLater(id: String, scheduledForMillis: Long) {
         alarms.set(id, clock.nowMillis() + config.retryAfterMillis, scheduledForMillis, retry = true)
     }
 
-    /** When [automation] runs next, or null while it's off. */
-    fun nextRunMillis(automation: Automation): Long? =
-        if (automation.enabled) automation.schedule.nextAfter(Instant.ofEpochMilli(clock.nowMillis()), zone).toEpochMilli() else null
+    /**
+     * When [automation] next runs, or null while it's off, for the list: an interval that is behind shows its next slot,
+     * not now.
+     */
+    fun nextRunMillis(automation: Automation): Long? = nextRun(automation, 0, overdueIsNow = false)
 
-    /** What a run of [automation] may use without asking. Only tools automations.json lets the user choose count. */
-    fun preApprovedTools(automation: Automation): Set<ToolId> =
-        (automation.tools.intersect(config.choosableToolIds) + config.alwaysPreApproved).map(::ToolId).toSet()
+    /**
+     * An interval counts from its last run or [handledMillis], if later. One that is already overdue is due [overdueIsNow]
+     * (a launch or a save finding it late) or at the first slot still ahead.
+     */
+    private fun nextRun(automation: Automation, handledMillis: Long, overdueIsNow: Boolean): Long? {
+        if (!automation.enabled) return null
+        val now = clock.nowMillis()
+        val trigger = automation.trigger
+        return when {
+            trigger is Trigger.Every -> {
+                val every = trigger.minutes * MILLIS_PER_MINUTE
+                val from = maxOf(automation.lastRunAtMillis ?: 0, handledMillis).takeIf { it > 0 } ?: now
+                val due = from + every
+                when {
+                    due >= now -> due
+                    overdueIsNow -> now
+                    else -> due + ((now - due) / every + 1) * every
+                }
+            }
+            automation.schedule != null -> automation.schedule.nextAfter(Instant.ofEpochMilli(now), zone).toEpochMilli()
+            else -> null
+        }
+    }
+
+    /**
+     * What a run of [automation] may use without asking. Only tools automations.json lets the user choose count, and
+     * one started by a message never changes anything unasked, whatever was stored before that rule.
+     */
+    fun preApprovedTools(automation: Automation): Set<ToolId> {
+        val chosen = automation.tools.intersect(config.choosableToolIds)
+        val allowed = if (automation.trigger?.readsMessages == true) chosen - config.writingToolIds else chosen
+        return (allowed + config.alwaysPreApproved).map(::ToolId).toSet()
+    }
 
     private suspend fun current(): List<Automation> {
         loaded.await()
@@ -149,9 +225,14 @@ class Automations(
     private suspend fun store(automations: List<Automation>): Outcome<Unit> =
         backend.save(automations).also { if (it is Outcome.Success) _all.value = automations }
 
-    private fun schedule(automation: Automation): Long? {
-        val next = nextRunMillis(automation)
-        if (next == null) alarms.cancel(automation.id) else alarms.set(automation.id, next, next, retry = false)
+    private fun schedule(automation: Automation, handledMillis: Long = 0): Long? {
+        val next = nextRun(automation, handledMillis, overdueIsNow = true)
+        if (next == null) {
+            // An event automation has no next run, but may have a drain alarm waiting that a save mustn't wipe.
+            if (automation.isEvent) alarms.cancelNext(automation.id) else alarms.cancel(automation.id)
+        } else {
+            alarms.set(automation.id, next, next, retry = false)
+        }
         return next
     }
 
@@ -161,8 +242,17 @@ class Automations(
         automation.prompt.isEmpty() -> AutomationProblem.PROMPT_EMPTY
         automation.prompt.length > config.maxPromptChars -> AutomationProblem.PROMPT_TOO_LONG
         !config.choosableToolIds.containsAll(automation.tools) -> AutomationProblem.TOOL_NOT_ALLOWED
+        // What a stranger texts mustn't change the workspace: a run on a message only reads.
+        automation.trigger?.readsMessages == true && automation.tools.any { it in config.writingToolIds } -> AutomationProblem.TOOL_NOT_ALLOWED
+        automation.trigger is Trigger.Sms && automation.trigger.senderRequired && automation.trigger.senders.none { it.isNotBlank() } ->
+            AutomationProblem.SENDER_REQUIRED
         automation.project != null && !ChatProjects.isValidName(automation.project) -> AutomationProblem.PROJECT_INVALID
+        automation.trigger is Trigger.Every && automation.trigger.minutes < config.events.minIntervalMinutes -> AutomationProblem.INTERVAL_TOO_SHORT
         isNew && count >= config.maxAutomations -> AutomationProblem.TOO_MANY
         else -> null
+    }
+
+    companion object {
+        const val MILLIS_PER_MINUTE = 60_000L
     }
 }

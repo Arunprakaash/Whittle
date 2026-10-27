@@ -42,7 +42,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,6 +55,9 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import app.whittle.automations.Trigger
+import app.whittle.automations.capabilities
+import app.whittle.automations.readsMessages
 import app.whittle.design.components.ReadingWidth
 import app.whittle.design.components.BottomActionButton
 import app.whittle.design.components.MenuAction
@@ -152,6 +154,7 @@ private fun AutomationsList(host: AutomationsHost, onBack: () -> Unit, onOpen: (
                     AutomationRow(
                         automation = automation,
                         status = automationStatus(automation, state.zone, now),
+                        notSaved = state.eventsNotSaved && automation.isEvent && automation.enabled,
                         shape = segmentedShape(index, automations.size),
                         onClick = { onOpen(automation, false) },
                         onEnabledChange = { on -> host.act(AutomationAction.SetEnabled(automation.id, on)) },
@@ -165,6 +168,8 @@ private fun AutomationsList(host: AutomationsHost, onBack: () -> Unit, onOpen: (
                             Modifier.padding(top = WhittleSpace.l),
                         )
                     }
+                    // Some phones (vivo among them) freeze apps in the background and drop their alarms and jobs.
+                    item { SupportingNote("info", stringResource(Res.string.automation_background_note), Modifier.padding(top = WhittleSpace.s)) }
                     // The recipes stay one tap away after the first automation, without the ones already made.
                     val more = unusedIdeas(state.ideas, automations)
                     if (!full && more.isNotEmpty()) {
@@ -201,7 +206,7 @@ private fun IdeasSection(ideas: List<AutomationIdea>, title: String, modifier: M
             SettingsRow(
                 icon = idea.icon,
                 title = idea.name,
-                subtitle = scheduleText(idea.draft.minuteOfDay, idea.draft.days),
+                subtitle = idea.draft.trigger?.let { describeTrigger(it) } ?: scheduleText(idea.draft.minuteOfDay, idea.draft.days),
                 shape = segmentedShape(index, ideas.size),
                 onClick = { onIdea(idea) },
                 trailing = { WhittleIcon("chevron_right", size = WhittleSize.Icon.l, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
@@ -210,9 +215,19 @@ private fun IdeasSection(ideas: List<AutomationIdea>, title: String, modifier: M
     }
 }
 
-/** One automation: its time, name, days and what happens next, with its switch. */
+/**
+ * One automation: its time or what starts it, its name, its days and what happens next, with its switch. One that
+ * starts on an event also says what it skipped today, and when the phone couldn't keep its events.
+ */
 @Composable
-private fun AutomationRow(automation: AutomationEntry, status: AutomationStatus, shape: Shape, onClick: () -> Unit, onEnabledChange: (Boolean) -> Unit) {
+private fun AutomationRow(
+    automation: AutomationEntry,
+    status: AutomationStatus,
+    notSaved: Boolean,
+    shape: Shape,
+    onClick: () -> Unit,
+    onEnabledChange: (Boolean) -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     val haptics = WhittleTheme.haptics
     val content = if (automation.enabled) colors.onSurface else colors.onSurfaceVariant
@@ -226,12 +241,20 @@ private fun AutomationRow(automation: AutomationEntry, status: AutomationStatus,
             .padding(start = WhittleSpace.xl, end = WhittleSpace.l, top = WhittleSpace.m, bottom = WhittleSpace.l),
         verticalArrangement = Arrangement.spacedBy(WhittleSpace.xs),
     ) {
+        val trigger = automation.trigger
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(formatTime(automation.minuteOfDay), style = MaterialTheme.typography.displaySmall, color = content, modifier = Modifier.weight(1f))
+            if (trigger == null) {
+                Text(formatTime(automation.minuteOfDay), style = MaterialTheme.typography.displaySmall, color = content, modifier = Modifier.weight(1f))
+            } else {
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+                    WhittleIcon(triggerIcon(trigger), size = WhittleSize.Icon.l, tint = content)
+                    Text(describeTrigger(trigger), style = MaterialTheme.typography.titleLarge, color = content, modifier = Modifier.userContent())
+                }
+            }
             Switch(checked = automation.enabled, onCheckedChange = { haptics.perform(WhittleHaptic.Select); onEnabledChange(it) })
         }
         Text(automation.name, style = MaterialTheme.typography.titleMedium, color = content, modifier = Modifier.userContent())
-        DayMarks(automation.days, automation.enabled, daysText(automation.days))
+        if (trigger == null) DayMarks(automation.days, automation.enabled, daysText(automation.days))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(WhittleSpace.xs)) {
             WhittleIcon(status.icon, size = WhittleSize.Icon.s, tint = statusColor)
             Text(status.text, style = MaterialTheme.typography.bodySmall, color = statusColor)
@@ -240,6 +263,14 @@ private fun AutomationRow(automation: AutomationEntry, status: AutomationStatus,
                 Text(project, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, modifier = Modifier.userContent())
             }
         }
+        if (automation.skippedToday > 0) {
+            Text(
+                pluralStringResource(Res.plurals.automation_skipped_today, automation.skippedToday, automation.skippedToday),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+            )
+        }
+        if (notSaved) Text(stringResource(Res.string.automation_events_not_saved), style = MaterialTheme.typography.bodySmall, color = colors.error)
     }
 }
 
@@ -269,10 +300,17 @@ private data class AutomationStatus(val icon: String, val text: String, val miss
 private fun automationStatus(automation: AutomationEntry, zone: String, nowMillis: Long): AutomationStatus {
     val missedAt = automation.missedAtMillis
     val next = automation.nextRunMillis
+    val lastRun = automation.lastRunAtMillis
     return when {
         !automation.enabled -> AutomationStatus("pause_circle", stringResource(Res.string.automation_off))
+        automation.missing.isNotEmpty() -> AutomationStatus("error", stringResource(Res.string.automation_needs_access), missed = true)
         missedAt != null -> AutomationStatus("error", stringResource(Res.string.automation_missed, dayAndTime(missedAt, zone, nowMillis)), missed = true)
         next != null -> AutomationStatus("schedule", stringResource(Res.string.automation_next, dayAndTime(next, zone, nowMillis)))
+        // An event has no next time; when it last ran is the useful line.
+        automation.isEvent -> AutomationStatus(
+            "schedule",
+            lastRun?.let { stringResource(Res.string.automation_last_run, dayAndTime(it, zone, nowMillis)) } ?: stringResource(Res.string.automation_event_waiting),
+        )
         else -> AutomationStatus("pause_circle", stringResource(Res.string.automation_off))
     }
 }
@@ -298,8 +336,7 @@ private fun AutomationEditor(
     val live = state.automations.firstOrNull { it.id == initial.id } ?: initial
     var name by remember { mutableStateOf(initial.name) }
     var prompt by remember { mutableStateOf(initial.prompt) }
-    var minuteOfDay by remember { mutableIntStateOf(initial.minuteOfDay) }
-    var days by remember { mutableStateOf(initial.days) }
+    val draft = remember { WhenDraft(initial, state.events) }
     var tools by remember { mutableStateOf(initial.tools) }
     var project by remember { mutableStateOf(initial.project) }
     var pickingProject by remember { mutableStateOf(false) }
@@ -314,19 +351,26 @@ private fun AutomationEditor(
     val scroll = rememberScrollState()
     val scrolled by remember { derivedStateOf { scroll.value > 0 } }
     val now = nowMillis()
-    val edited = initial.copy(name = name, prompt = prompt, minuteOfDay = minuteOfDay, days = days, tools = tools, project = project)
-    val changed = edited != initial
+    val trigger = draft.trigger()
+    // A run on a message only reads, so the rows that change things are off for it.
+    val readsMessages = trigger?.readsMessages == true
+    val writing = state.tools.filter { it.writes }.flatMap { it.toolIds }.toSet()
+    val kept = if (readsMessages) tools - writing else tools
+    // Null while the When section isn't complete (no app chosen yet, say); Save waits for it.
+    val edited = initial.copy(name = name, prompt = prompt, minuteOfDay = draft.minuteOfDay, days = draft.days, trigger = trigger, tools = kept, project = project)
+        .takeIf { draft.complete }
+    val changed = edited != null && edited != initial
     val problems = issueTexts(state)
     val saveFailed = stringResource(Res.string.memory_save_failed)
     val busy = stringResource(Res.string.automation_busy)
     val noModel = stringResource(Res.string.automation_no_model)
 
-    /** Stores [edited]; [then] runs with the saved automation once it's stored. */
-    fun store(then: (AutomationEntry) -> Unit) {
+    /** Stores [entry]; [then] runs with the saved automation once it's stored. */
+    fun store(entry: AutomationEntry, then: (AutomationEntry) -> Unit) {
         saving = true
         error = null
         scope.launch {
-            when (val result = host.save(edited)) {
+            when (val result = host.save(entry)) {
                 is AutomationSave.Saved -> then(result.automation)
                 is AutomationSave.Refused -> error = problems.getValue(result.issue)
                 is AutomationSave.Failed -> error = result.message ?: saveFailed
@@ -338,13 +382,19 @@ private fun AutomationEditor(
     /**
      * Saves [edited], first asking for what its switched-on rows need (reading health data while closed, say), as one
      * that started from an idea was never switched on by hand. A row whose permission is refused goes back off, unsaved.
+     * What its trigger needs is asked for once it's saved: saving never waits on it, and the automation waits instead.
      */
     fun save(then: (AutomationEntry) -> Unit) {
-        val needing = state.tools.filter { it.capabilities.isNotEmpty() && tools.containsAll(it.toolIds) }
+        val entry = edited ?: return
+        val needing = state.tools.filter { it.capabilities.isNotEmpty() && entry.tools.containsAll(it.toolIds) }
         val ask = platform.requestCapabilities
-        if (needing.isEmpty() || ask == null) return store(then)
+        val askForTrigger: (AutomationEntry) -> Unit = { saved ->
+            val wanted = saved.trigger?.capabilities(state.events.capabilities).orEmpty()
+            if (wanted.isEmpty() || ask == null) then(saved) else ask(wanted) { then(saved) }
+        }
+        if (needing.isEmpty() || ask == null) return store(entry, askForTrigger)
         ask(needing.flatMap { it.capabilities }.distinct()) { granted ->
-            if (granted) store(then) else tools = tools - needing.flatMap { it.toolIds }.toSet()
+            if (granted) store(entry, askForTrigger) else tools = tools - needing.flatMap { it.toolIds }.toSet()
         }
     }
 
@@ -374,7 +424,7 @@ private fun AutomationEditor(
                 )
                 Button(
                     onClick = { haptics.perform(WhittleHaptic.Approve); save { _ -> platform.requestNotifications(); onClose() } },
-                    enabled = !saving && (isNew || changed),
+                    enabled = !saving && edited != null && (isNew || changed),
                     shapes = ButtonDefaults.shapes(),
                     modifier = Modifier.height(WhittleSize.Button.small),
                 ) { Text(stringResource(Res.string.automation_save)) }
@@ -440,18 +490,27 @@ private fun AutomationEditor(
                     )
                 }
                 Section(stringResource(Res.string.automation_when)) {
-                    When(
-                        minuteOfDay = minuteOfDay,
-                        days = days,
-                        summary = stringResource(
-                            Res.string.automation_when_summary,
-                            daysText(days),
-                            nextRun(minuteOfDay, days, state.zone, now)?.let { dayAndTime(it, state.zone, now) }.orEmpty(),
-                        ),
-                        enabled = !saving,
-                        onPickTime = { pickingTime = true },
-                        onDaysChange = { days = it },
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.m)) {
+                        // What the saved automation still needs, while its trigger is the one shown.
+                        if (!isNew && live.missing.isNotEmpty() && live.trigger == trigger) AccessRow(live.missing, !saving, platform.requestCapabilities)
+                        WhenChoice(draft.mode, enabled = !saving) { draft.mode = it; error = null }
+                        when (draft.mode) {
+                            WhenMode.TIME -> When(
+                                minuteOfDay = draft.minuteOfDay,
+                                days = draft.days,
+                                summary = stringResource(
+                                    Res.string.automation_when_summary,
+                                    daysText(draft.days),
+                                    nextRun(draft.minuteOfDay, draft.days, state.zone, now)?.let { dayAndTime(it, state.zone, now) }.orEmpty(),
+                                ),
+                                enabled = !saving,
+                                onPickTime = { pickingTime = true },
+                                onDaysChange = { draft.days = it },
+                            )
+                            WhenMode.EVERY -> EveryFields(draft, state.events, enabled = !saving)
+                            WhenMode.EVENT -> EventFields(draft, state.events, enabled = !saving, phone = platform.phone, ask = platform.requestCapabilities)
+                        }
+                    }
                 }
                 Section(stringResource(Res.string.automation_where)) {
                     Box {
@@ -483,12 +542,13 @@ private fun AutomationEditor(
                     description = stringResource(Res.string.automation_tools_hint),
                 ) {
                     state.tools.forEachIndexed { index, choice ->
-                        val checked = tools.containsAll(choice.toolIds)
+                        val blocked = readsMessages && choice.writes
+                        val checked = !blocked && tools.containsAll(choice.toolIds)
                         val ask = platform.requestCapabilities
                         SettingsToggleRow(
                             icon = choice.icon,
                             title = choice.labelFor(project),
-                            subtitle = null,
+                            subtitle = if (blocked) stringResource(Res.string.automation_writes_off) else null,
                             checked = checked,
                             onCheckedChange = { on ->
                                 tools = if (on) tools + choice.toolIds else tools - choice.toolIds.toSet()
@@ -500,7 +560,7 @@ private fun AutomationEditor(
                             },
                             shape = segmentedShape(index, state.tools.size),
                             // Where the device can't ask Android for what a row needs, it can only be switched off here.
-                            enabled = !saving && (checked || choice.capabilities.isEmpty() || ask != null),
+                            enabled = !saving && !blocked && (checked || choice.capabilities.isEmpty() || ask != null),
                         )
                     }
                 }
@@ -513,13 +573,13 @@ private fun AutomationEditor(
         }
     }
     if (pickingTime) {
-        val picker = rememberTimePickerState(minuteOfDay / MINUTES_PER_HOUR, minuteOfDay % MINUTES_PER_HOUR, is24Hour = uses24HourClock())
+        val picker = rememberTimePickerState(draft.minuteOfDay / MINUTES_PER_HOUR, draft.minuteOfDay % MINUTES_PER_HOUR, is24Hour = uses24HourClock())
         AlertDialog(
             onDismissRequest = { pickingTime = false },
             text = { TimePicker(picker) },
             confirmButton = {
                 TextButton(onClick = {
-                    minuteOfDay = picker.hour * MINUTES_PER_HOUR + picker.minute
+                    draft.minuteOfDay = picker.hour * MINUTES_PER_HOUR + picker.minute
                     pickingTime = false
                 }) { Text(stringResource(Res.string.automation_ok)) }
             },
@@ -553,6 +613,8 @@ private fun issueTexts(state: AutomationsState): Map<AutomationIssue, String> = 
     AutomationIssue.TooMany to pluralStringResource(Res.plurals.automation_error_too_many, state.maxAutomations, state.maxAutomations),
     AutomationIssue.ProjectInvalid to stringResource(Res.string.automation_error_project),
     AutomationIssue.ToolNotAllowed to stringResource(Res.string.automation_error_tool),
+    AutomationIssue.IntervalTooShort to pluralStringResource(Res.plurals.automation_error_interval, state.events.minIntervalMinutes, state.events.minIntervalMinutes),
+    AutomationIssue.SenderRequired to stringResource(Res.string.automation_error_sender),
 )
 
 /** A titled part of the form. */
@@ -672,6 +734,9 @@ private fun When(minuteOfDay: Int, days: Set<Int>, summary: String, enabled: Boo
         Text(summary, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
     }
 }
+
+/** Started by something that happens on the phone. An interval has times like a schedule, so it isn't one. */
+val AutomationEntry.isEvent: Boolean get() = trigger != null && trigger !is Trigger.Every
 
 /** The ideas still worth offering: those the user hasn't made yet, matched by name. */
 fun unusedIdeas(ideas: List<AutomationIdea>, automations: List<AutomationEntry>): List<AutomationIdea> =

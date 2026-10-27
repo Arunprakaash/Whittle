@@ -1,7 +1,38 @@
 package app.whittle.automations
 
+import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.core.common.Outcome
+import app.whittle.core.config.ConfigLoader
+import app.whittle.core.model.ContentBlock
 import app.whittle.tools.api.ToolId
+import kotlin.test.assertIs
+
+/** The code mask as shipped, so the tests run against what the app uses. */
+internal val testCodeMaskConfig: CodeMaskConfig = assertIs<Outcome.Success<AutomationsConfig>>(
+    ConfigLoader(BundledConfigSource()).load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
+).value.events.codeMask
+
+internal val testEventsConfig = EventsConfig(
+    cooldownMillis = 120_000,
+    maxRunsPerDay = 30,
+    maxQueued = 20,
+    minIntervalMinutes = 15,
+    defaultEveryMinutes = 60,
+    placeCheckMinutes = 15,
+    placePolling = false,
+    defaultPlaceRadiusMeters = 200,
+    minPlaceRadiusMeters = 100,
+    maxPlaceNameChars = 40,
+    maxNumberDigits = 6,
+    locationTimeoutMillis = 30_000,
+    maxNotificationKeys = 200,
+    senderSuffixDigits = 8,
+    placeEventWords = listOf("place", "arrive", "leave", "place_arrive", "place_leave", "home"),
+    capabilities = mapOf("sms" to listOf("sms"), "notification" to listOf("notification_access"), "place" to listOf("location", "location_background"), "wifi" to listOf("location")),
+    messageDefaultTools = listOf("calendar"),
+    maxEventChars = 2000,
+    codeMask = testCodeMaskConfig,
+)
 
 internal val testAutomationsConfig = AutomationsConfig(
     schemaVersion = AutomationsConfig.SCHEMA_VERSION,
@@ -16,7 +47,9 @@ internal val testAutomationsConfig = AutomationsConfig(
     tools = listOf(
         AutomationToolChoice(key = "web", icon = "travel_explore", label = "Web", toolIds = listOf("web_search", "web_fetch"), default = true),
         AutomationToolChoice(key = "calendar", icon = "calendar_month", label = "Calendar", toolIds = listOf("calendar_events"), default = false),
+        AutomationToolChoice(key = "changeFiles", icon = "edit_document", label = "Change files", toolIds = listOf("write_file"), default = false, writes = true),
     ),
+    events = testEventsConfig,
 )
 
 internal data class Alarm(val id: String, val atMillis: Long, val scheduledForMillis: Long, val retry: Boolean)
@@ -24,6 +57,7 @@ internal data class Alarm(val id: String, val atMillis: Long, val scheduledForMi
 internal class RecordingAlarms : AutomationAlarms {
     val set = mutableListOf<Alarm>()
     val cancelled = mutableListOf<String>()
+    val nextCancelled = mutableListOf<String>()
 
     override fun set(id: String, atMillis: Long, scheduledForMillis: Long, retry: Boolean) {
         set += Alarm(id, atMillis, scheduledForMillis, retry)
@@ -31,6 +65,10 @@ internal class RecordingAlarms : AutomationAlarms {
 
     override fun cancel(id: String) {
         cancelled += id
+    }
+
+    override fun cancelNext(id: String) {
+        nextCancelled += id
     }
 }
 
@@ -52,12 +90,25 @@ internal class FakeChat(
     override var hasModel: Boolean = true,
 ) : AutomationChat {
     val started = mutableListOf<Pair<Automation, Set<ToolId>>>()
+    val pasted = mutableListOf<List<ContentBlock.Text>>()
 
     override suspend fun awaitRestored(timeoutMillis: Long): Boolean = restored
 
-    override suspend fun start(automation: Automation, preApprovedTools: Set<ToolId>): String? {
+    override suspend fun start(automation: Automation, preApprovedTools: Set<ToolId>, pasted: List<ContentBlock.Text>): String? {
         if (isRunning) return null
         started += automation to preApprovedTools
+        this.pasted += pasted
         return "chat-${started.size}"
+    }
+}
+
+internal class MemoryEventBackend : EventQueueBackend {
+    var stored: List<QueuedEvents> = emptyList()
+
+    override suspend fun load(): List<QueuedEvents> = stored
+
+    override suspend fun save(all: List<QueuedEvents>): Outcome<Unit> {
+        stored = all
+        return Outcome.Success(Unit)
     }
 }

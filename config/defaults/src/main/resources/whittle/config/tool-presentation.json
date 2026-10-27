@@ -558,6 +558,42 @@
         "declinedOutcome": "Not scheduled"
       }
     },
+    "watch_for": {
+      "icon": "visibility",
+      "running": "Setting up {{name}}",
+      "done": "Set up {{name}}",
+      "decision": {
+        "icon": "visibility",
+        "title": "Watch for this?",
+        "body": "Whittle will run this by itself {{event}}, in a new chat each time. On its own it may use only the tools you allow in Settings › Automations.",
+        "payloadArgument": "prompt",
+        "argumentNotes": {
+          "minutes": "Every {{minutes}} minutes.",
+          "from": "Only for {{from}}.",
+          "words": "Only when it mentions {{words}}."
+        },
+        "argumentNotesWhen": {
+          "minutes": { "event": ["every"] },
+          "from": { "event": ["text", "notification", "wifi_join", "wifi_leave"] },
+          "words": { "event": ["text", "notification"] }
+        },
+        "argumentWords": {
+          "event": {
+            "every": "on a repeating timer",
+            "text": "when a text arrives",
+            "notification": "when an app posts a notification",
+            "charging_start": "when the phone starts charging",
+            "charging_stop": "when the phone stops charging",
+            "wifi_join": "when it joins Wi-Fi",
+            "wifi_leave": "when it leaves Wi-Fi"
+          }
+        },
+        "approve": "Watch",
+        "decline": "Not now",
+        "approvedOutcome": "Watching for {{name}}",
+        "declinedOutcome": "Not set up"
+      }
+    },
     "remember": {
       "icon": "bookmark_add",
       "running": "Remembering this",

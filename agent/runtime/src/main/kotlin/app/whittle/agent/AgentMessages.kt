@@ -67,6 +67,8 @@ data class AgentMessages(
     val automationTooMany: String,
     val automationToolNotAllowed: String,
     val automationProjectInvalid: String,
+    val automationIntervalTooShort: String,
+    val automationSenderRequired: String,
     val automationProjectMissing: String,
     val automationTimeInvalid: String,
     val automationDaysInvalid: String,
@@ -117,6 +119,41 @@ data class AgentMessages(
     val screenUnknownApp: String,
     /** Names the screenshot at [PATH], of [SOURCE], as data; it goes beside it, so a model that sees images reads both. */
     val screenshotUntrusted: String,
+    /** Where an automation's events come from, for the pasted block's label; [NAME] is the first event's source. */
+    val diagnosticsFromEvent: String,
+    /** Where the pasted block's label says events come from when none has a source (a charging change has none). */
+    val eventSourcePhone: String,
+    /** One thing that happened on the phone, with a [SOURCE] and some [TEXT]; [KIND] is its [eventKinds] words. */
+    val eventLine: String,
+    /** An event with a source but no text, such as arriving at a place. */
+    val eventLineNoText: String,
+    /** An event with text but no source. */
+    val eventLineNoSource: String,
+    /** An event with neither, such as plugging in. */
+    val eventLineBare: String,
+    /** Stands for the name of a Wi-Fi network Android hides (no location permission, or location off). */
+    val eventUnnamedNetwork: String,
+    /**
+     * The plain words for each kind of event, by the kind's name (SMS, NOTIFICATION, PLACE, CHARGING, WIFI). A kind
+     * with an edge may have its own words under the kind and edge ("CHARGING_START"), which win.
+     */
+    val eventKinds: Map<String, String>,
+    /** Starts the pasted events, so the model knows why it was started and that the lines are data. */
+    val automationEventsIntro: String,
+    /** watch_for saved an automation; [EVENT] is the event in words, [PLACE] is [automationInProject] or [automationInWorkspace]. */
+    val automationWatching: String,
+    /** Added when the trigger needs Android permissions; [PERMISSIONS] lists them from [automationPermissions]. */
+    val automationNeedsPermission: String,
+    /** The plain words for each capability a trigger may need, by its id ("sms", "location"). */
+    val automationPermissions: Map<String, String>,
+    /** Joins the permissions in [automationNeedsPermission]: " and ". */
+    val automationPermissionsAnd: String,
+    val automationPlaceInSettings: String,
+    val automationAppNotFound: String,
+    val automationAppAmbiguous: String,
+    val automationAppRequired: String,
+    val automationMinutesRequired: String,
+    val automationEventUnknown: String,
 ) : VersionedConfig {
     init {
         requirePlaceholders(attachments, FILES)
@@ -164,6 +201,8 @@ data class AgentMessages(
         requirePlaceholders(automationTooMany, LIMIT)
         requirePlaceholders(automationToolNotAllowed)
         requirePlaceholders(automationProjectInvalid, PROJECT)
+        requirePlaceholders(automationIntervalTooShort, LIMIT)
+        requirePlaceholders(automationSenderRequired)
         requirePlaceholders(automationProjectMissing, PROJECT)
         requirePlaceholders(automationTimeInvalid)
         requirePlaceholders(automationDaysInvalid)
@@ -194,6 +233,24 @@ data class AgentMessages(
         requirePlaceholders(diagnosticsFromPreview, NAME)
         requirePlaceholders(diagnosticsFromScreen, NAME)
         requirePlaceholders(screenshotUntrusted, SOURCE, PATH)
+        requirePlaceholders(diagnosticsFromEvent, NAME)
+        requirePlaceholders(eventLine, KIND, SOURCE, TIME, TEXT)
+        requirePlaceholders(eventLineNoText, KIND, SOURCE, TIME)
+        requirePlaceholders(eventLineNoSource, KIND, TIME, TEXT)
+        requirePlaceholders(eventLineBare, KIND, TIME)
+        requirePlaceholders(eventSourcePhone)
+        requirePlaceholders(eventUnnamedNetwork)
+        requirePlaceholders(automationEventsIntro)
+        requirePlaceholders(automationWatching, NAME, EVENT, PLACE, TOOLS)
+        requirePlaceholders(automationNeedsPermission, PERMISSIONS)
+        automationPermissions.values.forEach { requirePlaceholders(it) }
+        requirePlaceholders(automationPlaceInSettings)
+        requirePlaceholders(automationAppNotFound, NAME)
+        requirePlaceholders(automationAppAmbiguous, NAME, APPS)
+        requirePlaceholders(automationAppRequired)
+        requirePlaceholders(automationMinutesRequired)
+        requirePlaceholders(automationEventUnknown)
+        eventKinds.values.forEach { requirePlaceholders(it) }
     }
 
     fun unknownTool(tool: String): String = render(unknownTool, TOOL to tool)
@@ -258,6 +315,17 @@ data class AgentMessages(
     fun automationScheduled(name: String, time: String, days: String, next: String, place: String, tools: String): String =
         render(automationScheduled, NAME to name, TIME to time, DAYS to days, NEXT to next, PLACE to place, TOOLS to tools)
 
+    fun automationWatching(name: String, event: String, place: String, tools: String): String =
+        render(automationWatching, NAME to name, EVENT to event, PLACE to place, TOOLS to tools)
+
+    /** [permissions] are capability ids; one with no words in config is named as it is. */
+    fun automationNeedsPermission(permissions: List<String>): String =
+        render(automationNeedsPermission, PERMISSIONS to permissions.joinToString(automationPermissionsAnd) { automationPermissions[it] ?: it })
+
+    fun automationAppNotFound(name: String): String = render(automationAppNotFound, NAME to name)
+
+    fun automationAppAmbiguous(name: String, apps: String): String = render(automationAppAmbiguous, NAME to name, APPS to apps)
+
     fun automationInProject(project: String): String = render(automationInProject, PROJECT to project)
 
     fun automationNameTooLong(limit: Int): String = render(automationNameTooLong, LIMIT to limit.toString())
@@ -265,6 +333,8 @@ data class AgentMessages(
     fun automationPromptTooLong(limit: Int): String = render(automationPromptTooLong, LIMIT to limit.toString())
 
     fun automationTooMany(limit: Int): String = render(automationTooMany, LIMIT to limit.toString())
+
+    fun automationIntervalTooShort(minutes: Int): String = render(automationIntervalTooShort, LIMIT to minutes.toString())
 
     fun automationProjectInvalid(project: String): String = render(automationProjectInvalid, PROJECT to project)
 
@@ -306,13 +376,31 @@ data class AgentMessages(
     fun diagnosticsFromScreen(name: String): String = render(diagnosticsFromScreen, NAME to name)
 
     fun screenshotUntrusted(source: String, path: String): String = render(screenshotUntrusted, SOURCE to source, PATH to path)
+    /** [source] is the first source any event has; the label is never empty, falling back to the phone itself. */
+    fun diagnosticsFromEvent(source: String): String = render(diagnosticsFromEvent, NAME to source.ifBlank { eventSourcePhone })
+
+    /**
+     * One event as a line. [kind] and [edge] are the names of an event's kind and edge (null for a kind with none); words
+     * for the pair win over the kind's, and one with no words in config is named as it is. The template follows
+     * what the event has: a [source], some [text], both or neither.
+     */
+    fun eventLine(kind: String, edge: String?, source: String, time: String, text: String): String {
+        val words = edge?.let { eventKinds["${kind}_$it"] } ?: eventKinds[kind] ?: kind
+        val from = if (source.isBlank() && kind == WIFI_KIND) eventUnnamedNetwork else source
+        return when {
+            from.isBlank() && text.isBlank() -> render(eventLineBare, KIND to words, TIME to time)
+            from.isBlank() -> render(eventLineNoSource, KIND to words, TIME to time, TEXT to text)
+            text.isBlank() -> render(eventLineNoText, KIND to words, SOURCE to from, TIME to time)
+            else -> render(eventLine, KIND to words, SOURCE to from, TIME to time, TEXT to text)
+        }
+    }
 
     /** The memory section of the system prompt: one line per remembered fact, as (id, text) pairs. */
     fun memories(items: List<Pair<String, String>>): String =
         if (items.isEmpty()) noMemories else items.joinToString("\n") { (id, text) -> render(memoryLine, ID to id, TEXT to text) }
 
     companion object {
-        const val SCHEMA_VERSION = 13
+        const val SCHEMA_VERSION = 14
         private const val FILES = "files"
         private const val SIZE = "size"
         private const val TOOL = "tool"
@@ -337,10 +425,15 @@ data class AgentMessages(
         private const val TEXT = "text"
         private const val NAME = "name"
         private const val TIME = "time"
+        private const val KIND = "kind"
         private const val DAYS = "days"
         private const val NEXT = "next"
         private const val PLACE = "place"
         private const val TOOLS = "tools"
         private const val PROJECT = "project"
+        private const val EVENT = "event"
+        private const val WIFI_KIND = "WIFI"
+        private const val PERMISSIONS = "permissions"
+        private const val APPS = "apps"
     }
 }

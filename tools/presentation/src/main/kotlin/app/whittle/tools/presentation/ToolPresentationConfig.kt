@@ -75,6 +75,19 @@ data class DecisionPresentation(
     val declinedOutcome: String,
     /** Sentences added to [body] when the named yes/no argument is true, e.g. a command that uses the internet. */
     val flagNotes: Map<String, String> = emptyMap(),
+    /** Sentences added to [body] when the named argument is given and not blank, filled in like the body (e.g. "Every {{minutes}} minutes."). */
+    val argumentNotes: Map<String, String> = emptyMap(),
+    /**
+     * Limits an [argumentNotes] entry to calls where another argument has one of the listed values: note name to
+     * (argument name to values). A note with no entry here is shown whenever its argument is given. This keeps a
+     * card from stating a filter the chosen kind of call ignores.
+     */
+    val argumentNotesWhen: Map<String, Map<String, List<String>>> = emptyMap(),
+    /**
+     * Words for the values an argument may take, by argument name: an argument with an entry here shows as its
+     * mapped words on the card (a value without one shows as given), so an enum like `text` reads "when a text arrives".
+     */
+    val argumentWords: Map<String, Map<String, String>> = emptyMap(),
 )
 
 /**

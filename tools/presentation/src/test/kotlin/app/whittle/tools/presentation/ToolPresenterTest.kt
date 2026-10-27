@@ -70,6 +70,66 @@ class ToolPresenterTest {
     }
 
     @Test
+    fun `argumentWords replace an argument's value in the card, and unknown values stay as given`() {
+        val watch = decision.copy(
+            title = "Watch for this?",
+            body = "Whittle will run this by itself {{event}}.",
+            payloadArgument = "prompt",
+            payloadLabelArgument = "from",
+            argumentWords = mapOf("event" to mapOf("text" to "when a text arrives")),
+        )
+        val withWords = ToolPresenter(
+            ToolPresentationConfig(
+                schemaVersion = ToolPresentationConfig.SCHEMA_VERSION,
+                fallback = ToolPresentation("build", "Working", "Done", decision),
+                tools = mapOf("watch_for" to ToolPresentation("visibility", "Setting up", "Set up", watch)),
+            ),
+        )
+        assertEquals("Whittle will run this by itself when a text arrives.", withWords.decision("watch_for", args("""{"event":"text","prompt":"p"}""")).body)
+        assertEquals("Whittle will run this by itself later.", withWords.decision("watch_for", args("""{"event":"later","prompt":"p"}""")).body)
+        // The filter is optional: absent, the card has no label; given, it shows above the prompt.
+        assertNull(withWords.decision("watch_for", args("""{"event":"text","prompt":"p"}""")).payloadLabel)
+        assertEquals("HDFCBK", withWords.decision("watch_for", args("""{"event":"text","prompt":"p","from":"HDFCBK"}""")).payloadLabel)
+    }
+
+    @Test
+    fun `argumentNotes are added only for the arguments that are given`() {
+        val watch = decision.copy(
+            body = "It runs {{event}}.",
+            argumentNotes = mapOf("minutes" to "Every {{minutes}} minutes.", "words" to "Only when it mentions {{words}}."),
+        )
+        val withNotes = ToolPresenter(
+            ToolPresentationConfig(
+                schemaVersion = ToolPresentationConfig.SCHEMA_VERSION,
+                fallback = ToolPresentation("build", "Working", "Done", decision),
+                tools = mapOf("watch_for" to ToolPresentation("visibility", "Setting up", "Set up", watch)),
+            ),
+        )
+        assertEquals("It runs every.", withNotes.decision("watch_for", args("""{"event":"every"}""")).body)
+        assertEquals("It runs every. Every 30 minutes.", withNotes.decision("watch_for", args("""{"event":"every","minutes":30}""")).body)
+        assertEquals("It runs every.", withNotes.decision("watch_for", args("""{"event":"every","words":"  "}""")).body)
+        assertEquals("It runs text. Only when it mentions debited.", withNotes.decision("watch_for", args("""{"event":"text","words":"debited"}""")).body)
+    }
+
+    @Test
+    fun `argumentNotesWhen shows a note only for the listed values of another argument`() {
+        val watch = decision.copy(
+            body = "It runs {{event}}.",
+            argumentNotes = mapOf("from" to "Only for {{from}}."),
+            argumentNotesWhen = mapOf("from" to mapOf("event" to listOf("text"))),
+        )
+        val presenter = ToolPresenter(
+            ToolPresentationConfig(
+                schemaVersion = ToolPresentationConfig.SCHEMA_VERSION,
+                fallback = ToolPresentation("build", "Working", "Done", decision),
+                tools = mapOf("watch_for" to ToolPresentation("visibility", "Setting up", "Set up", watch)),
+            ),
+        )
+        assertEquals("It runs text. Only for Home.", presenter.decision("watch_for", args("""{"event":"text","from":"Home"}""")).body)
+        assertEquals("It runs charging.", presenter.decision("watch_for", args("""{"event":"charging","from":"Home"}""")).body)
+    }
+
+    @Test
     fun `decision cards show the exact payload`() {
         val card = presenter.decision("compose_message", args("""{"to":"Priya Sharma","text":"Running 15 minutes late"}"""))
         assertEquals("Send this to Priya Sharma?", card.title)

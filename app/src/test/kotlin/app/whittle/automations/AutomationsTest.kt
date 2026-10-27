@@ -9,6 +9,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -29,6 +30,67 @@ class AutomationsTest {
         val draft = automations().draft("Brief", "Brief me")
         assertEquals(Schedule(420, Schedule.EVERY_DAY), draft.schedule)
         assertEquals(setOf("web_search", "web_fetch"), draft.tools)
+    }
+
+    @Test
+    fun everyRunsMinutesAfterLastRun() = runTest {
+        val automations = automations()
+        val every = Automation("e", "Poll", "Check", schedule = null, trigger = Trigger.Every(30), tools = emptySet())
+        assertEquals(now + 30 * 60_000, automations.nextRunMillis(every))
+        assertEquals(now + 10 * 60_000, automations.nextRunMillis(every.copy(lastRunAtMillis = now - 20 * 60_000)))
+        // One behind (blocked, say) shows the next slot after now, not now: slots at last run + 30, 60, 90, 120 min.
+        assertEquals(now + 30 * 60_000, automations.nextRunMillis(every.copy(lastRunAtMillis = now - 90 * 60_000)))
+        assertEquals(now + 10 * 60_000, automations.nextRunMillis(every.copy(lastRunAtMillis = now - 80 * 60_000)))
+    }
+
+    @Test
+    fun everyBelowFloorRejected() = runTest {
+        val automations = automations()
+        val every = automations.draft("Poll", "Check").copy(schedule = null, trigger = Trigger.Every(10))
+        assertEquals(AutomationProblem.INTERVAL_TOO_SHORT, refusal(automations.save(every)))
+        assertIs<SaveResult.Saved>(automations.save(every.copy(trigger = Trigger.Every(15))))
+    }
+
+    private fun TestScope.automations(pending: Map<String, Long>) =
+        Automations(backend, alarms, config, EpochClock { now }, IdGenerator { "a${nextId++}" }, { zone }, this, { pending })
+
+    @Test
+    fun rescheduleAllSetsDrainAlarmForQueuedEvents() = runTest {
+        val automations = automations(mapOf("sms" to now + 90_000, "gone" to now + 1_000))
+        val sms = automations.draft("Bank", "Log it").copy(id = "sms", schedule = null, trigger = Trigger.Sms(listOf("HDFCBK")))
+        automations.save(sms)
+        automations.rescheduleAll()
+        assertEquals(listOf(Alarm("sms", now + 90_000, now + 90_000, retry = true)), alarms.set)
+        // Saving an event automation never cancels its drain alarm.
+        assertTrue(alarms.cancelled.isEmpty())
+        assertEquals(listOf("sms", "sms"), alarms.nextCancelled)
+    }
+
+    @Test
+    fun disablingAnEventAutomationCancelsEverything() = runTest {
+        val automations = automations()
+        val sms = automations.draft("Bank", "Log it").copy(id = "sms", schedule = null, trigger = Trigger.Sms())
+        automations.save(sms)
+        automations.setEnabled("sms", false)
+        assertEquals(listOf("sms"), alarms.cancelled)
+    }
+
+    @Test
+    fun eventAutomationSetsNoAlarm() = runTest {
+        val automations = automations()
+        val event = automations.draft("Bank", "Log it").copy(schedule = null, trigger = Trigger.Sms(listOf("HDFCBK")))
+        assertTrue(event.isEvent)
+        val saved = assertIs<SaveResult.Saved>(automations.save(event))
+        assertNull(saved.nextRunMillis)
+        assertTrue(alarms.set.isEmpty())
+    }
+
+    @Test
+    fun anAutomationHasATimeOrATriggerNotBoth() {
+        assertFailsWith<IllegalArgumentException> { Automation("a", "n", "p", schedule = null, tools = emptySet()) }
+        assertFailsWith<IllegalArgumentException> {
+            Automation("a", "n", "p", Schedule(420, Schedule.EVERY_DAY), trigger = Trigger.Charging(Edge.START), tools = emptySet())
+        }
     }
 
     @Test
@@ -78,6 +140,15 @@ class AutomationsTest {
         automations.delete(saved.id)
         assertTrue(backend.stored.isEmpty())
         assertEquals(listOf(saved.id), alarms.cancelled)
+    }
+
+    @Test
+    fun `deleting also drops the events queued for it`() = runTest {
+        val forgotten = mutableListOf<String>()
+        val automations = Automations(backend, alarms, config, EpochClock { now }, IdGenerator { "a${nextId++}" }, { zone }, this, forgetEvents = { forgotten += it })
+        val saved = assertIs<SaveResult.Saved>(automations.save(automations.draft("Brief", "Brief me"))).automation
+        automations.delete(saved.id)
+        assertEquals(listOf(saved.id), forgotten)
     }
 
     @Test
@@ -152,4 +223,28 @@ class AutomationsTest {
     }
 
     private fun refusal(result: SaveResult) = assertIs<SaveResult.Refused>(result).problem
+
+    @Test
+    fun `an automation on a text or a notification may only read`() = runTest {
+        val automations = automations()
+        val writes = setOf("write_file")
+        val sms = automations.draft("Bank", "Log it").copy(schedule = null, trigger = Trigger.Sms(listOf("HDFCBK")), tools = writes)
+        assertEquals(AutomationProblem.TOOL_NOT_ALLOWED, refusal(automations.save(sms)))
+        val notification = sms.copy(trigger = Trigger.Notification("com.bank", "Bank"))
+        assertEquals(AutomationProblem.TOOL_NOT_ALLOWED, refusal(automations.save(notification)))
+        // Plugging in carries nothing anyone else wrote, so the user's choice stands.
+        assertIs<SaveResult.Saved>(automations.save(sms.copy(trigger = Trigger.Charging(Edge.START))))
+        assertEquals(setOf(ToolId("calendar_events"), ToolId("update_plan")), automations.preApprovedTools(sms.copy(tools = writes + "calendar_events")))
+    }
+
+    @Test
+    fun `a recipe that acts on bank texts needs a sender`() = runTest {
+        val automations = automations()
+        val bank = automations.draft("Bank", "Log it").copy(schedule = null, trigger = Trigger.Sms(words = listOf("debited"), senderRequired = true))
+        assertEquals(AutomationProblem.SENDER_REQUIRED, refusal(automations.save(bank)))
+        assertEquals(AutomationProblem.SENDER_REQUIRED, refusal(automations.save(bank.copy(trigger = Trigger.Sms(listOf(" "), senderRequired = true)))))
+        assertIs<SaveResult.Saved>(automations.save(bank.copy(trigger = Trigger.Sms(listOf("HDFCBK"), listOf("debited"), senderRequired = true))))
+        // Any other text trigger may leave From empty; the editor only warns.
+        assertIs<SaveResult.Saved>(automations.save(bank.copy(id = "other", trigger = Trigger.Sms(words = listOf("delivered")))))
+    }
 }

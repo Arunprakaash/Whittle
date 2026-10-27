@@ -4,6 +4,8 @@ import app.whittle.apps.NativeAppsConfig
 import app.whittle.apps.PowerfulKind
 import app.whittle.automations.AutomationsConfig
 import app.whittle.linux.ComputerAccessConfig
+import app.whittle.automations.Trigger
+import app.whittle.automations.readsMessages
 import app.whittle.claudecode.ClaudeCodeConfig
 import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.llm.api.HostedTool
@@ -25,6 +27,9 @@ import app.whittle.settings.AppDefaults
 import app.whittle.settings.NotificationApprovalDefaults
 import app.whittle.policy.PolicyRuleSet
 import app.whittle.tools.presentation.ToolPresentationConfig
+import app.whittle.tools.presentation.ToolPresenter
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -81,7 +86,7 @@ class BundledAppConfigTest {
             return approvals.buttonsFor(tool, tainted, policy.alwaysAsks(tool, tainted))
         }
         // An automation that runs unattended, a new connection, a phone call, a message draft.
-        listOf("schedule_task", "add_connection", "call", "compose_message").forEach { assertFalse(buttons(it), "$it got buttons") }
+        listOf("schedule_task", "watch_for", "add_connection", "call", "compose_message").forEach { assertFalse(buttons(it), "$it got buttons") }
         // Memory written after outside content could be poisoned; before it, the notification may answer.
         assertFalse(buttons("remember", tainted = true))
         assertTrue(buttons("remember"))
@@ -90,6 +95,36 @@ class BundledAppConfigTest {
         // A run that read untrusted content keeps every approval in the app.
         assertTrue(buttons("write_file"))
         assertFalse(buttons("write_file", tainted = true))
+    }
+
+    @Test
+    fun `the watch_for card says the interval, the sender and the words`() {
+        val config = assertIs<Outcome.Success<ToolPresentationConfig>>(
+            loader.load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION),
+        ).value
+        val presenter = ToolPresenter(config)
+        fun body(json: String) = presenter.decision("watch_for", Json.parseToJsonElement(json).jsonObject).body
+        assertTrue("Every 30 minutes." in body("""{"event":"every","minutes":30,"prompt":"p"}"""))
+        val text = body("""{"event":"text","from":"HDFCBK","words":"debited","prompt":"p"}""")
+        assertTrue("Only for HDFCBK." in text && "debited" in text, text)
+        assertFalse("Only for" in body("""{"event":"text","prompt":"p"}"""))
+    }
+
+    @Test
+    fun `the watch_for card leaves out notes for arguments its kind ignores`() {
+        val config = assertIs<Outcome.Success<ToolPresentationConfig>>(
+            loader.load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION),
+        ).value
+        val presenter = ToolPresenter(config)
+        fun body(json: String) = presenter.decision("watch_for", Json.parseToJsonElement(json).jsonObject).body
+        assertFalse("Only for" in body("""{"event":"charging_start","from":"Home","prompt":"p"}"""))
+        assertTrue("Only for Home." in body("""{"event":"text","from":"Home","prompt":"p"}"""))
+        val wifi = body("""{"event":"wifi_join","from":"Home","words":"debited","prompt":"p"}""")
+        assertTrue("Only for Home." in wifi, wifi)
+        assertFalse("mentions" in wifi, wifi)
+        assertFalse("Every" in body("""{"event":"text","minutes":30,"prompt":"p"}"""))
+        assertTrue("Every 30 minutes." in body("""{"event":"every","minutes":30,"from":"x","words":"y","prompt":"p"}"""))
+        assertFalse("Only" in body("""{"event":"every","minutes":30,"from":"x","words":"y","prompt":"p"}"""))
     }
 
     @Test
@@ -229,6 +264,63 @@ class BundledAppConfigTest {
         assertTrue(changing.isEmpty(), "These ideas would change things without asking: $changing")
         val missingIcons = config.ideas.map { it.icon }.toSet() - WhittleIcons.names
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
+    }
+
+    @Test
+    fun `automations on texts and notifications only read, and start without the web`() {
+        val config = assertIs<Outcome.Success<AutomationsConfig>>(
+            loader.load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
+        ).value
+        val tiers = ToolCatalog.definitions.associate { it.id.value to it.riskTier } + (HostedTool.WEB_SEARCH.toolName to RiskTier.WEB_READ)
+        val readOnly = setOf(RiskTier.READ, RiskTier.WEB_READ)
+        // A choice says whether it writes, and Automations refuses those for a message trigger: the flag must be true to the tools.
+        val wrong = config.tools.filter { choice -> choice.writes != choice.toolIds.any { tiers.getValue(it) !in readOnly } }.map { it.key }
+        assertTrue(wrong.isEmpty(), "Set writes to whether these choices change anything: $wrong")
+        val messageIdeas = config.ideas.filter { it.trigger?.readsMessages == true }
+        assertTrue(messageIdeas.isNotEmpty())
+        val writing = messageIdeas.associate { it.name to config.toolIdsFor(it).filter { id -> tiers.getValue(id) !in readOnly } }.filterValues { it.isNotEmpty() }
+        assertTrue(writing.isEmpty(), "A stranger's text would make these change things: $writing")
+        // What a stranger wrote can steer the run, so the model's own text automations start without reading the web.
+        val webDefaults = config.messageDefaultToolIds.filter { tiers.getValue(it) == RiskTier.WEB_READ }
+        assertTrue(webDefaults.isEmpty(), "events.messageDefaultTools must not read the web: $webDefaults")
+        // A recipe that acts on what a bank's text says can't be started by anyone who sends the words.
+        val bank = config.ideas.single { it.name == "Log bank texts" }.trigger
+        assertTrue(bank is Trigger.Sms && bank.senderRequired, "the bank recipe must need a sender")
+        // Every capability a trigger needs is one Android can grant, and a switch in Settings › On this phone covers it.
+        val phone = assertIs<Outcome.Success<PhoneActionsConfig>>(loader.load(PhoneActionsConfig.FILE, PhoneActionsConfig.serializer(), PhoneActionsConfig.SCHEMA_VERSION)).value
+        val needed = config.events.capabilities.values.flatten().toSet()
+        assertTrue(needed.all { AndroidCapabilities.isKnown(CapabilityId(it)) }, "events.capabilities names what nothing can grant: $needed")
+        val uncovered = needed - phone.switches.flatMap { it.capabilities }.toSet()
+        assertTrue(uncovered.isEmpty(), "Give these a switch in phone-actions.json: $uncovered")
+    }
+
+    @Test
+    fun `event limits hold together`() {
+        val events = assertIs<Outcome.Success<AutomationsConfig>>(
+            loader.load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
+        ).value.events
+        assertTrue(events.minPlaceRadiusMeters <= events.defaultPlaceRadiusMeters)
+        assertTrue(events.defaultEveryMinutes >= events.minIntervalMinutes)
+        assertFailsWith<IllegalArgumentException> { events.copy(minPlaceRadiusMeters = events.defaultPlaceRadiusMeters + 1) }
+        assertFailsWith<IllegalArgumentException> { events.copy(defaultEveryMinutes = events.minIntervalMinutes - 1) }
+        assertFailsWith<IllegalArgumentException> { events.copy(capabilities = mapOf("bus" to listOf("location"))) }
+    }
+
+    @Test
+    fun ideasWithTriggersAreValid() {
+        val config = assertIs<Outcome.Success<AutomationsConfig>>(
+            loader.load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
+        ).value
+        val withTriggers = config.ideas.filter { it.trigger != null }
+        assertTrue(withTriggers.size >= 3, "the event recipes are missing")
+        val keys = config.tools.map { it.key }.toSet()
+        withTriggers.forEach { idea ->
+            // A trigger or a time, never both: the idea decoded, so its init already checked, but say it here too.
+            assertTrue(idea.minuteOfDay == null && idea.days == null, "${idea.name} has a trigger and a time")
+            assertTrue(idea.tools.all { it in keys }, "${idea.name} names tool choices that don't exist: ${idea.tools - keys}")
+            assertFalse(idea.trigger is Trigger.Place, "${idea.name}: a place needs the user's own location, so it isn't a recipe")
+            assertTrue(idea.name.length <= config.maxNameChars && idea.prompt.length <= config.maxPromptChars, idea.name)
+        }
     }
 
     @Test

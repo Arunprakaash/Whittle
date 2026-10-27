@@ -59,8 +59,14 @@ import app.whittle.agent.RunInbox
 import app.whittle.automations.AndroidAutomationAlarms
 import app.whittle.automations.Automations
 import app.whittle.automations.AutomationsConfig
+import app.whittle.automations.CodeMask
 import app.whittle.automations.EncryptedFileAutomations
+import app.whittle.automations.EncryptedFileEventQueue
+import app.whittle.automations.EventGate
+import app.whittle.automations.launchableApps
 import app.whittle.automations.ScheduleTaskTool
+import app.whittle.automations.WatchForTool
+import app.whittle.automations.events.EncryptedPhoneStateStore
 import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.core.common.EpochClock
 import app.whittle.core.common.IdGenerator
@@ -370,15 +376,32 @@ class AppGraph(context: Context) {
         appScope,
     )
 
+    private val automationsConfig = load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION)
+
+    /** Where the phone's last seen charging, Wi-Fi and places are kept, encrypted. */
+    val phoneStateStore = EncryptedPhoneStateStore(File(context.filesDir, appDefaults.storage.phoneStateFileName), cipher)
+
+    /** Events waiting for their automation's run, kept encrypted so a reboot doesn't lose them. */
+    val eventGate = EventGate(
+        backend = EncryptedFileEventQueue(File(context.filesDir, appDefaults.storage.automationEventsFileName), cipher),
+        config = automationsConfig.events,
+        mask = CodeMask(automationsConfig.events.codeMask),
+        clock = clock,
+        zones = ZoneId::systemDefault,
+        scope = appScope,
+    )
+
     /** Tasks Whittle runs by itself on a schedule, each with an alarm for its next run. */
     val automations = Automations(
         backend = EncryptedFileAutomations(File(context.filesDir, appDefaults.storage.automationsFileName), cipher),
         alarms = AndroidAutomationAlarms(context),
-        config = load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
+        config = automationsConfig,
         clock = clock,
         ids = idGenerator,
         zones = ZoneId::systemDefault,
         scope = appScope,
+        pendingDrains = eventGate::pending,
+        forgetEvents = eventGate::forget,
     )
 
     /** The phone tools' settings: where maps open, reminders and sharing. */
@@ -402,7 +425,7 @@ class AppGraph(context: Context) {
     val tools = appTools(context).let { (createApp, buildApp) ->
         ToolRegistry(
             ToolCatalog.create(
-                context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, agentMessages, scheduleTask(),
+                context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, agentMessages, scheduleTask(), watchFor(context),
                 PhoneTools(phoneActions, reminders, workspaces, healthConnect) { id -> currentSettings.value?.phoneOff?.contains(id) != true },
                 createApp,
                 buildApp,
@@ -471,6 +494,15 @@ class AppGraph(context: Context) {
         messages = agentMessages,
         projectOf = workspaces::projectOf,
         projectExists = { name -> workspaces.folder().getOrNull()?.let { File(it, name).isDirectory } == true },
+    )
+
+    /** watch_for: like schedule_task, plus app names resolved against the apps with a launcher icon. */
+    private fun watchFor(context: Context) = WatchForTool(
+        automations = automations,
+        messages = agentMessages,
+        projectOf = workspaces::projectOf,
+        projectExists = { name -> workspaces.folder().getOrNull()?.let { File(it, name).isDirectory } == true },
+        apps = { launchableApps(context) },
     )
 
     /** The terminal and file tools, working in the shared workspace inside Linux. */

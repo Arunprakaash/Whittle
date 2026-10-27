@@ -8,6 +8,43 @@
   "giveUpAfterMillis": 10800000,
   "startTimeoutMillis": 10000,
   "alwaysPreApproved": ["ask_user", "update_plan"],
+  "events": {
+    "cooldownMillis": 120000,
+    "maxRunsPerDay": 30,
+    "maxQueued": 20,
+    "minIntervalMinutes": 15,
+    "defaultEveryMinutes": 60,
+    "placeCheckMinutes": 15,
+    "placePolling": false,
+    "defaultPlaceRadiusMeters": 200,
+    "minPlaceRadiusMeters": 100,
+    "maxPlaceNameChars": 40,
+    "maxNumberDigits": 6,
+    "locationTimeoutMillis": 30000,
+    "maxNotificationKeys": 200,
+    "senderSuffixDigits": 8,
+    "placeEventWords": ["place", "arrive", "leave", "place_arrive", "place_leave", "arrive_place", "leave_place", "home"],
+    "capabilities": {
+      "sms": ["sms"],
+      "notification": ["notification_access"],
+      "place": ["location", "location_background"],
+      "wifi": ["location"]
+    },
+    "messageDefaultTools": ["clock"],
+    "maxEventChars": 2000,
+    "codeMask": {
+      "keywords": ["otp", "code", "verification", "verify", "pin", "password", "passcode", "one time", "one-time", "2fa", "login"],
+      "codePattern": "\\b(?:[A-Z]-)?(?:\\d{4,8}|\\d{3}[- ]\\d{3})\\b",
+      "mixedCodePattern": "\\b(?:[A-Z]{1,3}-)?(?=[A-Z0-9]{4,10}\\b)(?=[A-Z0-9]*\\d)(?=[A-Z0-9]*[A-Z])[A-Z0-9]+\\b",
+      "messagingApps": ["com.whatsapp", "com.whatsapp.w4b", "org.telegram.messenger", "com.google.android.apps.messaging", "com.samsung.android.messaging", "com.android.mms", "com.facebook.orca", "org.thoughtcrime.securesms"],
+      "nearChars": 40,
+      "amountPattern": "[\\d,]+\\.\\d{2}",
+      "datePattern": "\\d{2}[-/]\\d{2}[-/]\\d{2,4}",
+      "currencyBeforePattern": "(?<!\\p{L})(?:rs\\.?|₹|inr)\\s*$",
+      "loneCodeDigits": 6,
+      "shortMessageWords": 12
+    }
+  },
   "tools": [
     {
       "key": "web",
@@ -59,7 +96,8 @@
       "label": "Change files anywhere in the workspace, every project",
       "labelInProject": "Change files in its project",
       "toolIds": ["write_file", "edit_file"],
-      "default": false
+      "default": false,
+      "writes": true
     }
   ],
   "ideas": [
@@ -110,6 +148,27 @@
       "minuteOfDay": 540,
       "days": [1, 2, 3, 4, 5, 6, 7],
       "tools": ["web"]
+    },
+    {
+      "icon": "payments",
+      "name": "Log bank texts",
+      "prompt": "A bank text just arrived. From it, take the date, the amount, the merchant and whether it was a debit or a credit, and append them as one CSV line (date,amount,merchant,debit or credit) to expenses.csv. If expenses.csv doesn't exist, create it first with the header date,amount,merchant,type. Never mention or log any code or one-time password.",
+      "trigger": {"type": "sms", "senders": [], "words": ["debited", "credited", "spent"], "senderRequired": true},
+      "tools": ["readFiles"]
+    },
+    {
+      "icon": "package_2",
+      "name": "What's arriving",
+      "prompt": "A text about a delivery just arrived. Tell me in one line what is arriving, from whom, and when.",
+      "trigger": {"type": "sms", "words": ["delivered", "out for delivery", "arriving", "shipped"]},
+      "tools": []
+    },
+    {
+      "icon": "battery_charging_full",
+      "name": "Plugged in at night",
+      "prompt": "Check the time. Only if it's after 9 PM, look at tomorrow's calendar and reminders and tell me, in three lines, the first events and reminders. If it's not after 9 PM, say nothing and stop.",
+      "trigger": {"type": "charging", "edge": "START"},
+      "tools": ["calendar", "clock"]
     }
   ]
 }

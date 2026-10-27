@@ -3,8 +3,8 @@ package app.whittle.agent
 import app.whittle.core.model.ContentBlock
 import app.whittle.core.model.Provenance
 
-/** Where output the user passes on comes from: a card's Ask to fix, or the screen when they call Whittle as their assistant. */
-enum class PastedKind { APP_CRASH, PROCESS_OUTPUT, PREVIEW_CONSOLE, SCREEN }
+/** Where output the user passes on comes from: a card's Ask to fix, the screen when they call Whittle as their assistant, or the phone events that started an automation. */
+enum class PastedKind { APP_CRASH, PROCESS_OUTPUT, PREVIEW_CONSOLE, SCREEN, PHONE_EVENT }
 
 /**
  * Output the user passes on with a card's Ask to fix, from the program called [name]: a built app's crash, a process's output or
@@ -18,8 +18,15 @@ fun pastedOutput(messages: AgentMessages, kind: PastedKind, name: String, text: 
         PastedKind.PROCESS_OUTPUT -> messages.diagnosticsFromProcess(name)
         PastedKind.PREVIEW_CONSOLE -> messages.diagnosticsFromPreview(name)
         PastedKind.SCREEN -> messages.diagnosticsFromScreen(name)
+        PastedKind.PHONE_EVENT -> messages.diagnosticsFromEvent(name)
     }
-    return ContentBlock.Text(messages.diagnosticsUntrusted(source, text.takeLast(maxChars)), provenance = Provenance.Untrusted(source))
+    // The phone's events are other people's texts and notifications: personal data, so a run that holds them can't
+    // read the web unasked once something has steered it.
+    return ContentBlock.Text(
+        messages.diagnosticsUntrusted(source, text.takeLast(maxChars)),
+        provenance = Provenance.Untrusted(source),
+        personalData = kind == PastedKind.PHONE_EVENT,
+    )
 }
 
 /**

@@ -62,11 +62,11 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
         val decision = presentation(toolId)?.decision ?: config.fallback.decision
             ?: error("tool-presentation.json must define fallback.decision")
         val fallback = config.fallback.decision ?: decision
-        val variables = variables(arguments, origin)
+        val variables = variables(arguments, origin, decision.argumentWords)
         return DecisionText(
             icon = decision.icon,
             title = fill(decision.title, variables, fallback.title),
-            body = (listOf(fill(decision.body, variables, fallback.body)) + flagNotes(decision, arguments)).filter { it.isNotBlank() }.joinToString(SENTENCE_GAP),
+            body = (listOf(fill(decision.body, variables, fallback.body)) + flagNotes(decision, arguments) + argumentNotes(decision, arguments, variables)).filter { it.isNotBlank() }.joinToString(SENTENCE_GAP),
             payload = decision.payloadArgument?.let { variables[it] } ?: if (decision === fallback) describe(arguments) else null,
             payloadLabel = decision.payloadLabelArgument?.let { variables[it] },
             approve = fill(decision.approve, variables, fallback.approve),
@@ -90,6 +90,14 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
     private fun flagNotes(decision: DecisionPresentation, arguments: JsonObject): List<String> =
         decision.flagNotes.filterKeys { (arguments[it] as? JsonPrimitive)?.booleanOrNull == true }.values.toList()
 
+    private fun argumentNotes(decision: DecisionPresentation, arguments: JsonObject, variables: Map<String, String>): List<String> =
+        decision.argumentNotes
+            .filterKeys { name ->
+                variables[name]?.isNotBlank() == true &&
+                    decision.argumentNotesWhen[name].orEmpty().all { (other, values) -> (arguments[other] as? JsonPrimitive)?.contentOrNull in values }
+            }
+            .values.map { fill(it, variables, "") }
+
     /** The card asking for [capabilityId], or null when config has none (the tool then just reports it). */
     private fun presentation(toolId: String): ToolPresentation? =
         config.tools[toolId] ?: config.toolPrefixes.entries.firstOrNull { toolId.startsWith(it.key) }?.value
@@ -104,10 +112,14 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
         arguments.entries.joinToString("\n") { (name, value) -> "$name: ${(value as? JsonPrimitive)?.contentOrNull ?: value}" }
             .ifEmpty { null }
 
-    private fun variables(arguments: JsonObject, origin: ToolOrigin?): Map<String, String> = buildMap {
+    private fun variables(
+        arguments: JsonObject,
+        origin: ToolOrigin?,
+        words: Map<String, Map<String, String>> = emptyMap(),
+    ): Map<String, String> = buildMap {
         arguments.forEach { (name, value) ->
             val text = (value as? JsonPrimitive)?.contentOrNull ?: return@forEach
-            put(name, text)
+            put(name, words[name]?.get(text) ?: text)
             hostOf(text)?.let { put("${name}$HOST_SUFFIX", it) }
             put("${name}$WHEN_SUFFIX", plainTime?.format(text) ?: text)
         }

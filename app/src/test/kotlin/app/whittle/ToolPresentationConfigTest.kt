@@ -11,8 +11,11 @@ import app.whittle.tools.api.ToolDefinition
 import app.whittle.tools.presentation.ToolPresentation
 import app.whittle.tools.presentation.ToolPresentationConfig
 import app.whittle.tools.presentation.ToolPresenter
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -50,6 +53,20 @@ class ToolPresentationConfigTest {
             val allowed = properties + properties.map { it + ToolPresenter.HOST_SUFFIX } + properties.map { it + ToolPresenter.WHEN_SUFFIX }
             val unknown = templates(presentation).flatMap { PromptTemplate(NAME, it).placeholders }.toSet() - allowed
             assertTrue(unknown.isEmpty(), "${tool.id.value} uses unknown placeholders $unknown")
+        }
+    }
+
+    @Test
+    fun `argument words name arguments the schema has and cover every value of an enum`() {
+        builtInTools.forEach { tool ->
+            val words = config.tools.getValue(tool.id.value).decision?.argumentWords.orEmpty()
+            val properties = tool.inputSchema["properties"]?.jsonObject.orEmpty()
+            words.forEach { (argument, byValue) ->
+                val schema = properties[argument]?.jsonObject
+                assertTrue(schema != null, "${tool.id.value} has no argument $argument")
+                val values = schema.getValue("enum").jsonArray.map { it.jsonPrimitive.content }.toSet()
+                assertEquals(values, byValue.keys, "${tool.id.value}.$argument words")
+            }
         }
     }
 

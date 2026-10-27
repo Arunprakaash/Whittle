@@ -18,8 +18,12 @@ class AndroidAutomationAlarms(private val context: Context) : AutomationAlarms {
     }
 
     override fun cancel(id: String) {
-        manager.cancel(pending(id, retry = false, scheduledForMillis = 0))
+        cancelNext(id)
         manager.cancel(pending(id, retry = true, scheduledForMillis = 0))
+    }
+
+    override fun cancelNext(id: String) {
+        manager.cancel(pending(id, retry = false, scheduledForMillis = 0))
     }
 
     /** The address tells the two alarms of one automation apart; extras don't count when Android matches them. */

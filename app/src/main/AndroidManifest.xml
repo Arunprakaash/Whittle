@@ -16,6 +16,14 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Automations: their alarms are set again after the phone restarts. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Automations that start on a text; asked when one is saved, or from Settings › On this phone. -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <!-- Automations that start at a place, and the name of the Wi-Fi network (Android hides it without location); asked
+         when one is saved, or from Settings › On this phone. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Installing the apps Whittle builds, only when the user taps Install on one; Android asks them to allow it first. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Remove on an app's card asks Android to uninstall it; without this, Android 9 refuses the request. -->
@@ -33,6 +41,8 @@
     <!-- Data from before Health was allowed, and reads by automations while Whittle is closed. -->
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
+    <!-- RECEIVE_SMS would otherwise make Play treat a phone with no telephony (tablets, Chromebooks) as unsupported. -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <!-- Android 11+ only shows the speech recognizer to apps that declare they use it. -->
     <queries>
@@ -152,6 +162,41 @@
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
         </receiver>
+        <!-- A text arrived: may start an automation. Exported because the system delivers it; BROADCAST_SMS means only
+             the system can send to it. Off until an automation on texts may run (EventSources), so no text starts
+             Whittle's process for nothing. -->
+        <receiver
+            android:name=".automations.events.SmsReceiver"
+            android:enabled="false"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+        <!-- Charging, Wi-Fi and place automations: the job runs on the charger and every few minutes to look at the phone;
+             the receivers are named by Whittle's own network callback and proximity alerts. Nothing is exported. -->
+        <service
+            android:name=".automations.events.PhoneStateJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+        <receiver
+            android:name=".automations.events.NetworkReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".automations.events.PlaceReceiver"
+            android:exported="false" />
+        <!-- An app's notification: may start an automation, once the user allows it in Android's settings. Only the system
+             binds it, and it unbinds itself while no automation watches an app (EventSources binds it again). -->
+        <service
+            android:name=".automations.events.WhittleNotificationListener"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
         <!-- Shows a reminder when its alarm goes off; only Whittle's own alarms reach it. -->
         <receiver
             android:name=".reminders.ReminderReceiver"

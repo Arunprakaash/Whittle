@@ -1,6 +1,12 @@
 package app.whittle.automations
 
+import app.whittle.agent.AgentMessages
+import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.core.common.EpochClock
+import app.whittle.core.common.Outcome
+import app.whittle.core.config.ConfigFiles
+import app.whittle.core.config.ConfigLoader
+import app.whittle.core.model.Provenance
 import app.whittle.core.common.IdGenerator
 import app.whittle.tools.api.ToolId
 import kotlinx.coroutines.test.TestScope
@@ -10,6 +16,7 @@ import java.time.ZoneId
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -23,10 +30,28 @@ class AutomationRunnerTest {
     private val chat = FakeChat()
     private var inForeground = false
     private var protections = 0
+    private lateinit var gate: EventGate
+    private val messages = assertIs<Outcome.Success<AgentMessages>>(
+        ConfigLoader(BundledConfigSource()).load(ConfigFiles.agentMessages, AgentMessages.serializer(), AgentMessages.SCHEMA_VERSION),
+    ).value
+
+    private suspend fun Automations.savedEvent(): Automation {
+        val draft = draft("Bank", "Log the spend").copy(schedule = null, trigger = Trigger.Sms(senders = listOf("HDFCBK")))
+        val result = assertIs<SaveResult.Saved>(save(draft))
+        alarms.set.clear()
+        return result.automation
+    }
+
+    private fun sms(text: String, at: Long = now) = PhoneEvent(EventKind.SMS, "HDFCBK", text, at)
 
     private fun TestScope.setUp(): Pair<Automations, AutomationRunner> {
         val automations = Automations(backend, alarms, testAutomationsConfig, EpochClock { now }, IdGenerator { "brief" }, { zone }, this)
-        val runner = AutomationRunner(automations, chat, EpochClock { now }, { inForeground }, { protections++ }, EmptyCoroutineContext)
+        val gate = EventGate(MemoryEventBackend(), testEventsConfig, CodeMask(testCodeMaskConfig), EpochClock { now }, { zone }, this)
+        this@AutomationRunnerTest.gate = gate
+        val runner = AutomationRunner(
+            automations, chat, EpochClock { now }, { inForeground }, { protections++ },
+            gate, messages, maxPastedChars = 8_000, zones = { zone }, main = EmptyCoroutineContext,
+        )
         return automations to runner
     }
 
@@ -56,6 +81,80 @@ class AutomationRunnerTest {
         chat.isRunning = true
         runner.due(automation.id, due)
         assertTrue(alarms.set.any { !it.retry && it.atMillis > due }, "the next day's alarm must be set")
+    }
+
+    private suspend fun Automations.savedEvery(minutes: Int): Automation {
+        val result = assertIs<SaveResult.Saved>(save(draft("Poll", "Check").copy(schedule = null, trigger = Trigger.Every(minutes))))
+        alarms.set.clear()
+        return result.automation
+    }
+
+    /** Fires the retry alarm the runner last set, as the system would, until it sets none; returns the times it fired. */
+    private suspend fun AutomationRunner.followRetries(id: String, slot: Long): List<Long> {
+        val fired = mutableListOf<Long>()
+        while (true) {
+            val retry = alarms.set.lastOrNull { it.retry } ?: return fired
+            alarms.set.removeAll { it.retry }
+            now = retry.atMillis
+            fired += now
+            due(id, retry.scheduledForMillis)
+            check(fired.size < 1_000) { "never gives up" }
+        }
+    }
+
+    @Test
+    fun `an interval that can't start retries only until its next slot, then notes the miss`() = runTest {
+        listOf(15, 60).forEach { minutes ->
+            now = due
+            alarms.set.clear()
+            val (automations, runner) = setUp()
+            val every = automations.savedEvery(minutes)
+            chat.hasModel = false
+            val slot = minutes * 60_000L
+            runner.due(every.id, due)
+            assertEquals(due + slot, alarms.set.single { !it.retry }.atMillis)
+            val retries = runner.followRetries(every.id, due)
+            assertTrue(retries.isNotEmpty())
+            assertTrue(retries.all { it < due + slot }, "$minutes min: a retry reached the next slot")
+            assertEquals(due, automations.all.value.single().missedAtMillis)
+            // Still one alarm for the next slot, which takes over.
+            assertEquals(due + slot, alarms.set.last { !it.retry }.atMillis)
+        }
+    }
+
+    @Test
+    fun `an interval's retry that starts late keeps the interval before the next run`() = runTest {
+        val (automations, runner) = setUp()
+        val every = automations.savedEvery(30)
+        chat.hasModel = false
+        runner.due(every.id, due)
+        chat.hasModel = true
+        alarms.set.clear()
+        now = due + 5 * 60_000L
+        runner.due(every.id, due)
+        assertEquals(1, chat.started.size)
+        assertEquals(now + 30 * 60_000L, alarms.set.last { !it.retry }.atMillis)
+    }
+
+    @Test
+    fun `a time automation still retries until the give up time`() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.saved()
+        chat.hasModel = false
+        runner.due(automation.id, due)
+        val retries = runner.followRetries(automation.id, due)
+        assertTrue(retries.last() >= due + testAutomationsConfig.giveUpAfterMillis - testAutomationsConfig.retryAfterMillis)
+        assertEquals(due, automations.all.value.single().missedAtMillis)
+    }
+
+    @Test
+    fun `an interval that starts sets one next alarm an interval after the run`() = runTest {
+        val (automations, runner) = setUp()
+        val every = automations.savedEvery(30)
+        runner.due(every.id, due)
+        assertEquals(1, chat.started.size)
+        assertEquals(due + 30 * 60_000L, alarms.set.single().atMillis)
+        assertTrue(alarms.set.none { it.retry })
     }
 
     @Test
@@ -138,5 +237,138 @@ class AutomationRunnerTest {
         chat.isRunning = true
         assertEquals(RunNowResult.BUSY, runner.runNow(automation.id))
         assertTrue(chat.started.isEmpty())
+    }
+
+    @Test
+    fun eventRunCarriesEventsAsUntrustedPaste() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.savedEvent()
+        gate.offer(automation.id, sms("Spent 250 at Cafe"))
+        runner.due(automation.id, now)
+        assertEquals("Log the spend", chat.started.single().first.prompt)
+        val block = chat.pasted.single().single()
+        assertIs<Provenance.Untrusted>(block.provenance)
+        assertTrue("Text from HDFCBK at 07:00: Spent 250 at Cafe" in block.text, block.text)
+        assertEquals(1, protections)
+        assertTrue(gate.pending().isEmpty())
+    }
+
+    private suspend fun Automations.savedWith(trigger: Trigger): Automation {
+        val result = assertIs<SaveResult.Saved>(save(draft("Watch", "React").copy(schedule = null, trigger = trigger)))
+        alarms.set.clear()
+        return result.automation
+    }
+
+    private suspend fun blockText(runner: AutomationRunner, id: String): String {
+        runner.due(id, now)
+        return chat.pasted.single().single().text
+    }
+
+    @Test
+    fun aChargingEventSaysPluggedInWithoutGapsOrAColon() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.savedWith(Trigger.Charging(Edge.START))
+        gate.offer(automation.id, PhoneEvent(EventKind.CHARGING, "", "", now, Edge.START))
+        val text = blockText(runner, automation.id)
+        assertTrue("\nPlugged in at 07:00\n" in text, text)
+        assertTrue("from the phone" in text, text)
+    }
+
+    @Test
+    fun aHiddenWifiNameIsSaidAndTheEdgeIsStated() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.savedWith(Trigger.Wifi(null, Edge.END))
+        gate.offer(automation.id, PhoneEvent(EventKind.WIFI, "", "", now, Edge.END))
+        val text = blockText(runner, automation.id)
+        assertTrue("\nLeft Wi-Fi network (name hidden by Android) at 07:00\n" in text, text)
+    }
+
+    @Test
+    fun aPlaceEventNamesTheEdgeAndThePlace() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.savedWith(Trigger.Place("Home", 12.0, 77.0, 200, Edge.START))
+        gate.offer(automation.id, PhoneEvent(EventKind.PLACE, "Home", "", now, Edge.START))
+        val text = blockText(runner, automation.id)
+        assertTrue("\nArrived at Home at 07:00\n" in text, text)
+        assertTrue("from Home" in text, text)
+    }
+
+    @Test
+    fun aNotificationShowsTheAppsNameNotItsPackage() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.savedWith(Trigger.Notification("com.whatsapp", "WhatsApp"))
+        gate.offer(automation.id, PhoneEvent(EventKind.NOTIFICATION, "com.whatsapp", "Hi", now, sourceLabel = "WhatsApp"))
+        val text = blockText(runner, automation.id)
+        assertTrue("Notification from WhatsApp at 07:00: Hi" in text, text)
+        assertFalse("com.whatsapp" in text, text)
+    }
+
+    @Test
+    fun eventRunThatCantStartPutsEventsBack() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.savedEvent()
+        gate.offer(automation.id, sms("one"))
+        chat.isRunning = true
+        runner.due(automation.id, now)
+        assertTrue(chat.started.isEmpty())
+        assertEquals(Alarm(automation.id, now + testAutomationsConfig.retryAfterMillis, now, retry = true), alarms.set.single { it.retry })
+        assertEquals(listOf("one"), gate.take(automation.id).map { it.text })
+    }
+
+    @Test
+    fun emptyQueueStartsNothing() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.savedEvent()
+        runner.due(automation.id, now)
+        assertTrue(chat.started.isEmpty())
+        assertEquals(0, protections)
+    }
+
+    @Test
+    fun eventsArrivingNowRunNowAndLaterOnesSetTheDrain() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.savedEvent()
+        gate.offer(automation.id, sms("first"))
+        runner.eventsArrived(automation.id)
+        assertEquals(1, chat.started.size)
+        gate.offer(automation.id, sms("second"))
+        runner.eventsArrived(automation.id)
+        assertEquals(1, chat.started.size)
+        val at = now + testEventsConfig.cooldownMillis
+        assertEquals(Alarm(automation.id, at, at, retry = true), alarms.set.last())
+    }
+
+    @Test
+    fun `an event run can't pre-approve a tool that writes, even one stored before that rule`() = runTest {
+        val (automations, runner) = setUp()
+        // Stored straight to the backend, as an automation saved before the rule would be; a save now refuses it.
+        val stored = automations.draft("Bank", "Log it").copy(
+            id = "bank", schedule = null, trigger = Trigger.Sms(senders = listOf("HDFCBK")), tools = setOf("calendar_events", "write_file"),
+        )
+        backend.stored = listOf(stored)
+        assertEquals(AutomationProblem.TOOL_NOT_ALLOWED, assertIs<SaveResult.Refused>(automations.save(stored)).problem)
+        gate.offer("bank", sms("Spent 10"))
+        runner.due("bank", now)
+        val (_, tools) = chat.started.single()
+        assertEquals(setOf(ToolId("calendar_events"), ToolId("update_plan")), tools)
+    }
+
+    @Test
+    fun `a time automation may still pre-approve the writing tool the user chose`() = runTest {
+        val (automations, runner) = setUp()
+        val saved = assertIs<SaveResult.Saved>(automations.save(automations.draft("Notes", "Tidy notes").copy(tools = setOf("write_file")))).automation
+        runner.due(saved.id, due)
+        assertTrue(ToolId("write_file") in chat.started.single().second)
+    }
+
+    @Test
+    fun `an event run's events are untrusted personal data`() = runTest {
+        val (automations, runner) = setUp()
+        val automation = automations.savedEvent()
+        gate.offer(automation.id, sms("Spent 10"))
+        runner.due(automation.id, now)
+        val block = chat.pasted.single().single()
+        assertIs<Provenance.Untrusted>(block.provenance)
+        assertTrue(block.personalData)
     }
 }
