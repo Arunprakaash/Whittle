@@ -34,12 +34,35 @@ class DeleteFilesToolTest {
 
     private companion object {
         const val NOT_DELETED = "won't be deleted"
+
+        /** The words as agent-messages.json has them, so the card lines below read as they will. */
+        val WORDS = DeleteFilesWords(
+            notDeleted = NOT_DELETED,
+            gap = "  ·  ",
+            noAccess = "Whittle can't see your files yet",
+            notAList = "paths must be a list of files, like [\"/sdcard/Download/a.jpg\"]",
+            notAPath = "every entry in paths must be a file path",
+            empty = "paths is empty",
+            tooMany = "at most 2 files per call, so the user can review them; split the list into several calls",
+            noApprovedList = "nothing was deleted: the user hasn't approved a list of files for this call; call delete_files again so they see it",
+            controlCharacter = "has a line break or control character in it",
+            outsideStorage = "must be a file in shared storage, like /sdcard/Download/a.jpg, with no ..",
+            missing = "doesn't exist",
+            unreadable = "can't be read",
+            link = "is a link, not a file",
+            folder = "is a folder; only files are deleted",
+            notRegular = "isn't a regular file",
+            throughLink = "goes through a link",
+            listedTwice = "is listed twice",
+            notOnCard = "wasn't on the list the user approved",
+            refusedByAndroid = "Android didn't let it be deleted",
+        )
     }
 
     private fun file(dir: File, path: String, bytes: Int = 10): File =
         File(dir, path).also { it.parentFile.mkdirs() }.apply { writeBytes(ByteArray(bytes)) }
 
-    private fun tool(maxPaths: Int = 10) = DeleteFilesTool(storage, DeleteFilesLimits(maxPaths, NOT_DELETED)) { scanned += it }
+    private fun tool(maxPaths: Int = 10) = DeleteFilesTool(storage, DeleteFilesLimits(maxPaths), WORDS) { scanned += it }
 
     private fun args(vararg paths: String) = JsonObject(mapOf("paths" to JsonArray(paths.map { JsonPrimitive(it) })))
 
@@ -163,7 +186,7 @@ class DeleteFilesToolTest {
         val notAList = JsonObject(mapOf("paths" to JsonPrimitive("a.jpg")))
 
         listOf(notStrings, notAList, JsonObject(emptyMap())).forEach { args ->
-            assertTrue(runBlocking { DeleteFilesTool(storage, DeleteFilesLimits(10, NOT_DELETED)) {}.execute(args, ctx.copy(approved = emptyList())) }.isError)
+            assertTrue(runBlocking { DeleteFilesTool(storage, DeleteFilesLimits(10), WORDS) {}.execute(args, ctx.copy(approved = emptyList())) }.isError)
         }
         assertTrue(File(root, "a.jpg").exists())
     }
@@ -183,7 +206,7 @@ class DeleteFilesToolTest {
         val none = object : SharedStorage {
             override fun root(): File? = null
         }
-        val out = runBlocking { DeleteFilesTool(none, DeleteFilesLimits(10, NOT_DELETED)) {}.execute(JsonObject(mapOf("paths" to JsonArray(listOf(JsonPrimitive("a.jpg"))))), ctx) }
+        val out = runBlocking { DeleteFilesTool(none, DeleteFilesLimits(10), WORDS) {}.execute(JsonObject(mapOf("paths" to JsonArray(listOf(JsonPrimitive("a.jpg"))))), ctx) }
         assertEquals(AndroidCapabilities.STORAGE, out.missingCapability)
     }
 

@@ -36,7 +36,7 @@ class SwitchedToolTest {
         reminders = PhoneActionsConfig.Reminders("r.bin", 1, 1),
         share = PhoneActionsConfig.Share("share", 1),
         health = PhoneActionsConfig.Health("health.app", "market://details?id={{package}}", defaultDays = 7, maxDays = 30, maxHourlyDays = 2, maxRecords = 10),
-        storage = PhoneActionsConfig.Storage(1, 1, 1, 1, 1, 1, "kept", listOf("image", "video", "audio", "document", "apk", "archive").associateWith { emptyList<String>() }),
+        storage = PhoneActionsConfig.Storage(1, 1, 1, 1, 1, 1, listOf("image", "video", "audio", "document", "apk", "archive").associateWith { emptyList<String>() }),
         switches = listOf(PhoneActionsConfig.Switch("alarms", "alarm", "Alarms and timers", emptyList(), listOf("set_alarm"))),
         offMessage = "{{feature}} is off",
     )

@@ -40,8 +40,35 @@ class DeviceMediaScan(private val context: Context) : MediaScan {
     override fun scan(paths: List<String>) = MediaScannerConnection.scanFile(context, paths.toTypedArray(), null, null)
 }
 
-/** What one delete_files call may take: at most [maxPaths] paths; [notDeleted] marks a refused path on the card. */
-data class DeleteFilesLimits(val maxPaths: Int, val notDeleted: String)
+/** What one delete_files call may take: at most [maxPaths] paths. */
+data class DeleteFilesLimits(val maxPaths: Int)
+
+/**
+ * What delete_files says, on its card and to the model (from agent-messages.json): [notDeleted] marks a file that won't
+ * go, [gap] sits between a file and its size or reason, [tooMany] is already filled with the limit, and the rest are
+ * reasons a call or a file is refused.
+ */
+data class DeleteFilesWords(
+    val notDeleted: String,
+    val gap: String,
+    val noAccess: String,
+    val notAList: String,
+    val notAPath: String,
+    val empty: String,
+    val tooMany: String,
+    val noApprovedList: String,
+    val controlCharacter: String,
+    val outsideStorage: String,
+    val missing: String,
+    val unreadable: String,
+    val link: String,
+    val folder: String,
+    val notRegular: String,
+    val throughLink: String,
+    val listedTwice: String,
+    val notOnCard: String,
+    val refusedByAndroid: String,
+)
 
 /**
  * Deletes files in shared storage for good. The policy engine asks before every call, and the card lists what [check]
@@ -53,28 +80,29 @@ data class DeleteFilesLimits(val maxPaths: Int, val notDeleted: String)
 class DeleteFilesTool(
     private val storage: SharedStorage,
     private val limits: DeleteFilesLimits,
+    private val words: DeleteFilesWords,
     private val mediaScan: MediaScan,
 ) : Tool {
     override val definition = DEFINITION
 
     override suspend fun preview(arguments: JsonObject): CallPreview = withContext(Dispatchers.IO) {
         val paths = when (val request = request(arguments)) {
-            is Request.Invalid -> return@withContext card(listOf(shown("${limits.notDeleted}: ${request.reason}")), emptyList())
+            is Request.Invalid -> return@withContext card(listOf(shown("${words.notDeleted}: ${request.reason}")), emptyList())
             is Request.Paths -> request.paths
         }
-        val root = storage.root() ?: return@withContext card(paths.map { refusedLine(it, NO_ACCESS) }, emptyList())
+        val root = storage.root() ?: return@withContext card(paths.map { refusedLine(it, words.noAccess) }, emptyList())
         val seen = mutableSetOf<File>()
         val checks = paths.map { path -> path to check(root, path, seen) }
         val lines = checks.map { (path, check) ->
             when (check) {
-                is Check.Ready -> shown("${displayPath(root, check.file)}$GAP${readableSize(check.bytes)}")
+                is Check.Ready -> shown("${displayPath(root, check.file)}${words.gap}${readableSize(check.bytes)}")
                 is Check.Refused -> refusedLine(path, check.reason)
             }
         }
         card(lines, checks.mapNotNull { it.second as? Check.Ready })
     }
 
-    private fun refusedLine(path: String, reason: String) = shown("$path$GAP${limits.notDeleted}: $reason")
+    private fun refusedLine(path: String, reason: String) = shown("$path${words.gap}${words.notDeleted}: $reason")
 
     /** The card's values, and the files an approval of it covers. With none, the card says nothing will be deleted. */
     private fun card(lines: List<String>, ready: List<Check.Ready>) = CallPreview(
@@ -91,7 +119,7 @@ class DeleteFilesTool(
         }
         // Only files the approved card listed as going may go; without that list, nothing does.
         val approved = context.approved?.toSet()
-            ?: return ToolJson.error("nothing was deleted: the user hasn't approved a list of files for this call; call delete_files again so they see it")
+            ?: return ToolJson.error(words.noApprovedList)
 
         val body = withContext(Dispatchers.IO) {
             val seen = mutableSetOf<File>()
@@ -99,9 +127,9 @@ class DeleteFilesTool(
                 when (val check = check(root, path, seen)) {
                     is Check.Refused -> Result(path, REFUSED, check.reason)
                     is Check.Ready -> when {
-                        check.file.path !in approved -> Result(path, REFUSED, "wasn't on the list the user approved")
+                        check.file.path !in approved -> Result(path, REFUSED, words.notOnCard)
                         check.file.delete() -> Result(path, DELETED, file = check.file, bytes = check.bytes)
-                        else -> Result(path, FAILED, "Android didn't let it be deleted")
+                        else -> Result(path, FAILED, words.refusedByAndroid)
                     }
                 }
             }
@@ -132,11 +160,11 @@ class DeleteFilesTool(
 
     /** Anything but a short list of strings would show differently on the card than it deletes, so nothing goes. */
     private fun request(arguments: JsonObject): Request {
-        val items = arguments[PATHS] as? JsonArray ?: return Request.Invalid("paths must be a list of files, like [\"/sdcard/Download/a.jpg\"]")
-        val paths = items.map { (it as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content ?: return Request.Invalid("every entry in paths must be a file path") }
+        val items = arguments[PATHS] as? JsonArray ?: return Request.Invalid(words.notAList)
+        val paths = items.map { (it as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content ?: return Request.Invalid(words.notAPath) }
         return when {
-            paths.isEmpty() -> Request.Invalid("paths is empty")
-            paths.size > limits.maxPaths -> Request.Invalid("at most ${limits.maxPaths} files per call, so the user can review them; split the list into several calls")
+            paths.isEmpty() -> Request.Invalid(words.empty)
+            paths.size > limits.maxPaths -> Request.Invalid(words.tooMany)
             else -> Request.Paths(paths)
         }
     }
@@ -152,31 +180,31 @@ class DeleteFilesTool(
     /** Whether [path] names a file that may be deleted; [seen] collects the files already taken in this call. */
     private fun check(root: File, path: String, seen: MutableSet<File>): Check {
         // A line break would make one name read as two files on the card.
-        if (path.any(Char::isISOControl)) return Check.Refused("has a line break or control character in it")
-        val literal = storagePath(root, path) ?: return Check.Refused("must be a file in shared storage, like /sdcard/Download/a.jpg, with no ..")
+        if (path.any(Char::isISOControl)) return Check.Refused(words.controlCharacter)
+        val literal = storagePath(root, path) ?: return Check.Refused(words.outsideStorage)
         // Not following links: a link to a file elsewhere must never delete that file.
         val attributes = try {
             Files.readAttributes(literal.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
         } catch (missing: NoSuchFileException) {
-            return Check.Refused("doesn't exist")
+            return Check.Refused(words.missing)
         } catch (unreadable: IOException) {
-            return Check.Refused("can't be read")
+            return Check.Refused(words.unreadable)
         }
         when {
-            attributes.isSymbolicLink -> return Check.Refused("is a link, not a file")
-            attributes.isDirectory -> return Check.Refused("is a folder; only files are deleted")
-            !attributes.isRegularFile -> return Check.Refused("isn't a regular file")
+            attributes.isSymbolicLink -> return Check.Refused(words.link)
+            attributes.isDirectory -> return Check.Refused(words.folder)
+            !attributes.isRegularFile -> return Check.Refused(words.notRegular)
         }
         // A linked folder on the way would delete a file the card never showed.
         val file = try {
             literal.canonicalFile
         } catch (unreadable: IOException) {
-            return Check.Refused("can't be read")
+            return Check.Refused(words.unreadable)
         } catch (denied: SecurityException) {
-            return Check.Refused("can't be read")
+            return Check.Refused(words.unreadable)
         }
-        if (!isInside(root, file) || file.toPath() != literal.toPath().normalize()) return Check.Refused("goes through a link")
-        if (!seen.add(file)) return Check.Refused("is listed twice")
+        if (!isInside(root, file) || file.toPath() != literal.toPath().normalize()) return Check.Refused(words.throughLink)
+        if (!seen.add(file)) return Check.Refused(words.listedTwice)
         return Check.Ready(file, attributes.size())
     }
 
@@ -190,8 +218,6 @@ class DeleteFilesTool(
         private const val REFUSED = "refused"
         private const val FAILED = "failed"
         private const val FREED_BYTES = "freedBytes"
-        private const val NO_ACCESS = "Whittle can't see your files yet"
-        private const val GAP = "  ·  "
 
         /** The card's placeholders this tool fills: one line per path, how many files will go, and their total size. */
         const val LISTING = "listing"
