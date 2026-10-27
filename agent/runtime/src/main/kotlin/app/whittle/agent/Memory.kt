@@ -67,6 +67,7 @@ class MemoryStore(
         return _all.value
     }
 
+    /** Saves [text] as a new fact; [HarnessError.Full] when there's no room, [HarnessError.Configuration] when it's empty or too long. */
     suspend fun remember(text: String): Outcome<Memory> = changes.withLock {
         val fact = when (val checked = checked(text)) {
             is Outcome.Failure -> return@withLock checked
@@ -74,7 +75,7 @@ class MemoryStore(
         }
         val current = current()
         current.firstOrNull { it.text.equals(fact, ignoreCase = true) }?.let { return@withLock Outcome.Success(it) }
-        if (current.size >= policy.maxItems) return@withLock refused(messages.memoryFull(policy.maxItems))
+        if (current.size >= policy.maxItems) return@withLock Outcome.Failure(HarnessError.Full(messages.memoryFull(policy.maxItems)))
         val memory = Memory(ids.newId().take(policy.idChars), fact, clock.nowMillis())
         save(current + memory).map { memory }
     }
@@ -132,13 +133,19 @@ class MemoryStore(
 /**
  * Saves a lasting fact about the user for future chats. It changes only the agent's own data; once a task has
  * read outside content, policy asks the user first (memory-after-outside-content-confirms), so a web page can't
- * plant a memory.
+ * plant a memory. [declined] says whether the user already turned this exact fact down (a dismissed suggestion); then
+ * nothing is saved and the model is told so. Only this tool asks: the user's own additions aren't blocked.
  */
-class RememberTool(private val memory: MemoryStore, private val messages: AgentMessages) : Tool {
+class RememberTool(
+    private val memory: MemoryStore,
+    private val messages: AgentMessages,
+    private val declined: suspend (String) -> Boolean = { false },
+) : Tool {
     override val definition = DEFINITION
 
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
         val text = (arguments[TEXT] as? JsonPrimitive)?.contentOrNull.orEmpty()
+        if (declined(text)) return ToolOutput(messages.memoryDeclined, isError = true, provenance = Provenance.Trusted)
         return when (val saved = memory.remember(text)) {
             is Outcome.Success -> ToolOutput(messages.memorySaved(saved.value.id), isError = false, provenance = Provenance.Trusted)
             is Outcome.Failure -> ToolOutput(saved.error.message, isError = true, provenance = Provenance.Trusted)

@@ -121,11 +121,7 @@ fun SettingsScreen(host: SettingsHost, platform: SettingsPlatform, navigation: S
                         SettingsRow(
                             icon = "bookmarks",
                             title = stringResource(Res.string.memory_heading),
-                            subtitle = if (state.memories == 0) {
-                                stringResource(Res.string.memory_none)
-                            } else {
-                                pluralStringResource(Res.plurals.memory_count, state.memories, state.memories)
-                            },
+                            subtitle = memorySubtitle(state.memories, state.suggestedMemories),
                             shape = segmentedShape(1, 3),
                             onClick = navigation.memory,
                             trailing = chevron.takeIf { navigation.memory != null },
@@ -312,6 +308,15 @@ private fun versionLine(version: String, update: UpdateStatus): String = when (v
  * When the update check last heard from GitHub, in plain words: "Checked 3 hours ago", "Checked yesterday". A check that
  * got no answer says so only while there's no earlier answer to show.
  */
+/** The Memory row's state: how many things it remembers ("Empty" when none), and how many suggestions wait to be kept. */
+@Composable
+private fun memorySubtitle(memories: Int, suggested: Int): String {
+    val remembered = if (memories == 0) stringResource(Res.string.memory_none) else pluralStringResource(Res.plurals.memory_count, memories, memories)
+    if (suggested == 0) return remembered
+    val waiting = pluralStringResource(Res.plurals.memory_suggested_count, suggested, suggested)
+    return if (memories == 0) waiting else stringResource(Res.string.memory_count_and_suggested, remembered, waiting)
+}
+
 @Composable
 private fun lastChecked(answeredAtMillis: Long?, lastFailed: Boolean): String {
     answeredAtMillis ?: return stringResource(if (lastFailed) Res.string.settings_updates_failed else Res.string.settings_updates_not_yet)

@@ -55,7 +55,7 @@ sealed interface ToPhone {
     @SerialName("linux")
     data class Linux(val action: LinuxAction) : ToPhone
 
-    /** A change on the Memory page: forgetting one, or everything. */
+    /** A change on the Memory page: forgetting one or everything, dismissing a suggestion, or turning suggestions off. */
     @Serializable
     @SerialName("memory")
     data class Memory(val action: MemoryAction) : ToPhone
@@ -199,10 +199,10 @@ sealed interface Question {
     @SerialName("run_automation")
     data class RunAutomation(val id: String) : Question
 
-    /** Saves [text] as a new memory, or in place of the one with [id]. */
+    /** Saves [text] as a new memory, or in place of the one with [id]; with [suggestion], keeps that suggestion in these words. */
     @Serializable
     @SerialName("save_memory")
-    data class SaveMemory(val id: String?, val text: String) : Question
+    data class SaveMemory(val id: String?, val text: String, val suggestion: String? = null) : Question
 }
 
 @Serializable

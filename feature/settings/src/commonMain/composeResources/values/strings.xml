@@ -38,8 +38,13 @@
         <item quantity="one">%1$d thing</item>
         <item quantity="other">%1$d things</item>
     </plurals>
+    <string name="memory_count_and_suggested">%1$s · %2$s</string>
     <string name="memory_heading">Memory</string>
     <string name="memory_none">Empty</string>
+    <plurals name="memory_suggested_count">
+        <item quantity="one">%1$d suggested</item>
+        <item quantity="other">%1$d suggested</item>
+    </plurals>
     <string name="settings_assistant_off">Off</string>
     <string name="settings_assistant_on">On · hold power or home</string>
     <string name="settings_assistant_title">Phone assistant</string>
@@ -239,6 +244,17 @@
     <string name="memory_save_failed">Couldn't save it. Try again.</string>
     <string name="memory_saved_at">Saved %1$s</string>
     <string name="memory_saved_note">Whittle reads it at the start of every chat</string>
+    <string name="memory_keep_failed">Couldn't keep it. Try again.</string>
+    <string name="memory_keep_gone">That suggestion is gone.</string>
+    <string name="memory_keep_too_long">That is too long to remember. Edit it to make it shorter.</string>
+    <string name="memory_suggest_note">One small call on your key per quiet chat</string>
+    <string name="memory_suggest_title">Suggest memories after chats</string>
+    <string name="memory_suggested">Suggested</string>
+    <string name="memory_suggested_dismiss">Dismiss</string>
+    <string name="memory_suggested_edit">Edit</string>
+    <string name="memory_suggested_keep">Keep</string>
+    <string name="memory_suggested_note">Not remembered until you keep them</string>
+    <string name="memory_suggested_replaces">Replaces “%1$s”</string>
     <string name="memory_today">Today</string>
     <plurals name="memory_used">
         <item quantity="one">%1$d of %2$d used</item>

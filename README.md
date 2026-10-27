@@ -71,6 +71,10 @@ terminal (`dev:cli`).
 - **Memory.** `MemoryStore` owns the limits, ids and the `remember` / `forget` tools, and fills
   `{{memories}}` in the system prompt. The host only supplies storage: an encrypted file on the phone, a
   JSON file in the CLI.
+  On the phone, once the user turns on Settings › Memory › Suggest memories after chats, a quiet review after a
+  chat goes idle proposes facts: one small model call on the user's key, to the cheaper model `app-defaults.json`
+  names for their provider, with only what they said since the last review. They wait under Suggested in Settings › Memory
+  and become memories only when the user keeps them; the Memory row counts them, never a notification.
 
 ### Policy is code, not the model
 

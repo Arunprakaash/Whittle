@@ -218,13 +218,13 @@ class WhittleApplication : Application() {
     private inner class VisibilityTracker : ActivityLifecycleCallbacks {
         override fun onActivityStarted(activity: Activity) {
             if (activity is ApprovalActivity) return
-            visibleActivities++
+            if (visibleActivities++ == 0) chat.appReturned()
             notifications.clearUpdates()
         }
 
         override fun onActivityStopped(activity: Activity) {
             if (activity is ApprovalActivity) return
-            visibleActivities--
+            if (--visibleActivities == 0) chat.appLeft()
         }
 
         override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit

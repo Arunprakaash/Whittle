@@ -133,3 +133,4 @@ storefront
 mobile_screen_share
 assistant
 computer
+lightbulb

@@ -186,14 +186,15 @@ class ChatSession(
         images: List<ContentBlock.ImageFile>,
         attachments: List<Attachment>,
         pasted: List<ContentBlock.Text>,
+        shared: Boolean = false,
     ) {
         val running = activeRunId
         if (activeJob?.isActive == true && running != null) {
             graph.inbox.submit(running, RunInput.Steer(forModel, images, pasted))
-            append(ThreadItem.User(key(), text, steer = true, attachments = attachments))
+            append(ThreadItem.User(key(), text, steer = true, attachments = attachments, shared = shared))
             return
         }
-        start(text, model, RunMode.LIVE, preApprovedTools = emptySet(), forModel = forModel, images = images, attachments = attachments, pasted = pasted)
+        start(text, model, RunMode.LIVE, preApprovedTools = emptySet(), forModel = forModel, images = images, attachments = attachments, pasted = pasted, shared = shared)
     }
 
     /**
@@ -209,11 +210,12 @@ class ChatSession(
         images: List<ContentBlock.ImageFile> = emptyList(),
         attachments: List<Attachment> = emptyList(),
         pasted: List<ContentBlock.Text> = emptyList(),
+        shared: Boolean = false,
     ) {
         val runId = RunId(graph.idGenerator.newId())
         val chat = ensureId()
         runIds = runIds + runId
-        append(ThreadItem.User(key(), text, steer = false, attachments = attachments))
+        append(ThreadItem.User(key(), text, steer = false, attachments = attachments, shared = shared))
         val request = RunRequest(
             runId = runId,
             model = model,
@@ -251,7 +253,7 @@ class ChatSession(
         if (item.answer != null) return
         replace(item.key) { (it as ThreadItem.Question).copy(answer = choice) }
         // The pick is the user's reply: it reads as their message, and what the agent does next follows it.
-        append(ThreadItem.User(key(), choice, steer = activeJob?.isActive == true))
+        append(cardPick(key(), choice, steer = activeJob?.isActive == true))
         submit(item.runId, RunInput.Answer(item.toolCallId, choice))
     }
 
@@ -862,3 +864,6 @@ class ChatSession(
         const val TOO_MANY_REQUESTS = 429
     }
 }
+
+/** The option picked on a question card, as the user's reply in the thread; marked, since the model wrote its words. */
+internal fun cardPick(key: String, choice: String, steer: Boolean) = ThreadItem.User(key, choice, steer, fromCard = true)

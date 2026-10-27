@@ -14,6 +14,10 @@ import app.whittle.attachments.AttachmentImporter
 import app.whittle.attachments.WorkspaceImages
 import app.whittle.settings.AttachmentDefaults
 import app.whittle.memory.EncryptedFileMemory
+import app.whittle.memory.EncryptedFileSuggestions
+import app.whittle.memory.MemoryReview
+import app.whittle.memory.MemorySuggestions
+import app.whittle.storage.chats.ChatId
 import app.whittle.tools.workspace.WorkspaceOutputs
 import app.whittle.settings.MemoryIdea
 import app.whittle.settings.Starter
@@ -55,6 +59,7 @@ import android.system.Os
 import android.system.OsConstants
 import app.whittle.agent.AgentMessages
 import app.whittle.agent.AgentRunner
+import app.whittle.agent.OneShot
 import app.whittle.agent.RunInbox
 import app.whittle.automations.AndroidAutomationAlarms
 import app.whittle.automations.Automations
@@ -152,6 +157,7 @@ class AppGraph(context: Context) {
     private val policyRules = load(ConfigFiles.policyRules, PolicyRuleSet.serializer(), PolicyRuleSet.SCHEMA_VERSION)
     val sidebarMaxChats: Int get() = appDefaults.chatList.sidebarMaxChats
     val memoryIdeas: List<MemoryIdea> get() = appDefaults.memory.ideas
+    val memoryQuietMillis: Long get() = appDefaults.memory.review.quietMillis
     val starters: List<Starter> get() = appDefaults.starters
     val appIdeas: List<AppIdea> get() = appDefaults.appIdeas
     val assistantDefaults: AssistantDefaults get() = appDefaults.assistant
@@ -183,6 +189,7 @@ class AppGraph(context: Context) {
             keepRunningInBackground = appDefaults.background.keepRunning,
             themeMode = appDefaults.appearance.theme,
             checkForUpdates = appDefaults.updates.check,
+            suggestMemories = appDefaults.memory.review.suggest,
         ),
     )
 
@@ -370,6 +377,17 @@ class AppGraph(context: Context) {
         appScope,
     )
 
+    /** Facts the memory review proposed, kept (encrypted) until the user keeps or dismisses each. */
+    val memorySuggestions = MemorySuggestions(
+        EncryptedFileSuggestions(File(context.filesDir, appDefaults.memory.review.fileName), cipher),
+        memory,
+        appDefaults.memory.review,
+        clock,
+        idGenerator,
+        appScope,
+        chatExists = { id -> chats.load(ChatId(id)).getOrNull() != null },
+    )
+
     /** Tasks Whittle runs by itself on a schedule, each with an alarm for its next run. */
     val automations = Automations(
         backend = EncryptedFileAutomations(File(context.filesDir, appDefaults.storage.automationsFileName), cipher),
@@ -402,7 +420,7 @@ class AppGraph(context: Context) {
     val tools = appTools(context).let { (createApp, buildApp) ->
         ToolRegistry(
             ToolCatalog.create(
-                context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, agentMessages, scheduleTask(),
+                context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, memorySuggestions::wasDismissed, agentMessages, scheduleTask(),
                 PhoneTools(phoneActions, reminders, workspaces, healthConnect) { id -> currentSettings.value?.phoneOff?.contains(id) != true },
                 createApp,
                 buildApp,
@@ -447,10 +465,13 @@ class AppGraph(context: Context) {
         )
     }
 
+    private val modelAdapters = ModelAdapterRegistry(setOf(OpenAiCompatibleAdapter(httpClient, idGenerator), OpenAiResponsesAdapter(httpClient), AnthropicMessagesAdapter()))
+    private val modelCredentials = SecretStoreCredentialsProvider(secrets)
+
     val runner = AgentRunner(
-        adapters = ModelAdapterRegistry(setOf(OpenAiCompatibleAdapter(httpClient, idGenerator), OpenAiResponsesAdapter(httpClient), AnthropicMessagesAdapter())),
+        adapters = modelAdapters,
         providers = providers,
-        credentials = SecretStoreCredentialsProvider(secrets),
+        credentials = modelCredentials,
         tools = tools,
         policy = RuleBasedPolicyEngine(policyRules),
         inbox = inbox,
@@ -463,6 +484,20 @@ class AppGraph(context: Context) {
         outputs = WorkspaceOutputs(workspaces, harness.agent.toolOutput.directory)::save,
         memory = memory,
         images = images,
+    )
+
+    /** One model call outside a run, for the memory review. */
+    val oneShot = OneShot(modelAdapters, providers, modelCredentials)
+
+    /** Proposes memories from the user's own words after a chat. Off when the user turns off Suggest memories after chats. */
+    val memoryReview = MemoryReview(
+        oneShot,
+        memorySuggestions,
+        memory,
+        PromptTemplate.load(configSource, ConfigFiles.memoryReviewPrompt).orThrow(ConfigFiles.memoryReviewPrompt),
+        PromptTemplate.load(configSource, ConfigFiles.memoryReviewInput).orThrow(ConfigFiles.memoryReviewInput),
+        appDefaults.memory.review,
+        settings = { currentSettings.value?.suggestMemories ?: appDefaults.memory.review.suggest },
     )
 
     /** schedule_task: an automation takes the chat's project unless the model names another that exists. */

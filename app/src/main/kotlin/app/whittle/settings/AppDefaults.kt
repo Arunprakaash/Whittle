@@ -207,9 +207,44 @@ data class MemoryDefaults(
     val fileName: String,
     /** Kinds of thing to remember, offered while there are none; each opens the editor started for it. */
     val ideas: List<MemoryIdea> = emptyList(),
+    val review: MemoryReviewDefaults,
 ) {
     init {
         require(fileName.isNotBlank()) { "memory.fileName must be set" }
+    }
+}
+
+/**
+ * The memory review: after a chat goes quiet for [quietMillis], one model call reads what the user said since the last
+ * review (at most [maxInputChars], newest kept) after up to [contextChars] of what they said before it, for context,
+ * and proposes up to [maxSuggestions] facts (answering in at most [maxOutputTokens]); they wait in [fileName]
+ * (encrypted) for the user. It runs only once the user turns it on, unless [suggest] says it starts on. The call goes to
+ * the cheaper model [models] names for the chosen model's provider (provider id to model id), or to the chosen model
+ * when there's none. What's remembered about past reviews is capped so it can't grow forever: the last [maxDismissed] texts
+ * the user dismissed and the last [maxReviewedChats] chats reviewed. The newest [maxDeclinedInInput] dismissed texts
+ * go back to the model with each review so it doesn't propose them again in other words.
+ */
+@Serializable
+data class MemoryReviewDefaults(
+    val fileName: String,
+    val suggest: Boolean,
+    val models: Map<String, String>,
+    val quietMillis: Long,
+    val maxSuggestions: Int,
+    val maxInputChars: Int,
+    val contextChars: Int,
+    val maxOutputTokens: Int,
+    val maxDismissed: Int,
+    val maxDeclinedInInput: Int,
+    val maxReviewedChats: Int,
+) {
+    init {
+        require(fileName.isNotBlank()) { "memory.review.fileName must be set" }
+        require(models.all { (provider, model) -> provider.isNotBlank() && model.isNotBlank() }) { "memory.review.models names a provider and a model each" }
+        require(contextChars >= 0) { "memory.review.contextChars can't be negative" }
+        require(quietMillis > 0 && maxSuggestions > 0 && maxInputChars > 0 && maxOutputTokens > 0 && maxDismissed > 0 && maxDeclinedInInput > 0 && maxReviewedChats > 0) {
+            "memory.review limits must be positive"
+        }
     }
 }
 

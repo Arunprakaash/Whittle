@@ -49,10 +49,10 @@ import kotlinx.coroutines.launch
 class PhoneSettingsHost(private val graph: AppGraph, private val chat: ChatViewModel) : SettingsHost {
     override val state: StateFlow<SettingsState> = combine(
         combine(graph.currentSettings, graph.connections.model, ::Pair),
-        combine(graph.linux.state, graph.memory.all, graph.automations.all, ::Triple),
+        combine(graph.linux.state, combine(graph.memory.all, graph.memorySuggestions.pending, ::Pair), graph.automations.all, ::Triple),
         combine(graph.updates.available, graph.updates.answeredAt, graph.updates.lastFailed, ::Triple),
         graph.selfUpdate.state,
-    ) { (settings, model), (linux, memories, automations), (release, answeredAt, lastFailed), updating ->
+    ) { (settings, model), (linux, memoryLists, automations), (release, answeredAt, lastFailed), updating ->
         SettingsState(
             loaded = settings != null,
             model = model?.displayName,
@@ -60,7 +60,8 @@ class PhoneSettingsHost(private val graph: AppGraph, private val chat: ChatViewM
                 kind = kindOf(linux),
                 imageName = graph.linux.image?.name.orEmpty(),
             ),
-            memories = memories.size,
+            memories = memoryLists.first.size,
+            suggestedMemories = memoryLists.second.size,
             automationsOn = automations.count { it.enabled },
             themeMode = settings?.themeMode ?: graph.defaultAppearance.themeMode,
             wallpaperColors = settings?.wallpaperColors == true,

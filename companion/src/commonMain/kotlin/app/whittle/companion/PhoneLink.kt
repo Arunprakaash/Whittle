@@ -160,7 +160,7 @@ class PhoneLink(private val scope: CoroutineScope) : ChatHost {
             outgoing.trySend(ToPhone.Memory(action))
         }
 
-        override suspend fun save(id: String?, text: String): MemoryIssue? = when (val answer = ask(Question.SaveMemory(id, text))) {
+        override suspend fun save(id: String?, text: String, suggestion: String?): MemoryIssue? = when (val answer = ask(Question.SaveMemory(id, text, suggestion))) {
             is Answer.MemorySaved -> answer.issue
             else -> MemoryIssue.Failed
         }

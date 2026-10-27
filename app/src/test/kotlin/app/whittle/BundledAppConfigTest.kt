@@ -7,6 +7,9 @@ import app.whittle.linux.ComputerAccessConfig
 import app.whittle.claudecode.ClaudeCodeConfig
 import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.llm.api.HostedTool
+import app.whittle.llm.api.ProviderCatalog
+import app.whittle.core.model.ModelId
+import app.whittle.core.model.ProviderId
 import app.whittle.tools.api.RiskTier
 import app.whittle.connectors.matches
 import app.whittle.connectors.mcp.ConnectorsConfig
@@ -112,6 +115,21 @@ class BundledAppConfigTest {
         val missingIcons = ideas.map { it.icon }.toSet() - WhittleIcons.names
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
         assertTrue(ideas.all { it.title.isNotBlank() && it.start.isNotBlank() })
+    }
+
+    @Test
+    fun `memory review is off until the user turns it on, and its cheaper models are on providers with a key`() {
+        val defaults = assertIs<Outcome.Success<AppDefaults>>(loader.load(AppDefaults.FILE, AppDefaults.serializer(), AppDefaults.SCHEMA_VERSION)).value
+        val review = defaults.memory.review
+        assertFalse(review.suggest)
+        assertTrue(review.contextChars in 1 until review.maxInputChars)
+        val providers = assertIs<Outcome.Success<ProviderCatalog>>(loader.load(ConfigFiles.providerCatalog, ProviderCatalog.serializer(), ProviderCatalog.SCHEMA_VERSION)).value
+        val claudeCode = assertIs<Outcome.Success<ClaudeCodeConfig>>(loader.load(ClaudeCodeConfig.FILE, ClaudeCodeConfig.serializer(), ClaudeCodeConfig.SCHEMA_VERSION)).value
+        assertFalse(claudeCode.providerId in review.models, "Claude Code has no API key to call a review model with")
+        review.models.forEach { (provider, model) ->
+            val listed = assertNotNull(providers.find(ProviderId(provider)), "memory.review.models names $provider, which isn't in the provider catalog")
+            assertTrue(listed.lists(ModelId(model)), "$model isn't a model $provider lists")
+        }
     }
 
     @Test
