@@ -16,10 +16,10 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Automations: their alarms are set again after the phone restarts. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <!-- Automations that start on a text; asked in the walkthrough when the user picks that trigger. -->
+    <!-- Automations that start on a text; asked when one is saved, or from Settings › On this phone. -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <!-- Automations that start at a place, and the name of the Wi-Fi network (Android hides it without location); asked
-         in the walkthrough when the user picks one of those triggers. -->
+         when one is saved, or from Settings › On this phone. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
@@ -163,9 +163,11 @@
             </intent-filter>
         </receiver>
         <!-- A text arrived: may start an automation. Exported because the system delivers it; BROADCAST_SMS means only
-             the system can send to it. -->
+             the system can send to it. Off until an automation on texts may run (EventSources), so no text starts
+             Whittle's process for nothing. -->
         <receiver
             android:name=".automations.events.SmsReceiver"
+            android:enabled="false"
             android:exported="true"
             android:permission="android.permission.BROADCAST_SMS">
             <intent-filter>
@@ -184,7 +186,8 @@
         <receiver
             android:name=".automations.events.PlaceReceiver"
             android:exported="false" />
-        <!-- An app's notification: may start an automation, once the user allows it in Android's settings. Only the system binds it. -->
+        <!-- An app's notification: may start an automation, once the user allows it in Android's settings. Only the system
+             binds it, and it unbinds itself while no automation watches an app (EventSources binds it again). -->
         <service
             android:name=".automations.events.WhittleNotificationListener"
             android:exported="true"

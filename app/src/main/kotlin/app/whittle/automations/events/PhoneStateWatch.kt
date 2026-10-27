@@ -1,14 +1,11 @@
 package app.whittle.automations.events
 
+import app.whittle.automations.Automation
 import app.whittle.automations.Automations
 import app.whittle.automations.EventsConfig
 import app.whittle.automations.PhoneEvent
+import app.whittle.automations.Trigger
 import app.whittle.core.common.EpochClock
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -42,6 +39,7 @@ interface PhoneScheduler {
  * Watches charging, Wi-Fi and places for the automations that start on them. Android wakes it (a job, a network
  * callback, a proximity alert); each wake calls [check], which diffs the phone against what it last saw and
  * hands the edges to [dispatch]. The first look after a source starts being watched only records where things stand.
+ * A trigger counts only while [allows] it: what it needs is granted and its switch in Settings is on.
  */
 class PhoneStateWatch(
     private val automations: Automations,
@@ -51,16 +49,11 @@ class PhoneStateWatch(
     private val store: PhoneStateStore,
     private val scheduler: PhoneScheduler,
     private val clock: EpochClock,
+    private val allows: (Trigger) -> Boolean = { true },
 ) {
     private val lock = Mutex()
 
-    /** Arms again whenever the enabled automations' charging, Wi-Fi or place triggers change; once loaded, from then on. */
-    fun start(scope: CoroutineScope): Job = scope.launch {
-        automations.loadedAll()
-        automations.all.map { needsOf(enabledTriggers(it)) }.distinctUntilChanged().collect { arm(it) }
-    }
-
-    /** Arms what the saved automations need, for a wake in a fresh process that [start] hasn't reached. */
+    /** Arms what the saved automations need: when they or what the phone allows change, and on a wake in a fresh process. */
     suspend fun arm() = arm(needs())
 
     private suspend fun arm(needs: PhoneNeeds) = lock.withLock {
@@ -107,7 +100,7 @@ class PhoneStateWatch(
 
     private suspend fun needs(): PhoneNeeds = needsOf(enabledTriggers(automations.loadedAll()))
 
-    private fun enabledTriggers(all: List<app.whittle.automations.Automation>) = all.filter { it.enabled && it.isEvent }.mapNotNull { it.trigger }
+    private fun enabledTriggers(all: List<Automation>) = all.filter { it.enabled && it.isEvent }.mapNotNull { it.trigger }.filter(allows)
 
     /** Charging and Wi-Fi are cheap, so both are always read; a location is read only when polling is on and a place needs it. */
     private suspend fun read(before: PhoneState?, needs: PhoneNeeds): PhoneState {

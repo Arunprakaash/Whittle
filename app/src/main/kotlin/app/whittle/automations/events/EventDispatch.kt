@@ -15,13 +15,17 @@ import app.whittle.automations.matches
 class EventDispatch(
     private val automations: Automations,
     private val gate: EventGate,
+    /** Whether a trigger may run: what it needs is granted and its switch in Settings is on. */
+    private val allows: (Trigger) -> Boolean,
     private val eventsArrived: suspend (String) -> Unit,
 ) {
     suspend fun dispatch(event: PhoneEvent) {
         for (automation in automations.loadedAll()) {
-            if (!automation.enabled || !automation.isEvent || automation.trigger?.matches(event) != true) continue
+            val trigger = automation.trigger
+            if (!automation.enabled || !automation.isEvent || trigger == null || !allows(trigger)) continue
+            if (!trigger.matches(event, automations.config.events.senderSuffixDigits)) continue
             // The trigger knows the app by the name the user picked it by; the event only has its package.
-            val named = (automation.trigger as? Trigger.Notification)?.let { event.copy(sourceLabel = it.appLabel) } ?: event
+            val named = (trigger as? Trigger.Notification)?.let { event.copy(sourceLabel = it.appLabel) } ?: event
             if (gate.offer(automation.id, named) is GateDecision.RunAt) eventsArrived(automation.id)
         }
     }

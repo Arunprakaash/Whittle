@@ -20,14 +20,15 @@ import android.os.BatteryManager
 import android.os.Build
 import app.whittle.automations.EventsConfig
 import app.whittle.automations.Trigger
+import app.whittle.core.common.ContentCipher
+import app.whittle.storage.EncryptedListFile
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.json.Json
 import java.io.File
 import kotlin.coroutines.resume
 
 /** Reads the phone with Android's own services. A source whose permission isn't granted reads as unknown. */
-class AndroidPhoneReader(private val context: Context) : PhoneReader {
+class AndroidPhoneReader(private val context: Context, private val config: EventsConfig) : PhoneReader {
     override fun charging(): Boolean? {
         // The sticky broadcast is the current state; no receiver is registered.
         val battery = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) ?: return null
@@ -55,7 +56,7 @@ class AndroidPhoneReader(private val context: Context) : PhoneReader {
         val manager = context.getSystemService(LocationManager::class.java) ?: return null
         return try {
             val fix = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                withTimeoutOrNull(LOCATION_TIMEOUT_MILLIS) {
+                withTimeoutOrNull(config.locationTimeoutMillis) {
                     suspendCancellableCoroutine<Location?> { done ->
                         manager.getCurrentLocation(LocationManager.NETWORK_PROVIDER, null, { it.run() }) { done.resume(it) }
                     }
@@ -86,10 +87,6 @@ class AndroidPhoneReader(private val context: Context) : PhoneReader {
     }
 
     private fun granted(permission: String) = context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
-
-    private companion object {
-        const val LOCATION_TIMEOUT_MILLIS = 30_000L
-    }
 }
 
 /** Null when not on Wi-Fi; the network's name, or "" when on one whose name Android hides (no location permission). */
@@ -101,22 +98,29 @@ fun wifiName(ssid: String?): String? {
     return if (name.isNullOrEmpty() || name == "<unknown ssid>") null else name
 }
 
-/** The last [PhoneState] as a small JSON file in the app's files folder. */
-class FilePhoneStateStore(private val file: File) : PhoneStateStore {
-    private val json = Json { ignoreUnknownKeys = true }
+/**
+ * The last [PhoneState] in one encrypted file, like the event queue: it holds place names and the Wi-Fi network's name,
+ * which say where the user lives and goes. A save that fails leaves the old state, so the next look may repeat an edge.
+ */
+class EncryptedPhoneStateStore(file: File, cipher: ContentCipher) : PhoneStateStore {
+    private val store = EncryptedListFile(file, cipher, PhoneState.serializer(), ASSOCIATED_DATA, LABEL)
 
-    override suspend fun load(): PhoneState? =
-        runCatching { json.decodeFromString(PhoneState.serializer(), file.readText()) }.getOrNull()
+    override suspend fun load(): PhoneState? = store.load().firstOrNull()
 
     override suspend fun save(state: PhoneState?) {
-        if (state == null) file.delete() else file.writeText(json.encodeToString(PhoneState.serializer(), state))
+        store.save(listOfNotNull(state))
+    }
+
+    private companion object {
+        val ASSOCIATED_DATA = "whittle-phone-state".encodeToByteArray()
+        const val LABEL = "phone state"
     }
 }
 
 /**
  * Arms Android to wake Whittle only for what is needed: a job that waits for the charger, a network callback for
- * Wi-Fi, a proximity alert per place, and one periodic job that catches every leaving and anything missed. A source
- * whose permission isn't granted is skipped.
+ * Wi-Fi, a proximity alert per place, and a periodic job only while an edge needs one ([PhoneNeeds.needsPeriodicLook]).
+ * A source whose permission isn't granted is skipped.
  */
 class AndroidPhoneScheduler(
     private val context: Context,
@@ -129,7 +133,7 @@ class AndroidPhoneScheduler(
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     override fun arm(needs: PhoneNeeds) {
-        periodic(needs.any)
+        periodic(needs.needsPeriodicLook(reader.charging(), config.placePolling))
         chargingJob(needs.charging)
         wifiCallback(needs.wifi)
         proximityAlerts(needs.places)
@@ -137,7 +141,7 @@ class AndroidPhoneScheduler(
 
     private fun periodic(wanted: Boolean) {
         if (!wanted) return jobs.cancel(PERIODIC_JOB)
-        val interval = config.placeCheckMinutes * 60_000L
+        val interval = config.placeCheckMinutes * MILLIS_PER_MINUTE
         // Scheduling again would restart the wait, so a job that's already pending is left alone.
         if (jobs.getPendingJob(PERIODIC_JOB)?.intervalMillis == interval) return
         jobs.schedule(job(PERIODIC_JOB).setPeriodic(interval).setPersisted(true).build())
@@ -212,6 +216,7 @@ class AndroidPhoneScheduler(
     )
 
     private companion object {
+        const val MILLIS_PER_MINUTE = 60_000L
         const val PERIODIC_JOB = 6001
         const val CHARGING_JOB = 6002
         const val NO_EXPIRY = -1L

@@ -4,32 +4,35 @@ import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import app.whittle.WhittleApplication
-import app.whittle.automations.Automation
 import app.whittle.automations.EventKind
 import app.whittle.automations.PhoneEvent
-import app.whittle.automations.Trigger
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
- * Sees every notification once the user allows it in Android's settings, and hands the ones an enabled automation
- * watches to [EventDispatch]. A notification from an app nobody watches is dropped before its text is read. Nothing is
+ * Sees every notification once the user allows it in Android's settings, and hands the ones an automation may run on
+ * to [EventDispatch]. A notification from an app nobody watches is dropped before its text is read, and while no
+ * automation watches any app the listener unbinds itself ([EventSources] binds it again when one does). Nothing is
  * stored here but each notification's last text, in memory, to tell a re-post from a new one.
  */
 class WhittleNotificationListener : NotificationListenerService() {
     private val lastTextByKey = LinkedHashMap<String, String>()
 
-    /** The packages enabled automations watch; null until the saved automations have loaded (a fresh process). */
+    /** The packages that may start an automation; null until the saved automations have loaded (a fresh process). */
     @Volatile
     private var watched: Set<String>? = null
     private var watching: Job? = null
 
     override fun onListenerConnected() {
-        val automations = (application as WhittleApplication).graph.automations
+        val app = application as WhittleApplication
         watching?.cancel()
-        watching = (application as WhittleApplication).graph.appScope.launch {
-            automations.loadedAll()
-            automations.all.collect { watched = watchedPackages(it) }
+        watching = app.graph.appScope.launch {
+            app.eventSources.notificationApps.filterNotNull().collect { apps ->
+                watched = apps
+                if (apps.isEmpty()) requestUnbind()
+            }
         }
     }
 
@@ -44,7 +47,7 @@ class WhittleNotificationListener : NotificationListenerService() {
         if (known == null) {
             // Not loaded yet: wait for the automations rather than drop the notification.
             app.graph.appScope.launch {
-                val packages = watchedPackages(app.graph.automations.loadedAll())
+                val packages = app.eventSources.notificationApps.filterNotNull().first()
                 if (sbn.packageName in packages) textIfNew(sbn)?.let { send(app, sbn, it) }
             }
             return
@@ -71,6 +74,7 @@ class WhittleNotificationListener : NotificationListenerService() {
                 ongoing = sbn.isOngoing,
                 groupSummary = sbn.notification.flags and Notification.FLAG_GROUP_SUMMARY != 0,
                 key = sbn.key, text = text, lastTextByKey = lastTextByKey,
+                maxKeys = (application as WhittleApplication).graph.automations.config.events.maxNotificationKeys,
             )
         }
         return text.takeIf { fire }
@@ -79,7 +83,4 @@ class WhittleNotificationListener : NotificationListenerService() {
     private suspend fun send(app: WhittleApplication, sbn: StatusBarNotification, text: String) {
         app.eventDispatch.dispatch(PhoneEvent(EventKind.NOTIFICATION, sbn.packageName, text, app.graph.clock.nowMillis()))
     }
-
-    private fun watchedPackages(all: List<Automation>): Set<String> =
-        all.filter { it.enabled && it.isEvent }.mapNotNull { (it.trigger as? Trigger.Notification)?.app }.toSet()
 }

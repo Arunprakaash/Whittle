@@ -48,7 +48,6 @@ import app.whittle.core.config.ConsentLevel
 import app.whittle.settings.UserSettings
 import app.whittle.settings.SettingsStore
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.text.format.DateFormat
 import android.system.ErrnoException
@@ -64,10 +63,10 @@ import app.whittle.automations.CodeMask
 import app.whittle.automations.EncryptedFileAutomations
 import app.whittle.automations.EncryptedFileEventQueue
 import app.whittle.automations.EventGate
-import app.whittle.automations.LaunchableApp
-import app.whittle.automations.LaunchableApps
+import app.whittle.automations.launchableApps
 import app.whittle.automations.ScheduleTaskTool
 import app.whittle.automations.WatchForTool
+import app.whittle.automations.events.EncryptedPhoneStateStore
 import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.core.common.EpochClock
 import app.whittle.core.common.IdGenerator
@@ -379,8 +378,8 @@ class AppGraph(context: Context) {
 
     private val automationsConfig = load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION)
 
-    /** Where the phone's last seen charging, Wi-Fi and places are kept. */
-    val phoneStateFile = File(context.filesDir, appDefaults.storage.phoneStateFileName)
+    /** Where the phone's last seen charging, Wi-Fi and places are kept, encrypted. */
+    val phoneStateStore = EncryptedPhoneStateStore(File(context.filesDir, appDefaults.storage.phoneStateFileName), cipher)
 
     /** Events waiting for their automation's run, kept encrypted so a reboot doesn't lose them. */
     val eventGate = EventGate(
@@ -497,17 +496,13 @@ class AppGraph(context: Context) {
         projectExists = { name -> workspaces.folder().getOrNull()?.let { File(it, name).isDirectory } == true },
     )
 
-    /** watch_for: like schedule_task, plus app names resolved against the apps with a launcher icon (no Android 11 package hiding at target 28). */
+    /** watch_for: like schedule_task, plus app names resolved against the apps with a launcher icon. */
     private fun watchFor(context: Context) = WatchForTool(
         automations = automations,
         messages = agentMessages,
         projectOf = workspaces::projectOf,
         projectExists = { name -> workspaces.folder().getOrNull()?.let { File(it, name).isDirectory } == true },
-        apps = LaunchableApps {
-            val packages = context.packageManager
-            packages.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
-                .map { LaunchableApp(it.activityInfo.packageName, it.loadLabel(packages).toString()) }
-        },
+        apps = { launchableApps(context) },
     )
 
     /** The terminal and file tools, working in the shared workspace inside Linux. */

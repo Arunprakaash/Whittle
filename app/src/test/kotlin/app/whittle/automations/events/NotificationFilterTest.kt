@@ -13,7 +13,7 @@ class NotificationFilterTest {
         summary: Boolean = false,
         key: String = "k1",
         text: String = "Paid",
-    ) = NotificationFilter.shouldFire(pkg, "app.whittle", ongoing, summary, key, text, seen)
+    ) = NotificationFilter.shouldFire(pkg, "app.whittle", ongoing, summary, key, text, seen, MAX_KEYS)
 
     @Test
     fun repostedNotificationFiresOnce() {
@@ -34,7 +34,11 @@ class NotificationFilterTest {
     @Test
     fun rememberedKeysAreCapped() {
         repeat(500) { fire(key = "k$it") }
-        assertTrue(seen.size <= NotificationFilter.MAX_KEYS)
+        assertTrue(seen.size <= MAX_KEYS)
         assertTrue("k499" in seen)
+    }
+
+    private companion object {
+        const val MAX_KEYS = 200
     }
 }

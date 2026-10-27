@@ -16,7 +16,7 @@
     "chatProjectsFileName": "chat-projects.json",
     "automationsFileName": "automations.enc",
     "automationEventsFileName": "automation-events.bin",
-    "phoneStateFileName": "phone-state.json"
+    "phoneStateFileName": "phone-state.bin"
   },
   "terminal": {
     "shell": "/system/bin/sh",

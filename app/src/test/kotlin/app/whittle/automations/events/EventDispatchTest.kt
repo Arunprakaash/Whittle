@@ -41,7 +41,7 @@ class EventDispatchTest {
         add("poll", Trigger.Every(30))
         val gate = EventGate(MemoryEventBackend(), testEventsConfig, CodeMask(testCodeMaskConfig), EpochClock { now }, { zone }, this)
         val arrived = mutableListOf<String>()
-        val dispatch = EventDispatch(automations, gate) { arrived += it }
+        val dispatch = EventDispatch(automations, gate, { true }) { arrived += it }
 
         dispatch.dispatch(PhoneEvent(EventKind.SMS, "HDFCBK", "Spent 10", now))
 
@@ -56,7 +56,7 @@ class EventDispatchTest {
         )
         automations.save(automations.draft("chat", "Do it").copy(id = "chat", schedule = null, trigger = Trigger.Notification("com.whatsapp", "WhatsApp")))
         val gate = EventGate(MemoryEventBackend(), testEventsConfig, CodeMask(testCodeMaskConfig), EpochClock { now }, { zone }, this)
-        EventDispatch(automations, gate) {}.dispatch(PhoneEvent(EventKind.NOTIFICATION, "com.whatsapp", "Hi", now))
+        EventDispatch(automations, gate, { true }) {}.dispatch(PhoneEvent(EventKind.NOTIFICATION, "com.whatsapp", "Hi", now))
         val queued = gate.take("chat").single()
         assertEquals("WhatsApp", queued.sourceLabel)
         assertEquals("com.whatsapp", queued.source)
@@ -78,7 +78,7 @@ class EventDispatchTest {
         val automations = Automations(slow, RecordingAlarms(), testAutomationsConfig, EpochClock { now }, IdGenerator { "x" }, { zone }, this)
         val gate = EventGate(MemoryEventBackend(), testEventsConfig, CodeMask(testCodeMaskConfig), EpochClock { now }, { zone }, this)
         val arrived = mutableListOf<String>()
-        EventDispatch(automations, gate) { arrived += it }.dispatch(PhoneEvent(EventKind.SMS, "HDFCBK", "Spent 10", now))
+        EventDispatch(automations, gate, { true }) { arrived += it }.dispatch(PhoneEvent(EventKind.SMS, "HDFCBK", "Spent 10", now))
         assertEquals(listOf("bank"), arrived)
     }
 }

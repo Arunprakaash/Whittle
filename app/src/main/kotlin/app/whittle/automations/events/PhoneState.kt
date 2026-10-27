@@ -19,9 +19,26 @@ import kotlin.math.sqrt
 @Serializable
 data class PhoneState(val charging: Boolean?, val wifi: String?, val inside: Set<String>, val baselined: Set<String> = emptySet())
 
-/** What the enabled automations ask the phone to watch; nothing is armed for a source that is false or empty. */
-data class PhoneNeeds(val charging: Boolean = false, val wifi: Boolean = false, val places: List<Trigger.Place> = emptyList()) {
+/**
+ * What the enabled automations ask the phone to watch; nothing is armed for a source that is false or empty.
+ * [unplugging] and [leavingWifi] are the edges Android has no wake for, which only a periodic look catches.
+ */
+data class PhoneNeeds(
+    val charging: Boolean = false,
+    val wifi: Boolean = false,
+    val places: List<Trigger.Place> = emptyList(),
+    val unplugging: Boolean = false,
+    val leavingWifi: Boolean = false,
+) {
     val any: Boolean get() = charging || wifi || places.isNotEmpty()
+
+    /**
+     * Whether the phone must be looked at every so often: for an edge nothing wakes Whittle for, for a plug-in while
+     * already plugged in (the charger job waits for a plug-in, so only a look sees the unplug that arms it again), and
+     * for places when they're polled instead of left to proximity alerts.
+     */
+    fun needsPeriodicLook(chargingNow: Boolean?, placePolling: Boolean): Boolean =
+        unplugging || leavingWifi || (charging && chargingNow == true) || (placePolling && places.isNotEmpty())
 }
 
 /** The triggers of the enabled automations, reduced to what needs watching. A place counts once however many edges use it. */
@@ -29,6 +46,8 @@ fun needsOf(triggers: List<Trigger>): PhoneNeeds = PhoneNeeds(
     charging = triggers.any { it is Trigger.Charging },
     wifi = triggers.any { it is Trigger.Wifi },
     places = triggers.filterIsInstance<Trigger.Place>().distinctBy { Triple(it.name, it.latitude, it.longitude) },
+    unplugging = triggers.any { it is Trigger.Charging && it.edge == Edge.END },
+    leavingWifi = triggers.any { it is Trigger.Wifi && it.edge == Edge.END },
 )
 
 /** The events between two looks at the phone. Unknown charging gives no edge; a place that no longer exists gives none. */

@@ -68,7 +68,7 @@ data class AppStorageNames(
     val automationsFileName: String,
     /** The events waiting for an automation to run, encrypted. */
     val automationEventsFileName: String,
-    /** What the phone was last seen doing (charging, Wi-Fi, places), so the next look can tell what changed. */
+    /** What the phone was last seen doing (charging, Wi-Fi, places), so the next look can tell what changed; encrypted. */
     val phoneStateFileName: String,
 )
 

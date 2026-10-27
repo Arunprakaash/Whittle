@@ -186,8 +186,8 @@ class PhoneStateWatchTest {
         assertEquals("Home", wifiState(onWifi = true, ssid = "\"Home\""))
         val event = edges(idle, joined, emptyList(), now).single()
         assertEquals(Edge.START, event.edge)
-        assertTrue(Trigger.Wifi(null, Edge.START).matches(event))
-        assertTrue(!Trigger.Wifi("Home", Edge.START).matches(event))
+        assertTrue(Trigger.Wifi(null, Edge.START).matches(event, testEventsConfig.senderSuffixDigits))
+        assertTrue(!Trigger.Wifi("Home", Edge.START).matches(event, testEventsConfig.senderSuffixDigits))
     }
 
     @Test
