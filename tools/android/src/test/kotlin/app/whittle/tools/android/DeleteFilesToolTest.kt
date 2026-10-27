@@ -55,6 +55,7 @@ class DeleteFilesToolTest {
             throughLink = "goes through a link",
             listedTwice = "is listed twice",
             notOnCard = "wasn't on the list the user approved",
+            changed = "changed since the user saw it on the card",
             refusedByAndroid = "Android didn't let it be deleted",
         )
     }
@@ -224,6 +225,37 @@ class DeleteFilesToolTest {
         assertEquals(listOf("deleted", "refused"), files)
         assertFalse(listed.exists())
         assertTrue(late.exists())
+    }
+
+    @Test
+    fun aFileReplacedAfterTheCardIsNotDeleted() {
+        val listed = file(root, "Download/a.jpg", bytes = 10)
+        val other = file(root, "Download/b.jpg", bytes = 10)
+        val approved = runBlocking { tool().preview(args("Download/a.jpg", "Download/b.jpg")) }.approved
+        // While the card waits, a.jpg is replaced by a newer, bigger file of the same name, and b.jpg by one of the same size.
+        listed.delete()
+        file(root, "Download/a.jpg", bytes = 20)
+        other.writeBytes(ByteArray(10) { 1 })
+        assertTrue(other.setLastModified(other.lastModified() + 60_000))
+
+        val out = runBlocking { tool().execute(args("Download/a.jpg", "Download/b.jpg"), ctx.copy(approved = approved)) }
+
+        val results = Json.parseToJsonElement(out.content).jsonObject.getValue("files").jsonArray.map { it.jsonObject }
+        assertEquals(listOf("refused", "refused"), results.map { it.getValue("status").jsonPrimitive.content })
+        assertTrue(results.all { "changed since" in it.getValue("reason").jsonPrimitive.content })
+        assertTrue(File(root, "Download/a.jpg").exists() && other.exists())
+        assertTrue(scanned.isEmpty())
+    }
+
+    @Test
+    fun theCardRecordsEachFilesSizeAndModifiedTime() {
+        val target = file(root, "a.jpg", bytes = 42)
+
+        val approved = runBlocking { tool().preview(args("a.jpg")) }.approved.single()
+
+        assertEquals(target.path, approved.id)
+        assertEquals(42L, approved.bytes)
+        assertEquals(target.lastModified(), approved.modifiedMillis)
     }
 
     @Test

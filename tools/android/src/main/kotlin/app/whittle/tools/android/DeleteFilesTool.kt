@@ -3,6 +3,7 @@ package app.whittle.tools.android
 import android.content.Context
 import android.media.MediaScannerConnection
 import app.whittle.core.model.Provenance
+import app.whittle.tools.api.ApprovedItem
 import app.whittle.tools.api.CallPreview
 import app.whittle.tools.api.ExecutionSite
 import app.whittle.tools.api.RiskTier
@@ -67,6 +68,7 @@ data class DeleteFilesWords(
     val throughLink: String,
     val listedTwice: String,
     val notOnCard: String,
+    val changed: String,
     val refusedByAndroid: String,
 )
 
@@ -75,7 +77,8 @@ data class DeleteFilesWords(
  * finds for each path the model sent: the file's real `/sdcard/...` path and size, or why it won't be deleted. Only
  * those may go: each must name a regular file inside shared storage by its own path. Folders, links, paths through a
  * linked folder, `..` and anything outside are refused, one by one. [execute] checks again and deletes only files the
- * approved card listed as going ([ToolExecutionContext.approved]), so a file that appears after the card stays.
+ * approved card listed as going ([ToolExecutionContext.approved]), and only while each has the size and modified time
+ * the card saw: a file that appears after the card stays, and so does one replaced or changed while the card waited.
  */
 class DeleteFilesTool(
     private val storage: SharedStorage,
@@ -107,7 +110,7 @@ class DeleteFilesTool(
     /** The card's values, and the files an approval of it covers. With none, the card says nothing will be deleted. */
     private fun card(lines: List<String>, ready: List<Check.Ready>) = CallPreview(
         card = mapOf(LISTING to lines.joinToString("\n"), COUNT to ready.size.toString(), TOTAL to readableSize(ready.sumOf { it.bytes })),
-        approved = ready.map { it.file.path },
+        approved = ready.map { ApprovedItem(it.file.path, it.bytes, it.modified) },
         variant = NOTHING.takeIf { ready.isEmpty() },
     )
 
@@ -118,7 +121,7 @@ class DeleteFilesTool(
             is Request.Paths -> request.paths
         }
         // Only files the approved card listed as going may go; without that list, nothing does.
-        val approved = context.approved?.toSet()
+        val approved = context.approved?.associateBy { it.id }
             ?: return ToolJson.error(words.noApprovedList)
 
         val body = withContext(Dispatchers.IO) {
@@ -126,10 +129,15 @@ class DeleteFilesTool(
             val results = paths.map { path ->
                 when (val check = check(root, path, seen)) {
                     is Check.Refused -> Result(path, REFUSED, check.reason)
-                    is Check.Ready -> when {
-                        check.file.path !in approved -> Result(path, REFUSED, words.notOnCard)
-                        check.file.delete() -> Result(path, DELETED, file = check.file, bytes = check.bytes)
-                        else -> Result(path, FAILED, words.refusedByAndroid)
+                    is Check.Ready -> {
+                        val listed = approved[check.file.path]
+                        when {
+                            listed == null -> Result(path, REFUSED, words.notOnCard)
+                            // A different file under the same name, or this one changed, isn't what the user saw on the card.
+                            !check.matches(listed) -> Result(path, REFUSED, words.changed)
+                            check.file.delete() -> Result(path, DELETED, file = check.file, bytes = check.bytes)
+                            else -> Result(path, FAILED, words.refusedByAndroid)
+                        }
                     }
                 }
             }
@@ -170,7 +178,10 @@ class DeleteFilesTool(
     }
 
     private sealed interface Check {
-        data class Ready(val file: File, val bytes: Long) : Check
+        data class Ready(val file: File, val bytes: Long, val modified: Long) : Check {
+            /** Whether the card's [item] saw this file as it is now: the same size, modified at the same time. */
+            fun matches(item: ApprovedItem): Boolean = item.bytes == bytes && item.modifiedMillis == modified
+        }
 
         data class Refused(val reason: String) : Check
     }
@@ -205,7 +216,7 @@ class DeleteFilesTool(
         }
         if (!isInside(root, file) || file.toPath() != literal.toPath().normalize()) return Check.Refused(words.throughLink)
         if (!seen.add(file)) return Check.Refused(words.listedTwice)
-        return Check.Ready(file, attributes.size())
+        return Check.Ready(file, attributes.size(), attributes.lastModifiedTime().toMillis())
     }
 
     companion object {

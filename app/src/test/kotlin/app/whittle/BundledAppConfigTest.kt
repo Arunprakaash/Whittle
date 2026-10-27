@@ -7,6 +7,7 @@ import app.whittle.linux.ComputerAccessConfig
 import app.whittle.claudecode.ClaudeCodeConfig
 import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.llm.api.HostedTool
+import app.whittle.tools.api.ApprovedItem
 import app.whittle.tools.api.CallPreview
 import app.whittle.tools.api.RiskTier
 import app.whittle.connectors.matches
@@ -268,7 +269,7 @@ class BundledAppConfigTest {
         }
         val listing = "/sdcard/Download/a.jpg  ·  1.5 KB"
         val values = mapOf(DeleteFilesTool.LISTING to listing, DeleteFilesTool.COUNT to "1", DeleteFilesTool.TOTAL to "1.5 KB")
-        val card = ToolPresenter(config).decision(DeleteFilesTool.DEFINITION.id.value, arguments, preview = CallPreview(values, listOf("/storage/a.jpg")))
+        val card = ToolPresenter(config).decision(DeleteFilesTool.DEFINITION.id.value, arguments, preview = CallPreview(values, listOf(ApprovedItem("/storage/a.jpg"))))
         // No count in the words, so one file reads as right as many.
         assertEquals("Delete these files for good?", card.title)
         assertEquals(listing, card.payload)

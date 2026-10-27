@@ -139,6 +139,7 @@ data class AgentMessages(
     val deleteThroughLink: String,
     val deleteListedTwice: String,
     val deleteNotOnCard: String,
+    val deleteChanged: String,
     val deleteRefusedByAndroid: String,
 ) : VersionedConfig {
     init {
@@ -235,6 +236,7 @@ data class AgentMessages(
         requirePlaceholders(deleteThroughLink)
         requirePlaceholders(deleteListedTwice)
         requirePlaceholders(deleteNotOnCard)
+        requirePlaceholders(deleteChanged)
         requirePlaceholders(deleteRefusedByAndroid)
     }
 

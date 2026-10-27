@@ -40,6 +40,7 @@ import app.whittle.observability.TelemetryEvent
 import app.whittle.policy.ApprovalScope
 import app.whittle.policy.PolicyDecision
 import app.whittle.policy.PolicyEngine
+import app.whittle.tools.api.ApprovedItem
 import app.whittle.tools.api.CallPreview
 import app.whittle.tools.api.Tool
 import app.whittle.tools.api.ToolArgumentParser
@@ -664,7 +665,7 @@ class AgentRunner(
         call: ContentBlock.ToolCall,
         arguments: JsonObject,
         checkpoint: RunCheckpoint,
-        approved: List<String>? = null,
+        approved: List<ApprovedItem>? = null,
     ): ToolOutput = try {
         tool.execute(arguments, ToolExecutionContext(checkpoint.runId, call.id, checkpoint.workspace, approved))
     } catch (cancellation: CancellationException) {

@@ -143,6 +143,7 @@ internal val testMessages = AgentMessages(
     deleteThroughLink = "deleteThroughLink",
     deleteListedTwice = "deleteListedTwice",
     deleteNotOnCard = "deleteNotOnCard",
+    deleteChanged = "deleteChanged",
     deleteRefusedByAndroid = "deleteRefusedByAndroid",
     appNoProject = "no project {{project}}",
     appSharedUserId = "shared user id",

@@ -1,5 +1,6 @@
 package app.whittle.tools.presentation
 
+import app.whittle.tools.api.ApprovedItem
 import app.whittle.tools.api.CallPreview
 import app.whittle.tools.api.ToolOrigin
 import kotlinx.serialization.json.JsonPrimitive
@@ -130,7 +131,7 @@ class ToolPresenterTest {
     @Test
     fun `a delete card shows what the tool found, and no argument can change it`() {
         val values = mapOf("listing" to "/sdcard/a.jpg  ·  1.5 KB\n/sdcard/b.pdf  ·  2.5 KB", "count" to "2", "total" to "4.0 KB")
-        val preview = CallPreview(values, approved = listOf("/storage/a.jpg", "/storage/b.pdf"))
+        val preview = CallPreview(values, approved = listOf(ApprovedItem("/storage/a.jpg"), ApprovedItem("/storage/b.pdf")))
         val card = presenter.decision("delete_files", args("""{"paths":["/sdcard/a.jpg","/sdcard/b.pdf"],"listing":"nothing much","count":"1","total":"1 B"}"""), preview = preview)
         assertEquals("Delete these files for good?", card.title)
         assertEquals("4.0 KB in all.", card.body)
@@ -150,7 +151,7 @@ class ToolPresenterTest {
         assertEquals("Whittle couldn't check these files", card.title)
         assertEquals("paths: [\"/sdcard/a.jpg\"]", card.payload)
         // With a preview, the tool's own card stays.
-        val preview = CallPreview(mapOf("listing" to "x", "count" to "1", "total" to "1 B"), approved = listOf("/a"))
+        val preview = CallPreview(mapOf("listing" to "x", "count" to "1", "total" to "1 B"), approved = listOf(ApprovedItem("/a")))
         assertEquals("Delete these files for good?", presenter.decision("delete_files", args("{}"), preview = preview).title)
     }
 

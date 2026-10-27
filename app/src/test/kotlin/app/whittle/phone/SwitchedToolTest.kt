@@ -5,6 +5,7 @@ import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.tools.api.ExecutionSite
 import app.whittle.tools.api.RiskTier
+import app.whittle.tools.api.ApprovedItem
 import app.whittle.tools.api.CallPreview
 import app.whittle.tools.api.Tool
 import app.whittle.tools.api.ToolDefinition
@@ -28,7 +29,7 @@ class SwitchedToolTest {
 
         override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext) = ToolOutput("set", isError = false, provenance = Provenance.Trusted)
 
-        override suspend fun preview(arguments: JsonObject) = CallPreview(mapOf("time" to "7:00"), approved = listOf("7:00"))
+        override suspend fun preview(arguments: JsonObject) = CallPreview(mapOf("time" to "7:00"), approved = listOf(ApprovedItem("7:00")))
     }
     private val config = PhoneActionsConfig(
         schemaVersion = 1,

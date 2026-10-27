@@ -24,6 +24,7 @@ import app.whittle.llm.api.ReasoningEffort
 import app.whittle.observability.LocalTelemetry
 import app.whittle.policy.RuleBasedPolicyEngine
 import app.whittle.policy.RunMode
+import app.whittle.tools.api.ApprovedItem
 import app.whittle.tools.api.CallPreview
 import app.whittle.tools.api.CapabilityId
 import app.whittle.tools.api.RiskTier
@@ -271,7 +272,7 @@ class AgentRunnerTest {
 
     @Test
     fun `a parked call keeps its tool's preview through a saved checkpoint, and approving hands back what it covered`() = runTest {
-        val preview = CallPreview(mapOf("listing" to "/sdcard/a.jpg  ·  10 B"), approved = listOf("/storage/a.jpg"), variant = null)
+        val preview = CallPreview(mapOf("listing" to "/sdcard/a.jpg  ·  10 B"), approved = listOf(ApprovedItem("/storage/a.jpg", bytes = 10, modifiedMillis = 1_000)), variant = null)
         val delete = PreviewingTool { preview }
         val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "delete_files")), textTurn("Done.")))
         val runner = runner(adapter, setOf(delete))
@@ -288,7 +289,7 @@ class AgentRunnerTest {
         inbox.submit(runId, RunInput.Decision(ToolCallId("c1"), DecisionAnswer.APPROVED))
         runner.resume(runId).toList()
 
-        assertEquals(listOf("/storage/a.jpg"), delete.ran?.approved)
+        assertEquals(preview.approved, delete.ran?.approved)
     }
 
     @Test
