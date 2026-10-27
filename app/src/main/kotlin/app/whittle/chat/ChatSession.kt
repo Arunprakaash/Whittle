@@ -253,7 +253,7 @@ class ChatSession(
         if (item.answer != null) return
         replace(item.key) { (it as ThreadItem.Question).copy(answer = choice) }
         // The pick is the user's reply: it reads as their message, and what the agent does next follows it.
-        append(ThreadItem.User(key(), choice, steer = activeJob?.isActive == true))
+        append(cardPick(key(), choice, steer = activeJob?.isActive == true))
         submit(item.runId, RunInput.Answer(item.toolCallId, choice))
     }
 
@@ -864,3 +864,6 @@ class ChatSession(
         const val TOO_MANY_REQUESTS = 429
     }
 }
+
+/** The option picked on a question card, as the user's reply in the thread; marked, since the model wrote its words. */
+internal fun cardPick(key: String, choice: String, steer: Boolean) = ThreadItem.User(key, choice, steer, fromCard = true)

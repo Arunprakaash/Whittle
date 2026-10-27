@@ -51,6 +51,8 @@ sealed interface ThreadItem {
         val attachments: List<Attachment> = emptyList(),
         /** Words the user didn't type: text shared in from another app. The memory review leaves them out. */
         val shared: Boolean = false,
+        /** An option the user picked on a question card. The model wrote it, so the memory review leaves it out. */
+        val fromCard: Boolean = false,
     ) : ThreadItem
 
     /** The agent's words: narration between steps while streaming; the last one in a run is its answer. */
