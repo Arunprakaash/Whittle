@@ -234,6 +234,8 @@ class BundledAppConfigTest {
         ).value
         val storage = assertNotNull(config.tools.firstOrNull { it.key == "storage" })
         assertEquals(listOf("storage_overview", "find_files"), storage.toolIds)
+        // Asked for when the automation is set up, not when it first runs with nobody there to allow it.
+        assertEquals(listOf("storage"), storage.capabilities)
         assertFalse(storage.default)
         val idea = assertNotNull(config.ideas.firstOrNull { it.name == "Weekly storage check" })
         assertEquals(listOf(7), idea.days.toList())

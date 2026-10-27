@@ -1,6 +1,7 @@
 package app.whittle.tools.android
 
 import android.Manifest
+import app.whittle.tools.api.CapabilityId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -27,5 +28,11 @@ class AndroidCapabilitiesTest {
     fun otherCapabilitiesKeepTheirOnePermission() {
         assertEquals(listOf(Manifest.permission.READ_CONTACTS), AndroidCapabilities.permissionsFor(AndroidCapabilities.CONTACTS, sdk = 36))
         assertFalse(AndroidCapabilities.needsSettingsPage(AndroidCapabilities.CONTACTS, sdk = 36))
+    }
+
+    @Test
+    fun storageIsKnownSoConfigMayNameIt() {
+        assertTrue(AndroidCapabilities.isKnown(AndroidCapabilities.STORAGE))
+        assertFalse(AndroidCapabilities.isKnown(CapabilityId("files")))
     }
 }

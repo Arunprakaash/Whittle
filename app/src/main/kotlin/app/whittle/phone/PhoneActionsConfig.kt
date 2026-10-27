@@ -4,10 +4,10 @@ import app.whittle.core.config.ConfigName
 import app.whittle.core.config.VersionedConfig
 import app.whittle.reminders.Reminders
 import app.whittle.tools.android.DeleteFilesLimits
-import app.whittle.tools.android.HealthConnect
-import app.whittle.tools.android.HealthLimits
 import app.whittle.tools.android.FileTypes
 import app.whittle.tools.android.FindFilesLimits
+import app.whittle.tools.android.HealthConnect
+import app.whittle.tools.android.HealthLimits
 import app.whittle.tools.android.MapLinks
 import app.whittle.tools.android.StorageLimits
 import app.whittle.tools.workspace.Workspaces

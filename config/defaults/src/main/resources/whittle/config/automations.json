@@ -50,6 +50,7 @@
       "icon": "folder",
       "label": "Check your phone's storage",
       "toolIds": ["storage_overview", "find_files"],
+      "capabilities": ["storage"],
       "default": false
     },
     {
