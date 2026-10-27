@@ -50,6 +50,17 @@ class FindFilesTest {
     }
 
     @Test
+    fun holdsOnlyTheLargestItKeepsButCountsEveryMatch() {
+        listOf(30, 10, 50, 20, 40).forEachIndexed { i, size -> file("f$i.bin", size) }
+
+        val found = findFiles(root, FileFilter(), types, Long.MAX_VALUE, { 0L }, keep = 2)
+
+        assertEquals(listOf(50L, 40L), found.files.map { it.bytes })
+        assertEquals(5, found.matched)
+        assertFalse(found.partial)
+    }
+
+    @Test
     fun largestFirstAndOtherType() {
         file("a.jpg", 10)
         file("b.xyz", 30)

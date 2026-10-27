@@ -27,10 +27,14 @@ import kotlinx.serialization.json.putJsonArray
 import java.io.File
 import java.nio.file.Files
 import java.time.Instant
+import java.util.PriorityQueue
 import java.util.concurrent.TimeUnit
 
-/** What find_files may spend: lists hold [maxResults], the whole call stops after [scanMillis], at most [maxHashBytes] are read to find copies. */
-data class FindFilesLimits(val maxResults: Int, val scanMillis: Long, val maxHashBytes: Long)
+/**
+ * What find_files may spend: lists hold [maxResults], the whole call stops after [scanMillis], at most [maxHashBytes]
+ * are read to find copies, and copies are looked for among the [maxMatches] largest matching files.
+ */
+data class FindFilesLimits(val maxResults: Int, val scanMillis: Long, val maxHashBytes: Long, val maxMatches: Int)
 
 /** Extensions per kind of file (keys `image`, `video`, `audio`, `document`, `apk`, `archive`); anything else is [OTHER]. */
 class FileTypes(private val extensions: Map<String, List<String>>) {
@@ -51,15 +55,21 @@ data class FileFilter(val minBytes: Long = 0, val olderThanMillis: Long? = null,
 
 data class FoundFile(val file: File, val bytes: Long, val modified: Long, val type: String)
 
-/** [files] are largest first; [partial] means the walk ran out of time and there may be more. */
-data class FindResult(val files: List<FoundFile>, val partial: Boolean)
+/**
+ * [files] are the largest matches, largest first, and [matched] how many there were in all; [partial] means the walk
+ * ran out of time and there may be more.
+ */
+data class FindResult(val files: List<FoundFile>, val matched: Int, val partial: Boolean)
 
 /**
- * The files under [folder] that pass [filter], largest first. Symlinks aren't followed and unreadable folders are
- * skipped. The walk stops when [now] reaches [deadlineMillis] (checked at every entry) and is then partial.
+ * The [keep] largest files under [folder] that pass [filter], largest first, and how many passed. Only those [keep] are
+ * held while walking, however many match. Symlinks aren't followed and unreadable folders are skipped. The walk stops
+ * when [now] reaches [deadlineMillis] (checked at every entry) and is then partial.
  */
-fun findFiles(folder: File, filter: FileFilter, types: FileTypes, deadlineMillis: Long, now: () -> Long): FindResult {
-    val found = mutableListOf<FoundFile>()
+fun findFiles(folder: File, filter: FileFilter, types: FileTypes, deadlineMillis: Long, now: () -> Long, keep: Int = Int.MAX_VALUE): FindResult {
+    // Smallest on top, so it's the one to drop when a bigger match comes and there's no room.
+    val found = PriorityQueue<FoundFile>(compareBy { it.bytes })
+    var matched = 0
     var partial = false
     fun walk(dir: File) {
         for (entry in dir.listFiles().orEmpty()) {
@@ -79,11 +89,13 @@ fun findFiles(folder: File, filter: FileFilter, types: FileTypes, deadlineMillis
             if (bytes < filter.minBytes) continue
             if (filter.olderThanMillis != null && modified >= filter.olderThanMillis) continue
             if (filter.types.isNotEmpty() && type !in filter.types) continue
+            matched++
             found += FoundFile(entry, bytes, modified, type)
+            if (found.size > keep) found.poll()
         }
     }
     walk(folder)
-    return FindResult(found.sortedByDescending { it.bytes }, partial)
+    return FindResult(found.sortedByDescending { it.bytes }, matched, partial)
 }
 
 /** What the user and model call shared storage's top. */
@@ -157,7 +169,9 @@ class FindFilesTool(
             // One deadline for the walk and the hashing together, so the call never runs past scanMillis.
             val deadline = clock.nowMillis() + limits.scanMillis
             val cutoff = olderDays?.let { clock.nowMillis() - TimeUnit.DAYS.toMillis(it) }
-            val found = findFiles(folder, FileFilter(minBytes, cutoff, wanted), types, deadline, clock::nowMillis)
+            // A listing shows only the largest maxResults; copies are looked for among the largest maxMatches.
+            val keep = if (duplicates) limits.maxMatches else limits.maxResults
+            val found = findFiles(folder, FileFilter(minBytes, cutoff, wanted), types, deadline, clock::nowMillis, keep)
             buildJsonObject {
                 if (duplicates) putDuplicates(root, found, deadline) else putFiles(root, found)
             }
@@ -166,9 +180,9 @@ class FindFilesTool(
     }
 
     private fun kotlinx.serialization.json.JsonObjectBuilder.putFiles(root: File, found: FindResult) {
-        put(MATCHED, found.files.size)
+        put(MATCHED, found.matched)
         putJsonArray(FILES) {
-            found.files.take(limits.maxResults).forEach { file ->
+            found.files.forEach { file ->
                 addJsonObject {
                     put(PATH, displayPath(root, file.file))
                     put(BYTES, file.bytes)
@@ -181,9 +195,11 @@ class FindFilesTool(
     }
 
     private fun kotlinx.serialization.json.JsonObjectBuilder.putDuplicates(root: File, found: FindResult, deadline: Long) {
-        val result = findDuplicates(found.files.map { it.file }, deadline, clock::nowMillis, limits.maxHashBytes)
+        // The sizes the walk read: nothing is looked at again once it may have used up the time.
+        val sizes = found.files.associate { it.file to it.bytes }
+        val result = findDuplicates(found.files.map { it.file to it.bytes }, deadline, clock::nowMillis, limits.maxHashBytes)
         val groups = result.groups
-            .map { group -> group to group.first().length() * (group.size - 1) }
+            .map { group -> group to sizes.getValue(group.first()) * (group.size - 1) }
             .sortedByDescending { it.second }
         put(MATCHED, groups.size)
         put(WASTED, groups.sumOf { it.second })
@@ -197,7 +213,7 @@ class FindFilesTool(
                 pathsLeft -= shown.size
                 omitted += group.size - shown.size
                 addJsonObject {
-                    put(BYTES, group.first().length())
+                    put(BYTES, sizes.getValue(group.first()))
                     put(COPIES, group.size)
                     put(WASTED, wasted)
                     putJsonArray(PATHS) { shown.forEach { add(JsonPrimitive(it)) } }
@@ -205,7 +221,8 @@ class FindFilesTool(
             }
         }
         if (omitted > 0) put(PATHS_OMITTED, omitted)
-        if (found.partial || result.partial) put(PARTIAL, true)
+        // Smaller matches past maxMatches weren't compared, so there may be more copies.
+        if (found.partial || result.partial || found.matched > found.files.size) put(PARTIAL, true)
     }
 
     companion object {

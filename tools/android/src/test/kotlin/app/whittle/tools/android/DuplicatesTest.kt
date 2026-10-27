@@ -58,7 +58,7 @@ class DuplicatesTest {
 
     @Test
     fun hashingStopsAtTheDeadline() {
-        val files = listOf(file("a.bin", bytes(3_000_000)), file("b.bin", bytes(3_000_000)))
+        val files = listOf(file("a.bin", bytes(3_000_000)), file("b.bin", bytes(3_000_000))).map { it to it.length() }
         var calls = 0
         val whole = findDuplicates(files, deadlineMillis = 1_000, now = { calls++; 0L }, maxHashBytes = Long.MAX_VALUE)
         assertFalse(whole.partial)
@@ -77,7 +77,7 @@ class DuplicatesTest {
 
     @Test
     fun byteCapMarksPartial() {
-        val files = listOf(file("a.bin", bytes(300_000)), file("b.bin", bytes(300_000)))
+        val files = listOf(file("a.bin", bytes(300_000)), file("b.bin", bytes(300_000))).map { it to it.length() }
 
         val capped = findDuplicates(files, deadlineMillis = 1_000, now = { 0L }, maxHashBytes = 100_000)
         assertTrue(capped.partial)

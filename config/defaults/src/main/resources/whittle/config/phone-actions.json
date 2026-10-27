@@ -27,6 +27,7 @@
     "maxResults": 200,
     "oldDays": 90,
     "maxHashBytes": 2147483648,
+    "maxMatches": 20000,
     "maxDeletePerCall": 50,
     "protectedFolders": ["Android/data", "Android/obb", "Android/media"],
     "types": {

@@ -47,7 +47,7 @@ class FindFilesToolTest {
         val refused = object : SharedStorage {
             override fun root() = File(root, "refused.bin").also { it.writeBytes(ByteArray(1)) }
         }
-        val out = runBlocking { FindFilesTool(refused, FindFilesLimits(3, 1_000, 1_000_000), types) { 0L }.execute(JsonObject(emptyMap()), ctx) }
+        val out = runBlocking { FindFilesTool(refused, FindFilesLimits(3, 1_000, 1_000_000, 100), types) { 0L }.execute(JsonObject(emptyMap()), ctx) }
         assertTrue(out.isError && "can't be read" in out.content, out.content)
     }
 
@@ -55,7 +55,7 @@ class FindFilesToolTest {
     fun fileListIsCappedAndCountsTheRest() {
         repeat(5) { file("f$it.bin", ByteArray(10 + it)) }
 
-        val body = call(FindFilesLimits(maxResults = 3, scanMillis = 1_000, maxHashBytes = 1_000_000))
+        val body = call(FindFilesLimits(maxResults = 3, scanMillis = 1_000, maxHashBytes = 1_000_000, maxMatches = 100))
 
         assertEquals(3, body["files"]!!.jsonArray.size)
         assertEquals(5, body["matched"]!!.jsonPrimitive.int)
@@ -69,7 +69,7 @@ class FindFilesToolTest {
         repeat(6) { file("a$it.bin", ByteArray(100) { 1 }) }
         repeat(3) { file("b$it.bin", ByteArray(50) { 2 }) }
 
-        val body = call(FindFilesLimits(maxResults = 4, scanMillis = 1_000, maxHashBytes = 1_000_000), duplicatesArgs())
+        val body = call(FindFilesLimits(maxResults = 4, scanMillis = 1_000, maxHashBytes = 1_000_000, maxMatches = 100), duplicatesArgs())
 
         val groups = body["groups"]!!.jsonArray
         assertEquals(2, groups.size)
@@ -87,7 +87,7 @@ class FindFilesToolTest {
         // Three groups of 2 copies, room for 2 paths: one group fully listed, two never listed, 4 paths omitted.
         for (g in 1..3) repeat(2) { file("g${g}_$it.bin", ByteArray(100 * g) { g.toByte() }) }
 
-        val body = call(FindFilesLimits(maxResults = 2, scanMillis = 1_000, maxHashBytes = 1_000_000), duplicatesArgs())
+        val body = call(FindFilesLimits(maxResults = 2, scanMillis = 1_000, maxHashBytes = 1_000_000, maxMatches = 100), duplicatesArgs())
 
         val groups = body["groups"]!!.jsonArray
         assertEquals(2, groups.size)
@@ -100,7 +100,7 @@ class FindFilesToolTest {
     fun duplicatesWithinTheCapOmitNothing() {
         repeat(2) { file("a$it.bin", ByteArray(100) { 1 }) }
 
-        val body = call(FindFilesLimits(maxResults = 10, scanMillis = 1_000, maxHashBytes = 1_000_000), duplicatesArgs())
+        val body = call(FindFilesLimits(maxResults = 10, scanMillis = 1_000, maxHashBytes = 1_000_000, maxMatches = 100), duplicatesArgs())
 
         assertEquals(2, body["groups"]!!.jsonArray[0].jsonObject["paths"]!!.jsonArray.size)
         assertNull(body["pathsOmitted"])
@@ -110,7 +110,7 @@ class FindFilesToolTest {
     fun partialShowsWhenTheBudgetRunsOut() {
         repeat(2) { file("a$it.bin", ByteArray(300_000) { 1 }) }
 
-        val body = call(FindFilesLimits(maxResults = 10, scanMillis = 1_000, maxHashBytes = 1_000), duplicatesArgs())
+        val body = call(FindFilesLimits(maxResults = 10, scanMillis = 1_000, maxHashBytes = 1_000, maxMatches = 100), duplicatesArgs())
 
         assertEquals(JsonPrimitive(true), body["partial"])
         assertTrue(body["groups"]!!.jsonArray.isEmpty())
@@ -120,8 +120,21 @@ class FindFilesToolTest {
     fun partialShowsWhenTheDeadlinePasses() {
         file("a.bin", ByteArray(10))
         var t = 0L
-        val body = call(FindFilesLimits(maxResults = 10, scanMillis = 5, maxHashBytes = 1_000_000), clock = EpochClock { t += 10; t })
+        val body = call(FindFilesLimits(maxResults = 10, scanMillis = 5, maxHashBytes = 1_000_000, maxMatches = 100), clock = EpochClock { t += 10; t })
 
+        assertEquals(JsonPrimitive(true), body["partial"])
+    }
+
+    @Test
+    fun copiesAreLookedForAmongTheLargestMatchesOnlyAndSaySo() {
+        // Two big copies and two small ones; room to compare only the three largest files.
+        repeat(2) { file("big$it.bin", ByteArray(500) { 1 }) }
+        repeat(2) { file("small$it.bin", ByteArray(50) { 2 }) }
+
+        val body = call(FindFilesLimits(maxResults = 10, scanMillis = 1_000, maxHashBytes = 1_000_000, maxMatches = 3), duplicatesArgs())
+
+        assertEquals(listOf(2), body["groups"]!!.jsonArray.map { it.jsonObject["copies"]!!.jsonPrimitive.int })
+        assertEquals(500L, body["wastedBytes"]!!.jsonPrimitive.content.toLong())
         assertEquals(JsonPrimitive(true), body["partial"])
     }
 }

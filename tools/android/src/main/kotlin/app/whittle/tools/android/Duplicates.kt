@@ -9,19 +9,20 @@ import java.security.MessageDigest
 data class Duplicates(val groups: List<List<File>>, val partial: Boolean)
 
 /** Identical files, grouped, with no limits; see [findDuplicates] for the version that keeps a budget. */
-fun duplicateGroups(files: List<File>): List<List<File>> = findDuplicates(files, Long.MAX_VALUE, { 0L }, Long.MAX_VALUE).groups
+fun duplicateGroups(files: List<File>): List<List<File>> = findDuplicates(files.map { it to it.length() }, Long.MAX_VALUE, { 0L }, Long.MAX_VALUE).groups
 
 /**
- * Groups of byte-identical files in [files], found the cheap way round: only files sharing a size are looked at,
+ * Groups of byte-identical files in [files] (each with the size the walk already read, so none is looked at again
+ * before hashing), found the cheap way round: only files sharing a size are looked at,
  * then the SHA-256 of the first and last 64 KiB, then the full SHA-256 for what still collides. Empty files are
  * skipped and unreadable ones left out. Reading stops when [now] reaches [deadlineMillis] (checked between chunks) or
  * after [maxHashBytes] have been read in all, and the result is then partial: groups already confirmed are kept, but
  * a file is never reported as a copy on a hash that wasn't finished.
  */
-fun findDuplicates(files: List<File>, deadlineMillis: Long, now: () -> Long, maxHashBytes: Long): Duplicates {
+fun findDuplicates(files: List<Pair<File, Long>>, deadlineMillis: Long, now: () -> Long, maxHashBytes: Long): Duplicates {
     val budget = HashBudget(deadlineMillis, now, maxHashBytes)
     val groups = mutableListOf<List<File>>()
-    val bySize = files.map { it to it.length() }.filter { it.second > 0 }.groupBy({ it.second }, { it.first })
+    val bySize = files.filter { it.second > 0 }.groupBy({ it.second }, { it.first })
     for ((size, sameSize) in bySize) {
         if (sameSize.size < 2) continue
         if (budget.stopped) break
