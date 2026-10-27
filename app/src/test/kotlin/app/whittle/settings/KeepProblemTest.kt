@@ -3,7 +3,6 @@ package app.whittle.settings
 import app.whittle.core.common.HarnessError
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 class KeepProblemTest {
     private fun problem(error: HarnessError, text: String = "likes tea", remembered: Int = 3) = keepProblem(error, text, remembered, maxItems = 10, maxItemChars = 20)
@@ -27,10 +26,5 @@ class KeepProblemTest {
     fun `anything else is a plain failure`() {
         assertEquals(KeepProblem.Failed, problem(HarnessError.Storage("disk")))
         assertEquals(KeepProblem.Failed, problem(HarnessError.Configuration("x"), remembered = 3))
-    }
-
-    @Test
-    fun `suggesting memories is on until the user turns it off`() {
-        assertTrue(UserSettings(wallpaperColors = true, haptics = true, shareUsageData = false, screenRecordings = false, keepRunningInBackground = true, themeMode = app.whittle.design.theme.ThemeMode.entries.first(), checkForUpdates = true).suggestMemories)
     }
 }

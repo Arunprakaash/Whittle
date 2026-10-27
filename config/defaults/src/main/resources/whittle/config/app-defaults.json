@@ -97,9 +97,12 @@
     "fileName": "memory.bin",
     "review": {
       "fileName": "memory-suggestions.bin",
+      "suggest": false,
+      "models": { "anthropic": "claude-haiku-4-5", "openai": "gpt-5-mini" },
       "quietMillis": 60000,
       "maxSuggestions": 3,
       "maxInputChars": 6000,
+      "contextChars": 400,
       "maxOutputTokens": 1200,
       "maxDismissed": 200,
       "maxDeclinedInInput": 20,

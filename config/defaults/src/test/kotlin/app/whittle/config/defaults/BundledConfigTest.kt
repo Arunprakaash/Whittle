@@ -83,10 +83,10 @@ class BundledConfigTest {
     }
 
     @Test
-    fun `memory review input declares the lists and the words`() {
+    fun `memory review input declares the lists, the earlier words and the new ones`() {
         val template = PromptTemplate.load(source, ConfigFiles.memoryReviewInput)
         assertIs<Outcome.Success<PromptTemplate>>(template)
-        assertEquals(setOf("remembered", "waiting", "declined", "words"), template.value.placeholders)
+        assertEquals(setOf("remembered", "waiting", "declined", "context", "words"), template.value.placeholders)
     }
 
     @Test

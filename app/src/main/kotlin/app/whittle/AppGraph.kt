@@ -188,6 +188,7 @@ class AppGraph(context: Context) {
             keepRunningInBackground = appDefaults.background.keepRunning,
             themeMode = appDefaults.appearance.theme,
             checkForUpdates = appDefaults.updates.check,
+            suggestMemories = appDefaults.memory.review.suggest,
         ),
     )
 
@@ -494,7 +495,7 @@ class AppGraph(context: Context) {
         PromptTemplate.load(configSource, ConfigFiles.memoryReviewPrompt).orThrow(ConfigFiles.memoryReviewPrompt),
         PromptTemplate.load(configSource, ConfigFiles.memoryReviewInput).orThrow(ConfigFiles.memoryReviewInput),
         appDefaults.memory.review,
-        settings = { currentSettings.value?.suggestMemories ?: true },
+        settings = { currentSettings.value?.suggestMemories ?: appDefaults.memory.review.suggest },
     )
 
     /** schedule_task: an automation takes the chat's project unless the model names another that exists. */

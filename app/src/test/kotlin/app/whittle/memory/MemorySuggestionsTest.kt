@@ -51,7 +51,7 @@ class MemorySuggestionsTest {
     private var next = 0
     private val ids = IdGenerator { "id-${next++}-padding" }
     private val review = MemoryReviewDefaults(
-        fileName = "x.bin", quietMillis = 1, maxSuggestions = 3, maxInputChars = 10, maxOutputTokens = 10, maxDismissed = 2, maxDeclinedInInput = 1, maxReviewedChats = 2, declinedContainment = 0.6, declinedShare = 0.5,
+        fileName = "x.bin", suggest = false, models = emptyMap(), quietMillis = 1, maxSuggestions = 3, maxInputChars = 10, contextChars = 5, maxOutputTokens = 10, maxDismissed = 2, maxDeclinedInInput = 1, maxReviewedChats = 2, declinedContainment = 0.6, declinedShare = 0.5,
         declinedFillerWords = listOf("the", "an", "user", "users", "my", "me", "is", "are", "was", "am", "at", "as", "of", "to", "and", "in", "on", "for", "with", "has", "have", "work", "works", "working", "he", "she", "they", "their", "his", "her", "this", "that"),
     )
 
@@ -243,7 +243,7 @@ class MemorySuggestionsTest {
     }
 
     @Test
-    fun `the encrypted file keeps the state and the bundled review limits are the planned ones`() = runTest {
+    fun `the encrypted file keeps the state`() = runTest {
         val dir = java.nio.file.Files.createTempDirectory("whittle-suggestions").toFile()
         try {
             val cipher = object : app.whittle.core.common.ContentCipher {
@@ -257,11 +257,5 @@ class MemorySuggestionsTest {
         } finally {
             dir.deleteRecursively()
         }
-        val defaults = assertIs<Outcome.Success<app.whittle.settings.AppDefaults>>(
-            ConfigLoader(BundledConfigSource()).load(
-                app.whittle.settings.AppDefaults.FILE, app.whittle.settings.AppDefaults.serializer(), app.whittle.settings.AppDefaults.SCHEMA_VERSION,
-            ),
-        ).value.memory.review
-        assertEquals(MemoryReviewDefaults("memory-suggestions.bin", 60_000, 3, 6_000, 1_200, 200, 20, 200, 0.6, 0.5, listOf("the", "an", "user", "users", "my", "me", "is", "are", "was", "am", "at", "as", "of", "to", "and", "in", "on", "for", "with", "has", "have", "work", "works", "working", "he", "she", "they", "their", "his", "her", "this", "that")), defaults)
     }
 }

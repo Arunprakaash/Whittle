@@ -27,14 +27,14 @@ data class UserSettings(
     val themeMode: ThemeMode,
     /** Whittle asks GitHub once a day whether a newer version is out (see [app.whittle.updates.UpdateCheck]). */
     val checkForUpdates: Boolean,
+    /** After a chat goes quiet Whittle reviews it for facts worth remembering; each review is one small model call on the user's key. */
+    val suggestMemories: Boolean,
     /** Draws the user's avatar ([app.whittle.design.components.BeaverAvatar]); made once per phone. */
     val avatarSeed: Long? = null,
     /** Onboarding offered Linux's setup once; it isn't offered there again, set up or not. */
     val linuxOffered: Boolean = false,
     /** The phone features (ids from phone-actions.json) the user switched off; Whittle doesn't use them. */
     val phoneOff: Set<String> = emptySet(),
-    /** After a chat goes quiet Whittle reviews it for facts worth remembering; each review is one small model call on the user's key. */
-    val suggestMemories: Boolean = true,
 )
 
 /** Settings saved on the phone. Only choices the user made are stored, so changed defaults still reach them. */

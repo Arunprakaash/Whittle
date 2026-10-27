@@ -5,6 +5,8 @@ import app.whittle.agent.OneShot
 import app.whittle.chat.ThreadItem
 import app.whittle.core.common.Outcome
 import app.whittle.core.config.PromptTemplate
+import app.whittle.core.model.ModelId
+import app.whittle.core.model.ProviderId
 import app.whittle.llm.api.ModelDescriptor
 import app.whittle.settings.MemoryReviewDefaults
 import kotlinx.serialization.Serializable
@@ -18,6 +20,17 @@ import kotlinx.serialization.json.Json
  */
 fun userWords(items: List<ThreadItem>): List<String> =
     items.filterIsInstance<ThreadItem.User>().filterNot { it.shared || it.fromCard }.map { it.text }.filter(String::isNotBlank)
+
+/**
+ * The model a review calls: the cheaper one [models] names for [chosen]'s provider (by provider id), else [chosen]
+ * itself. None when [chosen] can't be [reached] with an API key, as with Claude Code, which runs on the user's plan.
+ */
+fun reviewModel(chosen: ModelDescriptor?, models: Map<String, String>, reached: (ProviderId) -> Boolean): ModelDescriptor? {
+    if (chosen == null || !reached(chosen.providerId)) return null
+    val cheaper = models[chosen.providerId.value]?.takeIf { it != chosen.id.value } ?: return chosen
+    // A short JSON answer needs no reasoning, and a small model may refuse the setting.
+    return chosen.copy(id = ModelId(cheaper), displayName = cheaper, contextWindowTokens = null, capabilities = chosen.capabilities.copy(reasoning = false), pricing = null)
+}
 
 /**
  * The memory review: after a chat, one model call reads the user's own words and proposes lasting facts about them.
@@ -39,18 +52,20 @@ class MemoryReview(
     private class Proposals(val facts: List<Proposal> = emptyList())
 
     /**
-     * Reviews what [items] now holds of the user's words, unless the setting is off, there's no [model], the chat is an
-     * [automation] (its words are Whittle's own prompt) or nothing new was said since the last review. A failed call
-     * leaves the chat unreviewed so a later review tries again.
+     * Reviews what the user said in [items] since the last review, unless the setting is off, there's no model to call
+     * (see [reviewModel]), the chat is an [automation] (its words are Whittle's own prompt) or nothing new was said. A
+     * failed call leaves the chat unreviewed so a later review tries again.
      */
-    suspend fun review(chatId: String, items: List<ThreadItem>, model: ModelDescriptor?, automation: Boolean) {
-        if (!settings() || model == null || automation) return
+    suspend fun review(chatId: String, items: List<ThreadItem>, chosen: ModelDescriptor?, automation: Boolean) {
+        if (!settings() || automation) return
+        val model = reviewModel(chosen, config.models, oneShot::reaches) ?: return
         val words = userWords(items)
-        if (words.size <= suggestions.reviewedCount(chatId)) return
+        val reviewed = suggestions.reviewedCount(chatId)
+        if (words.size <= reviewed) return
         val remembered = memory.current()
         val system = (prompt.render(mapOf("maxSuggestions" to config.maxSuggestions.toString())) as? Outcome.Success)?.value ?: return
         val seen = suggestions.seen()
-        val input = input(remembered.map { "${it.id}: ${it.text}" }, seen, words) ?: return
+        val input = input(remembered.map { "${it.id}: ${it.text}" }, seen, before = words.take(reviewed), new = words.drop(reviewed)) ?: return
         val reply = oneShot.complete(model, system, input, config.maxOutputTokens)
         val text = (reply as? Outcome.Success)?.value ?: return
         val known = remembered.map { it.id }.toSet()
@@ -61,15 +76,17 @@ class MemoryReview(
     }
 
     /**
-     * The remembered lines, what was already suggested or declined, then the user's words with the newest kept: the
-     * oldest end is cut to fit [MemoryReviewDefaults.maxInputChars].
+     * The remembered lines, what was already suggested or declined, the end of what the user said [before] (reviewed
+     * already, cut to [MemoryReviewDefaults.contextChars]), then their [new] words with the newest kept: the oldest end
+     * is cut to fit [MemoryReviewDefaults.maxInputChars]. Words reviewed before are never sent whole again.
      */
-    private fun input(remembered: List<String>, seen: SeenSuggestions, words: List<String>): String? {
+    private fun input(remembered: List<String>, seen: SeenSuggestions, before: List<String>, new: List<String>): String? {
         val variables = mapOf(
             "remembered" to remembered.joinToString("\n"),
             "waiting" to seen.waiting.joinToString("\n"),
             "declined" to seen.declined.joinToString("\n"),
-            "words" to words.joinToString("\n").takeLast(config.maxInputChars),
+            "context" to before.joinToString("\n").takeLast(config.contextChars),
+            "words" to new.joinToString("\n").takeLast(config.maxInputChars),
         )
         return (inputPrompt.render(variables) as? Outcome.Success)?.value?.trimEnd()
     }

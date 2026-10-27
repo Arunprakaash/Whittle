@@ -103,7 +103,7 @@ class MemoryReviewTest {
     private var next = 0
     private val ids = IdGenerator { "id-${next++}-padding" }
     private val limits = MemoryReviewDefaults(
-        fileName = "x.bin", quietMillis = 1, maxSuggestions = 2, maxInputChars = 60, maxOutputTokens = 77, maxDismissed = 5, maxDeclinedInInput = 2, maxReviewedChats = 5, declinedContainment = 0.6, declinedShare = 0.5,
+        fileName = "x.bin", suggest = true, models = mapOf("test" to "small-model"), quietMillis = 1, maxSuggestions = 2, maxInputChars = 60, contextChars = 12, maxOutputTokens = 77, maxDismissed = 5, maxDeclinedInInput = 2, maxReviewedChats = 5, declinedContainment = 0.6, declinedShare = 0.5,
         declinedFillerWords = listOf("the", "an", "user", "users", "my", "me", "is", "are", "was", "am", "at", "as", "of", "to", "and", "in", "on", "for", "with", "has", "have", "work", "works", "working", "he", "she", "they", "their", "his", "her", "this", "that"),
     )
     private var enabled = true
@@ -199,7 +199,7 @@ class MemoryReviewTest {
         assertTrue("waiting for the user (nothing, if no lines follow):\nWaits one\n" in sent, sent)
         assertTrue("declined by the user (nothing, if no lines follow):\ndismissed b\ndismissed c\n" in sent, sent)
         assertFalse("dismissed a" in sent)
-        assertTrue(sent.endsWith("The user's words:\nhello"), sent)
+        assertTrue(sent.endsWith("The user's new words:\nhello"), sent)
         assertEquals(listOf("Waits one", "Fresh fact"), suggestions.pending.value.map { it.text })
     }
 
@@ -211,6 +211,50 @@ class MemoryReviewTest {
         val sent = adapter.requests.single().messages.single().text
         assertTrue(sent.endsWith("newest words"))
         assertFalse(sent.contains("OLDEST OLDEST OLDEST OLDEST OLDEST OLDEST OLDEST OLDEST OLDEST OLDEST"))
+    }
+
+    @Test
+    fun `a second review sends only the new words, after the end of the earlier ones`() = runTest {
+        val adapter = Adapter { reply("""{"facts":[]}""") }
+        val (review, _) = review(adapter)
+        val first = listOf(user("EARLY WORDS that were reviewed already"), user("I like tea"))
+        review.review("chat", first, model, automation = false)
+
+        review.review("chat", first + user("I moved to Pune"), model, automation = false)
+
+        val sent = adapter.requests.last().messages.single().text
+        // Twelve characters of what came before, then only the new words.
+        assertTrue(sent.endsWith("for context only (nothing, if no lines follow):\ny\nI like tea\n\nThe user's new words:\nI moved to Pune"), sent)
+        assertFalse("EARLY" in sent, sent)
+    }
+
+    @Test
+    fun `the review calls the cheaper model named for the provider`() = runTest {
+        val adapter = Adapter { reply("""{"facts":[]}""") }
+        val (review, _) = review(adapter)
+        review.review("chat", listOf(user("hi")), model, automation = false)
+        val sent = adapter.requests.single().model
+        assertEquals("small-model", sent.id.value)
+        assertFalse(sent.capabilities.reasoning)
+    }
+
+    @Test
+    fun `the review model is the chosen one when none is named, and none without an API key`() {
+        val reasoning = model.copy(capabilities = model.capabilities.copy(reasoning = true))
+        assertEquals(reasoning, reviewModel(reasoning, mapOf("other" to "small"), reached = { true }))
+        assertEquals("small", reviewModel(reasoning, mapOf("test" to "small"), reached = { true })?.id?.value)
+        // Claude Code runs in Linux on the user's plan; there's no key to call it with.
+        val claudeCode = model.copy(providerId = ProviderId("claude-code"))
+        assertEquals(null, reviewModel(claudeCode, mapOf("claude-code" to "haiku"), reached = { it != claudeCode.providerId }))
+        assertEquals(null, reviewModel(null, emptyMap(), reached = { true }))
+    }
+
+    @Test
+    fun `a Claude Code model is never sent a review`() = runTest {
+        val adapter = Adapter { reply("""{"facts":[]}""") }
+        val (review, _) = review(adapter)
+        review.review("chat", listOf(user("hi")), model.copy(providerId = ProviderId("claude-code")), automation = false)
+        assertTrue(adapter.requests.isEmpty())
     }
 
     @Test
