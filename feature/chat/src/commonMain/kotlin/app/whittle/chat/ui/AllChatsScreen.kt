@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.stringResource
 import app.whittle.chat.ui.resources.Res
 import app.whittle.chat.ui.resources.*
+import app.whittle.design.components.ReadingWidth
 import app.whittle.design.components.WhittleIcon
 import app.whittle.design.components.WhittleSearchBar
 import app.whittle.design.tokens.WhittleSpace
@@ -50,25 +51,31 @@ fun AllChatsScreen(state: ChatScreenState, onAction: (ChatAction) -> Unit, onBac
             }
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = WhittleSpace.l)) {
-            WhittleSearchBar(search, placeholder = stringResource(Res.string.chats_search), clearLabel = stringResource(Res.string.search_clear))
-            if (groups.isEmpty()) {
-                Text(
-                    stringResource(if (state.chats.isEmpty()) Res.string.sidebar_empty else Res.string.chats_no_match),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = WhittleSpace.l),
+        // On a wide window the chats read in a centred column; the whole width still scrolls.
+        ReadingWidth(WhittleSpace.l, Modifier.fillMaxSize().padding(padding)) { inset ->
+            Column(Modifier.fillMaxSize()) {
+                Column(Modifier.padding(horizontal = inset)) {
+                    WhittleSearchBar(search, placeholder = stringResource(Res.string.chats_search), clearLabel = stringResource(Res.string.search_clear))
+                    if (groups.isEmpty()) {
+                        Text(
+                            stringResource(if (state.chats.isEmpty()) Res.string.sidebar_empty else Res.string.chats_no_match),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = WhittleSpace.l),
+                        )
+                    }
+                }
+                ChatGroupList(
+                    groups = groups,
+                    current = state.currentChat,
+                    working = state.workingElsewhere,
+                    onOpen = onOpen,
+                    onPin = { id, pinned -> onAction(ChatAction.SetPinned(id, pinned)) },
+                    onDelete = { onAction(ChatAction.DeleteChat(it)) },
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = inset, end = inset, bottom = WhittleSpace.xxl),
                 )
             }
-            ChatGroupList(
-                groups = groups,
-                current = state.currentChat,
-                working = state.workingElsewhere,
-                onOpen = onOpen,
-                onPin = { id, pinned -> onAction(ChatAction.SetPinned(id, pinned)) },
-                onDelete = { onAction(ChatAction.DeleteChat(it)) },
-                contentPadding = PaddingValues(bottom = WhittleSpace.xxl),
-            )
         }
     }
 }

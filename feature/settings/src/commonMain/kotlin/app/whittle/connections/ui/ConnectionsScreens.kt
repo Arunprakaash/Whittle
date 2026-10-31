@@ -7,7 +7,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
@@ -19,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -67,7 +65,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
-import app.whittle.design.components.ReadingWidth
+import app.whittle.design.components.ReadingLazyColumn
 import app.whittle.design.components.CopyableText
 import app.whittle.design.components.SettingsRow
 import app.whittle.design.components.SettingsSection
@@ -413,59 +411,59 @@ fun ConnectionLibraryScreen(host: ConnectionsHost, platform: ConnectionsPlatform
         },
     ) { padding ->
         // On a wide window the page reads in a centred column; the whole width still scrolls.
-        ReadingWidth(WhittleSpace.l, Modifier.padding(padding).fillMaxSize()) { inset ->
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = inset, vertical = WhittleSpace.m),
-                verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline),
-            ) {
-                item(key = "search") {
-                    WhittleSearchBar(search, placeholder = stringResource(Res.string.connector_library_search), clearLabel = stringResource(Res.string.search_clear))
+        ReadingLazyColumn(
+            minInset = WhittleSpace.l,
+            modifier = Modifier.padding(padding).fillMaxSize(),
+            top = WhittleSpace.m,
+            bottom = WhittleSpace.m,
+            verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline),
+        ) {
+            item(key = "search") {
+                WhittleSearchBar(search, placeholder = stringResource(Res.string.connector_library_search), clearLabel = stringResource(Res.string.search_clear))
+            }
+            groups.forEach { group ->
+                val size = group.ours.size + group.catalog.size
+                item(key = "category:" + group.id) { SectionLabel(group.title) }
+                itemsIndexed(group.ours, key = { _, it -> "ours:" + it.id }) { index, connection ->
+                    LibraryRow(
+                        title = connection.name,
+                        description = connection.description.orEmpty(),
+                        url = connection.url,
+                        websiteUrl = connection.websiteUrl,
+                        status = when (connection.status) {
+                            ConnectionStatus.Connected -> RowStatus.Done(stringResource(Res.string.connector_connected))
+                            ConnectionStatus.Connecting -> RowStatus.Busy
+                            ConnectionStatus.Disconnected -> RowStatus.Action(stringResource(Res.string.connector_connect))
+                            ConnectionStatus.SignInExpired -> RowStatus.Action(stringResource(Res.string.connector_sign_in_again))
+                        },
+                        shape = segmentedShape(index, size),
+                    ) { connect(connection) }
                 }
-                groups.forEach { group ->
-                    val size = group.ours.size + group.catalog.size
-                    item(key = "category:" + group.id) { SectionLabel(group.title) }
-                    itemsIndexed(group.ours, key = { _, it -> "ours:" + it.id }) { index, connection ->
-                        LibraryRow(
-                            title = connection.name,
-                            description = connection.description.orEmpty(),
-                            url = connection.url,
-                            websiteUrl = connection.websiteUrl,
-                            status = when (connection.status) {
-                                ConnectionStatus.Connected -> RowStatus.Done(stringResource(Res.string.connector_connected))
-                                ConnectionStatus.Connecting -> RowStatus.Busy
-                                ConnectionStatus.Disconnected -> RowStatus.Action(stringResource(Res.string.connector_connect))
-                                ConnectionStatus.SignInExpired -> RowStatus.Action(stringResource(Res.string.connector_sign_in_again))
-                            },
-                            shape = segmentedShape(index, size),
-                        ) { connect(connection) }
-                    }
-                    itemsIndexed(group.catalog, key = { _, it -> "server:" + it.url }) { index, server ->
-                        LibraryRow(
-                            title = server.title,
-                            description = server.description,
-                            url = server.url,
-                            websiteUrl = server.websiteUrl,
-                            status = when {
-                                adding == server.url -> RowStatus.Busy
-                                server.added -> RowStatus.Done(stringResource(Res.string.connector_library_added_short))
-                                else -> RowStatus.Action(stringResource(Res.string.connector_add_action))
-                            },
-                            shape = segmentedShape(group.ours.size + index, size),
-                        ) { add(server) }
-                    }
+                itemsIndexed(group.catalog, key = { _, it -> "server:" + it.url }) { index, server ->
+                    LibraryRow(
+                        title = server.title,
+                        description = server.description,
+                        url = server.url,
+                        websiteUrl = server.websiteUrl,
+                        status = when {
+                            adding == server.url -> RowStatus.Busy
+                            server.added -> RowStatus.Done(stringResource(Res.string.connector_library_added_short))
+                            else -> RowStatus.Action(stringResource(Res.string.connector_add_action))
+                        },
+                        shape = segmentedShape(group.ours.size + index, size),
+                    ) { add(server) }
                 }
-                item(key = "custom") {
-                    Column(Modifier.padding(top = WhittleSpace.m), verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
-                        SectionLabel(if (groups.isEmpty()) stringResource(Res.string.connector_library_none, query) else stringResource(Res.string.connector_library_other))
-                        SettingsRow(
-                            icon = "add",
-                            title = stringResource(Res.string.connector_add),
-                            subtitle = stringResource(Res.string.connector_library_other_body),
-                            shape = segmentedShape(0, 1),
-                            onClick = { addingByAddress = true },
-                        )
-                    }
+            }
+            item(key = "custom") {
+                Column(Modifier.padding(top = WhittleSpace.m), verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+                    SectionLabel(if (groups.isEmpty()) stringResource(Res.string.connector_library_none, query) else stringResource(Res.string.connector_library_other))
+                    SettingsRow(
+                        icon = "add",
+                        title = stringResource(Res.string.connector_add),
+                        subtitle = stringResource(Res.string.connector_library_other_body),
+                        shape = segmentedShape(0, 1),
+                        onClick = { addingByAddress = true },
+                    )
                 }
             }
         }
@@ -552,25 +550,25 @@ fun ConnectionToolsScreen(host: ConnectionsHost, id: String, onBack: () -> Unit)
         },
     ) { padding ->
         // On a wide window the page reads in a centred column; the whole width still scrolls.
-        ReadingWidth(WhittleSpace.l, Modifier.padding(padding).fillMaxSize()) { inset ->
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = inset, vertical = WhittleSpace.l),
-                verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline),
-            ) {
-                if (offered.isEmpty()) {
-                    item { Text(stringResource(Res.string.connector_tools_none), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                }
-                itemsIndexed(offered, key = { _, tool -> tool.name }) { index, tool ->
-                    SettingsToggleRow(
-                        icon = "build",
-                        title = tool.name.replace('_', ' ').replaceFirstChar { it.uppercase() },
-                        subtitle = tool.description.substringBefore(". ").take(MAX_SUMMARY_CHARS).ifBlank { null },
-                        checked = tool.on,
-                        onCheckedChange = { on -> host.act(ConnectionAction.SetTool(id, tool.name, on)) },
-                        shape = segmentedShape(index, offered.size),
-                    )
-                }
+        ReadingLazyColumn(
+            minInset = WhittleSpace.l,
+            modifier = Modifier.padding(padding).fillMaxSize(),
+            top = WhittleSpace.l,
+            bottom = WhittleSpace.l,
+            verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline),
+        ) {
+            if (offered.isEmpty()) {
+                item { Text(stringResource(Res.string.connector_tools_none), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+            itemsIndexed(offered, key = { _, tool -> tool.name }) { index, tool ->
+                SettingsToggleRow(
+                    icon = "build",
+                    title = tool.name.replace('_', ' ').replaceFirstChar { it.uppercase() },
+                    subtitle = tool.description.substringBefore(". ").take(MAX_SUMMARY_CHARS).ifBlank { null },
+                    checked = tool.on,
+                    onCheckedChange = { on -> host.act(ConnectionAction.SetTool(id, tool.name, on)) },
+                    shape = segmentedShape(index, offered.size),
+                )
             }
         }
     }

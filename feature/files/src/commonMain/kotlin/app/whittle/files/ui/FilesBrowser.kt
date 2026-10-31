@@ -6,6 +6,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.ScrollableDefaults
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -26,6 +29,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -58,10 +63,11 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import app.whittle.design.components.ReadingWidth
+import app.whittle.design.components.ReadingLazyColumn
 import app.whittle.design.components.readingWidth
 import app.whittle.design.components.TopBarAction
 import app.whittle.design.components.TopBarActionGroup
@@ -161,7 +167,7 @@ private fun FolderScreen(host: FilesHost, platform: FilesPlatform, path: String,
             )
         }
         // On a wide window the folder reads in a centred column; the list still scrolls across the whole width.
-        Column(Modifier.readingWidth().padding(horizontal = WhittleSpace.l), verticalArrangement = Arrangement.spacedBy(WhittleSpace.l)) {
+        Column(Modifier.readingWidth(WhittleSpace.l), verticalArrangement = Arrangement.spacedBy(WhittleSpace.l)) {
             if (searching) WhittleSearchBar(search, placeholder = stringResource(Res.string.files_search), clearLabel = stringResource(Res.string.search_clear))
             if (offerChanged) {
                 Choice(
@@ -172,30 +178,31 @@ private fun FolderScreen(host: FilesHost, platform: FilesPlatform, path: String,
                 )
             }
         }
-        ReadingWidth(WhittleSpace.l, Modifier.weight(1f)) { inset ->
-            LazyColumn(
-                contentPadding = PaddingValues(horizontal = inset, vertical = WhittleSpace.l),
-                verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline),
-            ) {
-                if (showChanged) {
-                    val shown = changes.filter { query.isEmpty() || it.path.contains(query, ignoreCase = true) }
-                    itemsIndexed(shown, key = { _, change -> change.path }) { index, change ->
-                        ChangedRow(change, path, defaults, segmentedShape(index, shown.size)) { onOpen(FilesPlace.Document(change.path, changes = true)) }
-                    }
-                    if (shown.isEmpty()) item { Empty(Res.string.files_no_changes) }
-                } else {
-                    val shown = entries.orEmpty().filter { query.isEmpty() || it.name.contains(query, ignoreCase = true) }
-                    itemsIndexed(shown, key = { _, entry -> entry.path }) { index, entry ->
-                        EntryRow(
-                            entry = entry,
-                            defaults = defaults,
-                            shape = segmentedShape(index, shown.size),
-                            onClick = { onOpen(if (entry.directory) FilesPlace.Folder(entry.path) else FilesPlace.Document(entry.path)) },
-                            onLongClick = { deleting = entry },
-                        )
-                    }
-                    if (entries != null && shown.isEmpty()) item { Empty(Res.string.files_empty) }
+        ReadingLazyColumn(
+            minInset = WhittleSpace.l,
+            modifier = Modifier.weight(1f),
+            top = WhittleSpace.l,
+            bottom = WhittleSpace.l,
+            verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline),
+        ) {
+            if (showChanged) {
+                val shown = changes.filter { query.isEmpty() || it.path.contains(query, ignoreCase = true) }
+                itemsIndexed(shown, key = { _, change -> change.path }) { index, change ->
+                    ChangedRow(change, path, defaults, segmentedShape(index, shown.size)) { onOpen(FilesPlace.Document(change.path, changes = true)) }
                 }
+                if (shown.isEmpty()) item { Empty(Res.string.files_no_changes) }
+            } else {
+                val shown = entries.orEmpty().filter { query.isEmpty() || it.name.contains(query, ignoreCase = true) }
+                itemsIndexed(shown, key = { _, entry -> entry.path }) { index, entry ->
+                    EntryRow(
+                        entry = entry,
+                        defaults = defaults,
+                        shape = segmentedShape(index, shown.size),
+                        onClick = { onOpen(if (entry.directory) FilesPlace.Folder(entry.path) else FilesPlace.Document(entry.path)) },
+                        onLongClick = { deleting = entry },
+                    )
+                }
+                if (entries != null && shown.isEmpty()) item { Empty(Res.string.files_empty) }
             }
         }
     }
@@ -268,35 +275,42 @@ private fun DocumentScreen(
                 ),
             )
         }
-        // On a wide window the file reads in a centred column, as the chat does.
-        Column(Modifier.weight(1f).readingWidth()) {
-            if (added + removed > 0) {
-                Box(Modifier.padding(start = WhittleSpace.l, end = WhittleSpace.l, bottom = WhittleSpace.m)) {
-                    Choice(
-                        first = stringResource(Res.string.files_view_file),
-                        second = if (removed > 0) stringResource(Res.string.files_view_changes, added, removed) else stringResource(Res.string.files_view_added, added),
-                        firstChosen = !showChanges,
-                        onChoose = { file -> onMode(!file) },
-                    )
+        // On a wide window a file reads in a centred column, as the chat does, and the margins scroll it too. A picture
+        // has the whole space.
+        val fileLines = rememberLazyListState()
+        val changedLines = rememberLazyListState()
+        val reverse = ScrollableDefaults.reverseDirection(LocalLayoutDirection.current, Orientation.Vertical, false)
+        if (content == FileContent.Picture) {
+            val picture by produceState<ImageBitmap?>(null, place.path, version) { value = host.image(place.path, defaults.maxImageSidePx) }
+            picture?.let { Image(bitmap = it, contentDescription = name, contentScale = ContentScale.Fit, modifier = Modifier.weight(1f).fillMaxWidth().padding(WhittleSpace.l)) }
+        } else {
+            Box(Modifier.weight(1f).fillMaxWidth().scrollable(if (showChanges) changedLines else fileLines, Orientation.Vertical, reverseDirection = reverse)) {
+                Column(Modifier.fillMaxHeight().readingWidth()) {
+                    if (added + removed > 0) {
+                        Box(Modifier.padding(start = WhittleSpace.l, end = WhittleSpace.l, bottom = WhittleSpace.m)) {
+                            Choice(
+                                first = stringResource(Res.string.files_view_file),
+                                second = if (removed > 0) stringResource(Res.string.files_view_changes, added, removed) else stringResource(Res.string.files_view_added, added),
+                                firstChosen = !showChanges,
+                                onChoose = { file -> onMode(!file) },
+                            )
+                        }
+                    }
+                    when (val shown = content) {
+                        null, FileContent.Picture -> Unit
+                        is FileContent.Text -> if (showChanges) {
+                            ChangesView(diff, change, defaults, name, chat != null, changedLines) { onAsk(undoRequest) }
+                        } else {
+                            TextView(shown, marked, defaults, name, fileLines)
+                        }
+                        is FileContent.Pdf -> if (shown.pageRatios.isEmpty()) {
+                            NotShown(name, share, Modifier.fillMaxSize())
+                        } else {
+                            PdfPages(host, place.path, shown.pageRatios, defaults.maxImageSidePx, fileLines, Modifier.fillMaxSize())
+                        }
+                        FileContent.NotText -> NotShown(name, share, Modifier.fillMaxSize())
+                    }
                 }
-            }
-            when (val shown = content) {
-                null -> Unit
-                is FileContent.Text -> if (showChanges) {
-                    ChangesView(diff, change, defaults, name, chat != null) { onAsk(undoRequest) }
-                } else {
-                    TextView(shown, marked, defaults, name)
-                }
-                FileContent.Picture -> {
-                    val picture by produceState<ImageBitmap?>(null, place.path, version) { value = host.image(place.path, defaults.maxImageSidePx) }
-                    picture?.let { Image(bitmap = it, contentDescription = name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(WhittleSpace.l)) }
-                }
-                is FileContent.Pdf -> if (shown.pageRatios.isEmpty()) {
-                    NotShown(name, share, Modifier.fillMaxSize())
-                } else {
-                    PdfPages(host, place.path, shown.pageRatios, defaults.maxImageSidePx, Modifier.fillMaxSize())
-                }
-                FileContent.NotText -> NotShown(name, share, Modifier.fillMaxSize())
             }
         }
     }
@@ -304,10 +318,11 @@ private fun DocumentScreen(
 
 /** A PDF as its pages, one under another, each drawn as it scrolls into view at the screen's width (at most [maxSide]). */
 @Composable
-private fun PdfPages(host: FilesHost, path: String, ratios: List<Float>, maxSide: Int, modifier: Modifier) {
+private fun PdfPages(host: FilesHost, path: String, ratios: List<Float>, maxSide: Int, state: LazyListState, modifier: Modifier) {
     BoxWithConstraints(modifier) {
         val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }.coerceAtMost(maxSide)
         LazyColumn(
+            state = state,
             contentPadding = PaddingValues(start = WhittleSpace.m, end = WhittleSpace.m, bottom = WhittleSpace.m),
             verticalArrangement = Arrangement.spacedBy(WhittleSpace.s),
         ) {
@@ -331,7 +346,7 @@ private fun PdfPages(host: FilesHost, path: String, ratios: List<Float>, maxSide
 }
 
 @Composable
-private fun TextView(text: FileContent.Text, marked: Set<Int>, defaults: FilesDefaults, name: String) {
+private fun TextView(text: FileContent.Text, marked: Set<Int>, defaults: FilesDefaults, name: String, state: LazyListState) {
     val colors = MaterialTheme.colorScheme
     val code = rememberCodeColors(defaults, name)
     LazyColumn(
@@ -339,6 +354,7 @@ private fun TextView(text: FileContent.Text, marked: Set<Int>, defaults: FilesDe
             .padding(start = WhittleSpace.m, end = WhittleSpace.m, bottom = WhittleSpace.m)
             .clip(RoundedCornerShape(WhittleRadius.lIncreased))
             .background(colors.surfaceContainerLow),
+        state = state,
         contentPadding = PaddingValues(vertical = WhittleSpace.m),
     ) {
         itemsIndexed(text.lines) { index, line ->
@@ -353,7 +369,7 @@ private fun TextView(text: FileContent.Text, marked: Set<Int>, defaults: FilesDe
 }
 
 @Composable
-private fun ChangesView(diff: List<DiffLine>, change: FileChange?, defaults: FilesDefaults, name: String, canAsk: Boolean, onUndo: () -> Unit) {
+private fun ChangesView(diff: List<DiffLine>, change: FileChange?, defaults: FilesDefaults, name: String, canAsk: Boolean, state: LazyListState, onUndo: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val code = rememberCodeColors(defaults, name)
     val lines = remember(diff) { LineDiff.fold(diff, defaults.diffContextLines) }
@@ -374,6 +390,7 @@ private fun ChangesView(diff: List<DiffLine>, change: FileChange?, defaults: Fil
                 .padding(horizontal = WhittleSpace.m)
                 .clip(RoundedCornerShape(WhittleRadius.lIncreased))
                 .background(colors.surfaceContainerLow),
+            state = state,
             contentPadding = PaddingValues(vertical = WhittleSpace.m),
         ) {
             itemsIndexed(lines) { _, line ->

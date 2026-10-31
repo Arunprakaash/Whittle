@@ -59,10 +59,10 @@ import org.jetbrains.compose.resources.stringResource
 class PhoneAddress(val port: Int, val tokenFile: String, val sshPort: Int, val user: String) {
     val webSocket: String get() = "ws://127.0.0.1:$port/companion"
 
-    /** Opens the link's port from this computer to the phone at [host], and stays open (-N) while the terminal does. */
-    fun tunnel(host: String): String = "ssh -p $sshPort -N -L $port:127.0.0.1:$port $user@$host"
+    /** Opens the link's port from this computer to the phone at [host], as [forward] does a server's. */
+    fun tunnel(host: String): String = forward(port, host)
 
-    /** Opens a server's [port] from this computer to the phone at [host], as [tunnel] does the link's. */
+    /** Opens [port] from this computer to the phone at [host], and stays open (-N) while the terminal does. */
     fun forward(port: Int, host: String): String = "ssh -p $sshPort -N -L $port:127.0.0.1:$port $user@$host"
 
     /** Prints the token the phone at [host] keeps in Linux. */
