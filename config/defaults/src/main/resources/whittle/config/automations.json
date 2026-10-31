@@ -46,6 +46,14 @@
       "default": false
     },
     {
+      "key": "storage",
+      "icon": "folder",
+      "label": "Check your phone's storage",
+      "toolIds": ["storage_overview", "find_files"],
+      "capabilities": ["storage"],
+      "default": false
+    },
+    {
       "key": "readFiles",
       "icon": "folder",
       "label": "Read files in the workspace",
@@ -110,6 +118,14 @@
       "minuteOfDay": 540,
       "days": [1, 2, 3, 4, 5, 6, 7],
       "tools": ["web"]
+    },
+    {
+      "icon": "folder",
+      "name": "Weekly storage check",
+      "prompt": "Check what is using my phone's storage and report where things stand. Name the five biggest wins and any duplicates, with sizes, and propose what to delete. Do not delete anything: list the files and I will decide.",
+      "minuteOfDay": 600,
+      "days": [7],
+      "tools": ["storage"]
     }
   ]
 }

@@ -46,6 +46,9 @@ sealed interface DecisionReason {
 
     data object UnattendedNotPreApproved : DecisionReason
 
+    /** Deleting or paying: the user sees every call, whatever pre-approval, rule or default says. */
+    data object DeleteOrPay : DecisionReason
+
     data object TaintedOutbound : DecisionReason
 
     /** Untrusted content could steer a web address that carries personal data off the phone. */

@@ -403,7 +403,7 @@ class AppGraph(context: Context) {
         ToolRegistry(
             ToolCatalog.create(
                 context, clock, httpClient, workspaceTools(), harness.agent.maxPlanItems, connectors, memory, agentMessages, scheduleTask(),
-                PhoneTools(phoneActions, reminders, workspaces, healthConnect) { id -> currentSettings.value?.phoneOff?.contains(id) != true },
+                PhoneTools(phoneActions, reminders, workspaces, healthConnect) { id -> currentSettings.value.let { phoneActions.isOn(id, it?.phoneOff.orEmpty(), it?.phoneOn.orEmpty()) } },
                 createApp,
                 buildApp,
             ),

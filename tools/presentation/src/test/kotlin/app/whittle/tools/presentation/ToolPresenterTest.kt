@@ -1,5 +1,7 @@
 package app.whittle.tools.presentation
 
+import app.whittle.tools.api.ApprovedItem
+import app.whittle.tools.api.CallPreview
 import app.whittle.tools.api.ToolOrigin
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonObject
@@ -8,6 +10,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ToolPresenterTest {
     private val decision = DecisionPresentation(
@@ -33,6 +36,28 @@ class ToolPresenterTest {
             tools = mapOf(
                 "web_fetch" to ToolPresentation("language", "Reading {{url_host}}", "Read {{url_host}}", siteArgument = "url"),
                 "compose_message" to ToolPresentation("sms", "Writing to {{to}}", "Wrote to {{to}}", decision),
+                "delete_files" to ToolPresentation(
+                    "delete",
+                    "Deleting files",
+                    "Done",
+                    decision.copy(title = "Delete these files for good?", body = "{{total}} in all.", payloadArgument = "listing", payloadLabelArgument = null),
+                    previewed = listOf("listing", "count", "total"),
+                ),
+                "delete_files.unchecked" to ToolPresentation(
+                    "delete",
+                    "Deleting files",
+                    "Done",
+                    decision.copy(title = "Whittle couldn't check these files", body = "Nothing will be deleted.", payloadArgument = "listing", payloadLabelArgument = null),
+                    previewed = listOf("listing", "count", "total"),
+                ),
+                "set_alarm" to ToolPresentation("alarm", "Setting an alarm", "Set an alarm", decision.copy(title = "Set an alarm?", payloadArgument = "label", payloadLabelArgument = null)),
+                "delete_files.nothing" to ToolPresentation(
+                    "delete",
+                    "Deleting files",
+                    "Done",
+                    decision.copy(title = "Nothing here can be deleted", body = "", payloadArgument = "listing", payloadLabelArgument = null),
+                    previewed = listOf("listing", "count", "total"),
+                ),
             ),
             toolPrefixes = mapOf(
                 "mcp_" to ToolPresentation(
@@ -101,6 +126,62 @@ class ToolPresenterTest {
     fun `a connected tool without its names falls back instead of showing a template`() {
         assertEquals("Working", presenter.step("mcp_notion_search", args("{}")).running)
         assertEquals("Allow this action?", presenter.decision("mcp_notion_search", args("{}")).title)
+    }
+
+    @Test
+    fun `a delete card shows what the tool found, and no argument can change it`() {
+        val values = mapOf("listing" to "/sdcard/a.jpg  ·  1.5 KB\n/sdcard/b.pdf  ·  2.5 KB", "count" to "2", "total" to "4.0 KB")
+        val preview = CallPreview(values, approved = listOf(ApprovedItem("/storage/a.jpg"), ApprovedItem("/storage/b.pdf")))
+        val card = presenter.decision("delete_files", args("""{"paths":["/sdcard/a.jpg","/sdcard/b.pdf"],"listing":"nothing much","count":"1","total":"1 B"}"""), preview = preview)
+        assertEquals("Delete these files for good?", card.title)
+        assertEquals("4.0 KB in all.", card.body)
+        assertEquals(values["listing"], card.payload)
+    }
+
+    @Test
+    fun `without a preview, arguments can't fill what the tool fills, and the card shows the exact call`() {
+        val card = presenter.decision("delete_files", args("""{"paths":["/sdcard/a.jpg"],"listing":"/sdcard/x.jpg  ·  1 B","total":"1 B"}"""))
+        assertEquals("paths: [\"/sdcard/a.jpg\"]", card.payload)
+        assertTrue("1 B" !in card.title + card.body + card.payload)
+    }
+
+    @Test
+    fun `a tool that fills its card from a preview but got none says nothing will be deleted`() {
+        val card = presenter.decision("delete_files", args("""{"paths":["/sdcard/a.jpg"]}"""))
+        assertEquals("Whittle couldn't check these files", card.title)
+        assertEquals("paths: [\"/sdcard/a.jpg\"]", card.payload)
+        // With a preview, the tool's own card stays.
+        val preview = CallPreview(mapOf("listing" to "x", "count" to "1", "total" to "1 B"), approved = listOf(ApprovedItem("/a")))
+        assertEquals("Delete these files for good?", presenter.decision("delete_files", args("{}"), preview = preview).title)
+    }
+
+    @Test
+    fun `a card whose payload is missing doesn't show the raw arguments unless the tool fills it itself`() {
+        assertNull(presenter.decision("set_alarm", args("""{"time":"07:30"}""")).payload)
+    }
+
+    @Test
+    fun `a preview can pick the tool's card for when nothing will happen`() {
+        val preview = CallPreview(mapOf("listing" to "/sdcard/gone.jpg  ·  won't be deleted: doesn't exist", "count" to "0", "total" to "0 B"), emptyList(), variant = "nothing")
+        val card = presenter.decision("delete_files", args("""{"paths":["/sdcard/gone.jpg"]}"""), preview = preview)
+        assertEquals("Nothing here can be deleted", card.title)
+        assertEquals(preview.card["listing"], card.payload)
+        // An unknown variant keeps the tool's own card.
+        assertEquals("Delete these files for good?", presenter.decision("delete_files", args("{}"), preview = preview.copy(variant = "other")).title)
+    }
+
+    @Test
+    fun `an argument can't pose as the site a page is read from`() {
+        listOf(
+            """{"url":"https://example.com/a","url_host":"bank.com"}""",
+            """{"url_host":"bank.com","url":"https://example.com/a"}""",
+            """{"url":"https://example.com/a","url_host":["bank.com"]}""",
+        ).forEach { json ->
+            val step = presenter.step("web_fetch", args(json))
+            assertEquals("Reading example.com", step.running, json)
+            assertEquals("example.com", step.site, json)
+        }
+        assertEquals("Working", presenter.step("web_fetch", args("""{"url_host":"bank.com"}""")).running)
     }
 
     private fun args(json: String) = Json.parseToJsonElement(json).jsonObject

@@ -44,7 +44,7 @@
     "approvals": {
       "fromNotification": true,
       "inAppOnlyTiers": ["DELETE_OR_PAY"],
-      "inAppOnlyTools": ["call", "compose_message", "open_app", "open_link", "open_map", "set_alarm", "set_timer", "share"]
+      "inAppOnlyTools": ["call", "compose_message", "open_app", "open_app_storage", "open_link", "open_map", "set_alarm", "set_timer", "share"]
     }
   },
   "projects": {

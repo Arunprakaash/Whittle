@@ -4,6 +4,7 @@ import kotlinx.serialization.json.booleanOrNull
 import app.whittle.core.config.ConfigName
 import app.whittle.core.config.PromptTemplate
 import app.whittle.core.common.getOrElse
+import app.whittle.tools.api.CallPreview
 import app.whittle.tools.api.ToolOrigin
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
@@ -40,6 +41,8 @@ data class QuestionText(val icon: String, val question: String, val options: Lis
  * argument is missing), the tool's fallback text is used instead of showing a placeholder. A tool from
  * elsewhere ([ToolOrigin]) also fills {{toolTitle}} and {{toolSource}} with its provider's own names.
  * Every argument also fills `<argument>_when`: in plain words when it's a time ([PlainTime]), as written otherwise.
+ * An argument can't set those derived names itself. A tool that checks what a call would do passes its [CallPreview],
+ * filled after every argument; the names it fills ([ToolPresentation.previewed]) are never taken from arguments at all.
  */
 class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock = UserClock()) {
     private val plainTime = config.times?.let { PlainTime(it, clock) }
@@ -49,7 +52,7 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
 
     fun step(toolId: String, arguments: JsonObject, origin: ToolOrigin? = null): StepText {
         val presentation = presentation(toolId) ?: config.fallback
-        val variables = variables(arguments, origin)
+        val variables = variables(own(presentation, arguments), origin)
         return StepText(
             icon = presentation.icon,
             running = fill(presentation.running, variables, config.fallback.running),
@@ -58,16 +61,23 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
         )
     }
 
-    fun decision(toolId: String, arguments: JsonObject, origin: ToolOrigin? = null): DecisionText {
-        val decision = presentation(toolId)?.decision ?: config.fallback.decision
-            ?: error("tool-presentation.json must define fallback.decision")
+    fun decision(toolId: String, calledWith: JsonObject, origin: ToolOrigin? = null, preview: CallPreview? = null): DecisionText {
+        val presentation = presentation(toolId)
+        val arguments = own(presentation, calledWith)
+        // A preview may pick another of the tool's cards, such as one saying nothing will happen.
+        // A tool that fills its card from a preview but got none says so, rather than asking about something unchecked.
+        val variant = preview?.variant ?: UNCHECKED.takeIf { preview == null && presentation?.previewed.orEmpty().isNotEmpty() }
+        val decision = variant?.let { config.tools["$toolId$VARIANT_SEPARATOR$it"]?.decision } ?: presentation?.decision
+            ?: config.fallback.decision ?: error("tool-presentation.json must define fallback.decision")
         val fallback = config.fallback.decision ?: decision
-        val variables = variables(arguments, origin)
+        val variables = variables(arguments, origin, preview?.card.orEmpty())
         return DecisionText(
             icon = decision.icon,
             title = fill(decision.title, variables, fallback.title),
             body = (listOf(fill(decision.body, variables, fallback.body)) + flagNotes(decision, arguments)).filter { it.isNotBlank() }.joinToString(SENTENCE_GAP),
-            payload = decision.payloadArgument?.let { variables[it] } ?: if (decision === fallback) describe(arguments) else null,
+            // A card whose payload can't be filled shows the exact call instead, so it never asks about nothing.
+            // Only a tool's own preview names fall back to the call; any other card never shows arguments raw.
+            payload = decision.payloadArgument?.let { name -> variables[name] ?: describe(arguments).takeIf { name in presentation?.previewed.orEmpty() } } ?: if (decision === fallback) describe(arguments) else null,
             payloadLabel = decision.payloadLabelArgument?.let { variables[it] },
             approve = fill(decision.approve, variables, fallback.approve),
             decline = fill(decision.decline, variables, fallback.decline),
@@ -99,18 +109,27 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
     private fun fill(template: String, variables: Map<String, String>, fallback: String): String =
         PromptTemplate(TEMPLATE_NAME, template).render(variables).getOrElse { fallback }
 
+    /** [arguments] without those named like values the tool fills from its own preview, which no call may set. */
+    private fun own(presentation: ToolPresentation?, arguments: JsonObject): JsonObject {
+        val reserved = presentation?.previewed.orEmpty()
+        return if (reserved.isEmpty()) arguments else JsonObject(arguments.filterKeys { it !in reserved })
+    }
+
     /** The fallback card still shows the exact call, one argument per line. */
     private fun describe(arguments: JsonObject): String? =
         arguments.entries.joinToString("\n") { (name, value) -> "$name: ${(value as? JsonPrimitive)?.contentOrNull ?: value}" }
             .ifEmpty { null }
 
-    private fun variables(arguments: JsonObject, origin: ToolOrigin?): Map<String, String> = buildMap {
-        arguments.forEach { (name, value) ->
-            val text = (value as? JsonPrimitive)?.contentOrNull ?: return@forEach
+    private fun variables(arguments: JsonObject, origin: ToolOrigin?, preview: Map<String, String> = emptyMap()): Map<String, String> = buildMap {
+        // Derived names are the presenter's alone: an argument called url_host must not pose as the page's real site.
+        val plain = arguments.mapNotNull { (name, value) -> (value as? JsonPrimitive)?.contentOrNull?.let { name to it } }
+            .filterNot { (name, _) -> name.endsWith(HOST_SUFFIX) || name.endsWith(WHEN_SUFFIX) || name == TOOL_TITLE || name == TOOL_SOURCE }
+        plain.forEach { (name, text) ->
             put(name, text)
             hostOf(text)?.let { put("${name}$HOST_SUFFIX", it) }
             put("${name}$WHEN_SUFFIX", plainTime?.format(text) ?: text)
         }
+        putAll(preview)
         // Set last, so an argument of the same name can't pass itself off as the tool's own name.
         origin?.let {
             put(TOOL_TITLE, it.title)
@@ -130,6 +149,8 @@ class ToolPresenter(private val config: ToolPresentationConfig, clock: UserClock
         const val TOOL_TITLE = "toolTitle"
         const val TOOL_SOURCE = "toolSource"
         private const val SENTENCE_GAP = " "
+        private const val VARIANT_SEPARATOR = "."
+        private const val UNCHECKED = "unchecked"
         private const val WWW_PREFIX = "www."
         private val TEMPLATE_NAME = ConfigName("tool-presentation.json")
     }

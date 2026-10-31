@@ -41,7 +41,6 @@ import app.whittle.files.shareFile
 import app.whittle.linux.LinuxProgressStrip
 import app.whittle.phone.rememberCapabilityRequest
 import app.whittle.settings.VoiceDefaults
-import app.whittle.tools.android.AndroidCapabilities
 
 /** What the chat screen does through the phone itself: its mic, pickers, permission prompts, installer and previews. */
 @Composable
@@ -187,28 +186,25 @@ private fun rememberVoice(defaults: VoiceDefaults, input: String, onInput: (Stri
 }
 
 /**
- * Allow on a capability card shows Android's own permission prompt (Health Connect's screen for health data), then
- * reports the result. If access was already granted (say, in system settings), it reports straight away. App building
- * has no prompt: Allow sets it up.
+ * Allow on a capability card asks through the shared request (Android's prompt, Health Connect's screen for health data,
+ * the all files access page for storage where Android grants it there), then reports the result. If access was already
+ * granted (say, in system settings), it reports straight away. App building has no prompt: Allow sets it up.
  */
 @Composable
 private fun rememberCapabilityRequest(chat: ChatViewModel): (ThreadRow.Capability) -> Unit {
-    val context = LocalContext.current
     val resources = LocalResources.current
     var requestingKey by rememberSaveable { mutableStateOf<String?>(null) }
     val answer = { granted: Boolean ->
         (chat.state.value.items.firstOrNull { it.key == requestingKey } as? ThreadItem.Capability)?.let { chat.answer(it, granted) }
         requestingKey = null
     }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> answer(granted) }
-    // Health data is granted on Health Connect's own screen (or needs Health Connect from Play first).
-    val healthRequest = rememberCapabilityRequest(chat.healthConnect) { granted -> answer(granted) }
+    // The shared request: Android's prompt, the all files access page, or Health Connect's screen, as each needs.
+    val request = rememberCapabilityRequest(chat.healthConnect) { granted -> answer(granted) }
     return { row ->
         val item = chat.state.value.items.firstOrNull { it.key == row.key } as? ThreadItem.Capability
         if (item != null) {
-            val permission = AndroidCapabilities.permissionFor(item.capability)
-            when {
-                item.capability == APP_BUILDING -> chat.setUpAppBuilding(
+            if (item.capability == APP_BUILDING) {
+                chat.setUpAppBuilding(
                     item,
                     needsLinux = resources.getString(R.string.app_building_needs_linux),
                     failed = { kind, detail ->
@@ -216,15 +212,9 @@ private fun rememberCapabilityRequest(chat: ChatViewModel): (ThreadRow.Capabilit
                         resources.getString(R.string.app_building_setup_failed, why)
                     },
                 )
-                item.capability in AndroidCapabilities.HEALTH_CAPABILITIES -> {
-                    requestingKey = item.key
-                    healthRequest(listOf(item.capability))
-                }
-                permission == null || AndroidCapabilities.isGranted(context, item.capability) -> chat.answer(item, granted = true)
-                else -> {
-                    requestingKey = item.key
-                    launcher.launch(permission)
-                }
+            } else {
+                requestingKey = item.key
+                request(listOf(item.capability))
             }
         }
     }

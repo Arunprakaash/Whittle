@@ -21,6 +21,24 @@
     "maxHourlyDays": 2,
     "maxRecords": 200
   },
+  "storage": {
+    "maxFolders": 10,
+    "scanMillis": 8000,
+    "maxResults": 200,
+    "oldDays": 90,
+    "maxHashBytes": 2147483648,
+    "maxMatches": 20000,
+    "maxDeletePerCall": 50,
+    "protectedFolders": ["Android/data", "Android/obb", "Android/media"],
+    "types": {
+      "image": ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "bmp", "raw", "dng"],
+      "video": ["mp4", "mkv", "mov", "avi", "webm", "3gp", "m4v"],
+      "audio": ["mp3", "m4a", "aac", "wav", "flac", "ogg", "opus", "amr"],
+      "document": ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "rtf", "odt", "csv", "epub"],
+      "apk": ["apk", "apks", "xapk"],
+      "archive": ["zip", "rar", "7z", "tar", "gz", "bz2", "xz"]
+    }
+  },
   "switches": [
     {
       "id": "contacts",
@@ -87,7 +105,22 @@
         "list_reminders",
         "cancel_reminder"
       ]
+    },
+    {
+      "id": "storage",
+      "icon": "folder",
+      "title": "Storage",
+      "startsOff": true,
+      "capabilities": [
+        "storage"
+      ],
+      "tools": [
+        "storage_overview",
+        "find_files",
+        "delete_files",
+        "open_app_storage"
+      ]
     }
   ],
-  "offMessage": "The user turned {{feature}} off in Settings › On this phone, so Whittle can't use it. Tell them, and that they can turn it back on there."
+  "offMessage": "{{feature}} is off in Settings › On this phone, so Whittle can't use it. Tell the user, and that they can turn it on there."
 }

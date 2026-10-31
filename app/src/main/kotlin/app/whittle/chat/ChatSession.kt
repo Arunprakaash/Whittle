@@ -560,7 +560,8 @@ class ChatSession(
     private fun onDecisionRequested(event: RunEvent.DecisionRequested) {
         if (event.decision.kind == DecisionKind.QUESTION) return onQuestionRequested(event)
         val call = event.decision.toolCall
-        val text = graph.presenter.decision(call.toolName, event.arguments, origin(call.toolName))
+        // The runner made the tool's preview when it parked the call, so the card shows what an approval covers.
+        val text = graph.presenter.decision(call.toolName, event.arguments, origin(call.toolName), event.decision.preview)
         val runId = activeRunId ?: return
         // The run's id too: some providers reuse tool-call ids (call_0) from one turn to the next.
         val key = "decision-${runId.value}-${call.id.value}"

@@ -82,6 +82,64 @@
         "optionsArgument": "options"
       }
     },
+    "storage_overview": {
+      "icon": "folder",
+      "running": "Checking what's using your storage",
+      "done": "Checked your storage"
+    },
+    "find_files": {
+      "icon": "folder",
+      "running": "Looking through your files",
+      "done": "Looked through your files"
+    },
+    "delete_files": {
+      "icon": "delete",
+      "running": "Deleting files",
+      "done": "Finished deleting",
+      "previewed": ["listing", "count", "total"],
+      "decision": {
+        "icon": "delete",
+        "title": "Delete these files for good?",
+        "body": "{{total}} in all. There's no trash.",
+        "payloadArgument": "listing",
+        "approve": "Delete",
+        "decline": "Keep",
+        "approvedOutcome": "Deleted",
+        "declinedOutcome": "Kept"
+      }
+    },
+    "delete_files.unchecked": {
+      "icon": "delete",
+      "running": "Deleting files",
+      "done": "Finished deleting",
+      "previewed": ["listing", "count", "total"],
+      "decision": {
+        "icon": "delete",
+        "title": "Couldn't check these files",
+        "body": "Nothing will be deleted.",
+        "payloadArgument": "listing",
+        "approve": "OK",
+        "decline": "Dismiss",
+        "approvedOutcome": "Nothing deleted",
+        "declinedOutcome": "Nothing deleted"
+      }
+    },
+    "delete_files.nothing": {
+      "icon": "delete",
+      "running": "Deleting files",
+      "done": "Finished deleting",
+      "previewed": ["listing", "count", "total"],
+      "decision": {
+        "icon": "delete",
+        "title": "Nothing here can be deleted",
+        "body": "Each file says why.",
+        "payloadArgument": "listing",
+        "approve": "OK",
+        "decline": "Dismiss",
+        "approvedOutcome": "Nothing deleted",
+        "declinedOutcome": "Nothing deleted"
+      }
+    },
     "contacts_search": {
       "icon": "person_search",
       "running": "Looking up {{query}}",
@@ -233,6 +291,20 @@
         "approve": "Open",
         "decline": "Not now",
         "approvedOutcome": "Opened {{app}}",
+        "declinedOutcome": "Not opened"
+      }
+    },
+    "open_app_storage": {
+      "icon": "folder",
+      "running": "Opening {{app}}'s storage",
+      "done": "Opened {{app}}'s storage",
+      "decision": {
+        "icon": "folder",
+        "title": "Open {{app}}'s storage page?",
+        "body": "",
+        "approve": "Open",
+        "decline": "Not now",
+        "approvedOutcome": "Opened {{app}}'s storage",
         "declinedOutcome": "Not opened"
       }
     },
@@ -723,6 +795,15 @@
       "decline": "Not now",
       "grantedOutcome": "Adding events allowed",
       "deniedOutcome": "Adding events not allowed"
+    },
+    "storage": {
+      "icon": "folder",
+      "title": "Let Whittle see your files?",
+      "body": "Names and sizes are shared, not what's in them.",
+      "approve": "Allow",
+      "decline": "Not now",
+      "grantedOutcome": "Files allowed",
+      "deniedOutcome": "Files not allowed"
     },
     "app_building": {
       "icon": "build",

@@ -24,15 +24,21 @@ import app.whittle.llm.api.ReasoningEffort
 import app.whittle.observability.LocalTelemetry
 import app.whittle.policy.RuleBasedPolicyEngine
 import app.whittle.policy.RunMode
+import app.whittle.tools.api.ApprovedItem
+import app.whittle.tools.api.CallPreview
 import app.whittle.tools.api.CapabilityId
 import app.whittle.tools.api.RiskTier
 import app.whittle.tools.api.Tool
+import app.whittle.tools.api.ToolExecutionContext
 import app.whittle.tools.api.ToolId
+import app.whittle.tools.api.ToolOutput
 import app.whittle.tools.api.ToolRegistry
 import app.whittle.tools.api.WorkspaceId
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlin.test.Test
@@ -262,6 +268,67 @@ class AgentRunnerTest {
         val saved = savedCheckpoint()
         assertTrue(saved.pendingDecisions.isEmpty())
         assertTrue(saved.tainted)
+    }
+
+    @Test
+    fun `a parked call keeps its tool's preview through a saved checkpoint, and approving hands back what it covered`() = runTest {
+        val preview = CallPreview(mapOf("listing" to "/sdcard/a.jpg  ·  10 B"), approved = listOf(ApprovedItem("/storage/a.jpg", bytes = 10, modifiedMillis = 1_000)), variant = null)
+        val delete = PreviewingTool { preview }
+        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "delete_files")), textTurn("Done.")))
+        val runner = runner(adapter, setOf(delete))
+
+        val events = runner.start(request()).toList()
+
+        assertEquals(preview, events.filterIsInstance<RunEvent.DecisionRequested>().single().decision.preview)
+        val saved = savedCheckpoint()
+        assertEquals(preview, saved.pendingDecisions.single().preview)
+        val json = Json { ignoreUnknownKeys = true }
+        val reloaded = json.decodeFromString(RunCheckpoint.serializer(), json.encodeToString(RunCheckpoint.serializer(), saved))
+        assertEquals(preview, reloaded.pendingDecisions.single().preview)
+
+        inbox.submit(runId, RunInput.Decision(ToolCallId("c1"), DecisionAnswer.APPROVED))
+        runner.resume(runId).toList()
+
+        assertEquals(preview.approved, delete.ran?.approved)
+    }
+
+    @Test
+    fun `a preview that fails leaves the card without one and the run going`() = runTest {
+        val delete = PreviewingTool { error("storage went away") }
+        val adapter = ScriptedAdapter(listOf(toolTurn(call("c1", "delete_files")), textTurn("Done.")))
+        val runner = runner(adapter, setOf(delete))
+
+        val events = runner.start(request()).toList()
+
+        assertEquals(null, events.filterIsInstance<RunEvent.DecisionRequested>().single().decision.preview)
+        assertEquals(PauseReason.AWAITING_USER, assertIs<RunEvent.Paused>(events.last()).reason)
+        inbox.submit(runId, RunInput.Decision(ToolCallId("c1"), DecisionAnswer.APPROVED))
+        runner.resume(runId).toList()
+        // Approved without a preview: the tool hears there is no approved list, and acts on nothing.
+        assertNotNull(delete.ran)
+        assertEquals(null, delete.ran?.approved)
+    }
+
+    @Test
+    fun `tools without a preview are never asked for one`() = runTest {
+        val fetch = FakeTool("web.fetch", RiskTier.NETWORK_OUT)
+        val events = runner(ScriptedAdapter(listOf(toolTurn(call("c1", "web.fetch")))), setOf(fetch)).start(request()).toList()
+        assertEquals(null, events.filterIsInstance<RunEvent.DecisionRequested>().single().decision.preview)
+    }
+
+    /** A deleting tool that checks its calls, and remembers the context it last ran with. */
+    private class PreviewingTool(private val check: () -> CallPreview?) : Tool {
+        var ran: ToolExecutionContext? = null
+            private set
+
+        override val definition = FakeTool("delete_files", RiskTier.DELETE_OR_PAY).definition
+
+        override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
+            ran = context
+            return ToolOutput("deleted", isError = false, provenance = Provenance.Trusted)
+        }
+
+        override suspend fun preview(arguments: JsonObject): CallPreview? = check()
     }
 
     @Test

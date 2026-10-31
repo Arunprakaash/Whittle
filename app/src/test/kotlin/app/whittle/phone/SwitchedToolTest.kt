@@ -5,6 +5,8 @@ import app.whittle.core.model.RunId
 import app.whittle.core.model.ToolCallId
 import app.whittle.tools.api.ExecutionSite
 import app.whittle.tools.api.RiskTier
+import app.whittle.tools.api.ApprovedItem
+import app.whittle.tools.api.CallPreview
 import app.whittle.tools.api.Tool
 import app.whittle.tools.api.ToolDefinition
 import app.whittle.tools.api.ToolExecutionContext
@@ -15,6 +17,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SwitchedToolTest {
@@ -25,6 +28,8 @@ class SwitchedToolTest {
         )
 
         override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext) = ToolOutput("set", isError = false, provenance = Provenance.Trusted)
+
+        override suspend fun preview(arguments: JsonObject) = CallPreview(mapOf("time" to "7:00"), approved = listOf(ApprovedItem("7:00")))
     }
     private val config = PhoneActionsConfig(
         schemaVersion = 1,
@@ -32,6 +37,7 @@ class SwitchedToolTest {
         reminders = PhoneActionsConfig.Reminders("r.bin", 1, 1),
         share = PhoneActionsConfig.Share("share", 1),
         health = PhoneActionsConfig.Health("health.app", "market://details?id={{package}}", defaultDays = 7, maxDays = 30, maxHourlyDays = 2, maxRecords = 10),
+        storage = PhoneActionsConfig.Storage(1, 1, 1, 1, 1, 1, 1, emptyList(), mapOf("image" to listOf("jpg"))),
         switches = listOf(PhoneActionsConfig.Switch("alarms", "alarm", "Alarms and timers", emptyList(), listOf("set_alarm"))),
         offMessage = "{{feature}} is off",
     )
@@ -46,5 +52,35 @@ class SwitchedToolTest {
         assertTrue(refused.isError && "Alarms and timers is off" in refused.content)
         on = true
         assertFalse(tool.execute(JsonObject(emptyMap()), context).isError)
+    }
+
+    @Test
+    fun `a switched tool keeps its own preview`() = runTest {
+        val tool = switched(setOf(alarm), config) { true }.single()
+        assertEquals(alarm.preview(JsonObject(emptyMap())), tool.preview(JsonObject(emptyMap())))
+    }
+
+    @Test
+    fun `a switched-off tool has no preview`() = runTest {
+        var on = false
+        val tool = switched(setOf(alarm), config) { on }.single()
+        assertNull(tool.preview(JsonObject(emptyMap())))
+        on = true
+        assertEquals(alarm.preview(JsonObject(emptyMap())), tool.preview(JsonObject(emptyMap())))
+    }
+
+    @Test
+    fun `a switch that starts off stays off until the user turns it on`() {
+        val storage = PhoneActionsConfig.Switch("storage", "folder", "Storage", listOf("storage"), listOf("find_files"), startsOff = true)
+        val both = config.copy(switches = config.switches + storage)
+
+        // Nothing chosen yet: the usual switch is on, the one that starts off is off.
+        assertTrue(both.isOn("alarms", off = emptySet(), on = emptySet()))
+        assertFalse(both.isOn("storage", off = emptySet(), on = emptySet()))
+        assertEquals(setOf("storage"), both.offIds(emptySet(), emptySet()))
+        // Turned on, then off again.
+        assertTrue(both.isOn("storage", off = emptySet(), on = setOf("storage")))
+        assertFalse(both.isOn("storage", off = setOf("storage"), on = emptySet()))
+        assertEquals(setOf("alarms"), both.offIds(off = setOf("alarms"), on = setOf("storage")))
     }
 }

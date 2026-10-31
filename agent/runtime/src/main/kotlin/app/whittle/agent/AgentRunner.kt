@@ -40,6 +40,8 @@ import app.whittle.observability.TelemetryEvent
 import app.whittle.policy.ApprovalScope
 import app.whittle.policy.PolicyDecision
 import app.whittle.policy.PolicyEngine
+import app.whittle.tools.api.ApprovedItem
+import app.whittle.tools.api.CallPreview
 import app.whittle.tools.api.Tool
 import app.whittle.tools.api.ToolArgumentParser
 import app.whittle.tools.api.ToolExecutionContext
@@ -419,7 +421,8 @@ class AgentRunner(
         scope: ApprovalScope,
         kind: DecisionKind,
     ): Outcome<RunCheckpoint> {
-        val pending = PendingDecision(call, tool.definition.id, scope, checkpoint.step, kind)
+        val preview = if (kind == DecisionKind.APPROVAL) preview(checkpoint, tool, arguments) else null
+        val pending = PendingDecision(call, tool.definition.id, scope, checkpoint.step, kind, preview)
         telemetry.event(
             TelemetryEvent.DECISION_REQUESTED,
             toolAttributes(checkpoint, tool) + Attributes.of { metadata(AttributeKeys.DECISION_KIND, kind.name) },
@@ -431,6 +434,20 @@ class AgentRunner(
         }
         val awaiting = ContentBlock.ToolResult(call.id, waiting, isError = false, provenance = Provenance.Trusted)
         return recordResult(checkpoint.copy(pendingDecisions = checkpoint.pendingDecisions + pending), awaiting)
+    }
+
+    /**
+     * The tool's own account of a call it parks, kept with the call so the card and the approval agree even if the
+     * app closes. A tool that fails to preview gets none, and never stops the run: its card shows the exact call.
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun preview(checkpoint: RunCheckpoint, tool: Tool, arguments: JsonObject): CallPreview? = try {
+        tool.preview(arguments)
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (exception: Exception) {
+        telemetry.event(TelemetryEvent.TOOL_FAILED, toolAttributes(checkpoint, tool))
+        null
     }
 
     /** Applies what the user sent since the last step: instructions, then answers to decision cards. */
@@ -496,7 +513,8 @@ class AgentRunner(
         // Journal first: if the process dies mid-call, resume reports it instead of re-running it.
         val journaled = persist(approved.copy(inFlightDecision = call)).getOrElse { return Outcome.Failure(it) }
         val span = telemetry.startSpan(SpanName.TOOL_CALL, parent, toolAttributes(journaled, tool))
-        val output = runTool(tool, call, arguments, journaled)
+        // The tool may act only on what the approved card showed.
+        val output = runTool(tool, call, arguments, journaled, approved = pending.preview?.approved)
         span.end(if (output.isError) SpanStatus.ERROR else SpanStatus.OK)
         if (output.isError) telemetry.event(TelemetryEvent.TOOL_FAILED, toolAttributes(journaled, tool))
         val provenance = output.provenance
@@ -642,8 +660,14 @@ class AgentRunner(
 
     /** Tools are a trust boundary: any failure becomes an error result for the model, never a crash. */
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun runTool(tool: Tool, call: ContentBlock.ToolCall, arguments: JsonObject, checkpoint: RunCheckpoint): ToolOutput = try {
-        tool.execute(arguments, ToolExecutionContext(checkpoint.runId, call.id, checkpoint.workspace))
+    private suspend fun runTool(
+        tool: Tool,
+        call: ContentBlock.ToolCall,
+        arguments: JsonObject,
+        checkpoint: RunCheckpoint,
+        approved: List<ApprovedItem>? = null,
+    ): ToolOutput = try {
+        tool.execute(arguments, ToolExecutionContext(checkpoint.runId, call.id, checkpoint.workspace, approved))
     } catch (cancellation: CancellationException) {
         throw cancellation
     } catch (exception: Exception) {

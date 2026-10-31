@@ -117,6 +117,34 @@ data class AgentMessages(
     val screenUnknownApp: String,
     /** Names the screenshot at [PATH], of [SOURCE], as data; it goes beside it, so a model that sees images reads both. */
     val screenshotUntrusted: String,
+    /**
+     * delete_files' words, on its card and in its result: [deleteNotDeleted] marks a file that won't go, [deleteGap]
+     * sits between a file and its size or reason, and the rest are the reasons, each said of one file or of the call.
+     */
+    val deleteNotDeleted: String,
+    val deleteGap: String,
+    val deleteNoAccess: String,
+    val deleteNotAList: String,
+    val deleteNotAPath: String,
+    val deleteEmpty: String,
+    val deleteTooMany: String,
+    val deleteNoApprovedList: String,
+    val deleteControlCharacter: String,
+    val deleteOutsideStorage: String,
+    val deleteMissing: String,
+    val deleteUnreadable: String,
+    val deleteLink: String,
+    val deleteFolder: String,
+    val deleteNotRegular: String,
+    val deleteThroughLink: String,
+    val deleteListedTwice: String,
+    val deleteProtectedFolder: String,
+    val deleteLastCopy: String,
+    val deleteMaybeLastCopy: String,
+    val deleteKeptCopyGone: String,
+    val deleteNotOnCard: String,
+    val deleteChanged: String,
+    val deleteRefusedByAndroid: String,
 ) : VersionedConfig {
     init {
         requirePlaceholders(attachments, FILES)
@@ -194,6 +222,30 @@ data class AgentMessages(
         requirePlaceholders(diagnosticsFromPreview, NAME)
         requirePlaceholders(diagnosticsFromScreen, NAME)
         requirePlaceholders(screenshotUntrusted, SOURCE, PATH)
+        requirePlaceholders(deleteNotDeleted)
+        requirePlaceholders(deleteGap)
+        requirePlaceholders(deleteNoAccess)
+        requirePlaceholders(deleteNotAList)
+        requirePlaceholders(deleteNotAPath)
+        requirePlaceholders(deleteEmpty)
+        requirePlaceholders(deleteTooMany, LIMIT)
+        requirePlaceholders(deleteNoApprovedList)
+        requirePlaceholders(deleteControlCharacter)
+        requirePlaceholders(deleteOutsideStorage)
+        requirePlaceholders(deleteMissing)
+        requirePlaceholders(deleteUnreadable)
+        requirePlaceholders(deleteLink)
+        requirePlaceholders(deleteFolder)
+        requirePlaceholders(deleteNotRegular)
+        requirePlaceholders(deleteThroughLink)
+        requirePlaceholders(deleteListedTwice)
+        requirePlaceholders(deleteProtectedFolder)
+        requirePlaceholders(deleteLastCopy)
+        requirePlaceholders(deleteMaybeLastCopy)
+        requirePlaceholders(deleteKeptCopyGone)
+        requirePlaceholders(deleteNotOnCard)
+        requirePlaceholders(deleteChanged)
+        requirePlaceholders(deleteRefusedByAndroid)
     }
 
     fun unknownTool(tool: String): String = render(unknownTool, TOOL to tool)
@@ -307,12 +359,14 @@ data class AgentMessages(
 
     fun screenshotUntrusted(source: String, path: String): String = render(screenshotUntrusted, SOURCE to source, PATH to path)
 
+    fun deleteTooMany(limit: Int): String = render(deleteTooMany, LIMIT to limit.toString())
+
     /** The memory section of the system prompt: one line per remembered fact, as (id, text) pairs. */
     fun memories(items: List<Pair<String, String>>): String =
         if (items.isEmpty()) noMemories else items.joinToString("\n") { (id, text) -> render(memoryLine, ID to id, TEXT to text) }
 
     companion object {
-        const val SCHEMA_VERSION = 13
+        const val SCHEMA_VERSION = 14
         private const val FILES = "files"
         private const val SIZE = "size"
         private const val TOOL = "tool"

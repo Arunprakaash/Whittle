@@ -757,7 +757,7 @@ class ChatViewModel(
     /** Where a health permission card asks; see [rememberCapabilityRequest][app.whittle.phone.rememberCapabilityRequest]. */
     val healthConnect get() = graph.healthConnect
 
-    val starters: List<Starter> get() = startersFor(graph.starters, graph.currentSettings.value?.phoneOff.orEmpty())
+    val starters: List<Starter> get() = graph.currentSettings.value.let { startersFor(graph.starters, graph.phoneActions.offIds(it?.phoneOff.orEmpty(), it?.phoneOn.orEmpty())) }
 
     /** Things to build that a new chat offers. */
     val appIdeas: List<AppIdea> get() = graph.appIdeas

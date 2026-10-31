@@ -7,6 +7,8 @@ import app.whittle.linux.ComputerAccessConfig
 import app.whittle.claudecode.ClaudeCodeConfig
 import app.whittle.config.defaults.BundledConfigSource
 import app.whittle.llm.api.HostedTool
+import app.whittle.tools.api.ApprovedItem
+import app.whittle.tools.api.CallPreview
 import app.whittle.tools.api.RiskTier
 import app.whittle.connectors.matches
 import app.whittle.connectors.mcp.ConnectorsConfig
@@ -24,7 +26,12 @@ import app.whittle.tools.api.CapabilityId
 import app.whittle.settings.AppDefaults
 import app.whittle.settings.NotificationApprovalDefaults
 import app.whittle.policy.PolicyRuleSet
+import app.whittle.tools.android.DeleteFilesTool
 import app.whittle.tools.presentation.ToolPresentationConfig
+import app.whittle.tools.presentation.ToolPresenter
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.putJsonArray
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -86,7 +93,7 @@ class BundledAppConfigTest {
         assertFalse(buttons("remember", tainted = true))
         assertTrue(buttons("remember"))
         // Hand-offs open another app, which Android may block from the background while the tool reports success.
-        listOf("open_app", "open_link", "open_map", "share", "set_alarm", "set_timer").forEach { assertFalse(buttons(it), "$it got buttons") }
+        listOf("open_app", "open_app_storage", "open_link", "open_map", "share", "set_alarm", "set_timer").forEach { assertFalse(buttons(it), "$it got buttons") }
         // A run that read untrusted content keeps every approval in the app.
         assertTrue(buttons("write_file"))
         assertFalse(buttons("write_file", tainted = true))
@@ -149,12 +156,24 @@ class BundledAppConfigTest {
         val phone = assertIs<Outcome.Success<PhoneActionsConfig>>(loader.load(PhoneActionsConfig.FILE, PhoneActionsConfig.serializer(), PhoneActionsConfig.SCHEMA_VERSION)).value
         assertTrue(phone.maps.directionsUri.startsWith("https://"))
         assertTrue(phone.reminders.maxReminders > 0)
+        assertTrue(phone.storage.maxDeletePerCall in 1..50, "A delete card must stay short enough to read through")
+        // Other apps' own files: on Android 10 and older all-files access reaches them, and nothing there is the user's to tidy.
+        assertTrue(phone.storage.protectedFolders.containsAll(listOf("Android/data", "Android/obb", "Android/media")))
+        // find_files' kinds come only from storage.types, so a kind named like the catch-all, or an extension in two kinds, is refused.
+        assertFailsWith<IllegalArgumentException> { phone.copy(storage = phone.storage.copy(types = phone.storage.types + ("other" to listOf("bin")))) }
+        assertFailsWith<IllegalArgumentException> { phone.copy(storage = phone.storage.copy(types = phone.storage.types + ("photo" to listOf("jpg")))) }
         // Every switch stops tools that exist, asks for capabilities Android knows, and has a bundled icon.
         val toolIds = ToolCatalog.definitions.map { it.id.value }.toSet()
         val unknownTools = phone.switches.flatMap { it.tools } - toolIds
         assertTrue(unknownTools.isEmpty(), "phone-actions.json switches name tools that don't exist: $unknownTools")
         val unknownCapabilities = phone.switches.flatMap { it.capabilities }.filterNot { AndroidCapabilities.isKnown(CapabilityId(it)) }
         assertTrue(unknownCapabilities.isEmpty(), "Capabilities Android and Health Connect can't grant: $unknownCapabilities")
+        // Storage's switch stops deleting too. All-files access reaches the app's Linux workspace as well, so it starts off.
+        val storage = assertNotNull(phone.switches.firstOrNull { it.id == "storage" })
+        assertTrue(storage.startsOff)
+        assertFalse(phone.isOn("storage", off = emptySet(), on = emptySet()))
+        assertEquals(listOf("storage"), storage.capabilities)
+        assertTrue(storage.tools.containsAll(listOf("storage_overview", "find_files", "delete_files", "open_app_storage")))
         val missingIcons = phone.switches.map { it.icon }.toSet() - WhittleIcons.names
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
     }
@@ -166,6 +185,20 @@ class BundledAppConfigTest {
         assertTrue(Regex("^[0-9a-f]{64}$").matches(image.sha256), "the image must be pinned by its SHA-256")
         assertTrue(image.url.startsWith("https://"))
         assertTrue(linux.workspaceMount !in linux.deviceMounts)
+    }
+
+    @Test
+    fun `Linux binds nothing of shared storage into the guest`() {
+        // All-files access covers the whole app, proot included, and proot's path translation isn't a security boundary:
+        // what keeps run_command away from the user's files is that nothing of shared storage is bound in. The device check
+        // (docs/linux-workspace.md) covers what a JVM test can't, such as /proc/<pid>/root inside a real guest.
+        val linux = assertIs<Outcome.Success<LinuxConfig>>(loader.load(LinuxConfig.FILE, LinuxConfig.serializer(), LinuxConfig.SCHEMA_VERSION)).value
+        val shared = listOf("/sdcard", "/storage", "/mnt", "/data/media", "/data/user", "/data/data")
+        val hosts = linux.deviceMounts.map { it.substringBefore(':') } + linux.prootOptions.filter { it.startsWith("/") }
+        val reaching = hosts.filter { host -> shared.any { host == it || host.startsWith("$it/") || it.startsWith("$host/") || host == "/" } }
+        assertTrue(reaching.isEmpty(), "Linux must not bind shared storage into the guest: $reaching")
+        // Binds are only ever the device mounts, the sandbox and the workspace, which the app adds itself.
+        assertTrue(linux.prootOptions.none { it == "-b" || it.startsWith("--bind") || it.startsWith("-b") }, "${linux.prootOptions}")
     }
 
     @Test
@@ -214,6 +247,70 @@ class BundledAppConfigTest {
         assertTrue(missingIcons.isEmpty(), "Add these to design/system/icons/icons.txt: $missingIcons")
         val unknownCapabilities = config.tools.flatMap { it.capabilities }.filterNot { AndroidCapabilities.isKnown(CapabilityId(it)) }
         assertTrue(unknownCapabilities.isEmpty(), "automations.json asks for capabilities nothing can grant: $unknownCapabilities")
+    }
+
+    @Test
+    fun `the weekly storage check reads and proposes, and can't delete`() {
+        val config = assertIs<Outcome.Success<AutomationsConfig>>(
+            loader.load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
+        ).value
+        val storage = assertNotNull(config.tools.firstOrNull { it.key == "storage" })
+        assertEquals(listOf("storage_overview", "find_files"), storage.toolIds)
+        // Asked for when the automation is set up, not when it first runs with nobody there to allow it.
+        assertEquals(listOf("storage"), storage.capabilities)
+        assertFalse(storage.default)
+        val idea = assertNotNull(config.ideas.firstOrNull { it.name == "Weekly storage check" })
+        assertEquals(listOf(7), idea.days.toList())
+        assertEquals(600, idea.minuteOfDay)
+        assertTrue("storage" in idea.tools && "delete" in idea.prompt.lowercase())
+        // Nothing writes a report for a later run to compare with, so the prompt must not promise one.
+        assertFalse("storage-report" in idea.prompt)
+    }
+
+    @Test
+    fun `no automation can be set up to delete files`() {
+        val config = assertIs<Outcome.Success<AutomationsConfig>>(
+            loader.load(AutomationsConfig.FILE, AutomationsConfig.serializer(), AutomationsConfig.SCHEMA_VERSION),
+        ).value
+        // The policy engine asks for every delete anyway; this keeps the choice from being offered at all.
+        val deleting = ToolCatalog.definitions.filter { it.riskTier == RiskTier.DELETE_OR_PAY }.map { it.id.value }.toSet()
+        assertTrue(DeleteFilesTool.DEFINITION.id.value in deleting)
+        val offered = config.tools.filter { choice -> choice.toolIds.any { it in deleting } }.map { it.key }
+        assertTrue(offered.isEmpty(), "Automation tool choices that delete: $offered")
+        assertTrue((config.alwaysPreApproved intersect deleting).isEmpty())
+    }
+
+    @Test
+    fun `the delete card lists what the tool found, with the total`() {
+        val config = assertIs<Outcome.Success<ToolPresentationConfig>>(
+            loader.load(ConfigFiles.toolPresentation, ToolPresentationConfig.serializer(), ToolPresentationConfig.SCHEMA_VERSION),
+        ).value
+        val arguments = buildJsonObject {
+            putJsonArray("paths") { add("/sdcard/Download/a.jpg") }
+        }
+        val listing = "/sdcard/Download/a.jpg  ·  1.5 KB"
+        val values = mapOf(DeleteFilesTool.LISTING to listing, DeleteFilesTool.COUNT to "1", DeleteFilesTool.TOTAL to "1.5 KB")
+        val card = ToolPresenter(config).decision(DeleteFilesTool.DEFINITION.id.value, arguments, preview = CallPreview(values, listOf(ApprovedItem("/storage/a.jpg"))))
+        // No count in the words, so one file reads as right as many.
+        assertEquals("Delete these files for good?", card.title)
+        assertEquals(listing, card.payload)
+        assertTrue(card.body.startsWith("1.5 KB in all"))
+        assertEquals("Delete", card.approve)
+        assertEquals("Keep", card.decline)
+
+        // When nothing can go, the card says so, with no Delete button.
+        val nothing = ToolPresenter(config).decision(
+            DeleteFilesTool.DEFINITION.id.value,
+            arguments,
+            preview = CallPreview(values + (DeleteFilesTool.COUNT to "0"), emptyList(), DeleteFilesTool.NOTHING),
+        )
+        assertFalse("Delete" in nothing.title || nothing.approve == "Delete")
+        assertEquals(listing, nothing.payload)
+
+        // When the tool couldn't check the files at all, the card says nothing will go, with no Delete button.
+        val unchecked = ToolPresenter(config).decision(DeleteFilesTool.DEFINITION.id.value, arguments)
+        assertFalse("Delete" in unchecked.title || unchecked.approve == "Delete")
+        assertEquals("Nothing deleted", unchecked.approvedOutcome)
     }
 
     @Test

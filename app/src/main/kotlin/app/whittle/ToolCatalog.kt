@@ -18,8 +18,15 @@ import app.whittle.tools.android.CalendarEventsTool
 import app.whittle.tools.android.HealthDataTool
 import app.whittle.tools.android.ComposeMessageTool
 import app.whittle.tools.android.ContactsSearchTool
+import app.whittle.tools.android.DeleteFilesTool
+import app.whittle.tools.android.DeleteFilesWords
+import app.whittle.tools.android.DeviceMediaScan
+import app.whittle.tools.android.DeviceSharedStorage
+import app.whittle.tools.android.FindFilesTool
+import app.whittle.tools.android.StorageOverviewTool
 import app.whittle.tools.android.AddCalendarEventTool
 import app.whittle.tools.android.CallTool
+import app.whittle.tools.android.OpenAppStorageTool
 import app.whittle.tools.android.OpenAppTool
 import app.whittle.tools.android.OpenLinkTool
 import app.whittle.tools.android.OpenMapTool
@@ -46,6 +53,9 @@ object ToolCatalog {
         DeviceClockTool.DEFINITION,
         WebFetchTool.DEFINITION,
         ContactsSearchTool.DEFINITION,
+        StorageOverviewTool.DEFINITION,
+        FindFilesTool.DEFINITION,
+        DeleteFilesTool.DEFINITION,
         CalendarEventsTool.DEFINITION,
         HealthDataTool.DEFINITION,
         ComposeMessageTool.DEFINITION,
@@ -58,6 +68,7 @@ object ToolCatalog {
         AddCalendarEventTool.DEFINITION,
         OpenMapTool.DEFINITION,
         OpenAppTool.DEFINITION,
+        OpenAppStorageTool.DEFINITION,
         OpenLinkTool.DEFINITION,
         ShareTool.DEFINITION,
         AddConnectionTool.DEFINITION,
@@ -89,6 +100,9 @@ object ToolCatalog {
             DeviceClockTool(clock),
             WebFetchTool(httpClient),
             ContactsSearchTool(context),
+            StorageOverviewTool(context, DeviceSharedStorage(context), phone.config.storage.limits, clock),
+            FindFilesTool(DeviceSharedStorage(context), phone.config.storage.findLimits, phone.config.storage.fileTypes, clock),
+            DeleteFilesTool(DeviceSharedStorage(context), phone.config.storage.deleteLimits, deleteFilesWords(messages, phone.config.storage.maxDeletePerCall), clock, DeviceMediaScan(context)),
             CalendarEventsTool(context, clock),
             HealthDataTool(phone.health, clock, phone.config.health.limits),
             ComposeMessageTool(context),
@@ -101,6 +115,7 @@ object ToolCatalog {
             AddCalendarEventTool(context),
             OpenMapTool(context, phone.config.maps.links),
             OpenAppTool(context),
+            OpenAppStorageTool(context),
             OpenLinkTool(context),
             ShareTool(context, phone.workspaces, phone.config.share),
             AddConnectionTool(context.applicationContext, connectors),
@@ -117,3 +132,31 @@ object ToolCatalog {
         check(tools.map { it.definition }.toSet() == definitions.toSet()) { "ToolCatalog.definitions is out of step with create()" }
     }
 }
+
+/** delete_files' words from agent-messages.json, with the per-call limit filled in. */
+private fun deleteFilesWords(messages: AgentMessages, maxPaths: Int) = DeleteFilesWords(
+    notDeleted = messages.deleteNotDeleted,
+    gap = messages.deleteGap,
+    noAccess = messages.deleteNoAccess,
+    notAList = messages.deleteNotAList,
+    notAPath = messages.deleteNotAPath,
+    empty = messages.deleteEmpty,
+    tooMany = messages.deleteTooMany(maxPaths),
+    noApprovedList = messages.deleteNoApprovedList,
+    controlCharacter = messages.deleteControlCharacter,
+    outsideStorage = messages.deleteOutsideStorage,
+    missing = messages.deleteMissing,
+    unreadable = messages.deleteUnreadable,
+    link = messages.deleteLink,
+    folder = messages.deleteFolder,
+    notRegular = messages.deleteNotRegular,
+    throughLink = messages.deleteThroughLink,
+    listedTwice = messages.deleteListedTwice,
+    protectedFolder = messages.deleteProtectedFolder,
+    lastCopy = messages.deleteLastCopy,
+    maybeLastCopy = messages.deleteMaybeLastCopy,
+    keptCopyGone = messages.deleteKeptCopyGone,
+    notOnCard = messages.deleteNotOnCard,
+    changed = messages.deleteChanged,
+    refusedByAndroid = messages.deleteRefusedByAndroid,
+)

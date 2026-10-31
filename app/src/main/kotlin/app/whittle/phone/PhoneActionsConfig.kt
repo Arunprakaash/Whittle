@@ -3,13 +3,17 @@ package app.whittle.phone
 import app.whittle.core.config.ConfigName
 import app.whittle.core.config.VersionedConfig
 import app.whittle.reminders.Reminders
+import app.whittle.tools.android.DeleteFilesLimits
+import app.whittle.tools.android.FileTypes
+import app.whittle.tools.android.FindFilesLimits
 import app.whittle.tools.android.HealthConnect
 import app.whittle.tools.android.HealthLimits
 import app.whittle.tools.android.MapLinks
+import app.whittle.tools.android.StorageLimits
 import app.whittle.tools.workspace.Workspaces
 import kotlinx.serialization.Serializable
 
-/** The phone tools' settings: where maps open, Whittle's own reminders, what can be shared, and reading health data. */
+/** The phone tools' settings: where maps open, Whittle's own reminders, what can be shared, reading health data, and storage. */
 @Serializable
 data class PhoneActionsConfig(
     override val schemaVersion: Int,
@@ -17,6 +21,7 @@ data class PhoneActionsConfig(
     val reminders: Reminders,
     val share: Share,
     val health: Health,
+    val storage: Storage,
     /** What the user can switch off in Settings › On this phone, each with the tools it stops. */
     val switches: List<Switch>,
     /** What a switched-off tool tells the model; `{{feature}}` is the switch's title. */
@@ -24,10 +29,27 @@ data class PhoneActionsConfig(
 ) : VersionedConfig {
     /**
      * A phone feature the user can switch off. [capabilities] are what Android must grant before it works, asked when
-     * it's switched on; [tools] are refused while it's off.
+     * it's switched on; [tools] are refused while it's off. One that [startsOff] stays off until the user turns it on.
      */
     @Serializable
-    data class Switch(val id: String, val icon: String, val title: String, val capabilities: List<String>, val tools: List<String>)
+    data class Switch(
+        val id: String,
+        val icon: String,
+        val title: String,
+        val capabilities: List<String>,
+        val tools: List<String>,
+        val startsOff: Boolean = false,
+    )
+
+    /**
+     * Whether the switch [id] is on, given the features the user switched [off] and [on]: a switch that [Switch.startsOff]
+     * only once they turned it on, any other until they turn it off.
+     */
+    fun isOn(id: String, off: Set<String>, on: Set<String>): Boolean =
+        if (switches.any { it.id == id && it.startsOff }) id in on else id !in off
+
+    /** The ids of the switches that are off, given what the user switched [off] and [on]. */
+    fun offIds(off: Set<String>, on: Set<String>): Set<String> = switches.filterNot { isOn(it.id, off, on) }.mapTo(mutableSetOf()) { it.id }
 
     /** [searchUri] takes `{{query}}`; [directionsUri] takes `{{destination}}` and `{{mode}}`. */
     @Serializable
@@ -66,15 +88,53 @@ data class PhoneActionsConfig(
         }
     }
 
+    /**
+     * The storage tools: [maxFolders] listed by the overview, scans stop after [scanMillis], lists hold [maxResults],
+     * [oldDays] is "old", at most [maxHashBytes] are read looking for copies among the [maxMatches] largest matching files,
+     * and [types] maps each kind of file to its extensions.
+     * One delete takes at most [maxDeletePerCall] files, so its card stays short enough to read, and never one under
+     * [protectedFolders] (relative to shared storage), where other apps keep their own files.
+     */
+    @Serializable
+    data class Storage(
+        val maxFolders: Int,
+        val scanMillis: Long,
+        val maxResults: Int,
+        val oldDays: Int,
+        val maxHashBytes: Long,
+        val maxMatches: Int,
+        val maxDeletePerCall: Int,
+        val protectedFolders: List<String>,
+        val types: Map<String, List<String>>,
+    ) {
+        val limits: StorageLimits get() = StorageLimits(maxFolders, scanMillis, oldDays)
+        val deleteLimits: DeleteFilesLimits get() = DeleteFilesLimits(maxDeletePerCall, protectedFolders, scanMillis, maxHashBytes)
+        val findLimits: FindFilesLimits get() = FindFilesLimits(maxResults, scanMillis, maxHashBytes, maxMatches)
+        val fileTypes: FileTypes get() = FileTypes(types)
+    }
+
     init {
         require(maps.searchUri.contains("{{query}}")) { "maps.searchUri must take {{query}}" }
         require(maps.directionsUri.contains("{{destination}}") && maps.directionsUri.contains("{{mode}}")) { "maps.directionsUri must take {{destination}} and {{mode}}" }
         require(switches.map { it.id }.toSet().size == switches.size) { "phone-actions.json switch ids must be unique" }
         require(offMessage.contains("{{feature}}")) { "offMessage must take {{feature}}" }
         require(reminders.maxReminders > 0 && reminders.maxTextChars > 0 && share.maxFileBytes > 0) { "phone-actions.json limits must be positive" }
+        require(storage.maxFolders > 0 && storage.scanMillis > 0 && storage.maxResults > 0 && storage.oldDays > 0 && storage.maxHashBytes > 0 && storage.maxMatches >= storage.maxResults && storage.maxDeletePerCall > 0) { "phone-actions.json storage limits must be positive, and maxMatches at least maxResults" }
+        require(storage.maxDeletePerCall <= MAX_DELETE_PER_CALL) { "phone-actions.json storage.maxDeletePerCall must be at most $MAX_DELETE_PER_CALL" }
+        require(storage.protectedFolders.all { folder -> folder.trim('/').isNotEmpty() && folder.split('/').none { it == ".." } }) {
+            "phone-actions.json storage.protectedFolders must name folders under shared storage, with no .."
+        }
+        // The kinds find_files takes come from here alone, so each must be a plain name with extensions of its own.
+        require(storage.types.keys.none { it.isBlank() || it != it.lowercase() || it == FileTypes.OTHER } && storage.types.values.all { it.isNotEmpty() }) {
+            "phone-actions.json storage.types must be lower-case kinds other than ${FileTypes.OTHER}, each with extensions"
+        }
+        val extensions = storage.types.values.flatten().map { it.lowercase() }
+        require(extensions.size == extensions.toSet().size) { "phone-actions.json storage.types must give each extension one kind" }
     }
 
     companion object {
+        /** A delete card lists every file, so more than this wouldn't fit on one to read. */
+        private const val MAX_DELETE_PER_CALL = 50
         const val SCHEMA_VERSION = 1
         val FILE = ConfigName("phone-actions.json")
     }

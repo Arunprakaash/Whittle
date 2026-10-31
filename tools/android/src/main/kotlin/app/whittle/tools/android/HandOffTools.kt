@@ -2,7 +2,6 @@ package app.whittle.tools.android
 
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import app.whittle.core.model.Provenance
 import app.whittle.tools.api.ExecutionSite
@@ -126,33 +125,16 @@ class OpenAppTool(private val context: Context) : Tool {
     override suspend fun execute(arguments: JsonObject, context: ToolExecutionContext): ToolOutput {
         val name = arguments.text(APP)
         if (name.isEmpty()) return ToolJson.error("app is empty")
-        val apps = withContext(Dispatchers.IO) { launchable(this@OpenAppTool.context.packageManager) }
-        val matches = AppMatch.find(name, apps.keys)
-        val label = matches.singleOrNull() ?: return ToolJson.success(
-            Provenance.Trusted,
-            buildJsonObject {
-                put(OPENED, false)
-                putJsonArray(if (matches.isEmpty()) NO_MATCH else SEVERAL) {
-                    matches.ifEmpty { AppMatch.closest(name, apps.keys) }.forEach { add(JsonPrimitive(it)) }
-                }
-            },
-        )
+        val apps = withContext(Dispatchers.IO) { this@OpenAppTool.context.launchableApps(includeThisApp = false) }
+        val label = AppMatch.find(name, apps.keys).singleOrNull() ?: return AppMatch.notChosen(name, apps.keys, OPENED)
         val launch = this.context.packageManager.getLaunchIntentForPackage(apps.getValue(label)) ?: return ToolJson.error("$label can't be opened")
         if (!this.context.startHandOff(launch)) return ToolJson.error("$label can't be opened")
         return ToolJson.success(Provenance.Trusted, buildJsonObject { put(OPENED, true); put(APP, label) })
     }
 
-    /** Apps with a launcher icon, by the name the launcher shows. */
-    private fun launchable(packageManager: PackageManager): Map<String, String> =
-        packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
-            .filter { it.activityInfo.packageName != context.packageName }
-            .associate { it.loadLabel(packageManager).toString() to it.activityInfo.packageName }
-
     companion object {
         private const val APP = "app"
         private const val OPENED = "opened"
-        private const val SEVERAL = "severalMatch"
-        private const val NO_MATCH = "noneMatchClosest"
 
         val DEFINITION = ToolDefinition(
             id = ToolId("open_app"),
@@ -186,8 +168,30 @@ internal object AppMatch {
             .filter { it.second > 0 }.sortedByDescending { it.second }.take(MAX_SUGGESTIONS).map { it.first }
     }
 
+    /** What a tool tells the model when [query] named no single app: the names that matched, or the closest when none did. */
+    fun notChosen(query: String, names: Collection<String>, openedKey: String): ToolOutput {
+        val matches = find(query, names)
+        return ToolJson.success(
+            Provenance.Trusted,
+            buildJsonObject {
+                put(openedKey, false)
+                putJsonArray(if (matches.isEmpty()) NO_MATCH else SEVERAL) {
+                    matches.ifEmpty { closest(query, names) }.forEach { add(JsonPrimitive(it)) }
+                }
+            },
+        )
+    }
+
     private const val MAX_SUGGESTIONS = 5
+    private const val SEVERAL = "severalMatch"
+    private const val NO_MATCH = "noneMatchClosest"
 }
+
+/** Apps with a launcher icon, by the name the launcher shows, and their package names. */
+internal fun Context.launchableApps(includeThisApp: Boolean): Map<String, String> =
+    packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+        .filter { includeThisApp || it.activityInfo.packageName != packageName }
+        .associate { it.loadLabel(packageManager).toString() to it.activityInfo.packageName }
 
 /** Opens a web page in the user's browser. The address leaves the phone, so it is asked about like other outbound tools. */
 class OpenLinkTool(private val context: Context) : Tool {

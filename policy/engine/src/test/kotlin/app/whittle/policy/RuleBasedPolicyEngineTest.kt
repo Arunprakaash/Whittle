@@ -141,6 +141,36 @@ class RuleBasedPolicyEngineTest {
         assertFalse(rules.alwaysAsks(tool("files.read", RiskTier.READ), tainted = true))
     }
 
+    @Test
+    fun deleteOrPayNeverPreApproved() {
+        val unattended = context(mode = RunMode.UNATTENDED, preApproved = setOf(ToolId("delete_files")))
+        val decision = assertIs<PolicyDecision.Ask>(engine.evaluate(tool("delete_files", RiskTier.DELETE_OR_PAY), unattended))
+        assertEquals(DecisionReason.DeleteOrPay, decision.reason)
+        assertEquals(ApprovalScope.EVERY_CALL, decision.scope)
+    }
+
+    @Test
+    fun `no allow rule or default lets a delete through without asking`() {
+        val lax = baseRules.copy(
+            rules = listOf(PolicyRule("allow-all", RuleEffect.ALLOW, ToolMatcher())),
+            riskTierDefaults = baseRules.riskTierDefaults + (RiskTier.DELETE_OR_PAY to DefaultDecision.ALLOW),
+            trustTierLimits = baseRules.trustTierLimits + (TrustTier.A to TrustTierLimit(emptySet(), askEveryTimeFrom = RiskTier.DELETE_OR_PAY)),
+        )
+        val delete = tool("delete_files", RiskTier.DELETE_OR_PAY)
+        listOf(context(), context(mode = RunMode.UNATTENDED, preApproved = setOf(ToolId("delete_files")))).forEach { run ->
+            val decision = assertIs<PolicyDecision.Ask>(RuleBasedPolicyEngine(lax).evaluate(delete, run))
+            assertEquals(DecisionReason.DeleteOrPay, decision.reason)
+            assertEquals(ApprovalScope.EVERY_CALL, decision.scope)
+        }
+    }
+
+    @Test
+    fun `a deny still beats the delete question`() {
+        val rules = baseRules.copy(rules = listOf(PolicyRule("no-deleting", RuleEffect.DENY, ToolMatcher(toolIdPattern = "delete_files"))))
+        assertIs<PolicyDecision.Deny>(RuleBasedPolicyEngine(rules).evaluate(tool("delete_files", RiskTier.DELETE_OR_PAY), context()))
+        assertIs<PolicyDecision.Deny>(engine.evaluate(tool("delete_files", RiskTier.DELETE_OR_PAY), context(tier = TrustTier.C)))
+    }
+
     private fun tool(id: String, risk: RiskTier) = ToolDefinition(
         id = ToolId(id),
         description = id,
