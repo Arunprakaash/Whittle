@@ -11,11 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -28,7 +26,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import app.whittle.settings.ui.resources.Res
 import app.whittle.settings.ui.resources.*
-import app.whittle.design.components.ReadingWidth
+import app.whittle.design.components.ReadingScrollColumn
 import app.whittle.design.components.ScreenHeading
 import app.whittle.design.components.TopBarButton
 import app.whittle.design.components.WhittleIcon
@@ -106,14 +104,13 @@ fun BringModelScreen(
         },
     ) { padding ->
         // On a wide window the page reads in a centred column; the whole width still scrolls.
-        ReadingWidth(WhittleSpace.l, Modifier.padding(padding).fillMaxSize()) { inset ->
-            Column(
-                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = inset),
-                verticalArrangement = Arrangement.spacedBy(WhittleSpace.xxl),
-            ) {
-                ScreenHeading(stringResource(Res.string.bring_model_title), stringResource(Res.string.bring_model_body), Modifier.padding(horizontal = WhittleSpace.s))
-                ProviderChoices(providers, selected, claudeCode, onProvider, onClaudeCode)
-            }
+        ReadingScrollColumn(
+            minInset = WhittleSpace.l,
+            modifier = Modifier.padding(padding).fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(WhittleSpace.xxl),
+        ) {
+            ScreenHeading(stringResource(Res.string.bring_model_title), stringResource(Res.string.bring_model_body), Modifier.padding(horizontal = WhittleSpace.s))
+            ProviderChoices(providers, selected, claudeCode, onProvider, onClaudeCode)
         }
     }
 }

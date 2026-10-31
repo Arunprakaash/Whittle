@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -68,6 +66,7 @@ import androidx.compose.ui.unit.Dp
 import app.whittle.chat.ui.resources.Res
 import app.whittle.chat.ui.resources.*
 import app.whittle.design.components.ReadingWidth
+import app.whittle.design.components.ReadingLazyColumn
 import app.whittle.design.components.readingInset
 import app.whittle.design.components.AgentState
 import app.whittle.design.components.AnswerFooter
@@ -369,23 +368,23 @@ private fun Thread(
     }
     Box(Modifier.fillMaxSize()) {
         // The thread reads in a centred column on a wide window; the whole width still scrolls.
-        ReadingWidth(WhittleSpace.l, Modifier.fillMaxSize()) { inset ->
-            LazyColumn(
-                state = listState,
-                contentPadding = PaddingValues(start = inset, top = WhittleSpace.l, end = inset, bottom = WhittleSpace.l + dockSpace),
-                verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                // One footer per turn, under its last answer; the turn's sources join it instead of a row of their own.
-                // A plan lives in the status card while it runs; afterwards it's in the run's summary.
-                val plan = AnswerFooters.plan(items)
-                items(items.filterNot { it.key in plan.folded || it is ThreadRow.Plan }, key = { it.key }) { item ->
-                    ThreadRowView(item, rows, Modifier.animateItem(), plan.footers[item.key])
-                }
-                footer?.let { note ->
-                    item(key = FOOTER_KEY) {
-                        Box(Modifier.fillMaxWidth().animateItem().padding(vertical = WhittleSpace.xxl), contentAlignment = Alignment.Center) { note(Modifier) }
-                    }
+        ReadingLazyColumn(
+            minInset = WhittleSpace.l,
+            modifier = Modifier.fillMaxSize(),
+            state = listState,
+            top = WhittleSpace.l,
+            bottom = WhittleSpace.l + dockSpace,
+            verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
+        ) {
+            // One footer per turn, under its last answer; the turn's sources join it instead of a row of their own.
+            // A plan lives in the status card while it runs; afterwards it's in the run's summary.
+            val plan = AnswerFooters.plan(items)
+            items(items.filterNot { it.key in plan.folded || it is ThreadRow.Plan }, key = { it.key }) { item ->
+                ThreadRowView(item, rows, Modifier.animateItem(), plan.footers[item.key])
+            }
+            footer?.let { note ->
+                item(key = FOOTER_KEY) {
+                    Box(Modifier.fillMaxWidth().animateItem().padding(vertical = WhittleSpace.xxl), contentAlignment = Alignment.Center) { note(Modifier) }
                 }
             }
         }

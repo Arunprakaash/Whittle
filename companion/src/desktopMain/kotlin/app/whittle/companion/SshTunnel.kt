@@ -1,11 +1,13 @@
 package app.whittle.companion
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.io.IOException
+import java.io.OutputStream
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -13,6 +15,7 @@ import java.net.Socket
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.prefs.Preferences
+import kotlin.concurrent.thread
 
 /**
  * Opens the way to the phone with this computer's own ssh and key, as the user would in a terminal: reads the token,
@@ -97,20 +100,38 @@ class SshTunnel(private val phone: PhoneAddress, private val ssh: String = SSH) 
         val process = ProcessBuilder(listOf(ssh) + OPTIONS + TUNNEL_OPTIONS + listOf("-p", phone.sshPort.toString(), "-N", "-L", "$local:$LOOPBACK:$remote", target))
             .redirectErrorStream(true)
             .start()
-        val listening = withTimeoutOrNull(OPEN_TIMEOUT_MILLIS) {
-            while (process.isAlive && !accepts(local)) delay(POLL_MILLIS)
-            process.isAlive
-        } == true
-        if (listening) return Listening(process, null)
+        val listening = try {
+            withTimeoutOrNull(OPEN_TIMEOUT_MILLIS) {
+                while (process.isAlive && !accepts(local)) delay(POLL_MILLIS)
+                process.isAlive
+            } == true
+        } catch (cancelled: CancellationException) {
+            // Whoever asked has gone (a preview cancelled while it opened); nothing else knows this ssh to end it.
+            process.destroy()
+            throw cancelled
+        }
+        if (listening) {
+            // ssh says a line for every connection the phone refuses; unread, they'd fill the pipe and stall the tunnel.
+            thread(isDaemon = true, name = "ssh $local") { runCatching { process.inputStream.use { it.transferTo(OutputStream.nullOutputStream()) } } }
+            return Listening(process, null)
+        }
         process.destroy()
         val said = process.inputStream.bufferedReader().readText().trim().ifEmpty { null }
         process.waitFor(CLOSE_WAIT_SECONDS, TimeUnit.SECONDS)
         return Listening(null, said)
     }
 
-    /** Whether nothing on this computer has [port] yet. */
-    private fun free(port: Int): Boolean = try {
-        ServerSocket(port, 1, InetAddress.getByName(LOOPBACK)).close()
+    /**
+     * Whether nothing on this computer has [port] yet, on any address: the loopback ssh listens on, and every address (a
+     * server listening on all of them, or only on IPv6's loopback). Without address reuse, so no listener is overlooked.
+     */
+    private fun free(port: Int): Boolean = binds(InetSocketAddress(InetAddress.getByName(LOOPBACK), port)) && binds(InetSocketAddress(port))
+
+    private fun binds(address: InetSocketAddress): Boolean = try {
+        ServerSocket().use { socket ->
+            socket.reuseAddress = false
+            socket.bind(address)
+        }
         true
     } catch (_: IOException) {
         false

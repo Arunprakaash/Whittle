@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,7 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import app.whittle.design.components.ReadingWidth
+import app.whittle.design.components.ReadingLazyColumn
 import app.whittle.design.components.BeaverScene
 import app.whittle.design.components.MenuAction
 import app.whittle.design.components.SceneProgress
@@ -88,27 +86,26 @@ fun LinuxWorkspaceScreen(host: LinuxHost, platform: LinuxPlatform, onBack: () ->
         topBar = { TopBar(state, onBack, onRepair = { host.act(LinuxAction.Repair) }, onConfirm = { confirming = it }) },
     ) { padding ->
         // On a wide window the page reads in a centred column; the whole width still scrolls.
-        ReadingWidth(0.dp, Modifier.padding(padding).fillMaxSize()) { inset ->
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = inset, end = inset, bottom = WhittleSpace.xl),
-                verticalArrangement = Arrangement.spacedBy(WhittleSpace.xl),
-            ) {
-                item { BeaverScene(state.imageName, sceneStatus(state), working = state.kind == LinuxKind.SettingUp, progress = sceneProgress(state)) }
-                when (state.kind) {
-                    LinuxKind.NotSetUp -> notSetUp(state, host)
-                    LinuxKind.SettingUp -> state.progress?.let { progress -> padded { Progress(progress) } }
-                    LinuxKind.Failed -> {
-                        state.progress?.let { progress -> padded { Progress(progress) } }
-                        padded { SetUpButton(state, host, Res.string.linux_try_again) }
-                    }
-                    LinuxKind.Ready -> {
-                        padded { ComputersSection(state.access, host) }
-                        padded { AccessSection(state, host, platform) }
-                        if (state.running.isNotEmpty()) padded { RunningSection(state.running) { host.act(LinuxAction.StopAll) } }
-                        padded { StorageSection(state.usage) { host.act(LinuxAction.ClearCaches) } }
-                        padded { AppBuildingSection(state.toolchain) { host.act(LinuxAction.RemoveToolchain) } }
-                    }
+        ReadingLazyColumn(
+            minInset = 0.dp,
+            modifier = Modifier.padding(padding).fillMaxSize(),
+            bottom = WhittleSpace.xl,
+            verticalArrangement = Arrangement.spacedBy(WhittleSpace.xl),
+        ) {
+            item { BeaverScene(state.imageName, sceneStatus(state), working = state.kind == LinuxKind.SettingUp, progress = sceneProgress(state)) }
+            when (state.kind) {
+                LinuxKind.NotSetUp -> notSetUp(state, host)
+                LinuxKind.SettingUp -> state.progress?.let { progress -> padded { Progress(progress) } }
+                LinuxKind.Failed -> {
+                    state.progress?.let { progress -> padded { Progress(progress) } }
+                    padded { SetUpButton(state, host, Res.string.linux_try_again) }
+                }
+                LinuxKind.Ready -> {
+                    padded { ComputersSection(state.access, host) }
+                    padded { AccessSection(state, host, platform) }
+                    if (state.running.isNotEmpty()) padded { RunningSection(state.running) { host.act(LinuxAction.StopAll) } }
+                    padded { StorageSection(state.usage) { host.act(LinuxAction.ClearCaches) } }
+                    padded { AppBuildingSection(state.toolchain) { host.act(LinuxAction.RemoveToolchain) } }
                 }
             }
         }

@@ -76,7 +76,8 @@ class ComputerChatPlatform(
             text = {
                 Text(
                     if (failed) {
-                        stringResource(Res.string.preview_failed, port, phone.forward(port, stringResource(Res.string.connect_host_placeholder)))
+                        // The phone the app last reached, so the command runs as it's shown.
+                        stringResource(Res.string.preview_failed, port, phone.forward(port, tunnel.lastHost ?: stringResource(Res.string.connect_host_placeholder)))
                     } else {
                         stringResource(Res.string.preview_opening, port)
                     },

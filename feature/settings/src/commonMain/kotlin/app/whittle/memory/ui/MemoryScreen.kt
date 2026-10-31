@@ -5,7 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
@@ -16,10 +15,8 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -42,7 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.Role
-import app.whittle.design.components.ReadingWidth
+import app.whittle.design.components.ReadingLazyColumn
+import app.whittle.design.components.ReadingScrollColumn
 import app.whittle.design.components.BottomActionButton
 import app.whittle.design.components.MenuAction
 import app.whittle.design.components.ScreenHeading
@@ -134,54 +132,54 @@ private fun MemoryList(host: MemoryHost, onBack: () -> Unit, onOpen: (MemoryDraf
         },
     ) { padding ->
         // On a wide window the page reads in a centred column; the whole width still scrolls.
-        ReadingWidth(WhittleSpace.l, Modifier.padding(padding).fillMaxSize()) { inset ->
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = inset, end = inset, top = WhittleSpace.s, bottom = WhittleSpace.l),
-                verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline),
-            ) {
-                item {
-                    Column(
-                        Modifier.padding(start = WhittleSpace.s, end = WhittleSpace.s, bottom = WhittleSpace.xl),
-                        verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
-                    ) {
-                        ScreenHeading(stringResource(Res.string.memory_heading), stringResource(Res.string.memory_intro))
-                        if (memories.isNotEmpty() && state.maxItems > 0) {
-                            Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
-                                LinearProgressIndicator(progress = { memories.size.toFloat() / state.maxItems }, modifier = Modifier.fillMaxWidth())
-                                Text(
-                                    pluralStringResource(Res.plurals.memory_used, memories.size, memories.size, state.maxItems),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
+        ReadingLazyColumn(
+            minInset = WhittleSpace.l,
+            modifier = Modifier.padding(padding).fillMaxSize(),
+            top = WhittleSpace.s,
+            bottom = WhittleSpace.l,
+            verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline),
+        ) {
+            item {
+                Column(
+                    Modifier.padding(start = WhittleSpace.s, end = WhittleSpace.s, bottom = WhittleSpace.xl),
+                    verticalArrangement = Arrangement.spacedBy(WhittleSpace.m),
+                ) {
+                    ScreenHeading(stringResource(Res.string.memory_heading), stringResource(Res.string.memory_intro))
+                    if (memories.isNotEmpty() && state.maxItems > 0) {
+                        Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.s)) {
+                            LinearProgressIndicator(progress = { memories.size.toFloat() / state.maxItems }, modifier = Modifier.fillMaxWidth())
+                            Text(
+                                pluralStringResource(Res.plurals.memory_used, memories.size, memories.size, state.maxItems),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
                 }
-                if (memories.isEmpty()) {
-                    item { EmptyMemory(state.ideas) { idea -> onOpen(MemoryDraft(null, idea.start)) } }
+            }
+            if (memories.isEmpty()) {
+                item { EmptyMemory(state.ideas) { idea -> onOpen(MemoryDraft(null, idea.start)) } }
+            }
+            listOf(Res.string.memory_today to today, Res.string.memory_earlier to earlier).filter { it.second.isNotEmpty() }.forEach { (title, group) ->
+                item(key = title.key) {
+                    Text(
+                        stringResource(title),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = WhittleSpace.m, top = WhittleSpace.l, bottom = WhittleSpace.s),
+                    )
                 }
-                listOf(Res.string.memory_today to today, Res.string.memory_earlier to earlier).filter { it.second.isNotEmpty() }.forEach { (title, group) ->
-                    item(key = title.key) {
-                        Text(
-                            stringResource(title),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = WhittleSpace.m, top = WhittleSpace.l, bottom = WhittleSpace.s),
-                        )
-                    }
-                    itemsIndexed(group, key = { _, memory -> memory.id }) { index, memory ->
-                        MemoryRow(
-                            text = memory.text,
-                            meta = savedWhen(memory.savedAtMillis, now),
-                            shape = segmentedShape(index, group.size),
-                            onClick = { onOpen(MemoryDraft(memory, memory.text)) },
-                        )
-                    }
+                itemsIndexed(group, key = { _, memory -> memory.id }) { index, memory ->
+                    MemoryRow(
+                        text = memory.text,
+                        meta = savedWhen(memory.savedAtMillis, now),
+                        shape = segmentedShape(index, group.size),
+                        onClick = { onOpen(MemoryDraft(memory, memory.text)) },
+                    )
                 }
-                if (full) {
-                    item { SupportingNote("info", stringResource(Res.string.memory_full), Modifier.padding(top = WhittleSpace.l)) }
-                }
+            }
+            if (full) {
+                item { SupportingNote("info", stringResource(Res.string.memory_full), Modifier.padding(top = WhittleSpace.l)) }
             }
         }
     }
@@ -320,36 +318,35 @@ private fun MemoryEditor(host: MemoryHost, draft: MemoryDraft, onClose: () -> Un
         },
     ) { padding ->
         // On a wide window the page reads in a centred column; the whole width still scrolls.
-        ReadingWidth(WhittleSpace.l, Modifier.padding(padding).fillMaxSize().imePadding()) { inset ->
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(scroll)
-                    .padding(start = inset, end = inset, top = WhittleSpace.s, bottom = WhittleSpace.xxxl),
-                verticalArrangement = Arrangement.spacedBy(WhittleSpace.xxl),
-            ) {
-                WhittleFilledField(
-                    value = text,
-                    onValueChange = { text = if (state.maxItemChars > 0) it.take(state.maxItemChars) else it; issue = null },
-                    label = stringResource(Res.string.memory_field),
-                    minLines = FIELD_LINES,
-                    enabled = !saving,
-                    hint = stringResource(Res.string.memory_field_hint),
-                    counter = stringResource(Res.string.memory_counter, text.length, state.maxItemChars),
-                    error = issue?.let { stringResource(if (it == MemoryIssue.Full) Res.string.memory_full else Res.string.memory_save_failed) },
-                    autoFocus = saved == null,
-                    modifier = Modifier.userContent(),
-                )
-                val facts = listOfNotNull(
-                    saved?.let {
-                        Triple("history", stringResource(Res.string.memory_saved_at, savedOn(it.savedAtMillis)), stringResource(Res.string.memory_saved_note))
-                    },
-                    Triple("lock", stringResource(Res.string.memory_private), stringResource(Res.string.memory_private_note)),
-                )
-                Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
-                    facts.forEachIndexed { index, (icon, title, subtitle) ->
-                        SettingsRow(icon = icon, title = title, subtitle = subtitle, shape = segmentedShape(index, facts.size))
-                    }
+        ReadingScrollColumn(
+            minInset = WhittleSpace.l,
+            modifier = Modifier.padding(padding).fillMaxSize().imePadding(),
+            scroll = scroll,
+            top = WhittleSpace.s,
+            bottom = WhittleSpace.xxxl,
+            verticalArrangement = Arrangement.spacedBy(WhittleSpace.xxl),
+        ) {
+            WhittleFilledField(
+                value = text,
+                onValueChange = { text = if (state.maxItemChars > 0) it.take(state.maxItemChars) else it; issue = null },
+                label = stringResource(Res.string.memory_field),
+                minLines = FIELD_LINES,
+                enabled = !saving,
+                hint = stringResource(Res.string.memory_field_hint),
+                counter = stringResource(Res.string.memory_counter, text.length, state.maxItemChars),
+                error = issue?.let { stringResource(if (it == MemoryIssue.Full) Res.string.memory_full else Res.string.memory_save_failed) },
+                autoFocus = saved == null,
+                modifier = Modifier.userContent(),
+            )
+            val facts = listOfNotNull(
+                saved?.let {
+                    Triple("history", stringResource(Res.string.memory_saved_at, savedOn(it.savedAtMillis)), stringResource(Res.string.memory_saved_note))
+                },
+                Triple("lock", stringResource(Res.string.memory_private), stringResource(Res.string.memory_private_note)),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(WhittleSpace.hairline)) {
+                facts.forEachIndexed { index, (icon, title, subtitle) ->
+                    SettingsRow(icon = icon, title = title, subtitle = subtitle, shape = segmentedShape(index, facts.size))
                 }
             }
         }
